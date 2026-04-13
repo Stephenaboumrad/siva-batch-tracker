@@ -1,0 +1,2116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  SIVA BATCH TRACKER — Suivi de Bandes de Poulets de Chair  ║
+  ║  Société Ivoirienne de Volailles et Assimilés — Azaguié    ║
+  ╚══════════════════════════════════════════════════════════════╝
+
+  GUIDE DE MISE EN ROUTE (3 étapes) :
+
+  1. CRÉER LE TABLEUR GOOGLE SHEETS
+     - Créer un nouveau Google Sheets
+     - Ajouter 3 feuilles nommées exactement : "Bandes", "Saisies", "Intrants"
+
+  2. DÉPLOYER LE GOOGLE APPS SCRIPT
+     - Ouvrir Extensions > Apps Script
+     - Copier-coller le code "Code.gs" situé en bas de ce fichier
+     - Déployer > Nouvelle déploiement > Application Web
+     - Accès : "Tout le monde"
+     - Copier l'URL de déploiement
+
+  3. CONFIGURER L'APPLICATION
+     - Ouvrir ce fichier HTML dans un navigateur
+     - Aller dans "Paramètres"
+     - Coller l'URL Apps Script et enregistrer
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIVA — Suivi de Bandes</title>
+
+<!-- CDN Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green: #2E7D32;
+  --green-light: #4CAF50;
+  --green-dark: #1B5E20;
+  --gold: #F9A825;
+  --gold-light: #FDD835;
+  --bg: #f5f5f5;
+  --white: #ffffff;
+  --text: #212121;
+  --text-light: #757575;
+  --border: #e0e0e0;
+  --red: #c62828;
+  --orange: #ef6c00;
+  --sidebar-w: 250px;
+}
+html { font-size: 15px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--green-dark);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+  transition: transform 0.3s;
+}
+#sidebar .logo {
+  padding: 1.5rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  text-align: center;
+}
+#sidebar .logo h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: 2px; color: var(--gold); }
+#sidebar .logo small { font-size: 0.7rem; opacity: 0.7; display: block; margin-top: 2px; }
+#sidebar nav { flex: 1; padding: 0.5rem 0; }
+#sidebar nav a {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  color: rgba(255,255,255,0.8);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+#sidebar nav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+#sidebar nav a.active {
+  background: rgba(255,255,255,0.15);
+  color: var(--gold);
+  border-left-color: var(--gold);
+  font-weight: 600;
+}
+#sidebar nav a .icon { font-size: 1.1rem; width: 1.5rem; text-align: center; }
+
+/* ── Mobile hamburger ── */
+#menu-toggle {
+  display: none;
+  position: fixed;
+  top: 0.75rem; left: 0.75rem;
+  z-index: 200;
+  background: var(--green);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  width: 40px; height: 40px;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 99;
+}
+
+/* ── Main ── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-height: 100vh;
+  padding: 2rem;
+}
+#main h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--green-dark);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--white);
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.card-header h3 { font-size: 1.1rem; color: var(--green); }
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-green { background: #e8f5e9; color: var(--green); }
+.badge-orange { background: #fff3e0; color: var(--orange); }
+.badge-red { background: #ffebee; color: var(--red); }
+.badge-grey { background: #eeeeee; color: #616161; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+.stat-item { text-align: center; }
+.stat-item .label { font-size: 0.7rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-item .value { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-top: 2px; }
+
+/* ── Dashboard cards grid ── */
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+}
+.alert-bar {
+  background: #fff3e0;
+  border-left: 4px solid var(--orange);
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+/* ── Forms ── */
+.form-group { margin-bottom: 1rem; }
+.form-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-light);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(46,125,50,0.15);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 1rem;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--green); color: #fff; }
+.btn-primary:hover { background: var(--green-light); }
+.btn-gold { background: var(--gold); color: #333; }
+.btn-gold:hover { background: var(--gold-light); }
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--green);
+  color: var(--green);
+}
+.btn-outline:hover { background: rgba(46,125,50,0.06); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+
+/* ── Tables ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th, td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  background: #f9f9f9;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+}
+tr:hover td { background: #fafafa; }
+
+/* ── Charts ── */
+.chart-container {
+  position: relative;
+  height: 300px;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Sections (pages) ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Setup banner ── */
+.setup-banner {
+  background: linear-gradient(135deg, var(--green-dark), var(--green));
+  color: #fff;
+  border-radius: 10px;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+.setup-banner h3 { color: var(--gold); margin-bottom: 0.75rem; font-size: 1.2rem; }
+.setup-banner ol { padding-left: 1.25rem; }
+.setup-banner li { margin-bottom: 0.5rem; line-height: 1.5; }
+.setup-banner code {
+  background: rgba(0,0,0,0.2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  z-index: 500;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.3s;
+  max-width: 350px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { background: var(--green); }
+#toast.error { background: var(--red); }
+
+/* ── Loading spinner ── */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2.5px solid rgba(0,0,0,0.1);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300;
+  padding: 1rem;
+}
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal h3 { color: var(--green-dark); margin-bottom: 1rem; }
+.modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 1rem; }
+.tab-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--text-light);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+}
+.tab-btn.active { color: var(--green); border-bottom-color: var(--green); font-weight: 600; }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-light);
+}
+.empty-state .icon { font-size: 3rem; margin-bottom: 0.5rem; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+  #sidebar { transform: translateX(-260px); width: 260px; }
+  #sidebar.open { transform: translateX(0); }
+  #menu-toggle { display: block; }
+  #sidebar-overlay.open { display: block; }
+  #main { margin-left: 0; padding: 1rem; padding-top: 3.5rem; }
+  .form-row { grid-template-columns: 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- Mobile menu toggle -->
+<button id="menu-toggle" onclick="toggleSidebar()">&#9776;</button>
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div class="logo">
+    <h1>SIVA</h1>
+    <small>Les Terres du Sud — Azaguié</small>
+  </div>
+  <nav>
+    <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
+      <span class="icon">&#128202;</span> Tableau de bord
+    </a>
+    <a href="#" data-page="bandes" onclick="navigate('bandes',this)">
+      <span class="icon">&#128051;</span> Bandes
+    </a>
+    <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
+      <span class="icon">&#128221;</span> Saisie du jour
+    </a>
+    <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
+      <span class="icon">&#128200;</span> Fiche bande
+    </a>
+    <a href="#" data-page="exports" onclick="navigate('exports',this)">
+      <span class="icon">&#128230;</span> Exports
+    </a>
+    <a href="#" data-page="settings" onclick="navigate('settings',this)">
+      <span class="icon">&#9881;</span> Paramètres
+    </a>
+  </nav>
+</div>
+
+<!-- Main Content -->
+<div id="main">
+
+  <!-- Setup banner (shown when not configured) -->
+  <div id="setup-banner" class="setup-banner" style="display:none;">
+    <h3>&#9888;&#65039; Configuration requise</h3>
+    <p style="margin-bottom:0.75rem;">Pour utiliser l'application, vous devez configurer la connexion à Google Sheets :</p>
+    <ol>
+      <li>Créer un Google Sheets avec 3 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code></li>
+      <li>Ouvrir Extensions &gt; Apps Script, coller le code <code>Code.gs</code> (voir section Paramètres), déployer en Application Web</li>
+      <li>Copier l'URL de déploiement et la coller dans <a href="#" onclick="navigate('settings',document.querySelector('[data-page=settings]'));return false;" style="color:var(--gold);">Paramètres</a></li>
+    </ol>
+  </div>
+
+  <!-- ═══════════════ PAGE: TABLEAU DE BORD ═══════════════ -->
+  <div id="page-dashboard" class="page active">
+    <h2>&#128202; Tableau de bord</h2>
+    <div id="dash-alerts"></div>
+    <div id="dash-grid" class="dash-grid">
+      <div class="empty-state" id="dash-empty">
+        <div class="icon">&#128051;</div>
+        <p>Aucune bande active.<br>Créez une bande pour commencer.</p>
+        <button class="btn btn-primary" style="margin-top:1rem;" onclick="navigate('bandes',document.querySelector('[data-page=bandes]'))">Créer une bande</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
+  <div id="page-bandes" class="page">
+    <h2>&#128051; Bandes</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
+        <button class="tab-btn" onclick="filterBandes('en_cours',this)">En cours</button>
+        <button class="tab-btn" onclick="filterBandes('termine',this)">Terminées</button>
+      </div>
+      <button class="btn btn-primary" onclick="showNewBandeModal()">+ Nouvelle bande</button>
+    </div>
+    <div id="bandes-list"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: SAISIE DU JOUR ═══════════════ -->
+  <div id="page-saisie" class="page">
+    <h2>&#128221; Saisie du jour</h2>
+    <div class="card" style="max-width:700px;">
+      <div class="form-group">
+        <label>Bande</label>
+        <select id="saisie-bande"></select>
+      </div>
+      <div id="saisie-info" style="margin-bottom:1rem;"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="saisie-date">
+        </div>
+        <div class="form-group">
+          <label>Mortalité du jour</label>
+          <input type="number" id="saisie-mortalite" min="0" placeholder="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Aliment consommé (kg)</label>
+          <input type="number" id="saisie-aliment" step="0.1" min="0" placeholder="0.0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nb oiseaux pesés (échantillon)</label>
+          <input type="number" id="saisie-nb-peses" min="0" placeholder="50">
+        </div>
+        <div class="form-group">
+          <label>Poids vif moyen (g)</label>
+          <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0">
+        </div>
+      </div>
+
+      <!-- Intrant sub-form -->
+      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
+        <button class="btn btn-outline btn-sm" id="toggle-intrant-btn" onclick="toggleIntrantForm()">+ Ajouter un intrant</button>
+        <div id="intrant-subform" style="display:none;margin-top:1rem;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type</label>
+              <select id="intrant-type">
+                <option value="vaccin">Vaccin</option>
+                <option value="medicament">Médicament</option>
+                <option value="vitamine">Vitamine</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nom du produit</label>
+              <input type="text" id="intrant-nom" placeholder="Ex: Vitapoulet">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Quantité</label>
+              <input type="number" id="intrant-quantite" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+              <label>Unité</label>
+              <select id="intrant-unite">
+                <option value="dose">dose</option>
+                <option value="L">L</option>
+                <option value="mL">mL</option>
+                <option value="g">g</option>
+                <option value="kg">kg</option>
+                <option value="comprimé">comprimé</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Coût total (FCFA)</label>
+              <input type="number" id="intrant-cout" min="0" placeholder="0">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.25rem;display:flex;gap:0.5rem;">
+        <button class="btn btn-primary" onclick="submitSaisie()" id="btn-submit-saisie">Enregistrer</button>
+      </div>
+    </div>
+
+    <!-- Last 3 days -->
+    <div id="saisie-recent" style="margin-top:1.5rem;max-width:700px;"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: FICHE BANDE ═══════════════ -->
+  <div id="page-fiche" class="page">
+    <h2>&#128200; Fiche bande</h2>
+    <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
+      <label>Sélectionner une bande</label>
+      <select id="fiche-bande-select" onchange="loadFicheBande()"></select>
+    </div>
+    <div id="fiche-content" style="display:none;">
+      <div class="card" id="fiche-header"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:1rem;">
+        <div class="card">
+          <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Poids vif moyen (g) vs Standard Cobb 500</h3>
+          <div class="chart-container"><canvas id="chart-poids"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">IC cumulatif</h3>
+          <div class="chart-container"><canvas id="chart-ic"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Mortalité cumulée (%)</h3>
+        <div class="chart-container" style="height:250px;"><canvas id="chart-mortalite"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3>Saisies journalières</h3>
+        </div>
+        <div class="table-wrap" id="fiche-saisies-table"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3>Intrants</h3>
+        </div>
+        <div class="table-wrap" id="fiche-intrants-table"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PAGE: EXPORTS ═══════════════ -->
+  <div id="page-exports" class="page">
+    <h2>&#128230; Exports</h2>
+    <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
+      <label>Sélectionner une bande</label>
+      <select id="export-bande-select"></select>
+    </div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+      <button class="btn btn-primary" onclick="exportPDF()">&#128196; Exporter PDF</button>
+      <button class="btn btn-gold" onclick="exportExcel()">&#128202; Exporter Excel</button>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3>Résumé financier</h3>
+        <button class="btn btn-outline btn-sm" onclick="copyFinancialSummary()">Copier</button>
+      </div>
+      <div id="financial-summary"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PAGE: PARAMETRES ═══════════════ -->
+  <div id="page-settings" class="page">
+    <h2>&#9881; Paramètres</h2>
+    <div class="card" style="max-width:700px;">
+      <h3 style="margin-bottom:1rem;color:var(--green-dark);">Connexion Google Sheets</h3>
+      <div class="form-group">
+        <label>URL Apps Script (Web App)</label>
+        <input type="url" id="settings-url" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-primary" onclick="saveSettings()">Enregistrer</button>
+        <button class="btn btn-outline" onclick="testConnection()">Tester la connexion</button>
+      </div>
+      <div id="settings-status" style="margin-top:0.75rem;font-size:0.85rem;"></div>
+    </div>
+
+    <div class="card" style="max-width:700px;margin-top:1rem;">
+      <h3 style="margin-bottom:1rem;color:var(--green-dark);">Code Apps Script (Code.gs)</h3>
+      <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">
+        Copiez ce code dans votre projet Google Apps Script (Extensions &gt; Apps Script) puis déployez en Application Web.
+      </p>
+      <button class="btn btn-outline btn-sm" onclick="copyAppsScript()" style="margin-bottom:0.75rem;">Copier le code</button>
+      <pre id="apps-script-code" style="background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:8px;font-size:0.75rem;overflow-x:auto;max-height:400px;overflow-y:auto;white-space:pre;tab-size:2;"></pre>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GOOGLE APPS SCRIPT CODE (Code.gs) — Copy to Apps Script   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script type="text/apps-script" id="code-gs">
+// ═══════════════════════════════════════════════════
+// Code.gs — SIVA Batch Tracker — Google Apps Script
+// ═══════════════════════════════════════════════════
+// Déployer en Application Web :
+//   Exécuter en tant que : Moi
+//   Accès : Tout le monde
+
+const SHEETS = {
+  BANDES: 'Bandes',
+  SAISIES: 'Saisies',
+  INTRANTS: 'Intrants'
+};
+
+const HEADERS = {
+  Bandes: [
+    'bande_id','nom_bande','date_entree','nb_poussins_entree',
+    'fournisseur_poussins','prix_poussin_unitaire','poids_initial_moyen_g',
+    'cout_aliment_kg','statut','date_sortie','nb_oiseaux_sortie',
+    'poids_vif_moyen_sortie_g','rendement_carcasse_pct','prix_vente_carcasse_kg'
+  ],
+  Saisies: [
+    'saisie_id','bande_id','date_saisie','jour_bande',
+    'mortalite_jour','aliment_consomme_kg','nb_oiseaux_peses','poids_vif_moyen_g'
+  ],
+  Intrants: [
+    'intrant_id','bande_id','date_intrant','type',
+    'nom_produit','quantite','unite','cout_total_fcfa'
+  ]
+};
+
+function doGet(e) {
+  try {
+    const action = e.parameter.action;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let result;
+
+    switch (action) {
+      case 'ping':
+        result = { status: 'ok', message: 'SIVA Batch Tracker connecté' };
+        break;
+
+      case 'getBandes':
+        result = getSheetData(ss, SHEETS.BANDES);
+        break;
+
+      case 'getSaisies':
+        result = getSheetData(ss, SHEETS.SAISIES);
+        if (e.parameter.bande_id) {
+          result = result.filter(r => r.bande_id === e.parameter.bande_id);
+        }
+        break;
+
+      case 'getIntrants':
+        result = getSheetData(ss, SHEETS.INTRANTS);
+        if (e.parameter.bande_id) {
+          result = result.filter(r => r.bande_id === e.parameter.bande_id);
+        }
+        break;
+
+      case 'getAll':
+        result = {
+          bandes: getSheetData(ss, SHEETS.BANDES),
+          saisies: getSheetData(ss, SHEETS.SAISIES),
+          intrants: getSheetData(ss, SHEETS.INTRANTS)
+        };
+        break;
+
+      default:
+        result = { error: 'Action inconnue: ' + action };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action;
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let result;
+
+    switch (action) {
+      case 'addBande':
+        result = addRow(ss, SHEETS.BANDES, HEADERS.Bandes, data.payload);
+        break;
+
+      case 'updateBande':
+        result = updateRow(ss, SHEETS.BANDES, HEADERS.Bandes, 'bande_id', data.payload.bande_id, data.payload);
+        break;
+
+      case 'addSaisie':
+        result = addRow(ss, SHEETS.SAISIES, HEADERS.Saisies, data.payload);
+        break;
+
+      case 'updateSaisie':
+        result = updateRow(ss, SHEETS.SAISIES, HEADERS.Saisies, 'saisie_id', data.payload.saisie_id, data.payload);
+        break;
+
+      case 'deleteSaisie':
+        result = deleteRow(ss, SHEETS.SAISIES, 'saisie_id', data.payload.saisie_id);
+        break;
+
+      case 'addIntrant':
+        result = addRow(ss, SHEETS.INTRANTS, HEADERS.Intrants, data.payload);
+        break;
+
+      case 'deleteIntrant':
+        result = deleteRow(ss, SHEETS.INTRANTS, 'intrant_id', data.payload.intrant_id);
+        break;
+
+      default:
+        result = { error: 'Action inconnue: ' + action };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getSheetData(ss, sheetName) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    const headers = HEADERS[sheetName];
+    if (headers) sheet.appendRow(headers);
+    return [];
+  }
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  const headers = data[0];
+  return data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      let val = row[i];
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      obj[h] = val;
+    });
+    return obj;
+  });
+}
+
+function addRow(ss, sheetName, headersDef, payload) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(headersDef);
+  }
+  const row = headersDef.map(h => payload[h] !== undefined ? payload[h] : '');
+  sheet.appendRow(row);
+  return { success: true, id: payload[headersDef[0]] };
+}
+
+function updateRow(ss, sheetName, headersDef, idField, idValue, payload) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return { error: 'Feuille non trouvée: ' + sheetName };
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf(idField);
+  if (idCol === -1) return { error: 'Colonne non trouvée: ' + idField };
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === String(idValue)) {
+      headersDef.forEach(h => {
+        if (payload[h] !== undefined) {
+          const col = headers.indexOf(h);
+          if (col !== -1) sheet.getRange(i + 1, col + 1).setValue(payload[h]);
+        }
+      });
+      return { success: true };
+    }
+  }
+  return { error: 'Ligne non trouvée: ' + idValue };
+}
+
+function deleteRow(ss, sheetName, idField, idValue) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return { error: 'Feuille non trouvée' };
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf(idField);
+
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][idCol]) === String(idValue)) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { error: 'Ligne non trouvée' };
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- APPLICATION JAVASCRIPT                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Config ──
+const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
+let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDER_URL;
+
+// ── State ──
+let STATE = { bandes: [], saisies: [], intrants: [], loaded: false };
+let ficheCharts = { poids: null, ic: null, mortalite: null };
+
+// ── Cobb 500 standard curve ──
+const COBB_STANDARD = [
+  { day: 0, weight: 42 }, { day: 1, weight: 52 }, { day: 2, weight: 66 },
+  { day: 3, weight: 82 }, { day: 4, weight: 100 }, { day: 5, weight: 120 },
+  { day: 6, weight: 142 }, { day: 7, weight: 160 }, { day: 8, weight: 190 },
+  { day: 9, weight: 215 }, { day: 10, weight: 245 }, { day: 11, weight: 280 },
+  { day: 12, weight: 315 }, { day: 13, weight: 345 }, { day: 14, weight: 380 },
+  { day: 15, weight: 420 }, { day: 16, weight: 460 }, { day: 17, weight: 500 },
+  { day: 18, weight: 540 }, { day: 19, weight: 585 }, { day: 20, weight: 630 },
+  { day: 21, weight: 720 }, { day: 22, weight: 760 }, { day: 23, weight: 805 },
+  { day: 24, weight: 855 }, { day: 25, weight: 905 }, { day: 26, weight: 960 },
+  { day: 27, weight: 1020 }, { day: 28, weight: 1200 }, { day: 29, weight: 1280 },
+  { day: 30, weight: 1360 }, { day: 31, weight: 1440 }, { day: 32, weight: 1520 },
+  { day: 33, weight: 1600 }, { day: 34, weight: 1700 }, { day: 35, weight: 1800 },
+  { day: 36, weight: 1890 }, { day: 37, weight: 1980 }, { day: 38, weight: 2070 },
+  { day: 39, weight: 2160 }, { day: 40, weight: 2250 }, { day: 42, weight: 2450 }
+];
+
+// ── Helpers ──
+function uuid() {
+  return 'xxxx-xxxx'.replace(/x/g, () => ((Math.random()*16)|0).toString(16));
+}
+
+function fmt(n, decimals = 0) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('fr-FR');
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysBetween(d1, d2) {
+  return Math.floor((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = type + ' show';
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function isConfigured() {
+  return APPS_SCRIPT_URL && APPS_SCRIPT_URL !== PLACEHOLDER_URL && APPS_SCRIPT_URL.startsWith('http');
+}
+
+// ── API ──
+async function apiGet(params) {
+  if (!isConfigured()) throw new Error('URL Apps Script non configurée');
+  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Erreur réseau: ' + res.status);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function apiPost(body) {
+  if (!isConfigured()) throw new Error('URL Apps Script non configurée');
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('Erreur réseau: ' + res.status);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function loadAllData() {
+  try {
+    const data = await apiGet({ action: 'getAll' });
+    STATE.bandes = data.bandes || [];
+    STATE.saisies = data.saisies || [];
+    STATE.intrants = data.intrants || [];
+    STATE.loaded = true;
+  } catch (err) {
+    console.error('Load error:', err);
+    toast('Erreur de chargement: ' + err.message, 'error');
+  }
+}
+
+// ── Navigation ──
+function navigate(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
+  if (el) el.classList.add('active');
+  closeSidebar();
+
+  switch (page) {
+    case 'dashboard': renderDashboard(); break;
+    case 'bandes': renderBandes(); break;
+    case 'saisie': initSaisiePage(); break;
+    case 'fiche': initFichePage(); break;
+    case 'exports': initExportsPage(); break;
+    case 'settings': initSettingsPage(); break;
+  }
+  return false;
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── Compute indicators for a batch ──
+function computeIndicators(bande) {
+  const saisies = STATE.saisies
+    .filter(s => s.bande_id === bande.bande_id)
+    .sort((a, b) => new Date(a.date_saisie) - new Date(b.date_saisie));
+  const intrants = STATE.intrants.filter(i => i.bande_id === bande.bande_id);
+
+  const nbEntree = Number(bande.nb_poussins_entree) || 0;
+  const poidsInitial = Number(bande.poids_initial_moyen_g) || 42;
+  const rendement = Number(bande.rendement_carcasse_pct) || 58;
+
+  let mortCum = 0;
+  let alimentTotal = 0;
+  let dernierPoids = poidsInitial;
+  let dernierJour = 0;
+  let lastSaisieDate = null;
+
+  const dailyData = saisies.map(s => {
+    const jour = Number(s.jour_bande) || (daysBetween(bande.date_entree, s.date_saisie) + 1);
+    mortCum += Number(s.mortalite_jour) || 0;
+    alimentTotal += Number(s.aliment_consomme_kg) || 0;
+    const poids = Number(s.poids_vif_moyen_g) || dernierPoids;
+    dernierPoids = poids;
+    dernierJour = jour;
+    lastSaisieDate = s.date_saisie;
+
+    const effectif = nbEntree - mortCum;
+    const ic = (effectif > 0 && poids > 0)
+      ? alimentTotal / ((poids / 1000) * effectif)
+      : null;
+    const gmq = (jour > 0) ? (poids - poidsInitial) / jour : 0;
+
+    return {
+      ...s,
+      jour_bande: jour,
+      mort_cum: mortCum,
+      taux_mort: nbEntree > 0 ? (mortCum / nbEntree) * 100 : 0,
+      effectif: nbEntree - mortCum,
+      aliment_total: alimentTotal,
+      ic: ic,
+      gmq: gmq,
+      poids: poids,
+      poids_carcasse: poids * rendement / 100
+    };
+  });
+
+  const effectifActuel = nbEntree - mortCum;
+  const tauxMort = nbEntree > 0 ? (mortCum / nbEntree) * 100 : 0;
+  const ic = (effectifActuel > 0 && dernierPoids > 0)
+    ? alimentTotal / ((dernierPoids / 1000) * effectifActuel)
+    : null;
+  const gmq = dernierJour > 0 ? (dernierPoids - poidsInitial) / dernierJour : 0;
+  const poidsCarcasse = dernierPoids * rendement / 100;
+
+  // Financial
+  const coutPoussins = nbEntree * (Number(bande.prix_poussin_unitaire) || 0);
+  const coutAliment = alimentTotal * (Number(bande.cout_aliment_kg) || 0);
+  const coutIntrants = intrants.reduce((s, i) => s + (Number(i.cout_total_fcfa) || 0), 0);
+
+  let produitBrut = 0;
+  let nbSortie = effectifActuel;
+  let poidsCarcasseSortie = poidsCarcasse;
+
+  if (bande.statut === 'termine' && bande.nb_oiseaux_sortie) {
+    nbSortie = Number(bande.nb_oiseaux_sortie);
+    const pvs = Number(bande.poids_vif_moyen_sortie_g) || dernierPoids;
+    poidsCarcasseSortie = pvs * rendement / 100;
+  }
+
+  const prixVente = Number(bande.prix_vente_carcasse_kg) || 0;
+  produitBrut = nbSortie * (poidsCarcasseSortie / 1000) * prixVente;
+  const margeBrute = produitBrut - coutPoussins - coutAliment - coutIntrants;
+  const totalCarcasseKg = nbSortie * poidsCarcasseSortie / 1000;
+  const margeParKg = totalCarcasseKg > 0 ? margeBrute / totalCarcasseKg : 0;
+
+  return {
+    saisies: dailyData,
+    intrants,
+    mortCum, tauxMort, effectifActuel, alimentTotal,
+    ic, gmq, dernierPoids, dernierJour, poidsCarcasse, lastSaisieDate,
+    coutPoussins, coutAliment, coutIntrants, produitBrut, margeBrute, margeParKg,
+    nbSortie, poidsCarcasseSortie, totalCarcasseKg, prixVente, rendement, poidsInitial
+  };
+}
+
+// ── Dashboard ──
+function renderDashboard() {
+  const grid = document.getElementById('dash-grid');
+  const alertsDiv = document.getElementById('dash-alerts');
+  const emptyDiv = document.getElementById('dash-empty');
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
+
+  if (activeBandes.length === 0) {
+    grid.innerHTML = '';
+    grid.appendChild(emptyDiv);
+    emptyDiv.style.display = '';
+    alertsDiv.innerHTML = '';
+    return;
+  }
+
+  emptyDiv.style.display = 'none';
+  let alertsHtml = '';
+  let cardsHtml = '';
+
+  activeBandes.forEach(b => {
+    const ind = computeIndicators(b);
+    const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
+
+    // Alert if no saisie in 24h
+    if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) > 0) {
+      alertsHtml += `<div class="alert-bar">&#9888; <strong>${b.nom_bande}</strong> — Aucune saisie aujourd'hui</div>`;
+    }
+
+    const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
+
+    cardsHtml += `
+      <div class="card" style="cursor:pointer;" onclick="openFiche('${b.bande_id}')">
+        <div class="card-header">
+          <h3>${b.nom_bande}</h3>
+          <span class="badge badge-${mortClass}">J${jour}</span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="label">Effectif</div>
+            <div class="value">${fmt(ind.effectifActuel)}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Mortalité</div>
+            <div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">IC</div>
+            <div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">GMQ</div>
+            <div class="value">${fmt(ind.gmq,1)} g/j</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Poids vif</div>
+            <div class="value">${fmt(ind.dernierPoids)} g</div>
+          </div>
+          <div class="stat-item">
+            <div class="label">Aliment</div>
+            <div class="value">${fmt(ind.alimentTotal,0)} kg</div>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  alertsDiv.innerHTML = alertsHtml;
+  grid.innerHTML = cardsHtml;
+}
+
+function openFiche(bandeId) {
+  navigate('fiche', document.querySelector('[data-page=fiche]'));
+  setTimeout(() => {
+    document.getElementById('fiche-bande-select').value = bandeId;
+    loadFicheBande();
+  }, 50);
+}
+
+// ── Bandes list ──
+let bandeFilter = 'all';
+function filterBandes(f, btn) {
+  bandeFilter = f;
+  document.querySelectorAll('#page-bandes .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBandes();
+}
+
+function renderBandes() {
+  const container = document.getElementById('bandes-list');
+  let bandes = STATE.bandes;
+  if (bandeFilter === 'en_cours') bandes = bandes.filter(b => b.statut === 'en_cours');
+  if (bandeFilter === 'termine') bandes = bandes.filter(b => b.statut === 'termine');
+
+  if (bandes.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128051;</div><p>Aucune bande trouvée</p></div>';
+    return;
+  }
+
+  let html = '<div class="table-wrap"><table><thead><tr>' +
+    '<th>Nom</th><th>Date entrée</th><th>Poussins</th><th>Fournisseur</th><th>Statut</th><th>Actions</th>' +
+    '</tr></thead><tbody>';
+
+  bandes.forEach(b => {
+    const ind = computeIndicators(b);
+    const statusBadge = b.statut === 'en_cours'
+      ? '<span class="badge badge-green">En cours</span>'
+      : '<span class="badge badge-grey">Terminée</span>';
+    html += `<tr>
+      <td><strong>${b.nom_bande}</strong></td>
+      <td>${fmtDate(b.date_entree)}</td>
+      <td>${fmt(b.nb_poussins_entree)}</td>
+      <td>${b.fournisseur_poussins || '—'}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="openFiche('${b.bande_id}')">Voir</button>
+        ${b.statut === 'en_cours' ? `<button class="btn btn-sm btn-gold" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>` : ''}
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ── New Bande Modal ──
+function showNewBandeModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Nouvelle bande</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nom de la bande</label>
+          <input type="text" id="new-bande-nom" placeholder="Ex: B2026-01" value="B${new Date().getFullYear()}-">
+        </div>
+        <div class="form-group">
+          <label>Date d'entrée</label>
+          <input type="date" id="new-bande-date" value="${todayStr()}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nombre de poussins</label>
+          <input type="number" id="new-bande-nb" min="1" placeholder="15000" value="15000">
+        </div>
+        <div class="form-group">
+          <label>Fournisseur</label>
+          <input type="text" id="new-bande-fournisseur" placeholder="Nom du fournisseur">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prix poussin unitaire (FCFA)</label>
+          <input type="number" id="new-bande-prix" min="0" placeholder="350">
+        </div>
+        <div class="form-group">
+          <label>Poids initial moyen (g)</label>
+          <input type="number" id="new-bande-poids" min="0" value="42" placeholder="42">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Coût aliment (FCFA/kg)</label>
+          <input type="number" id="new-bande-cout-aliment" min="0" placeholder="250">
+        </div>
+        <div class="form-group">
+          <label>Rendement carcasse (%)</label>
+          <input type="number" id="new-bande-rendement" min="0" max="100" value="58" step="0.1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Prix vente carcasse (FCFA/kg)</label>
+        <input type="number" id="new-bande-prix-vente" min="0" placeholder="1500">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="createBande()">Créer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function createBande() {
+  const payload = {
+    bande_id: uuid(),
+    nom_bande: document.getElementById('new-bande-nom').value.trim(),
+    date_entree: document.getElementById('new-bande-date').value,
+    nb_poussins_entree: Number(document.getElementById('new-bande-nb').value) || 0,
+    fournisseur_poussins: document.getElementById('new-bande-fournisseur').value.trim(),
+    prix_poussin_unitaire: Number(document.getElementById('new-bande-prix').value) || 0,
+    poids_initial_moyen_g: Number(document.getElementById('new-bande-poids').value) || 42,
+    cout_aliment_kg: Number(document.getElementById('new-bande-cout-aliment').value) || 0,
+    statut: 'en_cours',
+    date_sortie: '',
+    nb_oiseaux_sortie: '',
+    poids_vif_moyen_sortie_g: '',
+    rendement_carcasse_pct: Number(document.getElementById('new-bande-rendement').value) || 58,
+    prix_vente_carcasse_kg: Number(document.getElementById('new-bande-prix-vente').value) || 0
+  };
+
+  if (!payload.nom_bande || !payload.date_entree) {
+    toast('Veuillez remplir le nom et la date', 'error');
+    return;
+  }
+
+  try {
+    await apiPost({ action: 'addBande', payload });
+    STATE.bandes.push(payload);
+    closeModal();
+    renderBandes();
+    toast('Bande créée avec succès');
+  } catch (err) {
+    toast('Erreur: ' + err.message, 'error');
+  }
+}
+
+// ── Close Bande Modal ──
+function showCloseBandeModal(bandeId) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+  const ind = computeIndicators(bande);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Clôturer ${bande.nom_bande}</h3>
+      <p style="color:var(--text-light);margin-bottom:1rem;font-size:0.9rem;">
+        Effectif estimé : ${fmt(ind.effectifActuel)} oiseaux — Dernier poids : ${fmt(ind.dernierPoids)} g
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date de sortie</label>
+          <input type="date" id="close-date" value="${todayStr()}">
+        </div>
+        <div class="form-group">
+          <label>Nb oiseaux sortie</label>
+          <input type="number" id="close-nb" value="${ind.effectifActuel}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Poids vif moyen sortie (g)</label>
+          <input type="number" id="close-poids" value="${Math.round(ind.dernierPoids)}">
+        </div>
+        <div class="form-group">
+          <label>Prix vente carcasse (FCFA/kg)</label>
+          <input type="number" id="close-prix" value="${bande.prix_vente_carcasse_kg || ''}">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-gold" onclick="closeBande('${bandeId}')">Clôturer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function closeBande(bandeId) {
+  const payload = {
+    bande_id: bandeId,
+    statut: 'termine',
+    date_sortie: document.getElementById('close-date').value,
+    nb_oiseaux_sortie: Number(document.getElementById('close-nb').value),
+    poids_vif_moyen_sortie_g: Number(document.getElementById('close-poids').value),
+    prix_vente_carcasse_kg: Number(document.getElementById('close-prix').value)
+  };
+
+  try {
+    await apiPost({ action: 'updateBande', payload });
+    const b = STATE.bandes.find(b => b.bande_id === bandeId);
+    Object.assign(b, payload);
+    closeModal();
+    renderBandes();
+    toast('Bande clôturée');
+  } catch (err) {
+    toast('Erreur: ' + err.message, 'error');
+  }
+}
+
+function closeModal() {
+  const o = document.getElementById('modal-overlay');
+  if (o) o.remove();
+}
+
+// ── Saisie du jour ──
+function initSaisiePage() {
+  const select = document.getElementById('saisie-bande');
+  const active = STATE.bandes.filter(b => b.statut === 'en_cours');
+  select.innerHTML = active.length === 0
+    ? '<option value="">Aucune bande active</option>'
+    : active.map(b => `<option value="${b.bande_id}">${b.nom_bande}</option>`).join('');
+  document.getElementById('saisie-date').value = todayStr();
+  document.getElementById('saisie-mortalite').value = '';
+  document.getElementById('saisie-aliment').value = '';
+  document.getElementById('saisie-nb-peses').value = '';
+  document.getElementById('saisie-poids').value = '';
+  document.getElementById('intrant-subform').style.display = 'none';
+  document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  updateSaisieInfo();
+  select.onchange = updateSaisieInfo;
+  renderRecentSaisies();
+}
+
+function updateSaisieInfo() {
+  const bandeId = document.getElementById('saisie-bande').value;
+  const infoDiv = document.getElementById('saisie-info');
+  if (!bandeId) { infoDiv.innerHTML = ''; return; }
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+
+  const ind = computeIndicators(bande);
+  const jour = daysBetween(bande.date_entree, document.getElementById('saisie-date').value || todayStr()) + 1;
+
+  infoDiv.innerHTML = `
+    <div style="background:#f5f5f5;border-radius:6px;padding:0.75rem;font-size:0.85rem;">
+      <strong>J${jour}</strong> — Effectif : <strong>${fmt(ind.effectifActuel)}</strong>
+      | Mort. cumulée : <strong>${fmt(ind.mortCum)}</strong> (${fmt(ind.tauxMort,1)}%)
+      | Dernier poids : <strong>${fmt(ind.dernierPoids)} g</strong>
+    </div>`;
+}
+
+function toggleIntrantForm() {
+  const form = document.getElementById('intrant-subform');
+  const btn = document.getElementById('toggle-intrant-btn');
+  if (form.style.display === 'none') {
+    form.style.display = 'block';
+    btn.textContent = '— Masquer intrant';
+  } else {
+    form.style.display = 'none';
+    btn.textContent = '+ Ajouter un intrant';
+  }
+}
+
+async function submitSaisie() {
+  const bandeId = document.getElementById('saisie-bande').value;
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const dateSaisie = document.getElementById('saisie-date').value;
+  const jourBande = daysBetween(bande.date_entree, dateSaisie) + 1;
+
+  const saisiePayload = {
+    saisie_id: uuid(),
+    bande_id: bandeId,
+    date_saisie: dateSaisie,
+    jour_bande: jourBande,
+    mortalite_jour: Number(document.getElementById('saisie-mortalite').value) || 0,
+    aliment_consomme_kg: Number(document.getElementById('saisie-aliment').value) || 0,
+    nb_oiseaux_peses: Number(document.getElementById('saisie-nb-peses').value) || 0,
+    poids_vif_moyen_g: Number(document.getElementById('saisie-poids').value) || 0
+  };
+
+  const btn = document.getElementById('btn-submit-saisie');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
+
+  try {
+    await apiPost({ action: 'addSaisie', payload: saisiePayload });
+    STATE.saisies.push(saisiePayload);
+
+    // If intrant form is visible and has data
+    if (document.getElementById('intrant-subform').style.display !== 'none') {
+      const nomProduit = document.getElementById('intrant-nom').value.trim();
+      if (nomProduit) {
+        const intrantPayload = {
+          intrant_id: uuid(),
+          bande_id: bandeId,
+          date_intrant: dateSaisie,
+          type: document.getElementById('intrant-type').value,
+          nom_produit: nomProduit,
+          quantite: Number(document.getElementById('intrant-quantite').value) || 0,
+          unite: document.getElementById('intrant-unite').value,
+          cout_total_fcfa: Number(document.getElementById('intrant-cout').value) || 0
+        };
+        await apiPost({ action: 'addIntrant', payload: intrantPayload });
+        STATE.intrants.push(intrantPayload);
+      }
+    }
+
+    toast('Saisie enregistrée');
+    // Reset form fields
+    document.getElementById('saisie-mortalite').value = '';
+    document.getElementById('saisie-aliment').value = '';
+    document.getElementById('saisie-nb-peses').value = '';
+    document.getElementById('saisie-poids').value = '';
+    document.getElementById('intrant-nom').value = '';
+    document.getElementById('intrant-quantite').value = '';
+    document.getElementById('intrant-cout').value = '';
+    document.getElementById('intrant-subform').style.display = 'none';
+    document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+    updateSaisieInfo();
+    renderRecentSaisies();
+  } catch (err) {
+    toast('Erreur: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer';
+  }
+}
+
+function renderRecentSaisies() {
+  const container = document.getElementById('saisie-recent');
+  const bandeId = document.getElementById('saisie-bande').value;
+  if (!bandeId) { container.innerHTML = ''; return; }
+
+  const recent = STATE.saisies
+    .filter(s => s.bande_id === bandeId)
+    .sort((a, b) => new Date(b.date_saisie) - new Date(a.date_saisie))
+    .slice(0, 3);
+
+  if (recent.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">Aucune saisie récente</p>';
+    return;
+  }
+
+  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">3 dernières saisies</h3><div class="table-wrap"><table><thead><tr>' +
+    '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Pesés</th><th>Poids</th></tr></thead><tbody>';
+
+  recent.forEach(s => {
+    html += `<tr>
+      <td>${fmtDate(s.date_saisie)}</td>
+      <td>J${s.jour_bande}</td>
+      <td>${s.mortalite_jour}</td>
+      <td>${fmt(Number(s.aliment_consomme_kg), 1)} kg</td>
+      <td>${s.nb_oiseaux_peses || '—'}</td>
+      <td>${s.poids_vif_moyen_g ? fmt(Number(s.poids_vif_moyen_g)) + ' g' : '—'}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+// ── Fiche Bande ──
+function initFichePage() {
+  const select = document.getElementById('fiche-bande-select');
+  select.innerHTML = STATE.bandes.length === 0
+    ? '<option value="">Aucune bande</option>'
+    : STATE.bandes.map(b => `<option value="${b.bande_id}">${b.nom_bande} (${b.statut === 'en_cours' ? 'En cours' : 'Terminée'})</option>`).join('');
+  loadFicheBande();
+}
+
+function loadFicheBande() {
+  const bandeId = document.getElementById('fiche-bande-select').value;
+  const content = document.getElementById('fiche-content');
+  if (!bandeId) { content.style.display = 'none'; return; }
+  content.style.display = 'block';
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+
+  const ind = computeIndicators(bande);
+  const jour = ind.dernierJour || daysBetween(bande.date_entree, todayStr()) + 1;
+  const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
+
+  // Header
+  document.getElementById('fiche-header').innerHTML = `
+    <div class="card-header">
+      <h3>${bande.nom_bande}</h3>
+      <span class="badge badge-${bande.statut === 'en_cours' ? 'green' : 'grey'}">${bande.statut === 'en_cours' ? 'En cours — J' + jour : 'Terminée'}</span>
+    </div>
+    <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">
+      Entrée : ${fmtDate(bande.date_entree)} | ${fmt(bande.nb_poussins_entree)} poussins | ${bande.fournisseur_poussins || '—'}
+      ${bande.date_sortie ? ' | Sortie : ' + fmtDate(bande.date_sortie) : ''}
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
+      <div class="stat-item"><div class="label">Mortalité</div><div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div></div>
+      <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic,2) : '—'}</div></div>
+      <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
+      <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
+      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(ind.poidsCarcasse)} g</div></div>
+    </div>`;
+
+  // Charts
+  renderFicheCharts(ind);
+
+  // Saisies table
+  renderFicheSaisiesTable(ind, bande);
+
+  // Intrants table
+  renderFicheIntrantsTable(ind);
+}
+
+function renderFicheCharts(ind) {
+  // Destroy old charts
+  Object.keys(ficheCharts).forEach(k => { if (ficheCharts[k]) ficheCharts[k].destroy(); });
+
+  const days = ind.saisies.map(s => 'J' + s.jour_bande);
+  const dayNums = ind.saisies.map(s => Number(s.jour_bande));
+
+  // Get Cobb standard data for the range
+  const maxDay = Math.max(...dayNums, 0);
+  const cobbFiltered = COBB_STANDARD.filter(c => c.day <= Math.max(maxDay + 3, 35));
+  const cobbDays = cobbFiltered.map(c => 'J' + c.day);
+  const cobbWeights = cobbFiltered.map(c => c.weight);
+
+  // Chart 1: Poids
+  const ctxP = document.getElementById('chart-poids').getContext('2d');
+  ficheCharts.poids = new Chart(ctxP, {
+    type: 'line',
+    data: {
+      labels: cobbDays.length > days.length ? cobbDays : days,
+      datasets: [
+        {
+          label: 'Poids vif observé (g)',
+          data: mapToLabels(cobbDays.length > days.length ? cobbDays : days, dayNums, ind.saisies.map(s => s.poids)),
+          borderColor: '#2E7D32',
+          backgroundColor: 'rgba(46,125,50,0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+          pointRadius: 3
+        },
+        {
+          label: 'Standard Cobb 500',
+          data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days, dayNums),
+          borderColor: '#F9A825',
+          borderWidth: 2,
+          borderDash: [6, 3],
+          tension: 0.3,
+          fill: false,
+          pointRadius: 0
+        }
+      ]
+    },
+    options: chartOptions('Poids (g)')
+  });
+
+  // Chart 2: IC
+  const ctxIC = document.getElementById('chart-ic').getContext('2d');
+  ficheCharts.ic = new Chart(ctxIC, {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'IC cumulatif',
+        data: ind.saisies.map(s => s.ic),
+        borderColor: '#1565C0',
+        backgroundColor: 'rgba(21,101,192,0.1)',
+        borderWidth: 2,
+        tension: 0.3,
+        fill: true,
+        pointRadius: 3
+      }]
+    },
+    options: chartOptions('IC')
+  });
+
+  // Chart 3: Mortalité
+  const ctxM = document.getElementById('chart-mortalite').getContext('2d');
+  ficheCharts.mortalite = new Chart(ctxM, {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'Mortalité cumulée (%)',
+        data: ind.saisies.map(s => s.taux_mort),
+        borderColor: '#c62828',
+        backgroundColor: 'rgba(198,40,40,0.1)',
+        borderWidth: 2,
+        tension: 0.3,
+        fill: true,
+        pointRadius: 3
+      }]
+    },
+    options: chartOptions('Mortalité (%)')
+  });
+}
+
+function mapToLabels(labels, dayNums, values) {
+  return labels.map(l => {
+    const d = parseInt(l.replace('J', ''));
+    const idx = dayNums.indexOf(d);
+    return idx >= 0 ? values[idx] : null;
+  });
+}
+
+function mapCobbToLabels(labels, dayNums) {
+  return labels.map(l => {
+    const d = parseInt(l.replace('J', ''));
+    const cobb = COBB_STANDARD.find(c => c.day === d);
+    if (cobb) return cobb.weight;
+    // Interpolate
+    const before = COBB_STANDARD.filter(c => c.day < d).pop();
+    const after = COBB_STANDARD.find(c => c.day > d);
+    if (before && after) {
+      const ratio = (d - before.day) / (after.day - before.day);
+      return Math.round(before.weight + ratio * (after.weight - before.weight));
+    }
+    return null;
+  });
+}
+
+function chartOptions(yLabel) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: { beginAtZero: false, title: { display: true, text: yLabel } },
+      x: { title: { display: false } }
+    },
+    plugins: { legend: { position: 'bottom' } },
+    spanGaps: true
+  };
+}
+
+function renderFicheSaisiesTable(ind, bande) {
+  const container = document.getElementById('fiche-saisies-table');
+  if (ind.saisies.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light);padding:1rem;">Aucune saisie</p>';
+    return;
+  }
+
+  let html = '<table><thead><tr>' +
+    '<th>Date</th><th>Jour</th><th>Mort. jour</th><th>Mort. cum.</th><th>Effectif</th>' +
+    '<th>Aliment (kg)</th><th>Alim. cum.</th><th>Pesés</th><th>Poids (g)</th><th>IC</th><th>GMQ</th><th></th>' +
+    '</tr></thead><tbody>';
+
+  ind.saisies.forEach(s => {
+    html += `<tr>
+      <td>${fmtDate(s.date_saisie)}</td>
+      <td>J${s.jour_bande}</td>
+      <td>${s.mortalite_jour}</td>
+      <td>${s.mort_cum}</td>
+      <td>${fmt(s.effectif)}</td>
+      <td>${fmt(Number(s.aliment_consomme_kg), 1)}</td>
+      <td>${fmt(s.aliment_total, 1)}</td>
+      <td>${s.nb_oiseaux_peses || '—'}</td>
+      <td>${fmt(s.poids)}</td>
+      <td>${s.ic != null ? fmt(s.ic, 2) : '—'}</td>
+      <td>${fmt(s.gmq, 1)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteSaisie('${s.saisie_id}')">&#10005;</button></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function deleteSaisie(saisieId) {
+  if (!confirm('Supprimer cette saisie ?')) return;
+  try {
+    await apiPost({ action: 'deleteSaisie', payload: { saisie_id: saisieId } });
+    STATE.saisies = STATE.saisies.filter(s => s.saisie_id !== saisieId);
+    loadFicheBande();
+    toast('Saisie supprimée');
+  } catch (err) {
+    toast('Erreur: ' + err.message, 'error');
+  }
+}
+
+function renderFicheIntrantsTable(ind) {
+  const container = document.getElementById('fiche-intrants-table');
+  if (ind.intrants.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light);padding:1rem;">Aucun intrant enregistré</p>';
+    return;
+  }
+
+  const typeLabels = { vaccin: 'Vaccin', medicament: 'Médicament', vitamine: 'Vitamine', autre: 'Autre' };
+  let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>Quantité</th><th>Coût (FCFA)</th><th></th></tr></thead><tbody>';
+
+  ind.intrants.forEach(i => {
+    html += `<tr>
+      <td>${fmtDate(i.date_intrant)}</td>
+      <td>${typeLabels[i.type] || i.type}</td>
+      <td>${i.nom_produit}</td>
+      <td>${i.quantite} ${i.unite}</td>
+      <td>${fmt(Number(i.cout_total_fcfa))}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteIntrant('${i.intrant_id}')">&#10005;</button></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function deleteIntrant(intrantId) {
+  if (!confirm('Supprimer cet intrant ?')) return;
+  try {
+    await apiPost({ action: 'deleteIntrant', payload: { intrant_id: intrantId } });
+    STATE.intrants = STATE.intrants.filter(i => i.intrant_id !== intrantId);
+    loadFicheBande();
+    toast('Intrant supprimé');
+  } catch (err) {
+    toast('Erreur: ' + err.message, 'error');
+  }
+}
+
+// ── Exports ──
+function initExportsPage() {
+  const select = document.getElementById('export-bande-select');
+  select.innerHTML = STATE.bandes.map(b =>
+    `<option value="${b.bande_id}">${b.nom_bande} (${b.statut === 'en_cours' ? 'En cours' : 'Terminée'})</option>`
+  ).join('');
+  renderFinancialSummary();
+  select.onchange = renderFinancialSummary;
+}
+
+function renderFinancialSummary() {
+  const bandeId = document.getElementById('export-bande-select').value;
+  const container = document.getElementById('financial-summary');
+  if (!bandeId) { container.innerHTML = '<p style="color:var(--text-light);">Sélectionnez une bande</p>'; return; }
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const ind = computeIndicators(bande);
+
+  const rows = [
+    ['Produit brut (vente carcasses)', fmt(ind.produitBrut) + ' FCFA'],
+    ['Coût poussins', fmt(ind.coutPoussins) + ' FCFA'],
+    ['Coût aliment', fmt(ind.coutAliment) + ' FCFA'],
+    ['Coût intrants (médicaments/vaccins)', fmt(ind.coutIntrants) + ' FCFA'],
+    ['<strong>Marge brute</strong>', `<strong style="color:${ind.margeBrute >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(ind.margeBrute)} FCFA</strong>`],
+    ['Marge par kg carcasse', fmt(ind.margeParKg) + ' FCFA/kg'],
+    ['', ''],
+    ['Nb oiseaux vendus', fmt(ind.nbSortie)],
+    ['Poids carcasse moyen', fmt(ind.poidsCarcasseSortie) + ' g'],
+    ['Total carcasse produit', fmt(ind.totalCarcasseKg, 1) + ' kg'],
+    ['Prix vente', fmt(ind.prixVente) + ' FCFA/kg'],
+    ['Rendement carcasse', ind.rendement + '%'],
+    ['IC final', ind.ic != null ? fmt(ind.ic, 2) : '—'],
+    ['Taux mortalité', fmt(ind.tauxMort, 1) + '%']
+  ];
+
+  let html = '<table>';
+  rows.forEach(([label, value]) => {
+    if (!label && !value) {
+      html += '<tr><td colspan="2" style="border:none;height:0.5rem;"></td></tr>';
+    } else {
+      html += `<tr><td>${label}</td><td style="text-align:right;font-weight:500;">${value}</td></tr>`;
+    }
+  });
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+function copyFinancialSummary() {
+  const bandeId = document.getElementById('export-bande-select').value;
+  if (!bandeId) return;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const ind = computeIndicators(bande);
+
+  const text = `RÉSUMÉ FINANCIER — ${bande.nom_bande}
+${'═'.repeat(40)}
+Produit brut:          ${fmt(ind.produitBrut)} FCFA
+Coût poussins:         ${fmt(ind.coutPoussins)} FCFA
+Coût aliment:          ${fmt(ind.coutAliment)} FCFA
+Coût intrants:         ${fmt(ind.coutIntrants)} FCFA
+${'─'.repeat(40)}
+MARGE BRUTE:           ${fmt(ind.margeBrute)} FCFA
+Marge/kg carcasse:     ${fmt(ind.margeParKg)} FCFA/kg
+${'─'.repeat(40)}
+Oiseaux vendus:        ${fmt(ind.nbSortie)}
+Total carcasse:        ${fmt(ind.totalCarcasseKg, 1)} kg
+IC final:              ${ind.ic != null ? fmt(ind.ic, 2) : '—'}
+Mortalité:             ${fmt(ind.tauxMort, 1)}%
+${'═'.repeat(40)}
+SIVA / Les Terres du Sud — Azaguié`;
+
+  navigator.clipboard.writeText(text).then(() => toast('Copié dans le presse-papier'));
+}
+
+// ── PDF Export ──
+function exportPDF() {
+  const bandeId = document.getElementById('export-bande-select').value;
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const ind = computeIndicators(bande);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pw = doc.internal.pageSize.getWidth();
+  let y = 15;
+
+  function checkPage(needed) {
+    if (y + needed > 280) { doc.addPage(); y = 15; }
+  }
+
+  // Header
+  doc.setFillColor(46, 125, 50);
+  doc.rect(0, 0, pw, 28, 'F');
+  doc.setTextColor(249, 168, 37);
+  doc.setFontSize(18);
+  doc.setFont(undefined, 'bold');
+  doc.text('SIVA', 10, 12);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.text('Registre de Bande — ' + bande.nom_bande, 10, 22);
+  doc.setFontSize(8);
+  doc.text('Les Terres du Sud — Azaguié, Côte d\'Ivoire', pw - 10, 22, { align: 'right' });
+
+  y = 35;
+  doc.setTextColor(0, 0, 0);
+
+  // Section 1: Identification
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('1. Identification de la bande', 10, y);
+  y += 7;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+
+  const infoLines = [
+    `Nom: ${bande.nom_bande}`,
+    `Date d'entrée: ${fmtDate(bande.date_entree)}`,
+    `Poussins: ${fmt(bande.nb_poussins_entree)} — Fournisseur: ${bande.fournisseur_poussins || '—'}`,
+    `Prix poussin: ${fmt(bande.prix_poussin_unitaire)} FCFA — Poids initial: ${bande.poids_initial_moyen_g || 42} g`,
+    `Coût aliment: ${fmt(bande.cout_aliment_kg)} FCFA/kg — Rendement carcasse: ${bande.rendement_carcasse_pct || 58}%`,
+    `Statut: ${bande.statut === 'en_cours' ? 'En cours' : 'Terminée'}${bande.date_sortie ? ' — Sortie: ' + fmtDate(bande.date_sortie) : ''}`
+  ];
+  infoLines.forEach(l => { doc.text(l, 12, y); y += 5; });
+
+  // Section 2: Indicateurs
+  y += 4;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('2. Résumé des indicateurs', 10, y);
+  y += 7;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+
+  const indLines = [
+    `Effectif actuel: ${fmt(ind.effectifActuel)} — Mortalité: ${fmt(ind.mortCum)} (${fmt(ind.tauxMort,1)}%)`,
+    `Aliment total: ${fmt(ind.alimentTotal, 1)} kg — IC: ${ind.ic != null ? fmt(ind.ic, 2) : '—'}`,
+    `Poids vif moyen: ${fmt(ind.dernierPoids)} g — GMQ: ${fmt(ind.gmq, 1)} g/j`,
+    `Poids carcasse estimé: ${fmt(ind.poidsCarcasse)} g`,
+    `Marge brute: ${fmt(ind.margeBrute)} FCFA — Marge/kg: ${fmt(ind.margeParKg)} FCFA/kg`
+  ];
+  indLines.forEach(l => { doc.text(l, 12, y); y += 5; });
+
+  // Section 3: Tableau journalier
+  y += 4;
+  checkPage(20);
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('3. Tableau journalier', 10, y);
+  y += 6;
+
+  if (ind.saisies.length > 0) {
+    const cols = ['Date', 'Jour', 'Mort.', 'Cum.', 'Effectif', 'Alim.', 'IC', 'Poids', 'GMQ'];
+    const colW = [22, 12, 12, 12, 18, 16, 14, 16, 14];
+    let x = 10;
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(10, y - 3.5, colW.reduce((a, b) => a + b, 0), 5, 'F');
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    cols.forEach((c, i) => { doc.text(c, x + 1, y); x += colW[i]; });
+    y += 5;
+
+    doc.setFont(undefined, 'normal');
+    ind.saisies.forEach(s => {
+      checkPage(5);
+      x = 10;
+      const vals = [
+        fmtDate(s.date_saisie), 'J' + s.jour_bande,
+        String(s.mortalite_jour), String(s.mort_cum), fmt(s.effectif),
+        fmt(Number(s.aliment_consomme_kg), 1),
+        s.ic != null ? fmt(s.ic, 2) : '—',
+        fmt(s.poids), fmt(s.gmq, 1)
+      ];
+      vals.forEach((v, i) => { doc.text(v, x + 1, y); x += colW[i]; });
+      y += 4;
+    });
+  } else {
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.text('Aucune saisie enregistrée', 12, y);
+    y += 5;
+  }
+
+  // Section 4: Intrants
+  y += 4;
+  checkPage(15);
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('4. Registre des intrants', 10, y);
+  y += 6;
+
+  if (ind.intrants.length > 0) {
+    const typeLabels = { vaccin: 'Vaccin', medicament: 'Médic.', vitamine: 'Vit.', autre: 'Autre' };
+    const iCols = ['Date', 'Type', 'Produit', 'Qté', 'Coût FCFA'];
+    const iColW = [25, 18, 50, 25, 25];
+    let x = 10;
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(10, y - 3.5, iColW.reduce((a, b) => a + b, 0), 5, 'F');
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'bold');
+    iCols.forEach((c, i) => { doc.text(c, x + 1, y); x += iColW[i]; });
+    y += 5;
+
+    doc.setFont(undefined, 'normal');
+    ind.intrants.forEach(item => {
+      checkPage(5);
+      x = 10;
+      const vals = [
+        fmtDate(item.date_intrant),
+        typeLabels[item.type] || item.type,
+        item.nom_produit,
+        item.quantite + ' ' + item.unite,
+        fmt(Number(item.cout_total_fcfa))
+      ];
+      vals.forEach((v, i) => { doc.text(String(v).substring(0, 30), x + 1, y); x += iColW[i]; });
+      y += 4;
+    });
+  } else {
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.text('Aucun intrant enregistré', 12, y);
+  }
+
+  // Footer on each page
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(7);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(120, 120, 120);
+    const footerY = doc.internal.pageSize.getHeight() - 8;
+    doc.text(
+      `Document généré le ${new Date().toLocaleDateString('fr-FR')} — SIVA / Les Terres du Sud — Azaguié`,
+      pw / 2, footerY, { align: 'center' }
+    );
+    doc.text(`Page ${p}/${totalPages}`, pw - 10, footerY, { align: 'right' });
+  }
+
+  doc.save(`Registre_${bande.nom_bande}.pdf`);
+  toast('PDF généré');
+}
+
+// ── Excel Export ──
+function exportExcel() {
+  const bandeId = document.getElementById('export-bande-select').value;
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const ind = computeIndicators(bande);
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Données journalières
+  const dailyHeaders = [
+    'Date', 'Jour', 'Mortalité jour', 'Mortalité cumulée', 'Taux mortalité %',
+    'Effectif', 'Aliment jour (kg)', 'Aliment cumulé (kg)',
+    'Nb pesés', 'Poids vif moyen (g)', 'IC', 'GMQ (g/j)', 'Poids carcasse est. (g)'
+  ];
+  const dailyData = ind.saisies.map(s => [
+    s.date_saisie, 'J' + s.jour_bande,
+    Number(s.mortalite_jour), s.mort_cum, Math.round(s.taux_mort * 10) / 10,
+    s.effectif, Number(s.aliment_consomme_kg), Math.round(s.aliment_total * 10) / 10,
+    Number(s.nb_oiseaux_peses) || '', s.poids,
+    s.ic != null ? Math.round(s.ic * 100) / 100 : '',
+    Math.round(s.gmq * 10) / 10,
+    Math.round(s.poids_carcasse)
+  ]);
+  const ws1 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyData]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Données journalières');
+
+  // Sheet 2: Résumé financier
+  const finData = [
+    ['RÉSUMÉ FINANCIER — ' + bande.nom_bande],
+    [],
+    ['Produit brut (FCFA)', ind.produitBrut],
+    ['Coût poussins (FCFA)', ind.coutPoussins],
+    ['Coût aliment (FCFA)', ind.coutAliment],
+    ['Coût intrants (FCFA)', ind.coutIntrants],
+    [],
+    ['MARGE BRUTE (FCFA)', ind.margeBrute],
+    ['Marge/kg carcasse (FCFA)', Math.round(ind.margeParKg)],
+    [],
+    ['Nb oiseaux vendus', ind.nbSortie],
+    ['Poids carcasse moyen (g)', Math.round(ind.poidsCarcasseSortie)],
+    ['Total carcasse (kg)', Math.round(ind.totalCarcasseKg * 10) / 10],
+    ['IC final', ind.ic != null ? Math.round(ind.ic * 100) / 100 : ''],
+    ['Taux mortalité (%)', Math.round(ind.tauxMort * 10) / 10]
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(finData);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Résumé financier');
+
+  XLSX.writeFile(wb, `SIVA_${bande.nom_bande}.xlsx`);
+  toast('Excel généré');
+}
+
+// ── Settings ──
+function initSettingsPage() {
+  document.getElementById('settings-url').value = isConfigured() ? APPS_SCRIPT_URL : '';
+
+  // Show Apps Script code
+  const codeEl = document.getElementById('apps-script-code');
+  const codeSource = document.getElementById('code-gs');
+  codeEl.textContent = codeSource.textContent.trim();
+}
+
+function saveSettings() {
+  const url = document.getElementById('settings-url').value.trim();
+  if (!url || !url.startsWith('http')) {
+    toast('URL invalide', 'error');
+    return;
+  }
+  localStorage.setItem('siva_apps_script_url', url);
+  APPS_SCRIPT_URL = url;
+  document.getElementById('setup-banner').style.display = 'none';
+  toast('URL enregistrée');
+  loadAllData().then(() => renderDashboard());
+}
+
+async function testConnection() {
+  const url = document.getElementById('settings-url').value.trim();
+  const statusEl = document.getElementById('settings-status');
+  if (!url) { statusEl.innerHTML = '<span style="color:var(--red)">Veuillez entrer une URL</span>'; return; }
+
+  statusEl.innerHTML = '<span class="spinner"></span> Test en cours...';
+
+  try {
+    const tmpUrl = url + '?action=ping';
+    const res = await fetch(tmpUrl);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      statusEl.innerHTML = '<span style="color:var(--green);font-weight:600;">&#10003; Connexion réussie !</span>';
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red)">Erreur: ${data.error || 'Réponse inattendue'}</span>`;
+    }
+  } catch (err) {
+    statusEl.innerHTML = `<span style="color:var(--red)">Erreur: ${err.message}</span>`;
+  }
+}
+
+function copyAppsScript() {
+  const code = document.getElementById('code-gs').textContent.trim();
+  navigator.clipboard.writeText(code).then(() => toast('Code Apps Script copié'));
+}
+
+// ── Init ──
+async function init() {
+  if (!isConfigured()) {
+    document.getElementById('setup-banner').style.display = '';
+  } else {
+    await loadAllData();
+  }
+  renderDashboard();
+}
+
+init();
+</script>
+</body>
+</html>
