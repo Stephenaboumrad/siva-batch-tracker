@@ -442,8 +442,14 @@ body.role-chef_bande .manager-only { display: none !important; }
       <div style="font-size:0.75rem;color:#757575;margin-top:0.25rem;">Société Ivoirienne de Volaille et Assimilés</div>
       <div style="font-size:0.65rem;color:#9e9e9e;font-style:italic;">Les Terres du Sud — Azaguié</div>
     </div>
-    <label style="display:block;font-size:0.85rem;font-weight:600;color:#757575;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.3px;">Entrez votre PIN</label>
-    <input type="password" id="login-pin" maxlength="4" style="width:100%;padding:0.75rem;border:1px solid #e0e0e0;border-radius:6px;font-size:1.2rem;text-align:center;letter-spacing:8px;font-family:inherit;" placeholder="____" onkeydown="if(event.key==='Enter')doLogin()">
+    <div style="text-align:left;margin-bottom:0.75rem;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;color:#757575;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.3px;">Matricule</label>
+      <input type="text" id="login-matricule" style="width:100%;padding:0.65rem 0.75rem;border:1px solid #e0e0e0;border-radius:6px;font-size:0.95rem;font-family:inherit;" placeholder="Votre matricule" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+    </div>
+    <div style="text-align:left;margin-bottom:0.25rem;">
+      <label style="display:block;font-size:0.8rem;font-weight:600;color:#757575;margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.3px;">Mot de passe</label>
+      <input type="password" id="login-password" style="width:100%;padding:0.65rem 0.75rem;border:1px solid #e0e0e0;border-radius:6px;font-size:0.95rem;font-family:inherit;" placeholder="Votre mot de passe" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
     <div id="login-error" style="color:#c62828;font-size:0.8rem;margin-top:0.5rem;min-height:1.2rem;"></div>
     <button onclick="doLogin()" style="width:100%;margin-top:0.75rem;padding:0.7rem;background:#E65100;color:#fff;border:none;border-radius:6px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit;">Se connecter</button>
   </div>
@@ -879,24 +885,25 @@ function deleteRow(ss, sheetName, idField, idValue) {
 'use strict';
 
 // ── Auth ──
-const AUTH_USERS = {
-  '1001': { name: 'Stephen', role: 'manager' },
-  '1002': { name: 'Abbas', role: 'manager' },
-  '2001': { name: 'Mounir', role: 'chef_bande' }
-};
-let currentUser = null; // { name, role }
+const AUTH_USERS = [
+  { matricule: 'SIVA-001', password: 'stephen2026', name: 'Stephen Aboumrad', role: 'manager' },
+  { matricule: 'SIVA-002', password: 'abbas2026',   name: 'Zahreddine Abbas',  role: 'manager' },
+  { matricule: 'SIVA-003', password: 'mounir2026',  name: 'Mounir Zakka',      role: 'chef_bande' }
+];
+let currentUser = null; // { matricule, name, role }
 
 const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'exports', 'settings'];
 const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche'];
 
 function doLogin() {
-  const pin = document.getElementById('login-pin').value;
-  const user = AUTH_USERS[pin];
+  const matricule = document.getElementById('login-matricule').value.trim();
+  const password = document.getElementById('login-password').value;
+  const user = AUTH_USERS.find(u => u.matricule === matricule && u.password === password);
   if (!user) {
-    document.getElementById('login-error').textContent = 'PIN incorrect';
+    document.getElementById('login-error').textContent = 'Matricule ou mot de passe incorrect';
     return;
   }
-  currentUser = { ...user };
+  currentUser = { matricule: user.matricule, name: user.name, role: user.role };
   document.getElementById('login-screen').style.display = 'none';
   applyRoleAccess();
   init();
@@ -905,7 +912,8 @@ function doLogin() {
 function logout() {
   currentUser = null;
   document.body.className = '';
-  document.getElementById('login-pin').value = '';
+  document.getElementById('login-matricule').value = '';
+  document.getElementById('login-password').value = '';
   document.getElementById('login-error').textContent = '';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('user-badge').style.display = 'none';
@@ -931,7 +939,7 @@ function applyRoleAccess() {
   const badge = document.getElementById('user-badge');
   const badgeName = document.getElementById('user-badge-name');
   badge.style.display = '';
-  badgeName.textContent = currentUser.name;
+  badgeName.textContent = currentUser.matricule + ' — ' + currentUser.name;
 }
 
 function isManager() {
