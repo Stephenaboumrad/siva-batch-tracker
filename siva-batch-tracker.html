@@ -3,8 +3,8 @@
 <head>
 <!--
   ╔══════════════════════════════════════════════════════════════╗
-  ║  SIVA BATCH TRACKER — Suivi de Bandes de Poulets de Chair  ║
-  ║  Société Ivoirienne de Volailles et Assimilés — Azaguié    ║
+  ║  COQORICO — Suivi de Bandes de Poulets de Chair            ║
+  ║  SIVA — Société Ivoirienne de Volaille et Assimilés        ║
   ╚══════════════════════════════════════════════════════════════╝
 
   GUIDE DE MISE EN ROUTE (3 étapes) :
@@ -27,7 +27,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SIVA — Suivi de Bandes</title>
+<title>Coqorico — Suivi de Bandes</title>
 
 <!-- CDN Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -38,11 +38,11 @@
 /* ── Reset & Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --green: #2E7D32;
-  --green-light: #4CAF50;
-  --green-dark: #1B5E20;
-  --gold: #F9A825;
-  --gold-light: #FDD835;
+  --green: #E65100;
+  --green-light: #FF8F00;
+  --green-dark: #E65100;
+  --gold: #FF8F00;
+  --gold-light: #FFB300;
   --bg: #f5f5f5;
   --white: #ffffff;
   --text: #212121;
@@ -160,7 +160,7 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
 }
-.badge-green { background: #e8f5e9; color: var(--green); }
+.badge-green { background: #fff3e0; color: var(--green); }
 .badge-orange { background: #fff3e0; color: var(--orange); }
 .badge-red { background: #ffebee; color: var(--red); }
 .badge-grey { background: #eeeeee; color: #616161; }
@@ -212,7 +212,7 @@ body {
 .form-group input:focus, .form-group select:focus {
   outline: none;
   border-color: var(--green);
-  box-shadow: 0 0 0 2px rgba(46,125,50,0.15);
+  box-shadow: 0 0 0 2px rgba(230,81,0,0.15);
 }
 .form-row {
   display: grid;
@@ -236,7 +236,7 @@ body {
 }
 .btn:active { transform: scale(0.97); }
 .btn-primary { background: var(--green); color: #fff; }
-.btn-primary:hover { background: var(--green-light); }
+.btn-primary:hover { background: #BF360C; }
 .btn-gold { background: var(--gold); color: #333; }
 .btn-gold:hover { background: var(--gold-light); }
 .btn-outline {
@@ -244,7 +244,7 @@ body {
   border: 1.5px solid var(--green);
   color: var(--green);
 }
-.btn-outline:hover { background: rgba(46,125,50,0.06); }
+.btn-outline:hover { background: rgba(230,81,0,0.06); }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
 
@@ -376,6 +376,9 @@ tr:hover td { background: #fafafa; }
 }
 .empty-state .icon { font-size: 3rem; margin-bottom: 0.5rem; }
 
+/* ── Role-based visibility ── */
+body.role-chef_bande .manager-only { display: none !important; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
@@ -399,8 +402,12 @@ tr:hover td { background: #fafafa; }
 <!-- Sidebar -->
 <div id="sidebar">
   <div class="logo">
-    <h1>SIVA</h1>
-    <small>Les Terres du Sud — Azaguié</small>
+    <h1>COQORICO</h1>
+    <small>Société Ivoirienne de Volaille et Assimilés</small>
+    <small style="font-style:italic;font-size:0.6rem;">Les Terres du Sud — Azaguié</small>
+  </div>
+  <div id="user-badge" style="display:none;text-align:center;padding:0.3rem 1rem;font-size:0.75rem;color:rgba(255,255,255,0.8);border-bottom:1px solid rgba(255,255,255,0.15);">
+    <span id="user-badge-name"></span>
   </div>
   <nav>
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
@@ -422,6 +429,24 @@ tr:hover td { background: #fafafa; }
       <span class="icon">&#9881;</span> Paramètres
     </a>
   </nav>
+  <div style="padding:0.75rem 1.25rem;border-top:1px solid rgba(255,255,255,0.15);">
+    <button onclick="logout()" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);border:none;border-radius:6px;padding:0.5rem 1rem;width:100%;font-size:0.8rem;cursor:pointer;font-family:inherit;">Déconnexion</button>
+  </div>
+</div>
+
+<!-- Login Screen -->
+<div id="login-screen" style="position:fixed;inset:0;background:#f5f5f5;display:flex;align-items:center;justify-content:center;z-index:1000;">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:2.5rem;width:340px;text-align:center;">
+    <div style="margin-bottom:1.5rem;">
+      <h1 style="font-size:2rem;font-weight:800;letter-spacing:2px;color:#E65100;">COQORICO</h1>
+      <div style="font-size:0.75rem;color:#757575;margin-top:0.25rem;">Société Ivoirienne de Volaille et Assimilés</div>
+      <div style="font-size:0.65rem;color:#9e9e9e;font-style:italic;">Les Terres du Sud — Azaguié</div>
+    </div>
+    <label style="display:block;font-size:0.85rem;font-weight:600;color:#757575;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.3px;">Entrez votre PIN</label>
+    <input type="password" id="login-pin" maxlength="4" style="width:100%;padding:0.75rem;border:1px solid #e0e0e0;border-radius:6px;font-size:1.2rem;text-align:center;letter-spacing:8px;font-family:inherit;" placeholder="____" onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="login-error" style="color:#c62828;font-size:0.8rem;margin-top:0.5rem;min-height:1.2rem;"></div>
+    <button onclick="doLogin()" style="width:100%;margin-top:0.75rem;padding:0.7rem;background:#E65100;color:#fff;border:none;border-radius:6px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:inherit;">Se connecter</button>
+  </div>
 </div>
 
 <!-- Main Content -->
@@ -446,7 +471,7 @@ tr:hover td { background: #fafafa; }
       <div class="empty-state" id="dash-empty">
         <div class="icon">&#128051;</div>
         <p>Aucune bande active.<br>Créez une bande pour commencer.</p>
-        <button class="btn btn-primary" style="margin-top:1rem;" onclick="navigate('bandes',document.querySelector('[data-page=bandes]'))">Créer une bande</button>
+        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',document.querySelector('[data-page=bandes]'))">Créer une bande</button>
       </div>
     </div>
   </div>
@@ -647,7 +672,7 @@ tr:hover td { background: #fafafa; }
 <!-- ═══════════════════════════════════════════════════════════ -->
 <script type="text/apps-script" id="code-gs">
 // ═══════════════════════════════════════════════════
-// Code.gs — SIVA Batch Tracker — Google Apps Script
+// Code.gs — Coqorico Batch Tracker — Google Apps Script
 // ═══════════════════════════════════════════════════
 // Déployer en Application Web :
 //   Exécuter en tant que : Moi
@@ -684,7 +709,7 @@ function doGet(e) {
 
     switch (action) {
       case 'ping':
-        result = { status: 'ok', message: 'SIVA Batch Tracker connecté' };
+        result = { status: 'ok', message: 'Coqorico Batch Tracker connecté' };
         break;
 
       case 'getBandes':
@@ -852,6 +877,66 @@ function deleteRow(ss, sheetName, idField, idValue) {
 <!-- ═══════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
+
+// ── Auth ──
+const AUTH_USERS = {
+  '1001': { name: 'Stephen', role: 'manager' },
+  '1002': { name: 'Abbas', role: 'manager' },
+  '2001': { name: 'Mounir', role: 'chef_bande' }
+};
+let currentUser = null; // { name, role }
+
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'exports', 'settings'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie'];
+
+function doLogin() {
+  const pin = document.getElementById('login-pin').value;
+  const user = AUTH_USERS[pin];
+  if (!user) {
+    document.getElementById('login-error').textContent = 'PIN incorrect';
+    return;
+  }
+  currentUser = { ...user };
+  document.getElementById('login-screen').style.display = 'none';
+  applyRoleAccess();
+  init();
+}
+
+function logout() {
+  currentUser = null;
+  document.body.className = '';
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('user-badge').style.display = 'none';
+  // Reset to dashboard
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-dashboard').classList.add('active');
+}
+
+function applyRoleAccess() {
+  if (!currentUser) return;
+  const allowedPages = currentUser.role === 'manager' ? MANAGER_PAGES : CHEF_BANDE_PAGES;
+
+  // Set body class for CSS-based role hiding
+  document.body.className = 'role-' + currentUser.role;
+
+  // Show/hide sidebar nav items
+  document.querySelectorAll('#sidebar nav a').forEach(a => {
+    const page = a.getAttribute('data-page');
+    a.style.display = allowedPages.includes(page) ? '' : 'none';
+  });
+
+  // Show user badge
+  const badge = document.getElementById('user-badge');
+  const badgeName = document.getElementById('user-badge-name');
+  badge.style.display = '';
+  badgeName.textContent = currentUser.name;
+}
+
+function isManager() {
+  return currentUser && currentUser.role === 'manager';
+}
 
 // ── Config ──
 const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
@@ -1095,7 +1180,7 @@ function renderDashboard() {
     const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
     cardsHtml += `
-      <div class="card" style="cursor:pointer;" onclick="openFiche('${b.bande_id}')">
+      <div class="card" ${isManager() ? 'style="cursor:pointer;" onclick="openFiche(\'' + b.bande_id + '\')"' : ''}>
         <div class="card-header">
           <h3>${b.nom_bande}</h3>
           <span class="badge badge-${mortClass}">J${jour}</span>
@@ -1575,8 +1660,8 @@ function renderFicheCharts(ind) {
         {
           label: 'Poids vif observé (g)',
           data: mapToLabels(cobbDays.length > days.length ? cobbDays : days, dayNums, ind.saisies.map(s => s.poids)),
-          borderColor: '#2E7D32',
-          backgroundColor: 'rgba(46,125,50,0.1)',
+          borderColor: '#E65100',
+          backgroundColor: 'rgba(230,81,0,0.1)',
           borderWidth: 2,
           tension: 0.3,
           fill: true,
@@ -1585,7 +1670,7 @@ function renderFicheCharts(ind) {
         {
           label: 'Standard Cobb 500',
           data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days, dayNums),
-          borderColor: '#F9A825',
+          borderColor: '#FF8F00',
           borderWidth: 2,
           borderDash: [6, 3],
           tension: 0.3,
@@ -1825,7 +1910,7 @@ Total carcasse:        ${fmt(ind.totalCarcasseKg, 1)} kg
 IC final:              ${ind.ic != null ? fmt(ind.ic, 2) : '—'}
 Mortalité:             ${fmt(ind.tauxMort, 1)}%
 ${'═'.repeat(40)}
-SIVA / Les Terres du Sud — Azaguié`;
+SIVA — Société Ivoirienne de Volaille et Assimilés / Les Terres du Sud — Azaguié`;
 
   navigator.clipboard.writeText(text).then(() => toast('Copié dans le presse-papier'));
 }
@@ -1847,12 +1932,12 @@ function exportPDF() {
   }
 
   // Header
-  doc.setFillColor(46, 125, 50);
+  doc.setFillColor(230, 81, 0);
   doc.rect(0, 0, pw, 28, 'F');
-  doc.setTextColor(249, 168, 37);
+  doc.setTextColor(255, 143, 0);
   doc.setFontSize(18);
   doc.setFont(undefined, 'bold');
-  doc.text('SIVA', 10, 12);
+  doc.text('COQORICO', 10, 12);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
   doc.text('Registre de Bande — ' + bande.nom_bande, 10, 22);
@@ -1989,7 +2074,7 @@ function exportPDF() {
     doc.setTextColor(120, 120, 120);
     const footerY = doc.internal.pageSize.getHeight() - 8;
     doc.text(
-      `Document généré le ${new Date().toLocaleDateString('fr-FR')} — SIVA / Les Terres du Sud — Azaguié`,
+      `Document généré le ${new Date().toLocaleDateString('fr-FR')} — SIVA — Société Ivoirienne de Volaille et Assimilés`,
       pw / 2, footerY, { align: 'center' }
     );
     doc.text(`Page ${p}/${totalPages}`, pw - 10, footerY, { align: 'right' });
@@ -2047,7 +2132,7 @@ function exportExcel() {
   const ws2 = XLSX.utils.aoa_to_sheet(finData);
   XLSX.utils.book_append_sheet(wb, ws2, 'Résumé financier');
 
-  XLSX.writeFile(wb, `SIVA_${bande.nom_bande}.xlsx`);
+  XLSX.writeFile(wb, `Coqorico_${bande.nom_bande}.xlsx`);
   toast('Excel généré');
 }
 
@@ -2110,7 +2195,7 @@ async function init() {
   renderDashboard();
 }
 
-init();
+// Don't auto-init; wait for login
 </script>
 </body>
 </html>
