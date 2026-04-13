@@ -379,6 +379,49 @@ tr:hover td { background: #fafafa; }
 /* ── Role-based visibility ── */
 body.role-chef_bande .manager-only { display: none !important; }
 
+/* ── Alert system ── */
+.alerts-section { margin-bottom: 1.25rem; }
+.alerts-section .alert-ok {
+  background: #e8f5e9; border-left: 4px solid #43a047; padding: 0.6rem 1rem;
+  border-radius: 4px; font-size: 0.85rem; color: #2e7d32;
+}
+.alert-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.4rem; font-size: 0.85rem;
+}
+.alert-item.warning { background: #fff3e0; border-left: 4px solid var(--orange); color: #e65100; }
+.alert-item.critical { background: #ffebee; border-left: 4px solid var(--red); color: #b71c1c; }
+.alert-item .alert-icon { font-size: 1rem; flex-shrink: 0; }
+.sidebar-badge {
+  background: var(--red); color: #fff; font-size: 0.65rem; font-weight: 700;
+  border-radius: 10px; padding: 0.1rem 0.45rem; margin-left: auto; min-width: 1.2rem; text-align: center;
+}
+
+/* ── Forecast chip ── */
+.forecast-chip {
+  margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 6px;
+  background: #f3e5f5; font-size: 0.8rem; color: #6a1b9a;
+  border-left: 3px solid #9c27b0;
+}
+
+/* ── Offline banner ── */
+.offline-banner {
+  background: #fff3e0; border-left: 4px solid var(--orange); padding: 0.75rem 1rem;
+  border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; color: #e65100; display: none;
+}
+
+/* ── Sync indicator ── */
+#sync-status {
+  padding: 0.5rem 1.25rem; font-size: 0.75rem; color: rgba(255,255,255,0.7);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+#sync-status .sync-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+#sync-status .sync-dot.green { background: #43a047; }
+#sync-status .sync-dot.orange { background: #ef6c00; }
+#sync-status .sync-dot.red { background: #c62828; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
@@ -411,7 +454,7 @@ body.role-chef_bande .manager-only { display: none !important; }
   </div>
   <nav>
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
-      <span class="icon">&#128202;</span> Tableau de bord
+      <span class="icon">&#128202;</span> Tableau de bord <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
     <a href="#" data-page="bandes" onclick="navigate('bandes',this)">
       <span class="icon">&#128051;</span> Bandes
@@ -429,6 +472,9 @@ body.role-chef_bande .manager-only { display: none !important; }
       <span class="icon">&#9881;</span> Paramètres
     </a>
   </nav>
+  <div id="sync-status">
+    <span class="sync-dot green"></span> Synchronisé
+  </div>
   <div style="padding:0.75rem 1.25rem;border-top:1px solid rgba(255,255,255,0.15);">
     <button onclick="logout()" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);border:none;border-radius:6px;padding:0.5rem 1rem;width:100%;font-size:0.8rem;cursor:pointer;font-family:inherit;">Déconnexion</button>
   </div>
@@ -457,6 +503,9 @@ body.role-chef_bande .manager-only { display: none !important; }
 
 <!-- Main Content -->
 <div id="main">
+
+  <!-- Offline banner -->
+  <div id="offline-banner" class="offline-banner"></div>
 
   <!-- Setup banner (shown when not configured) -->
   <div id="setup-banner" class="setup-banner" style="display:none;">
@@ -656,6 +705,12 @@ body.role-chef_bande .manager-only { display: none !important; }
         <button class="btn btn-outline" onclick="testConnection()">Tester la connexion</button>
       </div>
       <div id="settings-status" style="margin-top:0.75rem;font-size:0.85rem;"></div>
+    </div>
+
+    <div class="card" style="max-width:700px;margin-top:1rem;">
+      <h3 style="margin-bottom:1rem;color:var(--green-dark);">Synchronisation hors ligne</h3>
+      <p id="sync-queue-info" style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">File d'attente vide.</p>
+      <button class="btn btn-outline" onclick="manualSync()">Synchroniser maintenant</button>
     </div>
 
     <div class="card" style="max-width:700px;margin-top:1rem;">
@@ -954,6 +1009,14 @@ let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDE
 let STATE = { bandes: [], saisies: [], intrants: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null };
 
+// ── Slaughter forecast constants (configurable) ──
+const TARGET_LIVE_WEIGHT_G = 1900;
+const TARGET_CARCASS_YIELD_PCT = 58; // rendement => 1900 × 0.58 = 1102g
+
+// ── Offline / Sync state ──
+let isOnline = true;
+let syncCheckInterval = null;
+
 // ── Cobb 500 standard curve ──
 const COBB_STANDARD = [
   { day: 0, weight: 42 }, { day: 1, weight: 52 }, { day: 2, weight: 66 },
@@ -1020,15 +1083,140 @@ async function apiGet(params) {
 
 async function apiPost(body) {
   if (!isConfigured()) throw new Error('URL Apps Script non configurée');
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) throw new Error('Erreur réseau: ' + res.status);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Erreur réseau: ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  } catch (err) {
+    // If network error, queue for later sync
+    if (err.message.includes('réseau') || err.message === 'Failed to fetch' || !navigator.onLine) {
+      addToSyncQueue(body);
+      isOnline = false;
+      updateSyncStatus();
+      throw new Error('Hors ligne — opération mise en file d\'attente');
+    }
+    throw err;
+  }
+}
+
+// ── Sync Queue ──
+function getSyncQueue() {
+  try {
+    const raw = localStorage.getItem('coqorico_sync_queue');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+function saveSyncQueue(queue) {
+  try {
+    localStorage.setItem('coqorico_sync_queue', JSON.stringify(queue));
+  } catch (e) { /* localStorage full */ }
+}
+
+function addToSyncQueue(body) {
+  const queue = getSyncQueue();
+  queue.push({ action: body.action, payload: body.payload || body, timestamp: new Date().toISOString() });
+  saveSyncQueue(queue);
+  updateSyncStatus();
+}
+
+function updateSyncStatus() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const queue = getSyncQueue();
+
+  if (!isOnline) {
+    el.innerHTML = '<span class="sync-dot red"></span> Hors ligne';
+  } else if (queue.length > 0) {
+    el.innerHTML = '<span class="sync-dot orange"></span> ' + queue.length + ' opération(s) en attente';
+  } else {
+    el.innerHTML = '<span class="sync-dot green"></span> Synchronisé';
+  }
+
+  // Update settings page sync info if visible
+  const infoEl = document.getElementById('sync-queue-info');
+  if (infoEl) {
+    infoEl.textContent = queue.length > 0
+      ? queue.length + ' opération(s) en attente de synchronisation.'
+      : 'File d\'attente vide.';
+  }
+}
+
+async function processSyncQueue() {
+  const queue = getSyncQueue();
+  if (queue.length === 0) return;
+
+  let processed = 0;
+  let errors = 0;
+  const remaining = [];
+
+  for (const item of queue) {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: item.action, payload: item.payload })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      processed++;
+    } catch (e) {
+      errors++;
+      remaining.push(item);
+    }
+  }
+
+  saveSyncQueue(remaining);
+  updateSyncStatus();
+
+  if (processed > 0) {
+    toast(processed + ' opération(s) synchronisée(s)' + (errors > 0 ? ' (' + errors + ' erreur(s))' : ''));
+    // Reload data to get fresh state
+    await loadAllData();
+    renderDashboard();
+  }
+}
+
+async function manualSync() {
+  if (!isConfigured()) { toast('URL non configurée', 'error'); return; }
+  try {
+    await fetch(APPS_SCRIPT_URL + '?action=ping');
+    isOnline = true;
+    hideOfflineBanner();
+    await processSyncQueue();
+    await loadAllData();
+    renderDashboard();
+    toast('Synchronisation terminée');
+  } catch (e) {
+    toast('Impossible de se connecter', 'error');
+  }
+}
+
+function startSyncChecker() {
+  if (syncCheckInterval) clearInterval(syncCheckInterval);
+  syncCheckInterval = setInterval(async () => {
+    if (!isConfigured()) return;
+    try {
+      await fetch(APPS_SCRIPT_URL + '?action=ping');
+      if (!isOnline) {
+        isOnline = true;
+        hideOfflineBanner();
+        await processSyncQueue();
+        await loadAllData();
+        renderDashboard();
+      }
+    } catch (e) {
+      isOnline = false;
+      updateSyncStatus();
+    }
+  }, 30000);
 }
 
 async function loadAllData() {
@@ -1038,10 +1226,53 @@ async function loadAllData() {
     STATE.saisies = data.saisies || [];
     STATE.intrants = data.intrants || [];
     STATE.loaded = true;
+    isOnline = true;
+    // Cache to localStorage on success
+    try {
+      localStorage.setItem('coqorico_cache', JSON.stringify({
+        bandes: STATE.bandes,
+        saisies: STATE.saisies,
+        intrants: STATE.intrants,
+        cachedAt: new Date().toISOString()
+      }));
+    } catch (e) { /* localStorage full or unavailable */ }
+    hideOfflineBanner();
+    updateSyncStatus();
   } catch (err) {
     console.error('Load error:', err);
-    toast('Erreur de chargement: ' + err.message, 'error');
+    // Try to load from cache
+    const cached = loadFromCache();
+    if (cached) {
+      STATE.bandes = cached.bandes || [];
+      STATE.saisies = cached.saisies || [];
+      STATE.intrants = cached.intrants || [];
+      STATE.loaded = true;
+      isOnline = false;
+      showOfflineBanner(cached.cachedAt);
+      updateSyncStatus();
+    } else {
+      toast('Erreur de chargement: ' + err.message, 'error');
+    }
   }
+}
+
+function loadFromCache() {
+  try {
+    const raw = localStorage.getItem('coqorico_cache');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function showOfflineBanner(cachedAt) {
+  const el = document.getElementById('offline-banner');
+  const dateStr = cachedAt ? new Date(cachedAt).toLocaleString('fr-FR') : 'inconnue';
+  el.innerHTML = '&#9888;&#65039; Mode hors ligne — données du ' + dateStr;
+  el.style.display = '';
+}
+
+function hideOfflineBanner() {
+  document.getElementById('offline-banner').style.display = 'none';
 }
 
 // ── Navigation ──
@@ -1157,6 +1388,116 @@ function computeIndicators(bande) {
   };
 }
 
+// ── Alerts system ──
+function checkAlerts() {
+  const alerts = [];
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
+
+  activeBandes.forEach(b => {
+    const ind = computeIndicators(b);
+
+    // Mortalité cumulée
+    if (ind.tauxMort > 5) {
+      alerts.push({ level: 'critical', icon: '🔴', bande: b.nom_bande, metric: 'Mortalité cumulée', value: fmt(ind.tauxMort, 1) + '%', threshold: '> 5%' });
+    } else if (ind.tauxMort > 3) {
+      alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'Mortalité cumulée', value: fmt(ind.tauxMort, 1) + '%', threshold: '> 3%' });
+    }
+
+    // IC cumulatif
+    if (ind.ic != null) {
+      if (ind.ic > 2.5) {
+        alerts.push({ level: 'critical', icon: '🔴', bande: b.nom_bande, metric: 'IC cumulatif', value: fmt(ind.ic, 2), threshold: '> 2.5' });
+      } else if (ind.ic > 2.2) {
+        alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'IC cumulatif', value: fmt(ind.ic, 2), threshold: '> 2.2' });
+      }
+    }
+
+    // Aucune saisie depuis 24h
+    if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) >= 1) {
+      alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'Aucune saisie', value: ind.lastSaisieDate ? 'depuis ' + fmtDate(ind.lastSaisieDate) : 'jamais', threshold: '> 24h' });
+    }
+  });
+
+  // Update sidebar badge
+  const badge = document.getElementById('alert-badge');
+  if (alerts.length > 0) {
+    badge.style.display = '';
+    badge.textContent = alerts.length;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  return alerts;
+}
+
+function renderAlerts(alerts) {
+  const container = document.getElementById('dash-alerts');
+  if (alerts.length === 0) {
+    container.innerHTML = '<div class="alerts-section"><div class="alert-ok">✅ Tout est normal</div></div>';
+    return;
+  }
+
+  let html = '<div class="alerts-section">';
+  alerts.forEach(a => {
+    const cls = a.level === 'critical' ? 'critical' : 'warning';
+    html += `<div class="alert-item ${cls}">
+      <span class="alert-icon">${a.icon}</span>
+      <strong>${a.bande}</strong> — ${a.metric} : ${a.value} (seuil ${a.threshold})
+    </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ── Slaughter forecast ──
+function computeSlaughterForecast(bande, ind) {
+  const currentWeight = ind.dernierPoids || 0;
+
+  // Already at target weight
+  if (currentWeight >= TARGET_LIVE_WEIGHT_G) {
+    return { status: 'reached', text: '✅ Poids cible atteint' };
+  }
+
+  // Compute GMQ from last 3 days average
+  const saisies = ind.saisies;
+  if (saisies.length < 2) {
+    return { status: 'nodata', text: '— données insuffisantes' };
+  }
+
+  // Get last 3 saisies with weight data
+  const withWeight = saisies.filter(s => s.poids > 0);
+  if (withWeight.length < 2) {
+    return { status: 'nodata', text: '— données insuffisantes' };
+  }
+
+  const recent = withWeight.slice(-Math.min(4, withWeight.length));
+  const first = recent[0];
+  const last = recent[recent.length - 1];
+  const daysDiff = last.jour_bande - first.jour_bande;
+
+  if (daysDiff <= 0) {
+    return { status: 'nodata', text: '— données insuffisantes' };
+  }
+
+  const gmq3d = (last.poids - first.poids) / daysDiff;
+  if (gmq3d <= 0) {
+    return { status: 'nodata', text: '— données insuffisantes' };
+  }
+
+  const remaining = (TARGET_LIVE_WEIGHT_G - currentWeight) / gmq3d;
+  const estDate = new Date();
+  estDate.setDate(estDate.getDate() + Math.ceil(remaining));
+  const dateStr = estDate.toLocaleDateString('fr-FR');
+  const daysLeft = Math.ceil(remaining);
+
+  return {
+    status: 'projected',
+    text: 'Abattage estimé : ' + dateStr + ' (dans ' + daysLeft + ' jours)',
+    date: estDate,
+    daysLeft: daysLeft
+  };
+}
+
 // ── Dashboard ──
 function renderDashboard() {
   const grid = document.getElementById('dash-grid');
@@ -1164,28 +1505,27 @@ function renderDashboard() {
   const emptyDiv = document.getElementById('dash-empty');
   const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
 
+  // Check alerts on every render
+  const alerts = checkAlerts();
+
   if (activeBandes.length === 0) {
     grid.innerHTML = '';
     grid.appendChild(emptyDiv);
     emptyDiv.style.display = '';
-    alertsDiv.innerHTML = '';
+    renderAlerts([]);
     return;
   }
 
   emptyDiv.style.display = 'none';
-  let alertsHtml = '';
+  renderAlerts(alerts);
+
   let cardsHtml = '';
 
   activeBandes.forEach(b => {
     const ind = computeIndicators(b);
     const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
-
-    // Alert if no saisie in 24h
-    if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) > 0) {
-      alertsHtml += `<div class="alert-bar">&#9888; <strong>${b.nom_bande}</strong> — Aucune saisie aujourd'hui</div>`;
-    }
-
     const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
+    const forecast = computeSlaughterForecast(b, ind);
 
     cardsHtml += `
       <div class="card" ${isManager() ? 'style="cursor:pointer;" onclick="openFiche(\'' + b.bande_id + '\')"' : ''}>
@@ -1219,10 +1559,10 @@ function renderDashboard() {
             <div class="value">${fmt(ind.alimentTotal,0)} kg</div>
           </div>
         </div>
+        <div class="forecast-chip">${forecast.text}</div>
       </div>`;
   });
 
-  alertsDiv.innerHTML = alertsHtml;
   grid.innerHTML = cardsHtml;
 }
 
@@ -1370,7 +1710,15 @@ async function createBande() {
     renderBandes();
     toast('Bande créée avec succès');
   } catch (err) {
-    toast('Erreur: ' + err.message, 'error');
+    if (err.message.includes('file d\'attente')) {
+      // Offline: update local state anyway
+      STATE.bandes.push(payload);
+      closeModal();
+      renderBandes();
+      toast('Bande créée (hors ligne — sera synchronisée)', 'success');
+    } else {
+      toast('Erreur: ' + err.message, 'error');
+    }
   }
 }
 
@@ -1435,7 +1783,15 @@ async function closeBande(bandeId) {
     renderBandes();
     toast('Bande clôturée');
   } catch (err) {
-    toast('Erreur: ' + err.message, 'error');
+    if (err.message.includes('file d\'attente')) {
+      const b = STATE.bandes.find(b => b.bande_id === bandeId);
+      Object.assign(b, payload);
+      closeModal();
+      renderBandes();
+      toast('Bande clôturée (hors ligne — sera synchronisée)', 'success');
+    } else {
+      toast('Erreur: ' + err.message, 'error');
+    }
   }
 }
 
@@ -1541,24 +1897,32 @@ async function submitSaisie() {
     }
 
     toast('Saisie enregistrée');
-    // Reset form fields
-    document.getElementById('saisie-mortalite').value = '';
-    document.getElementById('saisie-aliment').value = '';
-    document.getElementById('saisie-nb-peses').value = '';
-    document.getElementById('saisie-poids').value = '';
-    document.getElementById('intrant-nom').value = '';
-    document.getElementById('intrant-quantite').value = '';
-    document.getElementById('intrant-cout').value = '';
-    document.getElementById('intrant-subform').style.display = 'none';
-    document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
-    updateSaisieInfo();
-    renderRecentSaisies();
+    resetSaisieForm();
   } catch (err) {
-    toast('Erreur: ' + err.message, 'error');
+    if (err.message.includes('file d\'attente')) {
+      toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
+      resetSaisieForm();
+    } else {
+      toast('Erreur: ' + err.message, 'error');
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = 'Enregistrer';
   }
+}
+
+function resetSaisieForm() {
+  document.getElementById('saisie-mortalite').value = '';
+  document.getElementById('saisie-aliment').value = '';
+  document.getElementById('saisie-nb-peses').value = '';
+  document.getElementById('saisie-poids').value = '';
+  document.getElementById('intrant-nom').value = '';
+  document.getElementById('intrant-quantite').value = '';
+  document.getElementById('intrant-cout').value = '';
+  document.getElementById('intrant-subform').style.display = 'none';
+  document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  updateSaisieInfo();
+  renderRecentSaisies();
 }
 
 function renderRecentSaisies() {
@@ -1617,6 +1981,7 @@ function loadFicheBande() {
   const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
   // Header
+  const ficheForecast = bande.statut === 'en_cours' ? computeSlaughterForecast(bande, ind) : null;
   document.getElementById('fiche-header').innerHTML = `
     <div class="card-header">
       <h3>${bande.nom_bande}</h3>
@@ -1633,7 +1998,8 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
       <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(ind.poidsCarcasse)} g</div></div>
-    </div>`;
+    </div>
+    ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
   // Charts
   renderFicheCharts(ind);
@@ -2152,6 +2518,9 @@ function initSettingsPage() {
   const codeEl = document.getElementById('apps-script-code');
   const codeSource = document.getElementById('code-gs');
   codeEl.textContent = codeSource.textContent.trim();
+
+  // Update sync queue info
+  updateSyncStatus();
 }
 
 function saveSettings() {
@@ -2201,6 +2570,8 @@ async function init() {
     await loadAllData();
   }
   renderDashboard();
+  updateSyncStatus();
+  startSyncChecker();
 }
 
 // Don't auto-init; wait for login
