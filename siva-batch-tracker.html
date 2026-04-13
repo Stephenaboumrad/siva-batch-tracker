@@ -422,6 +422,87 @@ body.role-chef_bande .manager-only { display: none !important; }
 #sync-status .sync-dot.orange { background: #ef6c00; }
 #sync-status .sync-dot.red { background: #c62828; }
 
+/* ── Supply Chain flow indicator ── */
+.sc-flow {
+  display: flex; align-items: center; gap: 0.25rem;
+  padding: 0.75rem 1rem; margin-bottom: 1.25rem;
+  background: var(--white); border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  overflow-x: auto;
+}
+.sc-flow-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.4rem 0.85rem; border-radius: 20px;
+  font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  background: #f5f5f5; color: var(--text-light);
+  border: 1.5px solid var(--border); white-space: nowrap;
+  transition: all 0.2s;
+}
+.sc-flow-chip:hover { background: #fff3e0; color: var(--green); border-color: var(--green); }
+.sc-flow-chip.active { background: var(--green); color: #fff; border-color: var(--green); }
+.sc-flow-arrow { color: var(--text-light); font-size: 0.9rem; flex-shrink: 0; }
+
+/* ── Stock cards grid ── */
+.stock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.stock-card {
+  background: var(--white); border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 1.25rem; border-left: 4px solid var(--green);
+  transition: box-shadow 0.2s;
+}
+.stock-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.12); }
+.stock-card.alert { border-left-color: var(--red); }
+.stock-card .stock-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.stock-card .stock-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+.stock-card .stock-cat { font-size: 0.75rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+.stock-card .stock-qty { font-size: 1.3rem; font-weight: 800; color: var(--green-dark); margin: 0.5rem 0; }
+.stock-card.alert .stock-qty { color: var(--red); }
+.stock-card .stock-meta { font-size: 0.8rem; color: var(--text-light); }
+
+/* ── Inspection badges ── */
+.insp-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.75rem; font-weight: 600;
+}
+.insp-badge.accepted { background: #e8f5e9; color: #2e7d32; }
+.insp-badge.reserve { background: #fff3e0; color: #e65100; }
+.insp-badge.refused { background: #ffebee; color: #c62828; }
+.insp-badge.pending { background: #eeeeee; color: #616161; }
+
+/* ── Supply chain table row tints ── */
+tr.row-accepted td { background: rgba(232,245,233,0.4); }
+tr.row-reserve td { background: rgba(255,243,224,0.4); }
+tr.row-refused td { background: rgba(255,235,238,0.4); }
+tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;
+  align-items: center;
+}
+.filter-bar select, .filter-bar input {
+  padding: 0.45rem 0.65rem; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 0.85rem; font-family: inherit;
+}
+
+/* ── Expand panel ── */
+.expand-panel {
+  background: #fafafa; border-top: 1px solid var(--border);
+  padding: 1rem 1.25rem; font-size: 0.85rem;
+}
+.expand-panel h4 { color: var(--green-dark); margin-bottom: 0.5rem; font-size: 0.95rem; }
+
+/* ── Inline edit ── */
+.inline-edit { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; margin-top: 0.75rem; }
+.inline-edit .form-group { margin-bottom: 0; flex: 1; min-width: 100px; }
+
+/* ── Stock available hint ── */
+.stock-hint { font-size: 0.8rem; color: #9e9e9e; margin-top: 0.25rem; font-style: italic; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
@@ -465,8 +546,8 @@ body.role-chef_bande .manager-only { display: none !important; }
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
       <span class="icon">&#128200;</span> Fiche bande
     </a>
-    <a href="#" data-page="alim" onclick="navigate('alim',this)">
-      <span class="icon">&#127807;</span> Alimentation
+    <a href="#" data-page="supply" onclick="navigate('supply',this)">
+      <span class="icon">&#128666;</span> Supply Chain
     </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
       <span class="icon">&#128230;</span> Exports
@@ -515,7 +596,7 @@ body.role-chef_bande .manager-only { display: none !important; }
     <h3>&#9888;&#65039; Configuration requise</h3>
     <p style="margin-bottom:0.75rem;">Pour utiliser l'application, vous devez configurer la connexion à Google Sheets :</p>
     <ol>
-      <li>Créer un Google Sheets avec 6 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code>, <code>Aliments_Phases</code>, <code>Matieres</code>, <code>FormulationsMP</code></li>
+      <li>Créer un Google Sheets avec 10 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code>, <code>Aliments_Phases</code>, <code>Matieres</code>, <code>FormulationsMP</code>, <code>Fournisseurs</code>, <code>Receptions</code>, <code>Inspections</code>, <code>Stocks</code></li>
       <li>Ouvrir Extensions &gt; Apps Script, coller le code <code>Code.gs</code> (voir section Paramètres), déployer en Application Web</li>
       <li>Copier l'URL de déploiement et la coller dans <a href="#" onclick="navigate('settings',document.querySelector('[data-page=settings]'));return false;" style="color:var(--gold);">Paramètres</a></li>
     </ol>
@@ -675,52 +756,126 @@ body.role-chef_bande .manager-only { display: none !important; }
   </div>
 
   <!-- ═══════════════ PAGE: ALIMENTATION ═══════════════ -->
-  <div id="page-alim" class="page">
-    <h2>&#127807; Suivi des matières premières alimentaires</h2>
-    <div id="alim-top-tabs" class="tabs" style="margin-bottom:1.25rem;">
-      <button class="tab-btn active" onclick="switchAlimTopTab('formulations',this)">Formulations</button>
-      <button class="tab-btn" onclick="switchAlimTopTab('matieres',this)">Matières premières</button>
-      <button class="tab-btn" onclick="switchAlimTopTab('resume',this)">Résumé</button>
+  <div id="page-supply" class="page">
+    <h2>&#128666; Supply Chain</h2>
+
+    <!-- Flow indicator -->
+    <div class="sc-flow" id="sc-flow">
+      <span class="sc-flow-chip" onclick="switchSupplyTab('fournisseurs')">&#127981; Fournisseur</span>
+      <span class="sc-flow-arrow">→</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('receptions')">&#128230; Réception</span>
+      <span class="sc-flow-arrow">→</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('inspections')">&#128270; Inspection</span>
+      <span class="sc-flow-arrow">→</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('stocks')">&#128230; Stock</span>
+      <span class="sc-flow-arrow">→</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('formulations')">&#127807; Formulation</span>
     </div>
 
-    <!-- Tab 1: Formulations -->
-    <div id="alim-tab-formulations">
-      <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
-        <label>Sélectionner une bande active</label>
-        <select id="alim-bande-select" onchange="loadAlimBande()"></select>
+    <!-- Tabs bar -->
+    <div id="supply-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" onclick="switchSupplyTab('fournisseurs',this)">Fournisseurs</button>
+      <button class="tab-btn" onclick="switchSupplyTab('receptions',this)">Réceptions</button>
+      <button class="tab-btn" onclick="switchSupplyTab('inspections',this)">Inspections</button>
+      <button class="tab-btn" onclick="switchSupplyTab('stocks',this)">Stocks</button>
+      <button class="tab-btn" onclick="switchSupplyTab('formulations',this)">Formulations</button>
+    </div>
+
+    <!-- Tab 1: Fournisseurs -->
+    <div id="sc-tab-fournisseurs">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--green-dark);">Liste des fournisseurs</h3>
+        <button class="btn btn-primary manager-only" onclick="showFournisseurModal()">+ Nouveau fournisseur</button>
       </div>
-      <div id="alim-content" style="display:none;">
-        <div id="alim-phases-all"></div>
-        <div class="card" style="margin-top:1rem;background:#fff3e0;border-left:4px solid var(--green);">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-            <strong style="font-size:1rem;">Total bande :</strong>
-            <div id="alim-batch-total" style="font-size:1.1rem;font-weight:700;color:var(--green-dark);"></div>
+      <div id="fournisseurs-list"></div>
+    </div>
+
+    <!-- Tab 2: Réceptions -->
+    <div id="sc-tab-receptions" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--green-dark);">Réceptions</h3>
+        <button class="btn btn-primary manager-only" onclick="showReceptionModal()">+ Nouvelle réception</button>
+      </div>
+      <div class="filter-bar" id="reception-filters">
+        <select id="filter-reception-cat" onchange="renderReceptions()">
+          <option value="">Toutes catégories</option>
+          <option value="mp">Matières premières</option>
+          <option value="medicament">Médicaments</option>
+          <option value="equipement">Équipement</option>
+          <option value="poussin">Poussins</option>
+          <option value="autre">Autre</option>
+        </select>
+        <select id="filter-reception-fourn" onchange="renderReceptions()">
+          <option value="">Tous fournisseurs</option>
+        </select>
+        <input type="date" id="filter-reception-from" onchange="renderReceptions()" title="Date début">
+        <input type="date" id="filter-reception-to" onchange="renderReceptions()" title="Date fin">
+      </div>
+      <div id="receptions-list"></div>
+    </div>
+
+    <!-- Tab 3: Inspections -->
+    <div id="sc-tab-inspections" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--green-dark);">Inspections qualité</h3>
+        <button class="btn btn-primary manager-only" onclick="showInspectionModal()">+ Nouvelle inspection</button>
+      </div>
+      <div id="inspections-list"></div>
+    </div>
+
+    <!-- Tab 4: Stocks -->
+    <div id="sc-tab-stocks" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--green-dark);">État des stocks</h3>
+        <button class="btn btn-primary manager-only" onclick="showStockModal()">+ Ajouter au stock</button>
+      </div>
+      <div id="stocks-grid" class="stock-grid"></div>
+    </div>
+
+    <!-- Tab 5: Formulations (migrated from Alimentation) -->
+    <div id="sc-tab-formulations" style="display:none;">
+      <div id="alim-top-tabs" class="tabs" style="margin-bottom:1.25rem;">
+        <button class="tab-btn active" onclick="switchAlimTopTab('formulations',this)">Formulations</button>
+        <button class="tab-btn" onclick="switchAlimTopTab('matieres',this)">Matières premières</button>
+        <button class="tab-btn" onclick="switchAlimTopTab('resume',this)">Résumé</button>
+      </div>
+
+      <div id="alim-tab-formulations">
+        <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
+          <label>Sélectionner une bande active</label>
+          <select id="alim-bande-select" onchange="loadAlimBande()"></select>
+        </div>
+        <div id="alim-content" style="display:none;">
+          <div id="alim-phases-all"></div>
+          <div class="card" style="margin-top:1rem;background:#fff3e0;border-left:4px solid var(--green);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+              <strong style="font-size:1rem;">Total bande :</strong>
+              <div id="alim-batch-total" style="font-size:1.1rem;font-weight:700;color:var(--green-dark);"></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Tab 2: Matières premières (manager only) -->
-    <div id="alim-tab-matieres" class="manager-only" style="display:none;">
-      <div class="card" style="max-width:700px;">
-        <div class="card-header">
-          <h3>Liste des matières premières</h3>
+      <div id="alim-tab-matieres" class="manager-only" style="display:none;">
+        <div class="card" style="max-width:700px;">
+          <div class="card-header">
+            <h3>Liste des matières premières</h3>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+            <input type="text" id="mp-new-nom-alim" placeholder="Nouvelle matière première…" style="flex:1;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;">
+            <button class="btn btn-primary" onclick="addMP()">Ajouter</button>
+          </div>
+          <div id="mp-alim-table"></div>
         </div>
-        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-          <input type="text" id="mp-new-nom-alim" placeholder="Nouvelle matière première…" style="flex:1;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;">
-          <button class="btn btn-primary" onclick="addMP()">Ajouter</button>
-        </div>
-        <div id="mp-alim-table"></div>
       </div>
-    </div>
 
-    <!-- Tab 3: Résumé par bande -->
-    <div id="alim-tab-resume" style="display:none;">
-      <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
-        <label>Sélectionner une bande</label>
-        <select id="alim-resume-bande-select" onchange="renderAlimResume()"></select>
+      <div id="alim-tab-resume" style="display:none;">
+        <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
+          <label>Sélectionner une bande</label>
+          <select id="alim-resume-bande-select" onchange="renderAlimResume()"></select>
+        </div>
+        <div id="alim-resume-content"></div>
       </div>
-      <div id="alim-resume-content"></div>
     </div>
   </div>
 
@@ -796,6 +951,7 @@ body.role-chef_bande .manager-only { display: none !important; }
     <div class="form-group">
       <label>Matière première</label>
       <select id="alim-modal-mp"></select>
+      <div id="alim-modal-stock-hint" class="stock-hint"></div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -822,6 +978,165 @@ body.role-chef_bande .manager-only { display: none !important; }
   </div>
 </div>
 
+<!-- Modal: Nouveau fournisseur -->
+<div id="fournisseur-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>&#127981; Nouveau fournisseur</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom</label><input type="text" id="fourn-nom" placeholder="Nom du fournisseur"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="fourn-type">
+          <option value="mp">Matière première</option>
+          <option value="medicament">Médicament</option>
+          <option value="equipement">Équipement</option>
+          <option value="poussin">Poussin</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Contact</label><input type="text" id="fourn-contact" placeholder="Nom du contact"></div>
+      <div class="form-group"><label>Téléphone</label><input type="tel" id="fourn-tel" placeholder="+225 XX XX XX XX"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Email</label><input type="email" id="fourn-email" placeholder="email@exemple.com"></div>
+      <div class="form-group"><label>Pays</label><input type="text" id="fourn-pays" value="Côte d'Ivoire"></div>
+    </div>
+    <div class="form-group"><label>Adresse</label><input type="text" id="fourn-adresse" placeholder="Adresse complète"></div>
+    <div class="form-group"><label>Note</label><textarea id="fourn-note" rows="2" placeholder="Remarques…" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeFournisseurModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitFournisseur()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nouvelle réception -->
+<div id="reception-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>&#128230; Nouvelle réception</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Fournisseur</label><select id="recep-fournisseur"></select></div>
+      <div class="form-group"><label>Date réception</label><input type="date" id="recep-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Produit</label><input type="text" id="recep-produit" placeholder="Nom du produit"></div>
+      <div class="form-group"><label>Catégorie</label>
+        <select id="recep-categorie">
+          <option value="mp">Matière première</option>
+          <option value="medicament">Médicament</option>
+          <option value="equipement">Équipement</option>
+          <option value="poussin">Poussin</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Quantité</label><input type="number" id="recep-quantite" step="0.01" min="0" placeholder="0" oninput="updateRecepCout()"></div>
+      <div class="form-group"><label>Unité</label><input type="text" id="recep-unite" value="kg" placeholder="kg, L, unité…"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Prix unitaire (FCFA)</label><input type="number" id="recep-prix" step="1" min="0" placeholder="0" oninput="updateRecepCout()"></div>
+      <div class="form-group"><label>Coût total (FCFA) — auto</label><input type="number" id="recep-cout" readonly style="background:#f9f9f9;color:var(--text-light);"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Bande associée (optionnel)</label><select id="recep-bande"><option value="">— Aucune —</option></select></div>
+      <div class="form-group"><label>N° lot</label><input type="text" id="recep-lot" placeholder="Optionnel"></div>
+    </div>
+    <div class="form-group"><label>Date péremption (optionnel)</label><input type="date" id="recep-peremption"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeReceptionModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitReception()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nouvelle inspection -->
+<div id="inspection-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>&#128270; Nouvelle inspection</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Réception</label><select id="insp-reception"></select></div>
+      <div class="form-group"><label>Date inspection</label><input type="date" id="insp-date"></div>
+    </div>
+    <div class="form-group"><label>Inspecteur</label><input type="text" id="insp-inspecteur" placeholder="Nom de l'inspecteur"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Aspect visuel</label>
+        <select id="insp-visuel">
+          <option value="conforme">Conforme</option>
+          <option value="non_conforme">Non conforme</option>
+          <option value="a_surveiller">À surveiller</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Odeur</label>
+        <select id="insp-odeur">
+          <option value="conforme">Conforme</option>
+          <option value="non_conforme">Non conforme</option>
+          <option value="a_surveiller">À surveiller</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Humidité % (optionnel)</label><input type="number" id="insp-humidite" step="0.1" min="0" max="100" placeholder="—"></div>
+      <div class="form-group"><label>Température °C (optionnel)</label><input type="number" id="insp-temperature" step="0.1" placeholder="—"></div>
+    </div>
+    <div class="form-group"><label>Résultat global</label>
+      <select id="insp-resultat">
+        <option value="accepte">Accepté</option>
+        <option value="accepte_avec_reserve">Accepté avec réserve</option>
+        <option value="refuse">Refusé</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Commentaire</label><textarea id="insp-commentaire" rows="2" placeholder="Observations…" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeInspectionModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitInspection()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ajouter au stock -->
+<div id="stock-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:500px;">
+    <h3>&#128230; Ajouter au stock</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Produit</label><input type="text" id="stock-produit" placeholder="Nom du produit"></div>
+      <div class="form-group"><label>Catégorie</label>
+        <select id="stock-categorie">
+          <option value="mp">Matière première</option>
+          <option value="medicament">Médicament</option>
+          <option value="equipement">Équipement</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Quantité</label><input type="number" id="stock-quantite" step="0.01" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Unité</label><input type="text" id="stock-unite" value="kg"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Seuil d'alerte</label><input type="number" id="stock-seuil" step="0.01" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Emplacement</label><input type="text" id="stock-emplacement" placeholder="Ex: Silo 1, Entrepôt…"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeStockModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitStock()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inspection prompt after reception -->
+<div id="inspection-prompt" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:400px;text-align:center;">
+    <h3>&#128270; Inspection qualité</h3>
+    <p style="margin-bottom:1rem;color:var(--text-light);">Ajouter une inspection pour cette réception ?</p>
+    <div class="modal-actions" style="justify-content:center;">
+      <button class="btn btn-outline" onclick="document.getElementById('inspection-prompt').style.display='none'">Plus tard</button>
+      <button class="btn btn-primary" onclick="promptInspectionForLastReception()">Oui</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast notification -->
 <div id="toast"></div>
 
@@ -842,7 +1157,11 @@ const SHEETS = {
   INTRANTS: 'Intrants',
   ALIMENTS_PHASES: 'Aliments_Phases',
   MATIERES: 'Matieres',
-  FORMULATIONS_MP: 'FormulationsMP'
+  FORMULATIONS_MP: 'FormulationsMP',
+  FOURNISSEURS: 'Fournisseurs',
+  RECEPTIONS: 'Receptions',
+  INSPECTIONS: 'Inspections',
+  STOCKS: 'Stocks'
 };
 
 const HEADERS = {
@@ -870,6 +1189,24 @@ const HEADERS = {
   FormulationsMP: [
     'mp_id','bande_id','phase','matiere_id',
     'quantite_kg','prix_unitaire_fcfa','cout_total_fcfa','date_livraison'
+  ],
+  Fournisseurs: [
+    'fournisseur_id','nom','type','contact_nom','telephone',
+    'email','adresse','pays','statut','note'
+  ],
+  Receptions: [
+    'reception_id','fournisseur_id','date_reception','type_produit',
+    'categorie','quantite','unite','prix_unitaire_fcfa','cout_total_fcfa',
+    'bande_id','numero_lot','date_peremption'
+  ],
+  Inspections: [
+    'inspection_id','reception_id','date_inspection','inspecteur',
+    'aspect_visuel','odeur','humidite_pct','temperature_c',
+    'resultat_global','commentaire'
+  ],
+  Stocks: [
+    'stock_id','type_produit','categorie','quantite_actuelle',
+    'unite','seuil_alerte','emplacement','derniere_mise_a_jour'
   ]
 };
 
@@ -920,6 +1257,28 @@ function doGet(e) {
         }
         break;
 
+      case 'getFournisseurs':
+        result = getSheetData(ss, SHEETS.FOURNISSEURS);
+        break;
+
+      case 'getReceptions':
+        result = getSheetData(ss, SHEETS.RECEPTIONS);
+        if (e.parameter.fournisseur_id) {
+          result = result.filter(r => r.fournisseur_id === e.parameter.fournisseur_id);
+        }
+        break;
+
+      case 'getInspections':
+        result = getSheetData(ss, SHEETS.INSPECTIONS);
+        if (e.parameter.reception_id) {
+          result = result.filter(r => r.reception_id === e.parameter.reception_id);
+        }
+        break;
+
+      case 'getStocks':
+        result = getSheetData(ss, SHEETS.STOCKS);
+        break;
+
       case 'getAll':
         result = {
           bandes: getSheetData(ss, SHEETS.BANDES),
@@ -927,7 +1286,11 @@ function doGet(e) {
           intrants: getSheetData(ss, SHEETS.INTRANTS),
           alimentsPhases: getSheetData(ss, SHEETS.ALIMENTS_PHASES),
           matieres: getSheetData(ss, SHEETS.MATIERES),
-          formulationsMP: getSheetData(ss, SHEETS.FORMULATIONS_MP)
+          formulationsMP: getSheetData(ss, SHEETS.FORMULATIONS_MP),
+          fournisseurs: getSheetData(ss, SHEETS.FOURNISSEURS),
+          receptions: getSheetData(ss, SHEETS.RECEPTIONS),
+          inspections: getSheetData(ss, SHEETS.INSPECTIONS),
+          stocks: getSheetData(ss, SHEETS.STOCKS)
         };
         break;
 
@@ -1001,6 +1364,34 @@ function doPost(e) {
 
       case 'deleteFormulationMP':
         result = deleteRow(ss, SHEETS.FORMULATIONS_MP, 'mp_id', data.payload.mp_id);
+        break;
+
+      case 'addFournisseur':
+        result = addRow(ss, SHEETS.FOURNISSEURS, HEADERS.Fournisseurs, data.payload);
+        break;
+
+      case 'updateFournisseur':
+        result = updateRow(ss, SHEETS.FOURNISSEURS, HEADERS.Fournisseurs, 'fournisseur_id', data.payload.fournisseur_id, data.payload);
+        break;
+
+      case 'addReception':
+        result = addRow(ss, SHEETS.RECEPTIONS, HEADERS.Receptions, data.payload);
+        break;
+
+      case 'deleteReception':
+        result = deleteRow(ss, SHEETS.RECEPTIONS, 'reception_id', data.payload.reception_id);
+        break;
+
+      case 'addInspection':
+        result = addRow(ss, SHEETS.INSPECTIONS, HEADERS.Inspections, data.payload);
+        break;
+
+      case 'addStock':
+        result = addRow(ss, SHEETS.STOCKS, HEADERS.Stocks, data.payload);
+        break;
+
+      case 'updateStock':
+        result = updateRow(ss, SHEETS.STOCKS, HEADERS.Stocks, 'stock_id', data.payload.stock_id, data.payload);
         break;
 
       default:
@@ -1103,8 +1494,8 @@ const AUTH_USERS = [
 ];
 let currentUser = null; // { matricule, name, role }
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'alim', 'exports', 'settings'];
-const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'alim'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'exports', 'settings'];
+const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -1162,7 +1553,7 @@ const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
 let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDER_URL;
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null };
 
 // ── Slaughter forecast constants (configurable) ──
@@ -1384,6 +1775,10 @@ async function loadAllData() {
     STATE.alimentsPhases = data.alimentsPhases || [];
     STATE.matieres = data.matieres || [];
     STATE.formulationsMP = data.formulationsMP || [];
+    STATE.fournisseurs = data.fournisseurs || [];
+    STATE.receptions = data.receptions || [];
+    STATE.inspections = data.inspections || [];
+    STATE.stocks = data.stocks || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières on first load if sheet is empty
@@ -1397,6 +1792,10 @@ async function loadAllData() {
         alimentsPhases: STATE.alimentsPhases,
         matieres: STATE.matieres,
         formulationsMP: STATE.formulationsMP,
+        fournisseurs: STATE.fournisseurs,
+        receptions: STATE.receptions,
+        inspections: STATE.inspections,
+        stocks: STATE.stocks,
         cachedAt: new Date().toISOString()
       }));
     } catch (e) { /* localStorage full or unavailable */ }
@@ -1413,6 +1812,10 @@ async function loadAllData() {
       STATE.alimentsPhases = cached.alimentsPhases || [];
       STATE.matieres = cached.matieres || [];
       STATE.formulationsMP = cached.formulationsMP || [];
+      STATE.fournisseurs = cached.fournisseurs || [];
+      STATE.receptions = cached.receptions || [];
+      STATE.inspections = cached.inspections || [];
+      STATE.stocks = cached.stocks || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -1455,7 +1858,7 @@ function navigate(page, el) {
     case 'bandes': renderBandes(); break;
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
-    case 'alim': initAlimPage(); break;
+    case 'supply': initSupplyPage(); break;
     case 'exports': initExportsPage(); break;
     case 'settings': initSettingsPage(); break;
   }
@@ -1585,6 +1988,12 @@ function checkAlerts() {
       alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'Aucune saisie', value: ind.lastSaisieDate ? 'depuis ' + fmtDate(ind.lastSaisieDate) : 'jamais', threshold: '> 24h' });
     }
   });
+
+  // Add stock alerts
+  alerts.push(...getStockAlerts());
+
+  // Add inspection alerts
+  alerts.push(...getInspectionAlerts());
 
   // Update sidebar badge
   const badge = document.getElementById('alert-badge');
@@ -2166,6 +2575,7 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
       <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(ind.poidsCarcasse)} g</div></div>
+      <div class="stat-item"><div class="label">Coût alimentaire</div><div class="value">${fmt(computeCoutAlimentaire(bande.bande_id))} FCFA</div></div>
     </div>
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
@@ -2406,6 +2816,7 @@ function renderFinancialSummary() {
     ['Produit brut (vente carcasses)', fmt(ind.produitBrut) + ' FCFA'],
     ['Coût poussins', fmt(ind.coutPoussins) + ' FCFA'],
     ['Coût aliment', fmt(ind.coutAliment) + ' FCFA'],
+    ['Coût alimentaire (formulations)', fmt(computeCoutAlimentaire(bandeId)) + ' FCFA'],
     ['Coût intrants (médicaments/vaccins)', fmt(ind.coutIntrants) + ' FCFA'],
     ['<strong>Marge brute</strong>', `<strong style="color:${ind.margeBrute >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(ind.margeBrute)} FCFA</strong>`],
     ['Marge par kg carcasse', fmt(ind.margeParKg) + ' FCFA/kg'],
@@ -2901,6 +3312,10 @@ function loadDemoData() {
     cached.alimentsPhases = STATE.alimentsPhases;
     cached.matieres       = STATE.matieres;
     cached.formulationsMP = STATE.formulationsMP;
+    cached.fournisseurs   = STATE.fournisseurs;
+    cached.receptions     = STATE.receptions;
+    cached.inspections    = STATE.inspections;
+    cached.stocks         = STATE.stocks;
     cached.cachedAt       = new Date().toISOString();
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
@@ -2925,6 +3340,10 @@ function clearDemoData() {
     cached.alimentsPhases = STATE.alimentsPhases;
     cached.matieres       = STATE.matieres;
     cached.formulationsMP = STATE.formulationsMP;
+    cached.fournisseurs   = STATE.fournisseurs;
+    cached.receptions     = STATE.receptions;
+    cached.inspections    = STATE.inspections;
+    cached.stocks         = STATE.stocks;
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
 
@@ -3266,6 +3685,15 @@ function autoFillLastPrice() {
     .find(a => a.mp_id === mpId && Number(a.prix_unitaire) > 0);
   document.getElementById('alim-modal-prix').value = last ? Number(last.prix_unitaire) : '';
   updateAlimCout();
+  // Show stock availability hint
+  const mpName = document.getElementById('alim-modal-mp').options[document.getElementById('alim-modal-mp').selectedIndex]?.text || '';
+  const stockInfo = getStockForMP(mpName);
+  const hintEl = document.getElementById('alim-modal-stock-hint');
+  if (stockInfo) {
+    hintEl.textContent = 'Stock disponible : ' + fmt(stockInfo.qty, 1) + ' ' + stockInfo.unite;
+  } else {
+    hintEl.textContent = '';
+  }
 }
 
 function closeAlimModal() {
@@ -3341,6 +3769,571 @@ async function deleteAlimentPhase(apId) {
   } catch (err) {
     toast('Erreur : ' + err.message, 'error');
   }
+}
+
+// ══════════════════════════════════════════
+// ── Supply Chain Module ──
+// ══════════════════════════════════════════
+
+let currentSupplyTab = 'fournisseurs';
+let lastReceptionId = null; // for inspection prompt after reception
+let expandedFournisseurId = null;
+
+function initSupplyPage() {
+  currentSupplyTab = 'fournisseurs';
+  switchSupplyTab('fournisseurs');
+}
+
+function switchSupplyTab(tab, btn) {
+  currentSupplyTab = tab;
+  const tabs = ['fournisseurs','receptions','inspections','stocks','formulations'];
+  tabs.forEach(t => {
+    const el = document.getElementById('sc-tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  // Update tab buttons
+  document.querySelectorAll('#supply-tabs .tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+  // Update flow chips
+  document.querySelectorAll('#sc-flow .sc-flow-chip').forEach((c, i) => {
+    c.classList.toggle('active', tabs[i] === tab);
+  });
+  // Render appropriate tab
+  switch (tab) {
+    case 'fournisseurs': renderFournisseurs(); break;
+    case 'receptions': renderReceptions(); break;
+    case 'inspections': renderInspections(); break;
+    case 'stocks': renderStocks(); break;
+    case 'formulations': initAlimPage(); break;
+  }
+}
+
+// ── Helper: category emoji ──
+function catEmoji(cat) {
+  const map = { mp: '🌽', medicament: '💊', equipement: '⚙️', poussin: '🐥', autre: '📦' };
+  return map[cat] || '📦';
+}
+function catLabel(cat) {
+  const map = { mp: 'Matière première', medicament: 'Médicament', equipement: 'Équipement', poussin: 'Poussin', autre: 'Autre' };
+  return map[cat] || cat;
+}
+
+// ══════════════════════════════
+// ── Tab 1: Fournisseurs ──
+// ══════════════════════════════
+
+function renderFournisseurs() {
+  const container = document.getElementById('fournisseurs-list');
+  const list = STATE.fournisseurs;
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🏭</div><p>Aucun fournisseur enregistré.</p></div>';
+    return;
+  }
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>Téléphone</th><th>Statut</th><th class="manager-only">Actions</th></tr></thead><tbody>';
+  list.forEach(f => {
+    const inactive = f.statut === 'inactif';
+    html += `<tr class="${inactive ? 'row-inactive' : ''}" style="cursor:pointer;" onclick="toggleFournisseurExpand('${f.fournisseur_id}')">
+      <td><strong>${f.nom}</strong></td>
+      <td>${catEmoji(f.type)} ${catLabel(f.type)}</td>
+      <td>${f.contact_nom || '—'}</td>
+      <td>${f.telephone || '—'}</td>
+      <td><span class="badge ${inactive ? 'badge-grey' : 'badge-green'}">${inactive ? 'Inactif' : 'Actif'}</span></td>
+      <td class="manager-only"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleFournisseurStatut('${f.fournisseur_id}')">${inactive ? 'Activer' : 'Désactiver'}</button></td>
+    </tr>`;
+    // Expand panel
+    if (expandedFournisseurId === f.fournisseur_id) {
+      const receps = STATE.receptions.filter(r => r.fournisseur_id === f.fournisseur_id)
+        .sort((a, b) => new Date(b.date_reception) - new Date(a.date_reception));
+      const last5 = receps.slice(0, 5);
+      const totalCum = receps.reduce((s, r) => s + (Number(r.cout_total_fcfa) || 0), 0);
+      let recepRows = last5.length === 0
+        ? '<tr><td colspan="4" style="text-align:center;color:var(--text-light);">Aucune réception</td></tr>'
+        : last5.map(r => `<tr><td>${fmtDate(r.date_reception)}</td><td>${r.type_produit}</td><td>${fmt(Number(r.quantite),1)} ${r.unite}</td><td>${fmt(Number(r.cout_total_fcfa))} FCFA</td></tr>`).join('');
+      html += `<tr><td colspan="6" style="padding:0;">
+        <div class="expand-panel">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">
+            <div><strong>Email :</strong> ${f.email || '—'}<br><strong>Adresse :</strong> ${f.adresse || '—'}<br><strong>Pays :</strong> ${f.pays || '—'}</div>
+            <div><strong>Note :</strong> ${f.note || '—'}<br><strong>Total cumulé :</strong> <span style="font-weight:700;color:var(--green-dark);">${fmt(totalCum)} FCFA</span></div>
+          </div>
+          <h4>5 dernières réceptions</h4>
+          <table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Coût</th></tr></thead><tbody>${recepRows}</tbody></table>
+        </div>
+      </td></tr>`;
+    }
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function toggleFournisseurExpand(id) {
+  expandedFournisseurId = expandedFournisseurId === id ? null : id;
+  renderFournisseurs();
+}
+
+function showFournisseurModal() {
+  document.getElementById('fourn-nom').value = '';
+  document.getElementById('fourn-type').value = 'mp';
+  document.getElementById('fourn-contact').value = '';
+  document.getElementById('fourn-tel').value = '';
+  document.getElementById('fourn-email').value = '';
+  document.getElementById('fourn-pays').value = "Côte d'Ivoire";
+  document.getElementById('fourn-adresse').value = '';
+  document.getElementById('fourn-note').value = '';
+  document.getElementById('fournisseur-modal').style.display = 'flex';
+}
+function closeFournisseurModal() { document.getElementById('fournisseur-modal').style.display = 'none'; }
+
+async function submitFournisseur() {
+  const nom = document.getElementById('fourn-nom').value.trim();
+  if (!nom) { toast('Nom requis', 'error'); return; }
+  const payload = {
+    fournisseur_id: 'fourn-' + uuid(),
+    nom,
+    type: document.getElementById('fourn-type').value,
+    contact_nom: document.getElementById('fourn-contact').value.trim(),
+    telephone: document.getElementById('fourn-tel').value.trim(),
+    email: document.getElementById('fourn-email').value.trim(),
+    adresse: document.getElementById('fourn-adresse').value.trim(),
+    pays: document.getElementById('fourn-pays').value.trim(),
+    statut: 'actif',
+    note: document.getElementById('fourn-note').value.trim()
+  };
+  try {
+    await apiPost({ action: 'addFournisseur', payload });
+    STATE.fournisseurs.push(payload);
+    closeFournisseurModal();
+    renderFournisseurs();
+    toast('Fournisseur ajouté');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.fournisseurs.push(payload);
+      closeFournisseurModal();
+      renderFournisseurs();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+async function toggleFournisseurStatut(id) {
+  const f = STATE.fournisseurs.find(x => x.fournisseur_id === id);
+  if (!f) return;
+  const newStatut = f.statut === 'actif' ? 'inactif' : 'actif';
+  try {
+    await apiPost({ action: 'updateFournisseur', payload: { fournisseur_id: id, statut: newStatut } });
+    f.statut = newStatut;
+    renderFournisseurs();
+    toast('Fournisseur ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
+  } catch (err) {
+    f.statut = newStatut; // optimistic
+    renderFournisseurs();
+    toast('Mis à jour (hors ligne)');
+  }
+}
+
+// ══════════════════════════════
+// ── Tab 2: Réceptions ──
+// ══════════════════════════════
+
+function renderReceptions() {
+  // Populate fournisseur filter
+  const fSel = document.getElementById('filter-reception-fourn');
+  const curVal = fSel.value;
+  fSel.innerHTML = '<option value="">Tous fournisseurs</option>';
+  STATE.fournisseurs.filter(f => f.statut === 'actif').forEach(f => {
+    fSel.appendChild(new Option(f.nom, f.fournisseur_id));
+  });
+  fSel.value = curVal;
+
+  const container = document.getElementById('receptions-list');
+  let list = [...STATE.receptions].sort((a, b) => new Date(b.date_reception) - new Date(a.date_reception));
+
+  // Apply filters
+  const catFilter = document.getElementById('filter-reception-cat').value;
+  const fournFilter = document.getElementById('filter-reception-fourn').value;
+  const fromDate = document.getElementById('filter-reception-from').value;
+  const toDate = document.getElementById('filter-reception-to').value;
+  if (catFilter) list = list.filter(r => r.categorie === catFilter);
+  if (fournFilter) list = list.filter(r => r.fournisseur_id === fournFilter);
+  if (fromDate) list = list.filter(r => r.date_reception >= fromDate);
+  if (toDate) list = list.filter(r => r.date_reception <= toDate);
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Aucune réception enregistrée.</p></div>';
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Fournisseur</th><th>Produit</th><th>Catégorie</th><th>Qté</th><th>Prix/u</th><th>Coût total</th><th>N° lot</th><th>Inspection</th><th class="manager-only"></th></tr></thead><tbody>';
+  list.forEach(r => {
+    const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === r.fournisseur_id);
+    const insp = STATE.inspections.find(i => i.reception_id === r.reception_id);
+    let inspBadge;
+    if (!insp) {
+      inspBadge = '<span class="insp-badge pending">— En attente</span>';
+    } else if (insp.resultat_global === 'accepte') {
+      inspBadge = '<span class="insp-badge accepted">✅ Accepté</span>';
+    } else if (insp.resultat_global === 'accepte_avec_reserve') {
+      inspBadge = '<span class="insp-badge reserve">⚠️ Avec réserve</span>';
+    } else {
+      inspBadge = '<span class="insp-badge refused">❌ Refusé</span>';
+    }
+    html += `<tr>
+      <td>${fmtDate(r.date_reception)}</td>
+      <td>${fourn ? fourn.nom : '—'}</td>
+      <td>${r.type_produit}</td>
+      <td>${catEmoji(r.categorie)} ${catLabel(r.categorie)}</td>
+      <td>${fmt(Number(r.quantite), 1)} ${r.unite}</td>
+      <td>${fmt(Number(r.prix_unitaire_fcfa))}</td>
+      <td><strong>${fmt(Number(r.cout_total_fcfa))}</strong> FCFA</td>
+      <td>${r.numero_lot || '—'}</td>
+      <td>${inspBadge}</td>
+      <td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')">✕</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function showReceptionModal() {
+  const fSel = document.getElementById('recep-fournisseur');
+  fSel.innerHTML = '<option value="">— Choisir —</option>';
+  STATE.fournisseurs.filter(f => f.statut === 'actif').forEach(f => {
+    fSel.appendChild(new Option(f.nom, f.fournisseur_id));
+  });
+  const bSel = document.getElementById('recep-bande');
+  bSel.innerHTML = '<option value="">— Aucune —</option>';
+  STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
+    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+  });
+  document.getElementById('recep-date').value = todayStr();
+  document.getElementById('recep-produit').value = '';
+  document.getElementById('recep-categorie').value = 'mp';
+  document.getElementById('recep-quantite').value = '';
+  document.getElementById('recep-prix').value = '';
+  document.getElementById('recep-cout').value = '';
+  document.getElementById('recep-unite').value = 'kg';
+  document.getElementById('recep-lot').value = '';
+  document.getElementById('recep-peremption').value = '';
+  document.getElementById('reception-modal').style.display = 'flex';
+}
+function closeReceptionModal() { document.getElementById('reception-modal').style.display = 'none'; }
+function updateRecepCout() {
+  const q = parseFloat(document.getElementById('recep-quantite').value) || 0;
+  const p = parseFloat(document.getElementById('recep-prix').value) || 0;
+  document.getElementById('recep-cout').value = Math.round(q * p);
+}
+
+async function submitReception() {
+  const fournId = document.getElementById('recep-fournisseur').value;
+  const produit = document.getElementById('recep-produit').value.trim();
+  const quantite = parseFloat(document.getElementById('recep-quantite').value);
+  if (!fournId) { toast('Sélectionnez un fournisseur', 'error'); return; }
+  if (!produit) { toast('Nom du produit requis', 'error'); return; }
+  if (!quantite || quantite <= 0) { toast('Quantité invalide', 'error'); return; }
+
+  const prix = parseFloat(document.getElementById('recep-prix').value) || 0;
+  const payload = {
+    reception_id: 'recep-' + uuid(),
+    fournisseur_id: fournId,
+    date_reception: document.getElementById('recep-date').value,
+    type_produit: produit,
+    categorie: document.getElementById('recep-categorie').value,
+    quantite,
+    unite: document.getElementById('recep-unite').value.trim() || 'kg',
+    prix_unitaire_fcfa: prix,
+    cout_total_fcfa: Math.round(quantite * prix),
+    bande_id: document.getElementById('recep-bande').value || '',
+    numero_lot: document.getElementById('recep-lot').value.trim(),
+    date_peremption: document.getElementById('recep-peremption').value || ''
+  };
+
+  try {
+    await apiPost({ action: 'addReception', payload });
+    STATE.receptions.push(payload);
+    lastReceptionId = payload.reception_id;
+    closeReceptionModal();
+    renderReceptions();
+    toast('Réception enregistrée');
+    // Prompt for inspection
+    document.getElementById('inspection-prompt').style.display = 'flex';
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.receptions.push(payload);
+      lastReceptionId = payload.reception_id;
+      closeReceptionModal();
+      renderReceptions();
+      toast('Enregistré (hors ligne)');
+      document.getElementById('inspection-prompt').style.display = 'flex';
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+function promptInspectionForLastReception() {
+  document.getElementById('inspection-prompt').style.display = 'none';
+  if (lastReceptionId) {
+    showInspectionModal(lastReceptionId);
+  }
+}
+
+async function deleteReception(id) {
+  if (!confirm('Supprimer cette réception ?')) return;
+  try {
+    await apiPost({ action: 'deleteReception', payload: { reception_id: id } });
+    STATE.receptions = STATE.receptions.filter(r => r.reception_id !== id);
+    renderReceptions();
+    toast('Réception supprimée');
+  } catch (err) { toast('Erreur : ' + err.message, 'error'); }
+}
+
+// ══════════════════════════════
+// ── Tab 3: Inspections ──
+// ══════════════════════════════
+
+function renderInspections() {
+  const container = document.getElementById('inspections-list');
+  const list = [...STATE.inspections].sort((a, b) => new Date(b.date_inspection) - new Date(a.date_inspection));
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Aucune inspection enregistrée.</p></div>';
+    return;
+  }
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Visuel</th><th>Odeur</th><th>Humidité</th><th>Temp.</th><th>Résultat</th><th>Inspecteur</th><th>Commentaire</th></tr></thead><tbody>';
+  list.forEach(ins => {
+    const recep = STATE.receptions.find(r => r.reception_id === ins.reception_id);
+    const fourn = recep ? STATE.fournisseurs.find(f => f.fournisseur_id === recep.fournisseur_id) : null;
+    const rowClass = ins.resultat_global === 'accepte' ? 'row-accepted' : ins.resultat_global === 'accepte_avec_reserve' ? 'row-reserve' : 'row-refused';
+    const resLabel = ins.resultat_global === 'accepte' ? '✅ Accepté' : ins.resultat_global === 'accepte_avec_reserve' ? '⚠️ Avec réserve' : '❌ Refusé';
+    const conformLabel = v => v === 'conforme' ? '✅' : v === 'non_conforme' ? '❌' : '⚠️';
+    html += `<tr class="${rowClass}">
+      <td>${fmtDate(ins.date_inspection)}</td>
+      <td>${recep ? recep.type_produit : '—'}</td>
+      <td>${fourn ? fourn.nom : '—'}</td>
+      <td>${conformLabel(ins.aspect_visuel)}</td>
+      <td>${conformLabel(ins.odeur)}</td>
+      <td>${ins.humidite_pct ? fmt(Number(ins.humidite_pct), 1) + '%' : '—'}</td>
+      <td>${ins.temperature_c ? fmt(Number(ins.temperature_c), 1) + '°C' : '—'}</td>
+      <td><strong>${resLabel}</strong></td>
+      <td>${ins.inspecteur || '—'}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(ins.commentaire||'').replace(/"/g,'&quot;')}">${ins.commentaire || '—'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function showInspectionModal(prefillReceptionId) {
+  // Populate reception dropdown: recent receptions without inspection
+  const sel = document.getElementById('insp-reception');
+  const inspectedIds = new Set(STATE.inspections.map(i => i.reception_id));
+  const uninspected = STATE.receptions
+    .filter(r => !inspectedIds.has(r.reception_id))
+    .sort((a, b) => new Date(b.date_reception) - new Date(a.date_reception));
+  sel.innerHTML = uninspected.map(r => {
+    const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === r.fournisseur_id);
+    return `<option value="${r.reception_id}">${fmtDate(r.date_reception)} — ${r.type_produit} (${fourn ? fourn.nom : '?'})</option>`;
+  }).join('');
+  if (prefillReceptionId) sel.value = prefillReceptionId;
+
+  document.getElementById('insp-date').value = todayStr();
+  document.getElementById('insp-inspecteur').value = currentUser ? currentUser.name : '';
+  document.getElementById('insp-visuel').value = 'conforme';
+  document.getElementById('insp-odeur').value = 'conforme';
+  document.getElementById('insp-humidite').value = '';
+  document.getElementById('insp-temperature').value = '';
+  document.getElementById('insp-resultat').value = 'accepte';
+  document.getElementById('insp-commentaire').value = '';
+  document.getElementById('inspection-modal').style.display = 'flex';
+}
+function closeInspectionModal() { document.getElementById('inspection-modal').style.display = 'none'; }
+
+async function submitInspection() {
+  const receptionId = document.getElementById('insp-reception').value;
+  if (!receptionId) { toast('Sélectionnez une réception', 'error'); return; }
+  const payload = {
+    inspection_id: 'insp-' + uuid(),
+    reception_id: receptionId,
+    date_inspection: document.getElementById('insp-date').value,
+    inspecteur: document.getElementById('insp-inspecteur').value.trim(),
+    aspect_visuel: document.getElementById('insp-visuel').value,
+    odeur: document.getElementById('insp-odeur').value,
+    humidite_pct: document.getElementById('insp-humidite').value || '',
+    temperature_c: document.getElementById('insp-temperature').value || '',
+    resultat_global: document.getElementById('insp-resultat').value,
+    commentaire: document.getElementById('insp-commentaire').value.trim()
+  };
+  try {
+    await apiPost({ action: 'addInspection', payload });
+    STATE.inspections.push(payload);
+    closeInspectionModal();
+    renderInspections();
+    toast('Inspection enregistrée');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.inspections.push(payload);
+      closeInspectionModal();
+      renderInspections();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+// ══════════════════════════════
+// ── Tab 4: Stocks ──
+// ══════════════════════════════
+
+function renderStocks() {
+  const container = document.getElementById('stocks-grid');
+  if (STATE.stocks.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📦</div><p>Aucun stock enregistré.</p></div>';
+    return;
+  }
+  let html = '';
+  STATE.stocks.forEach(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    const isAlert = qty <= seuil && seuil > 0;
+    html += `<div class="stock-card ${isAlert ? 'alert' : ''}" id="stock-card-${s.stock_id}">
+      <div class="stock-icon">${catEmoji(s.categorie)}</div>
+      <div class="stock-name">${s.type_produit}</div>
+      <div class="stock-cat">${catLabel(s.categorie)}</div>
+      <div class="stock-qty">${fmt(qty, 1)} ${s.unite}</div>
+      ${isAlert ? '<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;">⚠️ Sous le seuil d\u0027alerte (' + fmt(seuil,1) + ' ' + s.unite + ')</div>' : ''}
+      <div class="stock-meta">📍 ${s.emplacement || '—'}</div>
+      <div class="stock-meta">MAJ : ${fmtDate(s.derniere_mise_a_jour)}</div>
+      <div class="manager-only inline-edit" id="stock-edit-${s.stock_id}" style="display:none;">
+        <div class="form-group"><label>Quantité</label><input type="number" id="se-qty-${s.stock_id}" step="0.01" value="${qty}"></div>
+        <div class="form-group"><label>Emplacement</label><input type="text" id="se-emp-${s.stock_id}" value="${s.emplacement || ''}"></div>
+        <div class="form-group"><label>Seuil</label><input type="number" id="se-seuil-${s.stock_id}" step="0.01" value="${seuil}"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveStockEdit('${s.stock_id}')">OK</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='none'">✕</button>
+      </div>
+      <button class="btn btn-outline btn-sm manager-only" style="margin-top:0.75rem;" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='flex'">Mettre à jour</button>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function showStockModal() {
+  document.getElementById('stock-produit').value = '';
+  document.getElementById('stock-categorie').value = 'mp';
+  document.getElementById('stock-quantite').value = '';
+  document.getElementById('stock-unite').value = 'kg';
+  document.getElementById('stock-seuil').value = '';
+  document.getElementById('stock-emplacement').value = '';
+  document.getElementById('stock-modal').style.display = 'flex';
+}
+function closeStockModal() { document.getElementById('stock-modal').style.display = 'none'; }
+
+async function submitStock() {
+  const produit = document.getElementById('stock-produit').value.trim();
+  const quantite = parseFloat(document.getElementById('stock-quantite').value);
+  if (!produit) { toast('Nom du produit requis', 'error'); return; }
+  if (!quantite && quantite !== 0) { toast('Quantité requise', 'error'); return; }
+  const payload = {
+    stock_id: 'stk-' + uuid(),
+    type_produit: produit,
+    categorie: document.getElementById('stock-categorie').value,
+    quantite_actuelle: quantite,
+    unite: document.getElementById('stock-unite').value.trim() || 'kg',
+    seuil_alerte: parseFloat(document.getElementById('stock-seuil').value) || 0,
+    emplacement: document.getElementById('stock-emplacement').value.trim(),
+    derniere_mise_a_jour: todayStr()
+  };
+  try {
+    await apiPost({ action: 'addStock', payload });
+    STATE.stocks.push(payload);
+    closeStockModal();
+    renderStocks();
+    toast('Stock ajouté');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.stocks.push(payload);
+      closeStockModal();
+      renderStocks();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+async function saveStockEdit(stockId) {
+  const s = STATE.stocks.find(x => x.stock_id === stockId);
+  if (!s) return;
+  const newQty = parseFloat(document.getElementById('se-qty-' + stockId).value);
+  const newEmp = document.getElementById('se-emp-' + stockId).value.trim();
+  const newSeuil = parseFloat(document.getElementById('se-seuil-' + stockId).value) || 0;
+  const payload = {
+    stock_id: stockId,
+    quantite_actuelle: newQty,
+    emplacement: newEmp,
+    seuil_alerte: newSeuil,
+    derniere_mise_a_jour: todayStr()
+  };
+  try {
+    await apiPost({ action: 'updateStock', payload });
+    Object.assign(s, payload);
+    renderStocks();
+    toast('Stock mis à jour');
+  } catch (err) {
+    Object.assign(s, payload);
+    renderStocks();
+    toast('Mis à jour (hors ligne)');
+  }
+}
+
+// ── Stock alerts for dashboard ──
+function getStockAlerts() {
+  const alerts = [];
+  STATE.stocks.forEach(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    if (seuil > 0 && qty <= seuil) {
+      alerts.push({
+        level: qty <= seuil * 0.5 ? 'critical' : 'warning',
+        icon: qty <= seuil * 0.5 ? '🔴' : '⚠️',
+        bande: 'Stock',
+        metric: 'Stock ' + s.type_produit + ' bas',
+        value: fmt(qty, 1) + ' ' + s.unite + ' restants',
+        threshold: 'seuil: ' + fmt(seuil, 1) + ' ' + s.unite
+      });
+    }
+  });
+  return alerts;
+}
+
+// ── Inspection alerts for dashboard ──
+function getInspectionAlerts() {
+  const alerts = [];
+  const inspectedIds = new Set(STATE.inspections.map(i => i.reception_id));
+  STATE.receptions.forEach(r => {
+    if (!inspectedIds.has(r.reception_id)) {
+      const hours = (Date.now() - new Date(r.date_reception).getTime()) / 3600000;
+      if (hours > 48) {
+        alerts.push({
+          level: 'warning',
+          icon: '⚠️',
+          bande: 'Inspection',
+          metric: 'Réception non inspectée',
+          value: r.type_produit + ' du ' + fmtDate(r.date_reception),
+          threshold: '> 48h'
+        });
+      }
+    }
+  });
+  return alerts;
+}
+
+// ── Stock hint for formulation modal ──
+function getStockForMP(mpName) {
+  if (!mpName) return null;
+  const match = STATE.stocks.find(s =>
+    s.type_produit && s.type_produit.toLowerCase() === mpName.toLowerCase() && s.categorie === 'mp'
+  );
+  return match ? { qty: Number(match.quantite_actuelle) || 0, unite: match.unite || 'kg' } : null;
+}
+
+// ── Coût alimentaire for fiche bande ──
+function computeCoutAlimentaire(bandeId) {
+  const entries = STATE.alimentsPhases.filter(a => a.bande_id === bandeId);
+  return entries.reduce((s, e) => s + (Number(e.cout_total) || 0), 0);
 }
 
 // ── Init ──
