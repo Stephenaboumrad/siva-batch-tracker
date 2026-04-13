@@ -465,6 +465,9 @@ body.role-chef_bande .manager-only { display: none !important; }
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
       <span class="icon">&#128200;</span> Fiche bande
     </a>
+    <a href="#" data-page="alim" onclick="navigate('alim',this)">
+      <span class="icon">&#127807;</span> Alimentation
+    </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
       <span class="icon">&#128230;</span> Exports
     </a>
@@ -512,7 +515,7 @@ body.role-chef_bande .manager-only { display: none !important; }
     <h3>&#9888;&#65039; Configuration requise</h3>
     <p style="margin-bottom:0.75rem;">Pour utiliser l'application, vous devez configurer la connexion à Google Sheets :</p>
     <ol>
-      <li>Créer un Google Sheets avec 3 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code></li>
+      <li>Créer un Google Sheets avec 6 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code>, <code>Aliments_Phases</code>, <code>Matieres</code>, <code>FormulationsMP</code></li>
       <li>Ouvrir Extensions &gt; Apps Script, coller le code <code>Code.gs</code> (voir section Paramètres), déployer en Application Web</li>
       <li>Copier l'URL de déploiement et la coller dans <a href="#" onclick="navigate('settings',document.querySelector('[data-page=settings]'));return false;" style="color:var(--gold);">Paramètres</a></li>
     </ol>
@@ -671,6 +674,56 @@ body.role-chef_bande .manager-only { display: none !important; }
     </div>
   </div>
 
+  <!-- ═══════════════ PAGE: ALIMENTATION ═══════════════ -->
+  <div id="page-alim" class="page">
+    <h2>&#127807; Suivi des matières premières alimentaires</h2>
+    <div id="alim-top-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" onclick="switchAlimTopTab('formulations',this)">Formulations</button>
+      <button class="tab-btn" onclick="switchAlimTopTab('matieres',this)">Matières premières</button>
+      <button class="tab-btn" onclick="switchAlimTopTab('resume',this)">Résumé</button>
+    </div>
+
+    <!-- Tab 1: Formulations -->
+    <div id="alim-tab-formulations">
+      <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
+        <label>Sélectionner une bande active</label>
+        <select id="alim-bande-select" onchange="loadAlimBande()"></select>
+      </div>
+      <div id="alim-content" style="display:none;">
+        <div id="alim-phases-all"></div>
+        <div class="card" style="margin-top:1rem;background:#fff3e0;border-left:4px solid var(--green);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+            <strong style="font-size:1rem;">Total bande :</strong>
+            <div id="alim-batch-total" style="font-size:1.1rem;font-weight:700;color:var(--green-dark);"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Matières premières (manager only) -->
+    <div id="alim-tab-matieres" class="manager-only" style="display:none;">
+      <div class="card" style="max-width:700px;">
+        <div class="card-header">
+          <h3>Liste des matières premières</h3>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+          <input type="text" id="mp-new-nom-alim" placeholder="Nouvelle matière première…" style="flex:1;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;">
+          <button class="btn btn-primary" onclick="addMP()">Ajouter</button>
+        </div>
+        <div id="mp-alim-table"></div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Résumé par bande -->
+    <div id="alim-tab-resume" style="display:none;">
+      <div class="form-group" style="max-width:300px;margin-bottom:1.25rem;">
+        <label>Sélectionner une bande</label>
+        <select id="alim-resume-bande-select" onchange="renderAlimResume()"></select>
+      </div>
+      <div id="alim-resume-content"></div>
+    </div>
+  </div>
+
   <!-- ═══════════════ PAGE: EXPORTS ═══════════════ -->
   <div id="page-exports" class="page">
     <h2>&#128230; Exports</h2>
@@ -707,6 +760,17 @@ body.role-chef_bande .manager-only { display: none !important; }
       <div id="settings-status" style="margin-top:0.75rem;font-size:0.85rem;"></div>
     </div>
 
+    <div class="card manager-only" style="max-width:700px;margin-top:1rem;">
+      <h3 style="margin-bottom:1rem;color:var(--green-dark);">&#127919; Données de démonstration</h3>
+      <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">
+        Charge une bande complète fictive (35 jours, 4 000 poussins) avec saisies, intrants et alimentation par phase.
+      </p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="loadDemoData()">&#9654; Charger la démo</button>
+        <button class="btn btn-danger" onclick="clearDemoData()">&#128465; Supprimer la démo</button>
+      </div>
+    </div>
+
     <div class="card" style="max-width:700px;margin-top:1rem;">
       <h3 style="margin-bottom:1rem;color:var(--green-dark);">Synchronisation hors ligne</h3>
       <p id="sync-queue-info" style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">File d'attente vide.</p>
@@ -725,6 +789,39 @@ body.role-chef_bande .manager-only { display: none !important; }
 
 </div><!-- /main -->
 
+<!-- Modal: Ajouter entrée alimentation -->
+<div id="alim-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:500px;">
+    <h3>&#127807; Ajouter une matière première</h3>
+    <div class="form-group">
+      <label>Matière première</label>
+      <select id="alim-modal-mp"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantité (kg)</label>
+        <input type="number" id="alim-modal-quantite" step="0.01" min="0" placeholder="0.00" oninput="updateAlimCout()">
+      </div>
+      <div class="form-group">
+        <label>Prix unitaire (FCFA/kg)</label>
+        <input type="number" id="alim-modal-prix" step="1" min="0" placeholder="0" oninput="updateAlimCout()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Coût total (FCFA) — calculé automatiquement</label>
+      <input type="number" id="alim-modal-cout" readonly style="background:#f9f9f9;color:var(--text-light);">
+    </div>
+    <div class="form-group">
+      <label>Date de livraison</label>
+      <input type="date" id="alim-modal-date">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAlimModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitAlimEntry()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast notification -->
 <div id="toast"></div>
 
@@ -742,7 +839,10 @@ body.role-chef_bande .manager-only { display: none !important; }
 const SHEETS = {
   BANDES: 'Bandes',
   SAISIES: 'Saisies',
-  INTRANTS: 'Intrants'
+  INTRANTS: 'Intrants',
+  ALIMENTS_PHASES: 'Aliments_Phases',
+  MATIERES: 'Matieres',
+  FORMULATIONS_MP: 'FormulationsMP'
 };
 
 const HEADERS = {
@@ -759,6 +859,17 @@ const HEADERS = {
   Intrants: [
     'intrant_id','bande_id','date_intrant','type',
     'nom_produit','quantite','unite','cout_total_fcfa'
+  ],
+  Aliments_Phases: [
+    'ap_id','bande_id','phase','mp_id','nom_mp',
+    'quantite_kg','prix_unitaire','cout_total','date_livraison'
+  ],
+  Matieres: [
+    'matiere_id','nom','unite','actif'
+  ],
+  FormulationsMP: [
+    'mp_id','bande_id','phase','matiere_id',
+    'quantite_kg','prix_unitaire_fcfa','cout_total_fcfa','date_livraison'
   ]
 };
 
@@ -791,11 +902,32 @@ function doGet(e) {
         }
         break;
 
+      case 'getAlimentsPhases':
+        result = getSheetData(ss, SHEETS.ALIMENTS_PHASES);
+        if (e.parameter.bande_id) {
+          result = result.filter(r => r.bande_id === e.parameter.bande_id);
+        }
+        break;
+
+      case 'getMatieres':
+        result = getSheetData(ss, SHEETS.MATIERES);
+        break;
+
+      case 'getFormulationsMP':
+        result = getSheetData(ss, SHEETS.FORMULATIONS_MP);
+        if (e.parameter.bande_id) {
+          result = result.filter(r => r.bande_id === e.parameter.bande_id);
+        }
+        break;
+
       case 'getAll':
         result = {
           bandes: getSheetData(ss, SHEETS.BANDES),
           saisies: getSheetData(ss, SHEETS.SAISIES),
-          intrants: getSheetData(ss, SHEETS.INTRANTS)
+          intrants: getSheetData(ss, SHEETS.INTRANTS),
+          alimentsPhases: getSheetData(ss, SHEETS.ALIMENTS_PHASES),
+          matieres: getSheetData(ss, SHEETS.MATIERES),
+          formulationsMP: getSheetData(ss, SHEETS.FORMULATIONS_MP)
         };
         break;
 
@@ -845,6 +977,30 @@ function doPost(e) {
 
       case 'deleteIntrant':
         result = deleteRow(ss, SHEETS.INTRANTS, 'intrant_id', data.payload.intrant_id);
+        break;
+
+      case 'addAlimentPhase':
+        result = addRow(ss, SHEETS.ALIMENTS_PHASES, HEADERS.Aliments_Phases, data.payload);
+        break;
+
+      case 'deleteAlimentPhase':
+        result = deleteRow(ss, SHEETS.ALIMENTS_PHASES, 'ap_id', data.payload.ap_id);
+        break;
+
+      case 'addMatiere':
+        result = addRow(ss, SHEETS.MATIERES, HEADERS.Matieres, data.payload);
+        break;
+
+      case 'updateMatiere':
+        result = updateRow(ss, SHEETS.MATIERES, HEADERS.Matieres, 'matiere_id', data.payload.matiere_id, data.payload);
+        break;
+
+      case 'addFormulationMP':
+        result = addRow(ss, SHEETS.FORMULATIONS_MP, HEADERS.FormulationsMP, data.payload);
+        break;
+
+      case 'deleteFormulationMP':
+        result = deleteRow(ss, SHEETS.FORMULATIONS_MP, 'mp_id', data.payload.mp_id);
         break;
 
       default:
@@ -947,8 +1103,8 @@ const AUTH_USERS = [
 ];
 let currentUser = null; // { matricule, name, role }
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'exports', 'settings'];
-const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'alim', 'exports', 'settings'];
+const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'alim'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -1006,7 +1162,7 @@ const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
 let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDER_URL;
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null };
 
 // ── Slaughter forecast constants (configurable) ──
@@ -1225,14 +1381,22 @@ async function loadAllData() {
     STATE.bandes = data.bandes || [];
     STATE.saisies = data.saisies || [];
     STATE.intrants = data.intrants || [];
+    STATE.alimentsPhases = data.alimentsPhases || [];
+    STATE.matieres = data.matieres || [];
+    STATE.formulationsMP = data.formulationsMP || [];
     STATE.loaded = true;
     isOnline = true;
+    // Seed matières premières on first load if sheet is empty
+    if (STATE.matieres.length === 0) seedDefaultMatieres();
     // Cache to localStorage on success
     try {
       localStorage.setItem('coqorico_cache', JSON.stringify({
         bandes: STATE.bandes,
         saisies: STATE.saisies,
         intrants: STATE.intrants,
+        alimentsPhases: STATE.alimentsPhases,
+        matieres: STATE.matieres,
+        formulationsMP: STATE.formulationsMP,
         cachedAt: new Date().toISOString()
       }));
     } catch (e) { /* localStorage full or unavailable */ }
@@ -1246,6 +1410,9 @@ async function loadAllData() {
       STATE.bandes = cached.bandes || [];
       STATE.saisies = cached.saisies || [];
       STATE.intrants = cached.intrants || [];
+      STATE.alimentsPhases = cached.alimentsPhases || [];
+      STATE.matieres = cached.matieres || [];
+      STATE.formulationsMP = cached.formulationsMP || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -1288,6 +1455,7 @@ function navigate(page, el) {
     case 'bandes': renderBandes(); break;
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
+    case 'alim': initAlimPage(); break;
     case 'exports': initExportsPage(); break;
     case 'settings': initSettingsPage(); break;
   }
@@ -2511,6 +2679,59 @@ function exportExcel() {
 }
 
 // ── Settings ──
+function renderMPSettings() {
+  // Legacy: render in Settings page if the element exists
+  const el = document.getElementById('mp-settings-table');
+  if (el) renderMPAlimTable();
+}
+
+async function addMP() {
+  // Accept input from Alimentation tab
+  const input = document.getElementById('mp-new-nom-alim');
+  const nom = input ? input.value.trim() : '';
+  if (!nom) { toast('Nom requis', 'error'); return; }
+  const list = getMPList();
+  if (list.find(m => m.nom.toLowerCase() === nom.toLowerCase())) {
+    toast('Cette matière première existe déjà', 'error'); return;
+  }
+  const newMp = { mp_id: 'mp-' + uuid(), nom, unite: 'kg', actif: true };
+  list.push(newMp);
+  saveMPList(list);
+
+  // Also persist to Google Sheets
+  try {
+    await apiPost({ action: 'addMatiere', payload: { matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true } });
+    STATE.matieres.push({ matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true });
+  } catch (e) { /* offline — queued */ }
+
+  if (input) input.value = '';
+  renderMPAlimTable();
+  toast('Matière première ajoutée');
+}
+
+async function toggleMPActif(mpId, actif) {
+  const list = getMPList();
+  const mp = list.find(m => m.mp_id === mpId);
+  if (mp) {
+    mp.actif = actif;
+    saveMPList(list);
+    // Sync to Google Sheets
+    try {
+      await apiPost({ action: 'updateMatiere', payload: { matiere_id: mpId, actif } });
+      const sm = STATE.matieres.find(m => m.matiere_id === mpId);
+      if (sm) sm.actif = actif;
+    } catch (e) { /* offline */ }
+    renderMPAlimTable();
+  }
+}
+
+function deleteMP(mpId) {
+  if (!confirm('Supprimer cette matière première ?')) return;
+  saveMPList(getMPList().filter(m => m.mp_id !== mpId));
+  renderMPAlimTable();
+  toast('Matière première supprimée');
+}
+
 function initSettingsPage() {
   document.getElementById('settings-url').value = isConfigured() ? APPS_SCRIPT_URL : '';
 
@@ -2560,6 +2781,566 @@ async function testConnection() {
 function copyAppsScript() {
   const code = document.getElementById('code-gs').textContent.trim();
   navigator.clipboard.writeText(code).then(() => toast('Code Apps Script copié'));
+}
+
+// ── Données de démonstration ──
+function loadDemoData() {
+  const DEMO_ID = 'demo-bande-001';
+
+  // Date d'entrée : 35 jours en arrière
+  const today = new Date();
+  const entreeDate = new Date(today);
+  entreeDate.setDate(entreeDate.getDate() - 35);
+  const dateEntree = entreeDate.toISOString().slice(0, 10);
+
+  // ── Bande ──
+  const demoBande = {
+    bande_id: DEMO_ID,
+    nom_bande: 'Bande Démo B1',
+    date_entree: dateEntree,
+    nb_poussins_entree: 4000,
+    fournisseur_poussins: 'Couvoirs du Sud',
+    prix_poussin_unitaire: 350,
+    poids_initial_moyen_g: 42,
+    cout_aliment_kg: 140,
+    statut: 'en_cours',
+    date_sortie: '',
+    nb_oiseaux_sortie: '',
+    poids_vif_moyen_sortie_g: '',
+    rendement_carcasse_pct: 58,
+    prix_vente_carcasse_kg: 1800
+  };
+
+  // ── Saisies journalières (35 jours) ──
+  // Poids approximant la courbe Cobb 500 avec légère variation
+  const cobbWeights = [42,52,66,82,100,120,142,160,190,215,245,280,315,345,380,
+    420,460,500,540,585,630,720,760,805,855,905,960,1020,1200,1280,
+    1360,1440,1520,1600,1700];
+  // Consommation aliment par jour (croissante) en kg pour 4000 oiseaux
+  const feedPerDay = [28,32,38,45,52,60,68,76,86,96,108,120,135,148,162,
+    178,194,210,226,244,262,290,308,326,346,366,388,412,460,488,
+    516,544,572,600,636];
+  // Mortalité par jour (quelques jours avec pertes)
+  const mortPerDay = [2,1,0,1,0,0,2,1,0,0,1,0,0,1,0,0,2,0,0,1,0,0,1,0,0,1,0,0,2,0,0,1,0,0,0];
+
+  const demoSaisies = cobbWeights.map((poids, i) => {
+    const d = new Date(entreeDate);
+    d.setDate(d.getDate() + i + 1);
+    return {
+      saisie_id: 'demo-s-' + String(i + 1).padStart(3, '0'),
+      bande_id: DEMO_ID,
+      date_saisie: d.toISOString().slice(0, 10),
+      jour_bande: i + 1,
+      mortalite_jour: mortPerDay[i] || 0,
+      aliment_consomme_kg: feedPerDay[i] || 0,
+      nb_oiseaux_peses: 50,
+      poids_vif_moyen_g: poids + Math.round((Math.random() - 0.5) * 10)
+    };
+  });
+
+  // ── Intrants ──
+  const mkDate = (daysAfter) => {
+    const d = new Date(entreeDate);
+    d.setDate(d.getDate() + daysAfter);
+    return d.toISOString().slice(0, 10);
+  };
+  const demoIntrants = [
+    { intrant_id:'demo-i-001', bande_id:DEMO_ID, date_intrant:mkDate(1),  type:'vaccin',     nom_produit:'Newcastle (HB1)',     quantite:4000, unite:'dose',  cout_total_fcfa:24000 },
+    { intrant_id:'demo-i-002', bande_id:DEMO_ID, date_intrant:mkDate(7),  type:'vaccin',     nom_produit:'Gumboro (D78)',       quantite:4000, unite:'dose',  cout_total_fcfa:32000 },
+    { intrant_id:'demo-i-003', bande_id:DEMO_ID, date_intrant:mkDate(14), type:'vaccin',     nom_produit:'Newcastle (Clone)',   quantite:4000, unite:'dose',  cout_total_fcfa:28000 },
+    { intrant_id:'demo-i-004', bande_id:DEMO_ID, date_intrant:mkDate(10), type:'vitamine',   nom_produit:'Vitamine C + E',      quantite:2,    unite:'L',     cout_total_fcfa:15000 },
+    { intrant_id:'demo-i-005', bande_id:DEMO_ID, date_intrant:mkDate(21), type:'medicament', nom_produit:'Amoxicilline',        quantite:500,  unite:'g',     cout_total_fcfa:22000 }
+  ];
+
+  // ── Alimentation par phase ──
+  const ap = (id, phase, nom, mp_id, qte, prix, dateStr) => ({
+    ap_id: id, bande_id: DEMO_ID, phase, mp_id, nom_mp: nom,
+    quantite_kg: qte, prix_unitaire: prix,
+    cout_total: Math.round(qte * prix),
+    date_livraison: dateStr
+  });
+  const demoAlimentsPhases = [
+    // Pré-démarrage
+    ap('demo-ap-001','pre_demarrage','Maïs',           'mp-001', 900,  120, mkDate(1)),
+    ap('demo-ap-002','pre_demarrage','Tourteau de soja','mp-002', 400,  220, mkDate(1)),
+    ap('demo-ap-003','pre_demarrage','Prémix vitamines','mp-003',  20, 1500, mkDate(1)),
+    ap('demo-ap-004','pre_demarrage','Sel',             'mp-004',   8,   80, mkDate(1)),
+    ap('demo-ap-005','pre_demarrage','Lysine',          'mp-005',   4, 1200, mkDate(1)),
+    // Démarrage
+    ap('demo-ap-006','demarrage','Maïs',           'mp-001', 1800, 120, mkDate(11)),
+    ap('demo-ap-007','demarrage','Tourteau de soja','mp-002',  700, 220, mkDate(11)),
+    ap('demo-ap-008','demarrage','Prémix vitamines','mp-003',   35,1500, mkDate(11)),
+    ap('demo-ap-009','demarrage','Sel',             'mp-004',   15,  80, mkDate(11)),
+    ap('demo-ap-010','demarrage','Lysine',          'mp-005',    8,1200, mkDate(11)),
+    // Croissance
+    ap('demo-ap-011','croissance','Maïs',           'mp-001', 3500, 115, mkDate(22)),
+    ap('demo-ap-012','croissance','Tourteau de soja','mp-002', 1200, 215, mkDate(22)),
+    ap('demo-ap-013','croissance','Prémix vitamines','mp-003',   55,1500, mkDate(22)),
+    ap('demo-ap-014','croissance','Sel',             'mp-004',   25,  80, mkDate(22)),
+    ap('demo-ap-015','croissance','Lysine',          'mp-005',   15,1200, mkDate(22))
+  ];
+
+  // Supprimer une éventuelle démo précédente et injecter
+  STATE.bandes          = STATE.bandes.filter(b => b.bande_id !== DEMO_ID);
+  STATE.saisies         = STATE.saisies.filter(s => s.bande_id !== DEMO_ID);
+  STATE.intrants        = STATE.intrants.filter(i => i.bande_id !== DEMO_ID);
+  STATE.alimentsPhases  = STATE.alimentsPhases.filter(a => a.bande_id !== DEMO_ID);
+
+  STATE.bandes.unshift(demoBande);
+  STATE.saisies.push(...demoSaisies);
+  STATE.intrants.push(...demoIntrants);
+  STATE.alimentsPhases.push(...demoAlimentsPhases);
+  STATE.loaded = true;
+
+  // Persister dans le cache local
+  try {
+    const cached = JSON.parse(localStorage.getItem('coqorico_cache') || '{}');
+    cached.bandes         = STATE.bandes;
+    cached.saisies        = STATE.saisies;
+    cached.intrants       = STATE.intrants;
+    cached.alimentsPhases = STATE.alimentsPhases;
+    cached.matieres       = STATE.matieres;
+    cached.formulationsMP = STATE.formulationsMP;
+    cached.cachedAt       = new Date().toISOString();
+    localStorage.setItem('coqorico_cache', JSON.stringify(cached));
+  } catch(e) {}
+
+  renderDashboard();
+  toast('Bande démo chargée — visible dans toutes les pages');
+}
+
+function clearDemoData() {
+  if (!confirm('Supprimer toutes les données de démonstration ?')) return;
+  const DEMO_ID = 'demo-bande-001';
+  STATE.bandes         = STATE.bandes.filter(b => b.bande_id !== DEMO_ID);
+  STATE.saisies        = STATE.saisies.filter(s => s.bande_id !== DEMO_ID);
+  STATE.intrants       = STATE.intrants.filter(i => i.bande_id !== DEMO_ID);
+  STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.bande_id !== DEMO_ID);
+
+  try {
+    const cached = JSON.parse(localStorage.getItem('coqorico_cache') || '{}');
+    cached.bandes         = STATE.bandes;
+    cached.saisies        = STATE.saisies;
+    cached.intrants       = STATE.intrants;
+    cached.alimentsPhases = STATE.alimentsPhases;
+    cached.matieres       = STATE.matieres;
+    cached.formulationsMP = STATE.formulationsMP;
+    localStorage.setItem('coqorico_cache', JSON.stringify(cached));
+  } catch(e) {}
+
+  renderDashboard();
+  toast('Données démo supprimées');
+}
+
+// ── Alimentation par phase ──
+
+const PHASES = [
+  { id: 'pre_demarrage', label: 'Pré-démarrage' },
+  { id: 'demarrage',     label: 'Démarrage' },
+  { id: 'croissance',    label: 'Croissance' }
+];
+
+const DEFAULT_MP = [
+  { mp_id: 'mp-001', nom: 'Maïs',                actif: true },
+  { mp_id: 'mp-002', nom: 'Tourteau de soja',    actif: true },
+  { mp_id: 'mp-003', nom: 'Prémix vitamines',    actif: true },
+  { mp_id: 'mp-004', nom: 'Sel',                 actif: true },
+  { mp_id: 'mp-005', nom: 'Lysine',              actif: true },
+  { mp_id: 'mp-006', nom: 'Farine de poisson',   actif: true },
+  { mp_id: 'mp-007', nom: 'Huile de palme',      actif: true },
+  { mp_id: 'mp-008', nom: 'Carbonate de calcium', actif: true },
+  { mp_id: 'mp-009', nom: 'Autre',               actif: true }
+];
+
+let currentAlimPhase = 'pre_demarrage';
+let currentAlimTopTab = 'formulations';
+
+function getMPList() {
+  // Prefer STATE.matieres from Google Sheets; fall back to localStorage then defaults
+  if (STATE.matieres && STATE.matieres.length > 0) {
+    return STATE.matieres.map(m => ({
+      mp_id: m.matiere_id || m.mp_id,
+      nom: m.nom,
+      unite: m.unite || 'kg',
+      actif: m.actif === true || m.actif === 'true' || m.actif === 1
+    }));
+  }
+  try {
+    const raw = localStorage.getItem('coqorico_mp');
+    return raw ? JSON.parse(raw) : DEFAULT_MP.map(m => ({ ...m }));
+  } catch (e) { return DEFAULT_MP.map(m => ({ ...m })); }
+}
+
+function saveMPList(list) {
+  localStorage.setItem('coqorico_mp', JSON.stringify(list));
+}
+
+// Seed default matières premières to Google Sheets on first use
+async function seedDefaultMatieres() {
+  const localList = getMPList();
+  const toSeed = localList.length > 0 ? localList : DEFAULT_MP;
+  for (const m of toSeed) {
+    const payload = {
+      matiere_id: m.mp_id || 'mp-' + uuid(),
+      nom: m.nom,
+      unite: m.unite || 'kg',
+      actif: m.actif !== false
+    };
+    try {
+      await apiPost({ action: 'addMatiere', payload });
+      STATE.matieres.push(payload);
+    } catch (e) { /* silent — offline will retry */ }
+  }
+}
+
+// ── Top-level tab switching ──
+function switchAlimTopTab(tab, btn) {
+  currentAlimTopTab = tab;
+  document.querySelectorAll('#alim-top-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('alim-tab-formulations').style.display = tab === 'formulations' ? '' : 'none';
+  document.getElementById('alim-tab-matieres').style.display = tab === 'matieres' ? '' : 'none';
+  document.getElementById('alim-tab-resume').style.display = tab === 'resume' ? '' : 'none';
+  if (tab === 'matieres') renderMPAlimTable();
+  if (tab === 'resume') initAlimResume();
+}
+
+function initAlimPage() {
+  // Reset to Formulations tab
+  currentAlimTopTab = 'formulations';
+  document.querySelectorAll('#alim-top-tabs .tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.getElementById('alim-tab-formulations').style.display = '';
+  document.getElementById('alim-tab-matieres').style.display = 'none';
+  document.getElementById('alim-tab-resume').style.display = 'none';
+
+  // Hide matieres tab for non-managers
+  const matTab = document.querySelector('#alim-top-tabs .tab-btn:nth-child(2)');
+  if (matTab) matTab.style.display = isManager() ? '' : 'none';
+
+  // Populate batch dropdown (formulations)
+  const sel = document.getElementById('alim-bande-select');
+  sel.innerHTML = '<option value="">— Choisir une bande —</option>';
+  STATE.bandes.forEach(b => {
+    sel.appendChild(new Option(
+      b.nom_bande + (b.statut === 'en_cours' ? ' (en cours)' : ' (terminée)'),
+      b.bande_id
+    ));
+  });
+  document.getElementById('alim-content').style.display = 'none';
+}
+
+function loadAlimBande() {
+  const bandeId = document.getElementById('alim-bande-select').value;
+  if (!bandeId) {
+    document.getElementById('alim-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('alim-content').style.display = '';
+  renderAllAlimPhases();
+}
+
+// ── Render all 3 phases at once (Formulations tab) ──
+function renderAllAlimPhases() {
+  const bandeId = document.getElementById('alim-bande-select').value;
+  const canEdit = isManager();
+  let html = '';
+  let grandTotalKg = 0, grandTotalCout = 0;
+
+  PHASES.forEach(phase => {
+    const entries = STATE.alimentsPhases.filter(a => a.bande_id === bandeId && a.phase === phase.id);
+    let totalKg = 0, totalCout = 0;
+    entries.forEach(e => {
+      totalKg  += Number(e.quantite_kg)  || 0;
+      totalCout += Number(e.cout_total)  || 0;
+    });
+    grandTotalKg += totalKg;
+    grandTotalCout += totalCout;
+
+    let rows = '';
+    if (entries.length === 0) {
+      rows = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-light);">Aucune entrée pour cette phase.</td></tr>`;
+    } else {
+      entries.forEach(e => {
+        rows += `<tr>
+          <td>${e.nom_mp || '—'}</td>
+          <td>${fmt(Number(e.quantite_kg), 2)}</td>
+          <td>${fmt(Number(e.prix_unitaire))}</td>
+          <td>${fmt(Number(e.cout_total))}</td>
+          <td>${fmtDate(e.date_livraison)}</td>
+          <td>${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')">&#10005;</button>` : ''}</td>
+        </tr>`;
+      });
+    }
+
+    const tfoot = entries.length > 0 ? `<tfoot><tr>
+      <td><strong>Sous-total</strong></td>
+      <td><strong>${fmt(totalKg, 2)} kg</strong></td>
+      <td></td>
+      <td><strong>${fmt(totalCout)} FCFA</strong></td>
+      <td colspan="2"></td>
+    </tr></tfoot>` : '';
+
+    html += `
+      <div class="card">
+        <div class="card-header">
+          <h3>${phase.label}</h3>
+          ${canEdit ? `<button class="btn btn-primary btn-sm" onclick="showAddAlimModal('${phase.id}')">+ Ajouter une entrée</button>` : ''}
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Matière</th>
+              <th>Qté (kg)</th>
+              <th>Prix/kg (FCFA)</th>
+              <th>Coût total (FCFA)</th>
+              <th>Date livraison</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            ${tfoot}
+          </table>
+        </div>
+      </div>`;
+  });
+
+  document.getElementById('alim-phases-all').innerHTML = html;
+  document.getElementById('alim-batch-total').textContent =
+    fmt(grandTotalKg, 1) + ' kg — ' + fmt(grandTotalCout) + ' FCFA';
+}
+
+// ── Matières premières tab (Tab 2) ──
+function renderMPAlimTable() {
+  const list = getMPList();
+  const container = document.getElementById('mp-alim-table');
+  if (list.length === 0) {
+    container.innerHTML = '<p style="font-size:0.85rem;color:var(--text-light);">Aucune matière première.</p>';
+    return;
+  }
+  const rows = list.map(m => `
+    <tr>
+      <td>${m.nom}</td>
+      <td>${m.unite || 'kg'}</td>
+      <td style="text-align:center;">
+        <label style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.85rem;cursor:pointer;">
+          <input type="checkbox" ${m.actif ? 'checked' : ''} onchange="toggleMPActif('${m.mp_id}',this.checked)">
+          ${m.actif ? 'Actif' : 'Inactif'}
+        </label>
+      </td>
+    </tr>`).join('');
+  container.innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Nom</th><th>Unité</th><th style="text-align:center;">Statut</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.75rem;">Désactiver une matière la masque des formulaires mais conserve l'historique.</p>`;
+}
+
+// ── Résumé tab (Tab 3) ──
+function initAlimResume() {
+  const sel = document.getElementById('alim-resume-bande-select');
+  sel.innerHTML = '<option value="">— Choisir une bande —</option>';
+  STATE.bandes.forEach(b => {
+    sel.appendChild(new Option(
+      b.nom_bande + (b.statut === 'en_cours' ? ' (en cours)' : ' (terminée)'),
+      b.bande_id
+    ));
+  });
+  renderAlimResume();
+}
+
+function renderAlimResume() {
+  const bandeId = document.getElementById('alim-resume-bande-select').value;
+  const container = document.getElementById('alim-resume-content');
+  if (!bandeId) { container.innerHTML = ''; return; }
+
+  const entries = STATE.alimentsPhases.filter(a => a.bande_id === bandeId);
+
+  // Build per-matière, per-phase aggregation
+  const mpData = {};
+  entries.forEach(e => {
+    const nom = e.nom_mp || '—';
+    if (!mpData[nom]) mpData[nom] = {};
+    if (!mpData[nom][e.phase]) mpData[nom][e.phase] = { kg: 0, cout: 0 };
+    mpData[nom][e.phase].kg   += Number(e.quantite_kg) || 0;
+    mpData[nom][e.phase].cout += Number(e.cout_total)  || 0;
+  });
+
+  // Phase totals
+  const phaseTotals = {};
+  PHASES.forEach(p => { phaseTotals[p.id] = { kg: 0, cout: 0 }; });
+  let grandKg = 0, grandCout = 0;
+
+  let rows = '';
+  Object.entries(mpData).forEach(([nom, phases]) => {
+    let rowKg = 0, rowCout = 0;
+    rows += `<tr><td><strong>${nom}</strong></td>`;
+    PHASES.forEach(p => {
+      const d = phases[p.id] || { kg: 0, cout: 0 };
+      rows += `<td>${fmt(d.kg, 1)}</td><td>${fmt(d.cout)}</td>`;
+      phaseTotals[p.id].kg   += d.kg;
+      phaseTotals[p.id].cout += d.cout;
+      rowKg  += d.kg;
+      rowCout += d.cout;
+    });
+    rows += `<td><strong>${fmt(rowKg, 1)}</strong></td><td><strong>${fmt(rowCout)}</strong></td></tr>`;
+    grandKg  += rowKg;
+    grandCout += rowCout;
+  });
+
+  // Total row
+  let totalRow = '<tr style="background:#fff3e0;font-weight:700;"><td>TOTAL</td>';
+  PHASES.forEach(p => {
+    totalRow += `<td>${fmt(phaseTotals[p.id].kg, 1)}</td><td>${fmt(phaseTotals[p.id].cout)}</td>`;
+  });
+  totalRow += `<td>${fmt(grandKg, 1)}</td><td>${fmt(grandCout)}</td></tr>`;
+
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="card"><p style="text-align:center;color:var(--text-light);padding:2rem;">Aucune donnée alimentaire pour cette bande.</p></div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <h3>Résumé par matière première</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2">Matière</th>
+              <th colspan="2" style="text-align:center;">Pré-démarrage</th>
+              <th colspan="2" style="text-align:center;">Démarrage</th>
+              <th colspan="2" style="text-align:center;">Croissance</th>
+              <th colspan="2" style="text-align:center;">Total</th>
+            </tr>
+            <tr>
+              <th>kg</th><th>FCFA</th>
+              <th>kg</th><th>FCFA</th>
+              <th>kg</th><th>FCFA</th>
+              <th>kg</th><th>FCFA</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>${totalRow}</tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;background:#fff3e0;border-left:4px solid var(--green);">
+      <div style="text-align:center;">
+        <div style="font-size:0.85rem;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;">Coût alimentaire total de la bande</div>
+        <div style="font-size:1.5rem;font-weight:800;color:var(--green-dark);margin-top:0.25rem;">${fmt(grandCout)} FCFA</div>
+        <div style="font-size:0.85rem;color:var(--text-light);margin-top:0.15rem;">${fmt(grandKg, 1)} kg de matières premières</div>
+      </div>
+    </div>`;
+}
+
+// ── Add alim modal — now takes phase as parameter ──
+function showAddAlimModal(phase) {
+  currentAlimPhase = phase || currentAlimPhase;
+  const mpList = getMPList().filter(m => m.actif);
+  const sel = document.getElementById('alim-modal-mp');
+  sel.innerHTML = mpList.map(m => `<option value="${m.mp_id}">${m.nom}</option>`).join('');
+
+  // Update modal title with phase name
+  const phaseLabel = PHASES.find(p => p.id === currentAlimPhase)?.label || '';
+  document.querySelector('#alim-modal .modal h3').textContent = '🌿 Ajouter — ' + phaseLabel;
+
+  document.getElementById('alim-modal-date').value = todayStr();
+  document.getElementById('alim-modal-quantite').value = '';
+  document.getElementById('alim-modal-cout').value = '';
+
+  // Auto-fill last known price for the first matière
+  autoFillLastPrice();
+  sel.onchange = autoFillLastPrice;
+
+  document.getElementById('alim-modal').style.display = 'flex';
+}
+
+function autoFillLastPrice() {
+  const mpId = document.getElementById('alim-modal-mp').value;
+  if (!mpId) return;
+  // Find last entry for this matière across all batches/phases, most recent first
+  const last = [...STATE.alimentsPhases]
+    .reverse()
+    .find(a => a.mp_id === mpId && Number(a.prix_unitaire) > 0);
+  document.getElementById('alim-modal-prix').value = last ? Number(last.prix_unitaire) : '';
+  updateAlimCout();
+}
+
+function closeAlimModal() {
+  document.getElementById('alim-modal').style.display = 'none';
+}
+
+function updateAlimCout() {
+  const q = parseFloat(document.getElementById('alim-modal-quantite').value) || 0;
+  const p = parseFloat(document.getElementById('alim-modal-prix').value)     || 0;
+  document.getElementById('alim-modal-cout').value = Math.round(q * p);
+}
+
+async function submitAlimEntry() {
+  const bandeId = document.getElementById('alim-bande-select').value;
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+
+  const mpSel  = document.getElementById('alim-modal-mp');
+  const mpId   = mpSel.value;
+  const nomMp  = mpSel.options[mpSel.selectedIndex]?.text || '';
+  const quantite = parseFloat(document.getElementById('alim-modal-quantite').value);
+  const prix     = parseFloat(document.getElementById('alim-modal-prix').value) || 0;
+  const date     = document.getElementById('alim-modal-date').value;
+
+  if (!mpId)              { toast('Sélectionnez une matière première', 'error'); return; }
+  if (!quantite || quantite <= 0) { toast('Quantité invalide', 'error'); return; }
+  if (!date)              { toast('Date requise', 'error'); return; }
+
+  const payload = {
+    ap_id:         'ap-' + uuid(),
+    bande_id:      bandeId,
+    phase:         currentAlimPhase,
+    mp_id:         mpId,
+    nom_mp:        nomMp,
+    quantite_kg:   quantite,
+    prix_unitaire: prix,
+    cout_total:    Math.round(quantite * prix),
+    date_livraison: date
+  };
+
+  const btn = document.querySelector('#alim-modal .btn-primary');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Enregistrement...';
+
+  try {
+    await apiPost({ action: 'addAlimentPhase', payload });
+    STATE.alimentsPhases.push(payload);
+    closeAlimModal();
+    renderAllAlimPhases();
+    toast('Entrée enregistrée');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.alimentsPhases.push(payload);
+      closeAlimModal();
+      renderAllAlimPhases();
+      toast('Enregistré (hors ligne)');
+    } else {
+      toast('Erreur : ' + err.message, 'error');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function deleteAlimentPhase(apId) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  try {
+    await apiPost({ action: 'deleteAlimentPhase', payload: { ap_id: apId } });
+    STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.ap_id !== apId);
+    renderAllAlimPhases();
+    toast('Entrée supprimée');
+  } catch (err) {
+    toast('Erreur : ' + err.message, 'error');
+  }
 }
 
 // ── Init ──
