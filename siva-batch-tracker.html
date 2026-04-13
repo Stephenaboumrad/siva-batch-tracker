@@ -503,6 +503,49 @@ tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
 /* ── Stock available hint ── */
 .stock-hint { font-size: 0.8rem; color: #9e9e9e; margin-top: 0.25rem; font-style: italic; }
 
+/* ── KPI bar ── */
+.kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.kpi-card {
+  background: var(--white); border-radius: 10px; padding: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08); text-align: center;
+}
+.kpi-card .kpi-value { font-size: 1.4rem; font-weight: 800; color: var(--green-dark); }
+.kpi-card .kpi-label { font-size: 0.7rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.2rem; }
+.kpi-card.kpi-warn .kpi-value { color: var(--orange); }
+
+/* ── Order status badges ── */
+.status-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
+  font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+}
+.status-en_attente { background: #eeeeee; color: #616161; }
+.status-confirmee { background: #e3f2fd; color: #1565c0; }
+.status-en_preparation { background: #fff3e0; color: #e65100; }
+.status-livree { background: #e8f5e9; color: #2e7d32; }
+.status-annulee { background: #ffebee; color: #c62828; }
+
+/* ── Ligne commande row ── */
+.ligne-row {
+  display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap;
+  margin-bottom: 0.5rem; padding: 0.5rem; background: #fafafa;
+  border-radius: 6px; border: 1px solid var(--border);
+}
+.ligne-row .form-group { margin-bottom: 0; flex: 1; min-width: 100px; }
+.ligne-row .form-group.wide { min-width: 150px; }
+
+/* ── Commercial charts ── */
+.commercial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+.commercial-grid .card { min-height: 300px; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
@@ -548,6 +591,9 @@ tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
     </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
       <span class="icon">&#128666;</span> Supply Chain
+    </a>
+    <a href="#" data-page="clients" onclick="navigate('clients',this)">
+      <span class="icon">&#128188;</span> Clients & Commandes
     </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
       <span class="icon">&#128230;</span> Exports
@@ -596,7 +642,7 @@ tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
     <h3>&#9888;&#65039; Configuration requise</h3>
     <p style="margin-bottom:0.75rem;">Pour utiliser l'application, vous devez configurer la connexion à Google Sheets :</p>
     <ol>
-      <li>Créer un Google Sheets avec 10 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code>, <code>Aliments_Phases</code>, <code>Matieres</code>, <code>FormulationsMP</code>, <code>Fournisseurs</code>, <code>Receptions</code>, <code>Inspections</code>, <code>Stocks</code></li>
+      <li>Créer un Google Sheets avec 13 feuilles : <code>Bandes</code>, <code>Saisies</code>, <code>Intrants</code>, <code>Aliments_Phases</code>, <code>Matieres</code>, <code>FormulationsMP</code>, <code>Fournisseurs</code>, <code>Receptions</code>, <code>Inspections</code>, <code>Stocks</code>, <code>Clients</code>, <code>Commandes</code>, <code>LignesCommande</code></li>
       <li>Ouvrir Extensions &gt; Apps Script, coller le code <code>Code.gs</code> (voir section Paramètres), déployer en Application Web</li>
       <li>Copier l'URL de déploiement et la coller dans <a href="#" onclick="navigate('settings',document.querySelector('[data-page=settings]'));return false;" style="color:var(--gold);">Paramètres</a></li>
     </ol>
@@ -879,6 +925,72 @@ tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
     </div>
   </div>
 
+  <!-- ═══════════════ PAGE: CLIENTS & COMMANDES ═══════════════ -->
+  <div id="page-clients" class="page">
+    <h2>&#128188; Clients & Commandes</h2>
+
+    <!-- KPI bar -->
+    <div class="kpi-bar" id="clients-kpi"></div>
+
+    <!-- Tabs -->
+    <div id="clients-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" onclick="switchClientsTab('commandes',this)">Commandes</button>
+      <button class="tab-btn" onclick="switchClientsTab('clients',this)">Clients</button>
+      <button class="tab-btn" onclick="switchClientsTab('commercial',this)">Tableau commercial</button>
+    </div>
+
+    <!-- Tab 1: Commandes -->
+    <div id="cl-tab-commandes">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div class="filter-bar">
+          <select id="filter-cmd-statut" onchange="renderCommandes()">
+            <option value="">Tous statuts</option>
+            <option value="en_attente">En attente</option>
+            <option value="confirmee">Confirmée</option>
+            <option value="en_preparation">En préparation</option>
+            <option value="livree">Livrée</option>
+            <option value="annulee">Annulée</option>
+          </select>
+          <select id="filter-cmd-client" onchange="renderCommandes()">
+            <option value="">Tous clients</option>
+          </select>
+          <input type="date" id="filter-cmd-from" onchange="renderCommandes()" title="Date début">
+          <input type="date" id="filter-cmd-to" onchange="renderCommandes()" title="Date fin">
+        </div>
+        <button class="btn btn-primary manager-only" onclick="showCommandeModal()">+ Nouvelle commande</button>
+      </div>
+      <div id="commandes-list"></div>
+    </div>
+
+    <!-- Tab 2: Clients -->
+    <div id="cl-tab-clients" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--green-dark);">Liste des clients</h3>
+        <button class="btn btn-primary manager-only" onclick="showClientModal()">+ Nouveau client</button>
+      </div>
+      <div id="clients-list"></div>
+    </div>
+
+    <!-- Tab 3: Tableau commercial -->
+    <div id="cl-tab-commercial" style="display:none;">
+      <div id="commercial-comparison" class="card" style="margin-bottom:1rem;"></div>
+      <div class="commercial-grid">
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--green-dark);">Top 5 clients (CA)</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-top-clients"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--green-dark);">Répartition par produit</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-produits"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--green-dark);">Commandes par statut</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-statuts"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══════════════ PAGE: EXPORTS ═══════════════ -->
   <div id="page-exports" class="page">
     <h2>&#128230; Exports</h2>
@@ -1137,6 +1249,74 @@ tr.row-inactive td { background: #f5f5f5; color: #9e9e9e; }
   </div>
 </div>
 
+<!-- Modal: Nouveau client -->
+<div id="client-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>&#128100; Nouveau client</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom</label><input type="text" id="cli-nom" placeholder="Nom du client"></div>
+      <div class="form-group"><label>Type</label>
+        <select id="cli-type">
+          <option value="particulier">Particulier</option>
+          <option value="revendeur">Revendeur</option>
+          <option value="restaurant">Restaurant</option>
+          <option value="supermarche">Supermarché</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Contact</label><input type="text" id="cli-contact" placeholder="Nom du contact"></div>
+      <div class="form-group"><label>Téléphone</label><input type="tel" id="cli-tel" placeholder="+225 XX XX XX XX"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Email</label><input type="email" id="cli-email" placeholder="email@exemple.com"></div>
+      <div class="form-group"><label>Ville</label><input type="text" id="cli-ville" placeholder="Abidjan"></div>
+    </div>
+    <div class="form-group"><label>Adresse</label><input type="text" id="cli-adresse" placeholder="Adresse complète"></div>
+    <div class="form-group"><label>Note</label><textarea id="cli-note" rows="2" placeholder="Remarques…" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeClientModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitClient()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nouvelle commande -->
+<div id="commande-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:700px;">
+    <h3>&#128230; Nouvelle commande</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Client</label>
+        <select id="cmd-client"></select>
+        <div style="margin-top:0.3rem;"><a href="#" style="font-size:0.8rem;color:var(--green);" onclick="event.preventDefault();closeCommandeModal();showClientModal()">+ Nouveau client</a></div>
+      </div>
+      <div class="form-group"><label>Date commande</label><input type="date" id="cmd-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Date livraison souhaitée</label><input type="date" id="cmd-date-livraison"></div>
+      <div class="form-group"><label>Bande associée (optionnel)</label><select id="cmd-bande"><option value="">— Aucune —</option></select></div>
+    </div>
+    <div class="form-group"><label>Note</label><input type="text" id="cmd-note" placeholder="Remarques…"></div>
+
+    <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <strong style="font-size:0.95rem;">Lignes de commande</strong>
+        <button class="btn btn-outline btn-sm" onclick="addLigneRow()">+ Ajouter une ligne</button>
+      </div>
+      <div id="cmd-lignes-container"></div>
+      <div style="text-align:right;margin-top:0.75rem;">
+        <strong>Montant total : <span id="cmd-total" style="color:var(--green-dark);font-size:1.1rem;">0 FCFA</span></strong>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeCommandeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitCommande()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast notification -->
 <div id="toast"></div>
 
@@ -1161,7 +1341,10 @@ const SHEETS = {
   FOURNISSEURS: 'Fournisseurs',
   RECEPTIONS: 'Receptions',
   INSPECTIONS: 'Inspections',
-  STOCKS: 'Stocks'
+  STOCKS: 'Stocks',
+  CLIENTS: 'Clients',
+  COMMANDES: 'Commandes',
+  LIGNES_COMMANDE: 'LignesCommande'
 };
 
 const HEADERS = {
@@ -1207,6 +1390,18 @@ const HEADERS = {
   Stocks: [
     'stock_id','type_produit','categorie','quantite_actuelle',
     'unite','seuil_alerte','emplacement','derniere_mise_a_jour'
+  ],
+  Clients: [
+    'client_id','nom','type','contact_nom','telephone',
+    'email','adresse','ville','statut','note'
+  ],
+  Commandes: [
+    'commande_id','client_id','date_commande','date_livraison_souhaitee',
+    'bande_id','statut','note','montant_total_fcfa'
+  ],
+  LignesCommande: [
+    'ligne_id','commande_id','produit','description',
+    'quantite_kg','prix_kg_fcfa','montant_fcfa'
   ]
 };
 
@@ -1279,6 +1474,24 @@ function doGet(e) {
         result = getSheetData(ss, SHEETS.STOCKS);
         break;
 
+      case 'getClients':
+        result = getSheetData(ss, SHEETS.CLIENTS);
+        break;
+
+      case 'getCommandes':
+        result = getSheetData(ss, SHEETS.COMMANDES);
+        if (e.parameter.client_id) {
+          result = result.filter(r => r.client_id === e.parameter.client_id);
+        }
+        break;
+
+      case 'getLignesCommande':
+        result = getSheetData(ss, SHEETS.LIGNES_COMMANDE);
+        if (e.parameter.commande_id) {
+          result = result.filter(r => r.commande_id === e.parameter.commande_id);
+        }
+        break;
+
       case 'getAll':
         result = {
           bandes: getSheetData(ss, SHEETS.BANDES),
@@ -1290,7 +1503,10 @@ function doGet(e) {
           fournisseurs: getSheetData(ss, SHEETS.FOURNISSEURS),
           receptions: getSheetData(ss, SHEETS.RECEPTIONS),
           inspections: getSheetData(ss, SHEETS.INSPECTIONS),
-          stocks: getSheetData(ss, SHEETS.STOCKS)
+          stocks: getSheetData(ss, SHEETS.STOCKS),
+          clients: getSheetData(ss, SHEETS.CLIENTS),
+          commandes: getSheetData(ss, SHEETS.COMMANDES),
+          lignesCommande: getSheetData(ss, SHEETS.LIGNES_COMMANDE)
         };
         break;
 
@@ -1394,6 +1610,30 @@ function doPost(e) {
         result = updateRow(ss, SHEETS.STOCKS, HEADERS.Stocks, 'stock_id', data.payload.stock_id, data.payload);
         break;
 
+      case 'addClient':
+        result = addRow(ss, SHEETS.CLIENTS, HEADERS.Clients, data.payload);
+        break;
+
+      case 'updateClient':
+        result = updateRow(ss, SHEETS.CLIENTS, HEADERS.Clients, 'client_id', data.payload.client_id, data.payload);
+        break;
+
+      case 'addCommande':
+        result = addRow(ss, SHEETS.COMMANDES, HEADERS.Commandes, data.payload);
+        break;
+
+      case 'updateCommande':
+        result = updateRow(ss, SHEETS.COMMANDES, HEADERS.Commandes, 'commande_id', data.payload.commande_id, data.payload);
+        break;
+
+      case 'addLigneCommande':
+        result = addRow(ss, SHEETS.LIGNES_COMMANDE, HEADERS.LignesCommande, data.payload);
+        break;
+
+      case 'deleteLigneCommande':
+        result = deleteRow(ss, SHEETS.LIGNES_COMMANDE, 'ligne_id', data.payload.ligne_id);
+        break;
+
       default:
         result = { error: 'Action inconnue: ' + action };
     }
@@ -1494,8 +1734,8 @@ const AUTH_USERS = [
 ];
 let currentUser = null; // { matricule, name, role }
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'exports', 'settings'];
-const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'clients', 'exports', 'settings'];
+const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'clients'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -1553,7 +1793,7 @@ const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
 let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDER_URL;
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null };
 
 // ── Slaughter forecast constants (configurable) ──
@@ -1779,6 +2019,9 @@ async function loadAllData() {
     STATE.receptions = data.receptions || [];
     STATE.inspections = data.inspections || [];
     STATE.stocks = data.stocks || [];
+    STATE.clients = data.clients || [];
+    STATE.commandes = data.commandes || [];
+    STATE.lignesCommande = data.lignesCommande || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières on first load if sheet is empty
@@ -1796,6 +2039,9 @@ async function loadAllData() {
         receptions: STATE.receptions,
         inspections: STATE.inspections,
         stocks: STATE.stocks,
+        clients: STATE.clients,
+        commandes: STATE.commandes,
+        lignesCommande: STATE.lignesCommande,
         cachedAt: new Date().toISOString()
       }));
     } catch (e) { /* localStorage full or unavailable */ }
@@ -1816,6 +2062,9 @@ async function loadAllData() {
       STATE.receptions = cached.receptions || [];
       STATE.inspections = cached.inspections || [];
       STATE.stocks = cached.stocks || [];
+      STATE.clients = cached.clients || [];
+      STATE.commandes = cached.commandes || [];
+      STATE.lignesCommande = cached.lignesCommande || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -1859,6 +2108,7 @@ function navigate(page, el) {
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
     case 'supply': initSupplyPage(); break;
+    case 'clients': initClientsPage(); break;
     case 'exports': initExportsPage(); break;
     case 'settings': initSettingsPage(); break;
   }
@@ -1994,6 +2244,9 @@ function checkAlerts() {
 
   // Add inspection alerts
   alerts.push(...getInspectionAlerts());
+
+  // Add commande alerts
+  alerts.push(...getCommandeAlerts());
 
   // Update sidebar badge
   const badge = document.getElementById('alert-badge');
@@ -2576,6 +2829,7 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
       <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(ind.poidsCarcasse)} g</div></div>
       <div class="stat-item"><div class="label">Coût alimentaire</div><div class="value">${fmt(computeCoutAlimentaire(bande.bande_id))} FCFA</div></div>
+      <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
@@ -3316,6 +3570,9 @@ function loadDemoData() {
     cached.receptions     = STATE.receptions;
     cached.inspections    = STATE.inspections;
     cached.stocks         = STATE.stocks;
+    cached.clients        = STATE.clients;
+    cached.commandes      = STATE.commandes;
+    cached.lignesCommande = STATE.lignesCommande;
     cached.cachedAt       = new Date().toISOString();
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
@@ -3344,6 +3601,9 @@ function clearDemoData() {
     cached.receptions     = STATE.receptions;
     cached.inspections    = STATE.inspections;
     cached.stocks         = STATE.stocks;
+    cached.clients        = STATE.clients;
+    cached.commandes      = STATE.commandes;
+    cached.lignesCommande = STATE.lignesCommande;
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
 
@@ -4336,6 +4596,674 @@ function computeCoutAlimentaire(bandeId) {
   return entries.reduce((s, e) => s + (Number(e.cout_total) || 0), 0);
 }
 
+// ══════════════════════════════════════════
+// ── Clients & Commandes Module ──
+// ══════════════════════════════════════════
+
+let currentClientsTab = 'commandes';
+let expandedCommandeId = null;
+let expandedClientId = null;
+let cmdLigneCount = 0;
+let commercialCharts = { topClients: null, produits: null, statuts: null };
+
+function initClientsPage() {
+  currentClientsTab = 'commandes';
+  switchClientsTab('commandes');
+  renderClientsKPI();
+}
+
+function switchClientsTab(tab, btn) {
+  currentClientsTab = tab;
+  ['commandes','clients','commercial'].forEach(t => {
+    const el = document.getElementById('cl-tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('#clients-tabs .tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['commandes','clients','commercial'][i] === tab);
+  });
+  switch (tab) {
+    case 'commandes': renderCommandes(); break;
+    case 'clients': renderClientsList(); break;
+    case 'commercial': renderCommercialDashboard(); break;
+  }
+}
+
+// ── Status helpers ──
+const CMD_STATUTS = {
+  en_attente: 'En attente',
+  confirmee: 'Confirmée',
+  en_preparation: 'En préparation',
+  livree: 'Livrée',
+  annulee: 'Annulée'
+};
+function cmdStatutBadge(s) {
+  return '<span class="status-badge status-' + s + '">' + (CMD_STATUTS[s] || s) + '</span>';
+}
+function clientTypeLabel(t) {
+  const m = { particulier: 'Particulier', revendeur: 'Revendeur', restaurant: 'Restaurant', supermarche: 'Supermarché', autre: 'Autre' };
+  return m[t] || t;
+}
+
+// ── KPI bar ──
+function renderClientsKPI() {
+  const today = todayStr();
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  const weekStart = startOfWeek.toISOString().slice(0, 10);
+  const weekEnd = endOfWeek.toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 7) + '-01';
+
+  const cmdToday = STATE.commandes.filter(c => c.date_livraison_souhaitee === today && c.statut !== 'annulee' && c.statut !== 'livree').length;
+  const cmdWeek = STATE.commandes.filter(c => c.date_livraison_souhaitee >= weekStart && c.date_livraison_souhaitee <= weekEnd && c.statut !== 'annulee' && c.statut !== 'livree').length;
+  const caMois = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande >= monthStart).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const enAttente = STATE.commandes.filter(c => c.statut === 'en_attente').length;
+
+  document.getElementById('clients-kpi').innerHTML =
+    '<div class="kpi-card"><div class="kpi-value">' + cmdToday + '</div><div class="kpi-label">Commandes aujourd\'hui</div></div>' +
+    '<div class="kpi-card"><div class="kpi-value">' + cmdWeek + '</div><div class="kpi-label">À livrer cette semaine</div></div>' +
+    '<div class="kpi-card"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>' +
+    '<div class="kpi-card ' + (enAttente > 0 ? 'kpi-warn' : '') + '"><div class="kpi-value">' + enAttente + '</div><div class="kpi-label">Commandes en attente</div></div>';
+}
+
+// ══════════════════════════════
+// ── Commandes tab ──
+// ══════════════════════════════
+
+function renderCommandes() {
+  renderClientsKPI();
+  // Populate client filter
+  const cSel = document.getElementById('filter-cmd-client');
+  const curVal = cSel.value;
+  cSel.innerHTML = '<option value="">Tous clients</option>';
+  STATE.clients.filter(c => c.statut === 'actif').forEach(c => {
+    cSel.appendChild(new Option(c.nom, c.client_id));
+  });
+  cSel.value = curVal;
+
+  const container = document.getElementById('commandes-list');
+  let list = [...STATE.commandes].sort((a, b) => {
+    // Sort by date_livraison_souhaitee asc
+    return (a.date_livraison_souhaitee || '').localeCompare(b.date_livraison_souhaitee || '');
+  });
+
+  // Filters
+  const sFilter = document.getElementById('filter-cmd-statut').value;
+  const clFilter = document.getElementById('filter-cmd-client').value;
+  const fromDate = document.getElementById('filter-cmd-from').value;
+  const toDate = document.getElementById('filter-cmd-to').value;
+  if (sFilter) list = list.filter(c => c.statut === sFilter);
+  if (clFilter) list = list.filter(c => c.client_id === clFilter);
+  if (fromDate) list = list.filter(c => c.date_commande >= fromDate);
+  if (toDate) list = list.filter(c => c.date_commande <= toDate);
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Aucune commande enregistrée.</p></div>';
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date cmd</th><th>Livraison souh.</th><th>Produits</th><th>Montant</th><th>Statut</th></tr></thead><tbody>';
+  list.forEach(c => {
+    const client = STATE.clients.find(cl => cl.client_id === c.client_id);
+    const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
+    const produits = lignes.map(l => l.description || l.produit).join(', ') || '—';
+    html += '<tr style="cursor:pointer;" onclick="toggleCommandeExpand(\'' + c.commande_id + '\')">' +
+      '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
+      '<td>' + (client ? client.nom : '—') + '</td>' +
+      '<td>' + fmtDate(c.date_commande) + '</td>' +
+      '<td>' + fmtDate(c.date_livraison_souhaitee) + '</td>' +
+      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + produits + '</td>' +
+      '<td><strong>' + fmt(Number(c.montant_total_fcfa)) + '</strong> FCFA</td>' +
+      '<td>' + cmdStatutBadge(c.statut) + '</td>' +
+      '</tr>';
+
+    // Expand panel
+    if (expandedCommandeId === c.commande_id) {
+      let ligneRows = lignes.length === 0
+        ? '<tr><td colspan="5" style="text-align:center;color:var(--text-light);">Aucune ligne</td></tr>'
+        : lignes.map(l => '<tr><td>' + (l.description || l.produit) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td><td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td></tr>').join('');
+
+      let statusBtns = '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;" class="manager-only">';
+      if (c.statut === 'en_attente') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'confirmee\')">Confirmer</button>';
+      if (c.statut === 'confirmee') statusBtns += '<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'en_preparation\')">En préparation</button>';
+      if (c.statut === 'en_preparation') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'livree\')">Marquer livrée</button>';
+      if (c.statut !== 'livree' && c.statut !== 'annulee') statusBtns += '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'annulee\')">Annuler</button>';
+      statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateBonLivraison(\'' + c.commande_id + '\')">📄 Bon de livraison PDF</button>';
+      statusBtns += '</div>';
+
+      html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
+        '<div style="margin-bottom:0.5rem;"><strong>Note :</strong> ' + (c.note || '—') + '</div>' +
+        '<table><thead><tr><th>Produit</th><th>Qté</th><th>Prix/kg</th><th>Montant</th></tr></thead><tbody>' + ligneRows + '</tbody></table>' +
+        statusBtns +
+        '</div></td></tr>';
+    }
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function toggleCommandeExpand(id) {
+  expandedCommandeId = expandedCommandeId === id ? null : id;
+  renderCommandes();
+}
+
+async function updateCommandeStatut(cmdId, newStatut) {
+  const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
+  if (!cmd) return;
+  try {
+    await apiPost({ action: 'updateCommande', payload: { commande_id: cmdId, statut: newStatut } });
+    cmd.statut = newStatut;
+    renderCommandes();
+    toast('Commande ' + CMD_STATUTS[newStatut].toLowerCase());
+  } catch (err) {
+    cmd.statut = newStatut;
+    renderCommandes();
+    toast('Mis à jour (hors ligne)');
+  }
+}
+
+// ── Commande modal ──
+function showCommandeModal() {
+  const cSel = document.getElementById('cmd-client');
+  cSel.innerHTML = '<option value="">— Choisir un client —</option>';
+  STATE.clients.filter(c => c.statut === 'actif').forEach(c => {
+    cSel.appendChild(new Option(c.nom, c.client_id));
+  });
+  const bSel = document.getElementById('cmd-bande');
+  bSel.innerHTML = '<option value="">— Aucune —</option>';
+  STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
+    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+  });
+  document.getElementById('cmd-date').value = todayStr();
+  document.getElementById('cmd-date-livraison').value = '';
+  document.getElementById('cmd-note').value = '';
+  document.getElementById('cmd-lignes-container').innerHTML = '';
+  document.getElementById('cmd-total').textContent = '0 FCFA';
+  cmdLigneCount = 0;
+  addLigneRow();
+  document.getElementById('commande-modal').style.display = 'flex';
+}
+function closeCommandeModal() { document.getElementById('commande-modal').style.display = 'none'; }
+
+function addLigneRow() {
+  cmdLigneCount++;
+  const i = cmdLigneCount;
+  const container = document.getElementById('cmd-lignes-container');
+  const div = document.createElement('div');
+  div.className = 'ligne-row';
+  div.id = 'ligne-row-' + i;
+  div.innerHTML =
+    '<div class="form-group"><label>Produit</label>' +
+    '<select id="lr-produit-' + i + '" onchange="updateLrDesc(' + i + ')">' +
+    '<option value="poulet_entier">Poulet entier</option>' +
+    '<option value="decoupes">Découpes</option>' +
+    '<option value="abats">Abats</option>' +
+    '<option value="autre">Autre</option>' +
+    '</select></div>' +
+    '<div class="form-group wide"><label>Description</label><input type="text" id="lr-desc-' + i + '" placeholder="Ex: Cuisses 1kg"></div>' +
+    '<div class="form-group"><label>Qté (kg)</label><input type="number" id="lr-qty-' + i + '" step="0.1" min="0" placeholder="0" oninput="updateCmdTotal()"></div>' +
+    '<div class="form-group"><label>Prix/kg</label><input type="number" id="lr-prix-' + i + '" step="1" min="0" placeholder="0" oninput="updateCmdTotal()"></div>' +
+    '<div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button class="btn btn-danger btn-sm" onclick="removeLigneRow(' + i + ')">✕</button></div>';
+  container.appendChild(div);
+}
+
+function updateLrDesc(i) {
+  const sel = document.getElementById('lr-produit-' + i);
+  const desc = document.getElementById('lr-desc-' + i);
+  if (!desc.value) {
+    const map = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: '' };
+    desc.value = map[sel.value] || '';
+  }
+}
+
+function removeLigneRow(i) {
+  const el = document.getElementById('ligne-row-' + i);
+  if (el) el.remove();
+  updateCmdTotal();
+}
+
+function updateCmdTotal() {
+  let total = 0;
+  document.querySelectorAll('#cmd-lignes-container .ligne-row').forEach(row => {
+    const id = row.id.replace('ligne-row-', '');
+    const qty = parseFloat(document.getElementById('lr-qty-' + id)?.value) || 0;
+    const prix = parseFloat(document.getElementById('lr-prix-' + id)?.value) || 0;
+    total += Math.round(qty * prix);
+  });
+  document.getElementById('cmd-total').textContent = fmt(total) + ' FCFA';
+}
+
+async function submitCommande() {
+  const clientId = document.getElementById('cmd-client').value;
+  if (!clientId) { toast('Sélectionnez un client', 'error'); return; }
+  const dateLiv = document.getElementById('cmd-date-livraison').value;
+  if (!dateLiv) { toast('Date de livraison requise', 'error'); return; }
+
+  // Collect lignes
+  const lignes = [];
+  let montantTotal = 0;
+  const rows = document.querySelectorAll('#cmd-lignes-container .ligne-row');
+  if (rows.length === 0) { toast('Ajoutez au moins une ligne', 'error'); return; }
+
+  const commandeId = 'cmd-' + uuid();
+  rows.forEach(row => {
+    const id = row.id.replace('ligne-row-', '');
+    const qty = parseFloat(document.getElementById('lr-qty-' + id)?.value) || 0;
+    const prix = parseFloat(document.getElementById('lr-prix-' + id)?.value) || 0;
+    if (qty <= 0) return;
+    const montant = Math.round(qty * prix);
+    montantTotal += montant;
+    lignes.push({
+      ligne_id: 'lig-' + uuid(),
+      commande_id: commandeId,
+      produit: document.getElementById('lr-produit-' + id)?.value || 'autre',
+      description: document.getElementById('lr-desc-' + id)?.value?.trim() || '',
+      quantite_kg: qty,
+      prix_kg_fcfa: prix,
+      montant_fcfa: montant
+    });
+  });
+
+  if (lignes.length === 0) { toast('Au moins une ligne avec quantité > 0', 'error'); return; }
+
+  const cmdPayload = {
+    commande_id: commandeId,
+    client_id: clientId,
+    date_commande: document.getElementById('cmd-date').value,
+    date_livraison_souhaitee: dateLiv,
+    bande_id: document.getElementById('cmd-bande').value || '',
+    statut: 'en_attente',
+    note: document.getElementById('cmd-note').value.trim(),
+    montant_total_fcfa: montantTotal
+  };
+
+  try {
+    await apiPost({ action: 'addCommande', payload: cmdPayload });
+    STATE.commandes.push(cmdPayload);
+    for (const l of lignes) {
+      try { await apiPost({ action: 'addLigneCommande', payload: l }); } catch(e) { /* queued */ }
+      STATE.lignesCommande.push(l);
+    }
+    closeCommandeModal();
+    renderCommandes();
+    toast('Commande enregistrée');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.commandes.push(cmdPayload);
+      lignes.forEach(l => STATE.lignesCommande.push(l));
+      closeCommandeModal();
+      renderCommandes();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+// ── Bon de livraison PDF ──
+function generateBonLivraison(cmdId) {
+  const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
+  if (!cmd) return;
+  const client = STATE.clients.find(c => c.client_id === cmd.client_id);
+  const lignes = STATE.lignesCommande.filter(l => l.commande_id === cmdId);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Header
+  doc.setFontSize(20);
+  doc.setTextColor(230, 81, 0);
+  doc.text('COQORICO', 14, 20);
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('SIVA — Société Ivoirienne de Volaille et Assimilés', 14, 26);
+  doc.text('Les Terres du Sud — Azaguié', 14, 30);
+
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.text('BON DE LIVRAISON', 120, 20);
+
+  doc.setFontSize(9);
+  doc.text('N° : ' + cmdId.slice(-8).toUpperCase(), 120, 28);
+  doc.text('Date : ' + fmtDate(cmd.date_livraison_souhaitee || cmd.date_commande), 120, 33);
+
+  // Client info
+  let y = 45;
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text('Client :', 14, y);
+  doc.setFontSize(12);
+  doc.text(client ? client.nom : '—', 14, y + 6);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  if (client) {
+    if (client.adresse) doc.text(client.adresse, 14, y + 12);
+    if (client.ville) doc.text(client.ville, 14, y + 17);
+    if (client.telephone) doc.text('Tél : ' + client.telephone, 14, y + 22);
+  }
+
+  // Table header
+  y = 80;
+  doc.setFillColor(230, 81, 0);
+  doc.rect(14, y, 182, 8, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(255);
+  doc.text('Produit', 16, y + 5.5);
+  doc.text('Qté (kg)', 90, y + 5.5);
+  doc.text('Prix/kg (FCFA)', 120, y + 5.5);
+  doc.text('Montant (FCFA)', 160, y + 5.5);
+
+  // Table rows
+  y += 10;
+  doc.setTextColor(0);
+  let totalQty = 0;
+  lignes.forEach(l => {
+    doc.text(l.description || l.produit, 16, y + 4);
+    doc.text(fmt(Number(l.quantite_kg), 1), 90, y + 4);
+    doc.text(fmt(Number(l.prix_kg_fcfa)), 120, y + 4);
+    doc.text(fmt(Number(l.montant_fcfa)), 160, y + 4);
+    totalQty += Number(l.quantite_kg) || 0;
+    doc.setDrawColor(224);
+    doc.line(14, y + 7, 196, y + 7);
+    y += 8;
+  });
+
+  // Total
+  y += 3;
+  doc.setFillColor(255, 243, 224);
+  doc.rect(14, y, 182, 10, 'F');
+  doc.setFontSize(10);
+  doc.setTextColor(230, 81, 0);
+  doc.text('TOTAL', 16, y + 7);
+  doc.text(fmt(totalQty, 1) + ' kg', 90, y + 7);
+  doc.text(fmt(Number(cmd.montant_total_fcfa)) + ' FCFA', 160, y + 7);
+
+  // Note
+  if (cmd.note) {
+    y += 18;
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text('Note : ' + cmd.note, 14, y);
+  }
+
+  // Signature block
+  y += 25;
+  doc.setTextColor(0);
+  doc.setFontSize(9);
+  doc.text('Signature expéditeur :', 14, y);
+  doc.text('Signature destinataire :', 120, y);
+  doc.line(14, y + 20, 80, y + 20);
+  doc.line(120, y + 20, 196, y + 20);
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(150);
+  doc.text('COQORICO — SIVA — Document généré le ' + new Date().toLocaleDateString('fr-FR'), 14, 285);
+
+  doc.save('bon-livraison-' + cmdId.slice(-8) + '.pdf');
+  toast('PDF généré');
+}
+
+// ══════════════════════════════
+// ── Clients tab ──
+// ══════════════════════════════
+
+function renderClientsList() {
+  const container = document.getElementById('clients-list');
+  if (STATE.clients.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>Aucun client enregistré.</p></div>';
+    return;
+  }
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Ville</th><th>Téléphone</th><th>Statut</th><th>CA total</th><th class="manager-only">Actions</th></tr></thead><tbody>';
+  STATE.clients.forEach(c => {
+    const inactive = c.statut === 'inactif';
+    const caTotal = STATE.commandes
+      .filter(cmd => cmd.client_id === c.client_id && cmd.statut === 'livree')
+      .reduce((s, cmd) => s + (Number(cmd.montant_total_fcfa) || 0), 0);
+    html += '<tr class="' + (inactive ? 'row-inactive' : '') + '" style="cursor:pointer;" onclick="toggleClientExpand(\'' + c.client_id + '\')">' +
+      '<td><strong>' + c.nom + '</strong></td>' +
+      '<td>' + clientTypeLabel(c.type) + '</td>' +
+      '<td>' + (c.ville || '—') + '</td>' +
+      '<td>' + (c.telephone || '—') + '</td>' +
+      '<td><span class="badge ' + (inactive ? 'badge-grey' : 'badge-green') + '">' + (inactive ? 'Inactif' : 'Actif') + '</span></td>' +
+      '<td><strong>' + fmt(caTotal) + '</strong> FCFA</td>' +
+      '<td class="manager-only"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleClientStatut(\'' + c.client_id + '\')">' + (inactive ? 'Activer' : 'Désactiver') + '</button></td>' +
+      '</tr>';
+
+    if (expandedClientId === c.client_id) {
+      const cmds = STATE.commandes.filter(cmd => cmd.client_id === c.client_id)
+        .sort((a, b) => new Date(b.date_commande) - new Date(a.date_commande));
+      const last5 = cmds.slice(0, 5);
+      const cmdCount = cmds.filter(cmd => cmd.statut === 'livree').length;
+      const cmdMoyenne = cmdCount > 0 ? Math.round(caTotal / cmdCount) : 0;
+
+      let cmdRows = last5.length === 0
+        ? '<tr><td colspan="4" style="text-align:center;color:var(--text-light);">Aucune commande</td></tr>'
+        : last5.map(cmd => '<tr><td>' + fmtDate(cmd.date_commande) + '</td><td>' + cmdStatutBadge(cmd.statut) + '</td><td>' + fmt(Number(cmd.montant_total_fcfa)) + ' FCFA</td></tr>').join('');
+
+      html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">' +
+        '<div><strong>Email :</strong> ' + (c.email || '—') + '<br><strong>Adresse :</strong> ' + (c.adresse || '—') + '<br><strong>Contact :</strong> ' + (c.contact_nom || '—') + '</div>' +
+        '<div><strong>CA cumulé :</strong> <span style="font-weight:700;color:var(--green-dark);">' + fmt(caTotal) + ' FCFA</span><br><strong>Commande moyenne :</strong> ' + fmt(cmdMoyenne) + ' FCFA<br><strong>Commandes livrées :</strong> ' + cmdCount + '</div>' +
+        '</div>' +
+        '<h4>5 dernières commandes</h4>' +
+        '<table><thead><tr><th>Date</th><th>Statut</th><th>Montant</th></tr></thead><tbody>' + cmdRows + '</tbody></table>' +
+        '</div></td></tr>';
+    }
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function toggleClientExpand(id) {
+  expandedClientId = expandedClientId === id ? null : id;
+  renderClientsList();
+}
+
+function showClientModal() {
+  document.getElementById('cli-nom').value = '';
+  document.getElementById('cli-type').value = 'particulier';
+  document.getElementById('cli-contact').value = '';
+  document.getElementById('cli-tel').value = '';
+  document.getElementById('cli-email').value = '';
+  document.getElementById('cli-ville').value = '';
+  document.getElementById('cli-adresse').value = '';
+  document.getElementById('cli-note').value = '';
+  document.getElementById('client-modal').style.display = 'flex';
+}
+function closeClientModal() { document.getElementById('client-modal').style.display = 'none'; }
+
+async function submitClient() {
+  const nom = document.getElementById('cli-nom').value.trim();
+  if (!nom) { toast('Nom requis', 'error'); return; }
+  const payload = {
+    client_id: 'cli-' + uuid(),
+    nom,
+    type: document.getElementById('cli-type').value,
+    contact_nom: document.getElementById('cli-contact').value.trim(),
+    telephone: document.getElementById('cli-tel').value.trim(),
+    email: document.getElementById('cli-email').value.trim(),
+    adresse: document.getElementById('cli-adresse').value.trim(),
+    ville: document.getElementById('cli-ville').value.trim(),
+    statut: 'actif',
+    note: document.getElementById('cli-note').value.trim()
+  };
+  try {
+    await apiPost({ action: 'addClient', payload });
+    STATE.clients.push(payload);
+    closeClientModal();
+    if (currentClientsTab === 'clients') renderClientsList();
+    toast('Client ajouté');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.clients.push(payload);
+      closeClientModal();
+      if (currentClientsTab === 'clients') renderClientsList();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+async function toggleClientStatut(id) {
+  const c = STATE.clients.find(x => x.client_id === id);
+  if (!c) return;
+  const newStatut = c.statut === 'actif' ? 'inactif' : 'actif';
+  try {
+    await apiPost({ action: 'updateClient', payload: { client_id: id, statut: newStatut } });
+    c.statut = newStatut;
+    renderClientsList();
+    toast('Client ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
+  } catch (err) {
+    c.statut = newStatut;
+    renderClientsList();
+    toast('Mis à jour (hors ligne)');
+  }
+}
+
+// ══════════════════════════════
+// ── Tableau commercial ──
+// ══════════════════════════════
+
+function renderCommercialDashboard() {
+  const today = todayStr();
+  const thisMonth = today.slice(0, 7);
+  const lastMonthDate = new Date();
+  lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+
+  const thisMonthCmds = STATE.commandes.filter(c => c.date_commande && c.date_commande.startsWith(thisMonth));
+  const lastMonthCmds = STATE.commandes.filter(c => c.date_commande && c.date_commande.startsWith(lastMonth));
+
+  const caThis = thisMonthCmds.filter(c => c.statut === 'livree').reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const caLast = lastMonthCmds.filter(c => c.statut === 'livree').reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const nbThis = thisMonthCmds.length;
+  const nbLast = lastMonthCmds.length;
+
+  const lignesThis = STATE.lignesCommande.filter(l => {
+    const cmd = STATE.commandes.find(c => c.commande_id === l.commande_id && c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth));
+    return !!cmd;
+  });
+  const lignesLast = STATE.lignesCommande.filter(l => {
+    const cmd = STATE.commandes.find(c => c.commande_id === l.commande_id && c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(lastMonth));
+    return !!cmd;
+  });
+  const kgThis = lignesThis.reduce((s, l) => s + (Number(l.quantite_kg) || 0), 0);
+  const kgLast = lignesLast.reduce((s, l) => s + (Number(l.quantite_kg) || 0), 0);
+
+  function arrow(curr, prev) {
+    if (curr > prev) return '<span style="color:#2e7d32;">▲</span>';
+    if (curr < prev) return '<span style="color:#c62828;">▼</span>';
+    return '<span style="color:#757575;">—</span>';
+  }
+
+  document.getElementById('commercial-comparison').innerHTML =
+    '<h3 style="margin-bottom:0.75rem;color:var(--green-dark);">Comparaison mensuelle</h3>' +
+    '<div class="stat-grid">' +
+    '<div class="stat-item"><div class="label">CA réalisé (ce mois)</div><div class="value">' + fmt(caThis) + ' FCFA ' + arrow(caThis, caLast) + '</div></div>' +
+    '<div class="stat-item"><div class="label">CA mois précédent</div><div class="value">' + fmt(caLast) + ' FCFA</div></div>' +
+    '<div class="stat-item"><div class="label">Commandes (ce mois)</div><div class="value">' + nbThis + ' ' + arrow(nbThis, nbLast) + '</div></div>' +
+    '<div class="stat-item"><div class="label">Commandes (m. préc.)</div><div class="value">' + nbLast + '</div></div>' +
+    '<div class="stat-item"><div class="label">Kg vendus (ce mois)</div><div class="value">' + fmt(kgThis, 1) + ' ' + arrow(kgThis, kgLast) + '</div></div>' +
+    '<div class="stat-item"><div class="label">Kg vendus (m. préc.)</div><div class="value">' + fmt(kgLast, 1) + '</div></div>' +
+    '</div>';
+
+  // Destroy old charts
+  Object.keys(commercialCharts).forEach(k => { if (commercialCharts[k]) commercialCharts[k].destroy(); });
+
+  // Top 5 clients by CA
+  const clientCA = {};
+  STATE.commandes.filter(c => c.statut === 'livree').forEach(c => {
+    const cl = STATE.clients.find(x => x.client_id === c.client_id);
+    const name = cl ? cl.nom : '?';
+    clientCA[name] = (clientCA[name] || 0) + (Number(c.montant_total_fcfa) || 0);
+  });
+  const top5 = Object.entries(clientCA).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const ctx1 = document.getElementById('chart-top-clients');
+  if (ctx1) {
+    commercialCharts.topClients = new Chart(ctx1.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: top5.map(e => e[0]),
+        datasets: [{ label: 'CA (FCFA)', data: top5.map(e => e[1]), backgroundColor: '#E65100' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  // Répartition par produit
+  const produitCA = {};
+  STATE.lignesCommande.forEach(l => {
+    const cmd = STATE.commandes.find(c => c.commande_id === l.commande_id && c.statut === 'livree');
+    if (!cmd) return;
+    const key = l.produit || 'autre';
+    produitCA[key] = (produitCA[key] || 0) + (Number(l.montant_fcfa) || 0);
+  });
+  const prodLabels = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: 'Autre' };
+  const prodEntries = Object.entries(produitCA);
+  const prodColors = ['#E65100', '#FF8F00', '#FFB300', '#9E9E9E'];
+
+  const ctx2 = document.getElementById('chart-produits');
+  if (ctx2) {
+    commercialCharts.produits = new Chart(ctx2.getContext('2d'), {
+      type: 'pie',
+      data: {
+        labels: prodEntries.map(e => prodLabels[e[0]] || e[0]),
+        datasets: [{ data: prodEntries.map(e => e[1]), backgroundColor: prodColors.slice(0, prodEntries.length) }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  // Commandes par statut
+  const statutCounts = {};
+  STATE.commandes.forEach(c => {
+    statutCounts[c.statut] = (statutCounts[c.statut] || 0) + 1;
+  });
+  const statutColors = { en_attente: '#9E9E9E', confirmee: '#1565C0', en_preparation: '#E65100', livree: '#2E7D32', annulee: '#C62828' };
+  const statutEntries = Object.entries(statutCounts);
+
+  const ctx3 = document.getElementById('chart-statuts');
+  if (ctx3) {
+    commercialCharts.statuts = new Chart(ctx3.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: statutEntries.map(e => CMD_STATUTS[e[0]] || e[0]),
+        datasets: [{ data: statutEntries.map(e => e[1]), backgroundColor: statutEntries.map(e => statutColors[e[0]] || '#9E9E9E') }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+}
+
+// ── Commande alerts for dashboard ──
+function getCommandeAlerts() {
+  const alerts = [];
+  const today = todayStr();
+  const todayDeliveries = STATE.commandes.filter(c =>
+    c.date_livraison_souhaitee === today && c.statut !== 'livree' && c.statut !== 'annulee'
+  );
+  if (todayDeliveries.length > 0) {
+    alerts.push({
+      level: 'warning',
+      icon: '📦',
+      bande: 'Livraisons',
+      metric: todayDeliveries.length + ' commande(s) à livrer aujourd\'hui',
+      value: todayDeliveries.map(c => {
+        const cl = STATE.clients.find(x => x.client_id === c.client_id);
+        return cl ? cl.nom : '?';
+      }).join(', '),
+      threshold: 'aujourd\'hui'
+    });
+  }
+  return alerts;
+}
+
+// ── Commandes count for a bande ──
+function getCommandesForBande(bandeId) {
+  return STATE.commandes.filter(c => c.bande_id === bandeId && c.statut !== 'annulee');
+}
+
 // ── Init ──
 async function init() {
   if (!isConfigured()) {
@@ -4352,3 +5280,4 @@ async function init() {
 </script>
 </body>
 </html>
+
