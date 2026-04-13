@@ -485,7 +485,7 @@ body.role-chef_bande .manager-only { display: none !important; }
         <button class="tab-btn" onclick="filterBandes('en_cours',this)">En cours</button>
         <button class="tab-btn" onclick="filterBandes('termine',this)">Terminées</button>
       </div>
-      <button class="btn btn-primary" onclick="showNewBandeModal()">+ Nouvelle bande</button>
+      <button class="btn btn-primary manager-only" onclick="showNewBandeModal()">+ Nouvelle bande</button>
     </div>
     <div id="bandes-list"></div>
   </div>
@@ -887,7 +887,7 @@ const AUTH_USERS = {
 let currentUser = null; // { name, role }
 
 const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'exports', 'settings'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie'];
+const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche'];
 
 function doLogin() {
   const pin = document.getElementById('login-pin').value;
@@ -1263,7 +1263,7 @@ function renderBandes() {
       <td>${statusBadge}</td>
       <td>
         <button class="btn btn-outline btn-sm" onclick="openFiche('${b.bande_id}')">Voir</button>
-        ${b.statut === 'en_cours' ? `<button class="btn btn-sm btn-gold" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>` : ''}
+        ${b.statut === 'en_cours' ? `<button class="btn btn-sm btn-gold manager-only" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>` : ''}
       </td>
     </tr>`;
   });
@@ -1785,7 +1785,7 @@ function renderFicheSaisiesTable(ind, bande) {
       <td>${fmt(s.poids)}</td>
       <td>${s.ic != null ? fmt(s.ic, 2) : '—'}</td>
       <td>${fmt(s.gmq, 1)}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteSaisie('${s.saisie_id}')">&#10005;</button></td>
+      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteSaisie('${s.saisie_id}')">&#10005;</button></td>
     </tr>`;
   });
 
@@ -1822,7 +1822,7 @@ function renderFicheIntrantsTable(ind) {
       <td>${i.nom_produit}</td>
       <td>${i.quantite} ${i.unite}</td>
       <td>${fmt(Number(i.cout_total_fcfa))}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteIntrant('${i.intrant_id}')">&#10005;</button></td>
+      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteIntrant('${i.intrant_id}')">&#10005;</button></td>
     </tr>`;
   });
 
