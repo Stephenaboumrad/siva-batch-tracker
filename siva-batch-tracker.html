@@ -622,6 +622,100 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 .ligne-row .form-group { margin-bottom: 0; flex: 1; min-width: 100px; }
 .ligne-row .form-group.wide { min-width: 150px; }
 
+/* ── Dashboard KPI aggregate bar ── */
+.dash-kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.dash-kpi {
+  background: #fff; border-radius: 14px; padding: 1rem 1.25rem;
+  border-left: 4px solid #FF6B00;
+  box-shadow: 0 2px 10px rgba(255,107,0,0.08);
+}
+.dash-kpi .dk-value {
+  font-family: 'Nunito', sans-serif; font-size: 1.75rem; font-weight: 900;
+  color: #FF6B00; line-height: 1.1;
+}
+.dash-kpi .dk-label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #7A3A00; margin-top: 0.2rem; font-weight: 600;
+}
+.dash-kpi .dk-sub {
+  font-size: 0.72rem; color: #9e9e9e; margin-top: 0.15rem;
+}
+.dash-kpi.dk-danger .dk-value { color: #E74C3C; }
+.dash-kpi.dk-success .dk-value { color: #27AE60; }
+
+/* ── Phase pill ── */
+.phase-pill {
+  display: inline-block; padding: 0.15rem 0.6rem; border-radius: 50px;
+  font-size: 0.68rem; font-weight: 700; font-family: 'Nunito', sans-serif;
+  letter-spacing: 0.03em;
+}
+.phase-pill.pre { background: #FFF3E8; color: #FF6B00; }
+.phase-pill.dem { background: #FFF8EC; color: #CC8800; }
+.phase-pill.cro { background: #EAF7EE; color: #27AE60; }
+
+/* ── Mini progress bar ── */
+.mini-bar-wrap {
+  margin: 0.5rem 0; display: flex; align-items: center; gap: 0.5rem;
+}
+.mini-bar {
+  flex: 1; height: 6px; background: #FFE8CC; border-radius: 3px; overflow: hidden;
+}
+.mini-bar-fill {
+  height: 100%; border-radius: 3px; transition: width 0.3s;
+}
+.mini-bar-label {
+  font-size: 0.72rem; font-weight: 700; color: #7A3A00; white-space: nowrap;
+}
+
+/* ── GMQ norm indicator ── */
+.gmq-norm {
+  font-size: 0.75rem; font-weight: 600; margin-top: 0.25rem;
+}
+.gmq-norm.good { color: #27AE60; }
+.gmq-norm.medium { color: #FF8C00; }
+.gmq-norm.bad { color: #E74C3C; }
+
+/* ── Quick action buttons ── */
+.quick-actions {
+  display: flex; gap: 0.5rem; margin-top: 0.75rem;
+  padding-top: 0.75rem; border-top: 1px solid #FFE8CC;
+}
+.quick-actions .btn { font-size: 0.75rem; padding: 0.3rem 0.7rem; }
+
+/* ── Dashboard upcoming commandes ── */
+.dash-section-title {
+  font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 1rem;
+  color: #1A0A00; margin: 1.5rem 0 0.75rem;
+}
+.dash-cmd-row {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0;
+  border-bottom: 1px solid #FFE8CC; font-size: 0.85rem; flex-wrap: wrap;
+}
+.dash-cmd-row:last-child { border-bottom: none; }
+.dash-cmd-client { font-weight: 700; min-width: 140px; }
+.dash-cmd-detail { color: #7A3A00; flex: 1; }
+.dash-cmd-date { font-weight: 600; white-space: nowrap; }
+.dash-cmd-date.urgent { color: #E74C3C; }
+.dash-cmd-date.soon { color: #FF8C00; }
+
+/* ── Dashboard stock watch ── */
+.dash-stock-row {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0;
+  border-bottom: 1px solid #FFE8CC; font-size: 0.85rem;
+}
+.dash-stock-row:last-child { border-bottom: none; }
+.dash-stock-name { font-weight: 700; min-width: 160px; }
+.dash-stock-levels { color: #7A3A00; min-width: 140px; }
+.dash-stock-bar {
+  flex: 1; height: 8px; background: #FFE8CC; border-radius: 4px; overflow: hidden; min-width: 80px;
+}
+.dash-stock-bar-fill { height: 100%; border-radius: 4px; }
+
 /* ── Commercial charts ── */
 .commercial-grid {
   display: grid;
@@ -640,6 +734,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
   #main { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }
   .dash-grid { grid-template-columns: 1fr; }
+  .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
@@ -755,10 +850,14 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
     </ol>
   </div>
 
-  <!-- ═══════════════ PAGE: TABLEAU DE BORD ═══════════════ -->
+  <!-- ═══════════════ PAGE: VUE OPÉRATIONNELLE ═══════════════ -->
   <div id="page-dashboard" class="page active">
-    <h2>&#128202; Tableau de bord</h2>
+    <h2>&#128202; Vue Opérationnelle</h2>
+    <!-- Zone 1: Alertes -->
     <div id="dash-alerts"></div>
+    <!-- Zone 2: KPIs agrégés -->
+    <div id="dash-kpis" class="dash-kpi-bar"></div>
+    <!-- Zone 3: Bandes actives -->
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
         <div class="icon">&#128051;</div>
@@ -766,6 +865,10 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
         <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Créer une bande</button>
       </div>
     </div>
+    <!-- Zone 4: Commandes à livrer cette semaine -->
+    <div id="dash-commandes"></div>
+    <!-- Zone 5: Stocks à surveiller -->
+    <div id="dash-stocks-watch"></div>
   </div>
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
@@ -2356,42 +2459,58 @@ function checkAlerts() {
 
     // Mortalité cumulée
     if (ind.tauxMort > 5) {
-      alerts.push({ level: 'critical', icon: '🔴', bande: b.nom_bande, metric: 'Mortalité cumulée', value: fmt(ind.tauxMort, 1) + '%', threshold: '> 5%' });
+      alerts.push({ level: 'critical', icon: '🔴', text: b.nom_bande + ' — Mortalité critique ' + fmt(ind.tauxMort, 1) + '%' });
     } else if (ind.tauxMort > 3) {
-      alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'Mortalité cumulée', value: fmt(ind.tauxMort, 1) + '%', threshold: '> 3%' });
+      alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Mortalité ' + fmt(ind.tauxMort, 1) + '%' });
     }
 
     // IC cumulatif
     if (ind.ic != null) {
       if (ind.ic > 2.5) {
-        alerts.push({ level: 'critical', icon: '🔴', bande: b.nom_bande, metric: 'IC cumulatif', value: fmt(ind.ic, 2), threshold: '> 2.5' });
+        alerts.push({ level: 'critical', icon: '🔴', text: b.nom_bande + ' — IC critique : ' + fmt(ind.ic, 2) });
       } else if (ind.ic > 2.2) {
-        alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'IC cumulatif', value: fmt(ind.ic, 2), threshold: '> 2.2' });
+        alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — IC élevé : ' + fmt(ind.ic, 2) });
       }
     }
 
-    // Aucune saisie depuis 24h
+    // Aucune saisie aujourd'hui
     if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) >= 1) {
-      alerts.push({ level: 'warning', icon: '⚠️', bande: b.nom_bande, metric: 'Aucune saisie', value: ind.lastSaisieDate ? 'depuis ' + fmtDate(ind.lastSaisieDate) : 'jamais', threshold: '> 24h' });
+      alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Aucune saisie aujourd\'hui' });
     }
   });
 
-  // Add stock alerts
-  alerts.push(...getStockAlerts());
+  // Stock alerts
+  STATE.stocks.forEach(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    if (seuil > 0 && qty <= seuil) {
+      alerts.push({ level: qty <= seuil * 0.5 ? 'critical' : 'warning', icon: '⚠️', text: 'Stock ' + s.type_produit + ' bas — ' + fmt(qty, 1) + ' ' + s.unite });
+    }
+  });
 
-  // Add inspection alerts
-  alerts.push(...getInspectionAlerts());
+  // Commandes à livrer dans ≤ 3 jours
+  const today = new Date();
+  STATE.commandes.forEach(c => {
+    if (c.statut === 'livree' || c.statut === 'annulee' || !c.date_livraison_souhaitee) return;
+    const livDate = new Date(c.date_livraison_souhaitee);
+    const daysUntil = Math.ceil((livDate - today) / 86400000);
+    if (daysUntil <= 3 && daysUntil >= 0) {
+      const cl = STATE.clients.find(x => x.client_id === c.client_id);
+      const clientName = cl ? cl.nom : '?';
+      const dLabel = daysUntil === 0 ? "aujourd'hui" : 'dans ' + daysUntil + ' jour(s)';
+      alerts.push({ level: 'warning', icon: '📦', text: clientName + ' — livraison ' + dLabel });
+    }
+  });
 
-  // Add commande alerts
-  alerts.push(...getCommandeAlerts());
-
-  // Update sidebar badge
+  // Update nav badge
   const badge = document.getElementById('alert-badge');
-  if (alerts.length > 0) {
-    badge.style.display = '';
-    badge.textContent = alerts.length;
-  } else {
-    badge.style.display = 'none';
+  if (badge) {
+    if (alerts.length > 0) {
+      badge.style.display = '';
+      badge.textContent = alerts.length;
+    } else {
+      badge.style.display = 'none';
+    }
   }
 
   return alerts;
@@ -2400,7 +2519,7 @@ function checkAlerts() {
 function renderAlerts(alerts) {
   const container = document.getElementById('dash-alerts');
   if (alerts.length === 0) {
-    container.innerHTML = '<div class="alerts-section"><div class="alert-ok">✅ Tout est normal</div></div>';
+    container.innerHTML = '<p style="color:#27AE60;font-size:0.85rem;margin-bottom:0.75rem;">✅ Tout est normal</p>';
     return;
   }
 
@@ -2409,7 +2528,7 @@ function renderAlerts(alerts) {
     const cls = a.level === 'critical' ? 'critical' : 'warning';
     html += `<div class="alert-item ${cls}">
       <span class="alert-icon">${a.icon}</span>
-      <strong>${a.bande}</strong> — ${a.metric} : ${a.value} (seuil ${a.threshold})
+      ${a.text}
     </div>`;
   });
   html += '</div>';
@@ -2468,11 +2587,10 @@ function computeSlaughterForecast(bande, ind) {
 // ── Dashboard ──
 function renderDashboard() {
   const grid = document.getElementById('dash-grid');
-  const alertsDiv = document.getElementById('dash-alerts');
   const emptyDiv = document.getElementById('dash-empty');
   const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
 
-  // Check alerts on every render
+  // Zone 1: Alerts
   const alerts = checkAlerts();
 
   if (activeBandes.length === 0) {
@@ -2480,57 +2598,174 @@ function renderDashboard() {
     grid.appendChild(emptyDiv);
     emptyDiv.style.display = '';
     renderAlerts([]);
+    document.getElementById('dash-kpis').innerHTML = '';
+    document.getElementById('dash-commandes').innerHTML = '';
+    document.getElementById('dash-stocks-watch').innerHTML = '';
     return;
   }
 
   emptyDiv.style.display = 'none';
   renderAlerts(alerts);
 
-  let cardsHtml = '';
-
-  activeBandes.forEach(b => {
-    const ind = computeIndicators(b);
-    const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
-    const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
-    const forecast = computeSlaughterForecast(b, ind);
-
-    cardsHtml += `
-      <div class="card" ${isManager() ? 'style="cursor:pointer;" onclick="openFiche(\'' + b.bande_id + '\')"' : ''}>
-        <div class="card-header">
-          <h3>${b.nom_bande}</h3>
-          <span class="badge badge-${mortClass}">J${jour}</span>
-        </div>
-        <div class="stat-grid">
-          <div class="stat-item">
-            <div class="label">Effectif</div>
-            <div class="value">${fmt(ind.effectifActuel)}</div>
-          </div>
-          <div class="stat-item">
-            <div class="label">Mortalité</div>
-            <div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div>
-          </div>
-          <div class="stat-item">
-            <div class="label">IC</div>
-            <div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div>
-          </div>
-          <div class="stat-item">
-            <div class="label">GMQ</div>
-            <div class="value">${fmt(ind.gmq,1)} g/j</div>
-          </div>
-          <div class="stat-item">
-            <div class="label">Poids vif</div>
-            <div class="value">${fmt(ind.dernierPoids)} g</div>
-          </div>
-          <div class="stat-item">
-            <div class="label">Aliment</div>
-            <div class="value">${fmt(ind.alimentTotal,0)} kg</div>
-          </div>
-        </div>
-        <div class="forecast-chip">${forecast.text}</div>
-      </div>`;
+  // Pre-compute indicators for all active batches
+  const batchData = activeBandes.map(b => ({
+    bande: b,
+    ind: computeIndicators(b),
+    jour: 0,
+    forecast: null
+  }));
+  batchData.forEach(bd => {
+    bd.jour = bd.ind.dernierJour || daysBetween(bd.bande.date_entree, todayStr()) + 1;
+    bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
   });
 
+  // ── Zone 2: KPIs agrégés ──
+  const totalOiseaux = batchData.reduce((s, bd) => s + bd.ind.effectifActuel, 0);
+  const nearestForecast = batchData
+    .filter(bd => bd.forecast && bd.forecast.status === 'projected')
+    .sort((a, b) => a.forecast.daysLeft - b.forecast.daysLeft)[0];
+  const confirmedCmds = STATE.commandes.filter(c => c.statut === 'confirmee' && activeBandes.some(b => b.bande_id === c.bande_id));
+  const confirmedTotal = confirmedCmds.reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+
+  let forecastHtml = '—';
+  let forecastSub = '';
+  let forecastCls = '';
+  if (nearestForecast) {
+    const dl = nearestForecast.forecast.daysLeft;
+    forecastHtml = 'dans ' + dl + ' jours';
+    forecastSub = nearestForecast.bande.nom_bande;
+    forecastCls = dl < 7 ? '' : ' dk-success';
+  }
+
+  document.getElementById('dash-kpis').innerHTML =
+    '<div class="dash-kpi"><div class="dk-value">🐔 ' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div></div>' +
+    '<div class="dash-kpi' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Prochaine sortie estimée</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(confirmedTotal) + '</div><div class="dk-label">Commandes confirmées</div><div class="dk-sub">' + confirmedCmds.length + ' commande(s)</div></div>' +
+    '<div class="dash-kpi' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
+
+  // ── Zone 3: Enriched batch cards ──
+  const TARGET_DAYS = 32;
+  function getCobbGmq(day) {
+    if (day <= 10) return 50;
+    if (day <= 21) return 70;
+    return 80;
+  }
+
+  let cardsHtml = '';
+  batchData.forEach(bd => {
+    const { bande: b, ind, jour, forecast } = bd;
+    const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
+
+    // Phase pill
+    let phasePill;
+    if (jour <= 10) phasePill = '<span class="phase-pill pre">Pré-démarrage</span>';
+    else if (jour <= 21) phasePill = '<span class="phase-pill dem">Démarrage</span>';
+    else phasePill = '<span class="phase-pill cro">Croissance</span>';
+
+    // Progress bar
+    const pct = Math.min(100, Math.round((jour / TARGET_DAYS) * 100));
+    const barColor = pct < 60 ? '#27AE60' : pct < 85 ? '#FF8C00' : '#E74C3C';
+
+    // GMQ vs Cobb norm
+    const expectedGmq = getCobbGmq(jour);
+    const gmqRatio = expectedGmq > 0 ? ind.gmq / expectedGmq : 1;
+    let gmqHtml;
+    if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">✓ Dans la norme</div>';
+    else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ Légèrement faible</div>';
+    else gmqHtml = '<div class="gmq-norm bad">↓ Sous la norme</div>';
+
+    cardsHtml += `
+      <div class="card">
+        <div class="card-header">
+          <h3 style="font-size:1rem;font-weight:800;text-transform:none;letter-spacing:0;">${b.nom_bande}</h3>
+          <div>${phasePill}</div>
+        </div>
+        <div class="mini-bar-wrap">
+          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+          <span class="mini-bar-label">J${jour} / J${TARGET_DAYS}</span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
+          <div class="stat-item"><div class="label">Mortalité</div><div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div></div>
+          <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div></div>
+          <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
+          <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
+          <div class="stat-item"><div class="label">Aliment total</div><div class="value">${fmt(ind.alimentTotal,0)} kg</div></div>
+        </div>
+        ${gmqHtml}
+        <div class="forecast-chip">${forecast.text}</div>
+        <div class="quick-actions">
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openSaisieFor('${b.bande_id}')">Saisie du jour ↗</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Voir détail ↗</button>
+        </div>
+      </div>`;
+  });
   grid.innerHTML = cardsHtml;
+
+  // ── Zone 4: Commandes à livrer cette semaine ──
+  const today = new Date();
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndS = weekEnd.toISOString().slice(0, 10);
+  const todayS = todayStr();
+  const upcomingCmds = STATE.commandes.filter(c =>
+    (c.statut === 'confirmee' || c.statut === 'en_preparation') &&
+    c.date_livraison_souhaitee >= todayS && c.date_livraison_souhaitee <= weekEndS
+  ).sort((a, b) => (a.date_livraison_souhaitee || '').localeCompare(b.date_livraison_souhaitee || ''));
+
+  let cmdHtml = '<div class="dash-section-title">Commandes à livrer cette semaine</div>';
+  if (upcomingCmds.length === 0) {
+    cmdHtml += '<p style="font-size:0.85rem;color:#9e9e9e;margin-bottom:1rem;">Aucune livraison prévue cette semaine</p>';
+  } else {
+    cmdHtml += '<div class="card" style="padding:0.75rem 1.25rem;">';
+    upcomingCmds.forEach(c => {
+      const cl = STATE.clients.find(x => x.client_id === c.client_id);
+      const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
+      const prodDesc = lignes.map(l => fmt(Number(l.quantite_kg), 0) + 'kg ' + (l.description || l.produit)).join(', ') || '—';
+      const daysUntil = Math.ceil((new Date(c.date_livraison_souhaitee) - today) / 86400000);
+      let dateCls = '';
+      if (daysUntil <= 1) dateCls = ' urgent';
+      else if (daysUntil <= 3) dateCls = ' soon';
+      const statBadge = c.statut === 'en_preparation'
+        ? '<span class="status-badge status-en_preparation">En préparation</span>'
+        : '<span class="status-badge status-confirmee">Confirmée</span>';
+      cmdHtml += '<div class="dash-cmd-row">' +
+        '<span class="dash-cmd-client">' + (cl ? cl.nom : '?') + '</span>' +
+        '<span class="dash-cmd-detail">' + prodDesc + '</span>' +
+        '<span class="dash-cmd-date' + dateCls + '">' + fmtDate(c.date_livraison_souhaitee) + '</span>' +
+        statBadge +
+        '</div>';
+    });
+    cmdHtml += '</div>';
+  }
+  document.getElementById('dash-commandes').innerHTML = cmdHtml;
+
+  // ── Zone 5: Stocks à surveiller ──
+  const watchStocks = STATE.stocks.filter(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    return seuil > 0 && qty <= seuil * 1.5;
+  });
+
+  if (watchStocks.length === 0) {
+    document.getElementById('dash-stocks-watch').innerHTML = '';
+  } else {
+    let stkHtml = '<div class="dash-section-title">Stocks à surveiller</div><div class="card" style="padding:0.75rem 1.25rem;">';
+    watchStocks.forEach(s => {
+      const qty = Number(s.quantite_actuelle) || 0;
+      const seuil = Number(s.seuil_alerte) || 0;
+      const pct = seuil > 0 ? Math.min(100, Math.round((qty / seuil) * 100)) : 100;
+      const barColor = qty <= seuil ? '#E74C3C' : '#FF8C00';
+      stkHtml += '<div class="dash-stock-row">' +
+        '<span class="dash-stock-name">' + s.type_produit + '</span>' +
+        '<span class="dash-stock-levels">' + fmt(qty, 0) + ' ' + s.unite + ' / seuil ' + fmt(seuil, 0) + ' ' + s.unite + '</span>' +
+        '<div class="dash-stock-bar"><div class="dash-stock-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
+        '<span class="btn btn-outline btn-sm" style="font-size:0.7rem;padding:0.2rem 0.5rem;pointer-events:none;opacity:0.6;">Commander</span>' +
+        '</div>';
+    });
+    stkHtml += '</div>';
+    document.getElementById('dash-stocks-watch').innerHTML = stkHtml;
+  }
 }
 
 function openFiche(bandeId) {
@@ -2538,6 +2773,14 @@ function openFiche(bandeId) {
   setTimeout(() => {
     document.getElementById('fiche-bande-select').value = bandeId;
     loadFicheBande();
+  }, 50);
+}
+
+function openSaisieFor(bandeId) {
+  navigate('saisie', document.querySelector('[data-page=saisie]'));
+  setTimeout(() => {
+    document.getElementById('saisie-bande').value = bandeId;
+    updateSaisieInfo();
   }, 50);
 }
 
@@ -3627,19 +3870,19 @@ function loadDemoData() {
   // ── Batch 1: 33 days, 8500 birds ──
   const b1Mort = [10,9,8,4,3,2,3,2,2,3, 2,3,1,2,1,3,1,2,1,2,1, 1,2,0,1,1,0,2,1,0,1,0,1];
   const b1Weight = [42,54,68,86,105,126,148,165,192,218, 248,284,318,348,385,425,465,505,548,592,640, 725,768,812,862,915,968,1030,1200,1290,1380,1465,1870];
-  const b1Feed = [85,90,96,103,110,118,126,132,136,140, 145,155,168,182,198,215,232,250,268,275,280, 285,298,312,328,346,365,385,398,408,415,418,420];
+  const b1Feed = [128,153,179,213,255,298,340,383,425,468, 510,553,612,680,748,808,876,935,1003,1063,1122, 1190,1258,1318,1377,1428,1479,1530,1573,1598,1615,1632,1649];
   const saisiesB1 = genSaisies('LTS-2025-01', '2025-08-12', 33, 42, b1Mort, b1Weight, b1Feed, 8500);
 
   // ── Batch 2: 32 days, 10000 birds ──
   const b2Mort = [5,6,4,2,3,1,2,1,2,1, 2,1,1,2,0,1,1,0,2,1,0, 1,1,0,1,0,1,0,1,0,1,0];
   const b2Weight = [44,56,72,90,110,132,156,172,202,230, 262,300,340,375,415,455,500,545,590,638,690, 775,818,868,920,978,1038,1110,1280,1360,1450,1920];
-  const b2Feed = [100,106,114,122,130,140,150,158,162,168, 172,185,200,218,236,256,276,298,320,330,338, 342,358,375,395,418,442,468,482,496,508,510];
+  const b2Feed = [150,180,210,250,300,350,400,450,500,550, 600,650,720,800,880,950,1030,1100,1180,1250,1320, 1400,1480,1550,1620,1680,1740,1800,1850,1880,1900,1920];
   const saisiesB2 = genSaisies('LTS-2025-02', '2025-10-20', 32, 44, b2Mort, b2Weight, b2Feed, 10000);
 
   // ── Batch 3: 18 days, 12000 birds ──
   const b3Mort = [7,6,5,3,2,1,2,1,1,2, 1,1,0,2,1,0,1,0];
   const b3Weight = [43,56,72,90,112,135,160,180,210,242, 278,318,358,398,440,488,540,720];
-  const b3Feed = [120,128,138,148,158,170,182,192,198,204, 210,225,242,262,282,305,328,350];
+  const b3Feed = [180,216,252,300,360,420,480,540,600,660, 780,852,948,1056,1164,1260,1368,1464];
   const saisiesB3 = genSaisies('LTS-2026-01', b3EntreeS, 18, 43, b3Mort, b3Weight, b3Feed, 12000);
 
   const demoSaisies = [...saisiesB1, ...saisiesB2, ...saisiesB3];
