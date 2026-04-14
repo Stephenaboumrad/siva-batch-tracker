@@ -630,14 +630,11 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
       <span class="icon">&#128202;</span> Tableau de bord <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
-    <a href="#" data-page="bandes" onclick="navigate('bandes',this)">
-      <span class="icon">&#128051;</span> Bandes
-    </a>
     <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
       <span class="icon">&#128221;</span> Saisie du jour
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> Fiche bande
+      <span class="icon">&#128200;</span> Données historisées
     </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
       <span class="icon">&#128666;</span> Supply Chain
@@ -706,7 +703,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
       <div class="empty-state" id="dash-empty">
         <div class="icon">&#128051;</div>
         <p>Aucune bande active.<br>Créez une bande pour commencer.</p>
-        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',document.querySelector('[data-page=bandes]'))">Créer une bande</button>
+        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Créer une bande</button>
       </div>
     </div>
   </div>
@@ -815,7 +812,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 
   <!-- ═══════════════ PAGE: FICHE BANDE ═══════════════ -->
   <div id="page-fiche" class="page">
-    <h2>&#128200; Fiche bande</h2>
+    <h2>&#128200; Données historisées</h2>
     <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
       <label>Sélectionner une bande</label>
       <select id="fiche-bande-select" onchange="loadFicheBande()"></select>
@@ -1080,7 +1077,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
     <div class="card manager-only" style="max-width:700px;margin-top:1rem;">
       <h3 style="margin-bottom:1rem;color:var(--green-dark);">&#127919; Données de démonstration</h3>
       <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:0.75rem;">
-        Charge une bande complète fictive (35 jours, 4 000 poussins) avec saisies, intrants et alimentation par phase.
+        Charge 3 bandes réalistes (LTS-2025-01, LTS-2025-02, LTS-2026-01) avec saisies, intrants, formulations, 5 fournisseurs, stocks, 3 clients, commandes et inspections.
       </p>
       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
         <button class="btn btn-gold" onclick="loadDemoData()">&#9654; Charger la démo</button>
@@ -1785,7 +1782,7 @@ const AUTH_USERS = [
 let currentUser = null; // { matricule, name, role }
 
 const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'clients', 'exports', 'settings'];
-const CHEF_BANDE_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'supply', 'clients'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'supply', 'clients'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -3498,162 +3495,277 @@ function copyAppsScript() {
   navigator.clipboard.writeText(code).then(() => toast('Code Apps Script copié'));
 }
 
-// ── Données de démonstration ──
+// ── Données de démonstration — SIVA / Les Terres du Sud ──
+const DEMO_IDS = ['LTS-2025-01', 'LTS-2025-02', 'LTS-2026-01'];
+
 function loadDemoData() {
-  const DEMO_ID = 'demo-bande-001';
-
-  // Date d'entrée : 35 jours en arrière
   const today = new Date();
-  const entreeDate = new Date(today);
-  entreeDate.setDate(entreeDate.getDate() - 35);
-  const dateEntree = entreeDate.toISOString().slice(0, 10);
+  const todayS = today.toISOString().slice(0, 10);
+  const mkD = (base, offset) => { const d = new Date(base); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
 
-  // ── Bande ──
-  const demoBande = {
-    bande_id: DEMO_ID,
-    nom_bande: 'Bande Démo B1',
-    date_entree: dateEntree,
-    nb_poussins_entree: 4000,
-    fournisseur_poussins: 'Couvoirs du Sud',
-    prix_poussin_unitaire: 350,
-    poids_initial_moyen_g: 42,
-    cout_aliment_kg: 140,
-    statut: 'en_cours',
-    date_sortie: '',
-    nb_oiseaux_sortie: '',
-    poids_vif_moyen_sortie_g: '',
-    rendement_carcasse_pct: 58,
-    prix_vente_carcasse_kg: 1800
-  };
+  // ── Batch 3 entree: today = day 18 ──
+  const b3Entree = new Date(today); b3Entree.setDate(b3Entree.getDate() - 17);
+  const b3EntreeS = b3Entree.toISOString().slice(0, 10);
 
-  // ── Saisies journalières (35 jours) ──
-  // Poids approximant la courbe Cobb 500 avec légère variation
-  const cobbWeights = [42,52,66,82,100,120,142,160,190,215,245,280,315,345,380,
-    420,460,500,540,585,630,720,760,805,855,905,960,1020,1200,1280,
-    1360,1440,1520,1600,1700];
-  // Consommation aliment par jour (croissante) en kg pour 4000 oiseaux
-  const feedPerDay = [28,32,38,45,52,60,68,76,86,96,108,120,135,148,162,
-    178,194,210,226,244,262,290,308,326,346,366,388,412,460,488,
-    516,544,572,600,636];
-  // Mortalité par jour (quelques jours avec pertes)
-  const mortPerDay = [2,1,0,1,0,0,2,1,0,0,1,0,0,1,0,0,2,0,0,1,0,0,1,0,0,1,0,0,2,0,0,1,0,0,0];
-
-  const demoSaisies = cobbWeights.map((poids, i) => {
-    const d = new Date(entreeDate);
-    d.setDate(d.getDate() + i + 1);
-    return {
-      saisie_id: 'demo-s-' + String(i + 1).padStart(3, '0'),
-      bande_id: DEMO_ID,
-      date_saisie: d.toISOString().slice(0, 10),
-      jour_bande: i + 1,
-      mortalite_jour: mortPerDay[i] || 0,
-      aliment_consomme_kg: feedPerDay[i] || 0,
-      nb_oiseaux_peses: 50,
-      poids_vif_moyen_g: poids + Math.round((Math.random() - 0.5) * 10)
-    };
-  });
-
-  // ── Intrants ──
-  const mkDate = (daysAfter) => {
-    const d = new Date(entreeDate);
-    d.setDate(d.getDate() + daysAfter);
-    return d.toISOString().slice(0, 10);
-  };
-  const demoIntrants = [
-    { intrant_id:'demo-i-001', bande_id:DEMO_ID, date_intrant:mkDate(1),  type:'vaccin',     nom_produit:'Newcastle (HB1)',     quantite:4000, unite:'dose',  cout_total_fcfa:24000 },
-    { intrant_id:'demo-i-002', bande_id:DEMO_ID, date_intrant:mkDate(7),  type:'vaccin',     nom_produit:'Gumboro (D78)',       quantite:4000, unite:'dose',  cout_total_fcfa:32000 },
-    { intrant_id:'demo-i-003', bande_id:DEMO_ID, date_intrant:mkDate(14), type:'vaccin',     nom_produit:'Newcastle (Clone)',   quantite:4000, unite:'dose',  cout_total_fcfa:28000 },
-    { intrant_id:'demo-i-004', bande_id:DEMO_ID, date_intrant:mkDate(10), type:'vitamine',   nom_produit:'Vitamine C + E',      quantite:2,    unite:'L',     cout_total_fcfa:15000 },
-    { intrant_id:'demo-i-005', bande_id:DEMO_ID, date_intrant:mkDate(21), type:'medicament', nom_produit:'Amoxicilline',        quantite:500,  unite:'g',     cout_total_fcfa:22000 }
+  // ══════ BANDES ══════
+  const demoBandes = [
+    { bande_id:'LTS-2025-01', nom_bande:'LTS-2025-01', date_entree:'2025-08-12', nb_poussins_entree:8500, fournisseur_poussins:"Poussins d'Or", prix_poussin_unitaire:650, poids_initial_moyen_g:42, cout_aliment_kg:315, statut:'termine', date_sortie:'2025-09-14', nb_oiseaux_sortie:8187, poids_vif_moyen_sortie_g:1870, rendement_carcasse_pct:58, prix_vente_carcasse_kg:2150 },
+    { bande_id:'LTS-2025-02', nom_bande:'LTS-2025-02', date_entree:'2025-10-20', nb_poussins_entree:10000, fournisseur_poussins:"Poussins d'Or", prix_poussin_unitaire:650, poids_initial_moyen_g:44, cout_aliment_kg:318, statut:'termine', date_sortie:'2025-11-21', nb_oiseaux_sortie:9760, poids_vif_moyen_sortie_g:1920, rendement_carcasse_pct:58, prix_vente_carcasse_kg:2200 },
+    { bande_id:'LTS-2026-01', nom_bande:'LTS-2026-01', date_entree:b3EntreeS, nb_poussins_entree:12000, fournisseur_poussins:"Poussins d'Or", prix_poussin_unitaire:650, poids_initial_moyen_g:43, cout_aliment_kg:322, statut:'en_cours', date_sortie:'', nb_oiseaux_sortie:'', poids_vif_moyen_sortie_g:'', rendement_carcasse_pct:58, prix_vente_carcasse_kg:2200 }
   ];
 
-  // ── Alimentation par phase ──
-  const ap = (id, phase, nom, mp_id, qte, prix, dateStr) => ({
-    ap_id: id, bande_id: DEMO_ID, phase, mp_id, nom_mp: nom,
-    quantite_kg: qte, prix_unitaire: prix,
-    cout_total: Math.round(qte * prix),
-    date_livraison: dateStr
+  // ══════ Helper: generate saisies ══════
+  function genSaisies(bandeId, entree, days, initWeight, mortProfile, weightProfile, feedProfile, nbBirds) {
+    const out = [];
+    for (let i = 0; i < days; i++) {
+      const day = i + 1;
+      const poids = weightProfile[i] || weightProfile[weightProfile.length - 1];
+      out.push({
+        saisie_id: bandeId + '-s-' + String(day).padStart(3, '0'),
+        bande_id: bandeId,
+        date_saisie: mkD(entree, day),
+        jour_bande: day,
+        mortalite_jour: mortProfile[i] || 0,
+        aliment_consomme_kg: feedProfile[i] || 0,
+        nb_oiseaux_peses: (day % 3 === 0 || day === 1) ? 30 : 0,
+        poids_vif_moyen_g: (day % 3 === 0 || day === 1) ? poids : 0
+      });
+    }
+    return out;
+  }
+
+  // ── Batch 1: 33 days, 8500 birds ──
+  const b1Mort = [10,9,8,4,3,2,3,2,2,3, 2,3,1,2,1,3,1,2,1,2,1, 1,2,0,1,1,0,2,1,0,1,0,1];
+  const b1Weight = [42,54,68,86,105,126,148,165,192,218, 248,284,318,348,385,425,465,505,548,592,640, 725,768,812,862,915,968,1030,1200,1290,1380,1465,1870];
+  const b1Feed = [85,90,96,103,110,118,126,132,136,140, 145,155,168,182,198,215,232,250,268,275,280, 285,298,312,328,346,365,385,398,408,415,418,420];
+  const saisiesB1 = genSaisies('LTS-2025-01', '2025-08-12', 33, 42, b1Mort, b1Weight, b1Feed, 8500);
+
+  // ── Batch 2: 32 days, 10000 birds ──
+  const b2Mort = [5,6,4,2,3,1,2,1,2,1, 2,1,1,2,0,1,1,0,2,1,0, 1,1,0,1,0,1,0,1,0,1,0];
+  const b2Weight = [44,56,72,90,110,132,156,172,202,230, 262,300,340,375,415,455,500,545,590,638,690, 775,818,868,920,978,1038,1110,1280,1360,1450,1920];
+  const b2Feed = [100,106,114,122,130,140,150,158,162,168, 172,185,200,218,236,256,276,298,320,330,338, 342,358,375,395,418,442,468,482,496,508,510];
+  const saisiesB2 = genSaisies('LTS-2025-02', '2025-10-20', 32, 44, b2Mort, b2Weight, b2Feed, 10000);
+
+  // ── Batch 3: 18 days, 12000 birds ──
+  const b3Mort = [7,6,5,3,2,1,2,1,1,2, 1,1,0,2,1,0,1,0];
+  const b3Weight = [43,56,72,90,112,135,160,180,210,242, 278,318,358,398,440,488,540,720];
+  const b3Feed = [120,128,138,148,158,170,182,192,198,204, 210,225,242,262,282,305,328,350];
+  const saisiesB3 = genSaisies('LTS-2026-01', b3EntreeS, 18, 43, b3Mort, b3Weight, b3Feed, 12000);
+
+  const demoSaisies = [...saisiesB1, ...saisiesB2, ...saisiesB3];
+
+  // ══════ INTRANTS ══════
+  function genIntrants(bid, entree, prefix, scale) {
+    const mk = d => mkD(entree, d);
+    return [
+      { intrant_id: prefix+'-i-01', bande_id: bid, date_intrant: mk(1),  type:'autre',      nom_produit:'Désinfectant bâtiment',         quantite: Math.round(5*scale), unite:'L',    cout_total_fcfa: Math.round(8500*scale) },
+      { intrant_id: prefix+'-i-02', bande_id: bid, date_intrant: mk(3),  type:'vaccin',      nom_produit:'Vaccin Newcastle H120 (oculaire)', quantite: Math.round(100*scale), unite:'dose', cout_total_fcfa: Math.round(12000*scale) },
+      { intrant_id: prefix+'-i-03', bande_id: bid, date_intrant: mk(7),  type:'vitamine',    nom_produit:'Vitamines + électrolytes',       quantite: Math.round(2*scale), unite:'kg',   cout_total_fcfa: Math.round(9500*scale) },
+      { intrant_id: prefix+'-i-04', bande_id: bid, date_intrant: mk(10), type:'vaccin',      nom_produit:'Vaccin Gumboro (eau de boisson)', quantite: Math.round(100*scale), unite:'dose', cout_total_fcfa: Math.round(15000*scale) },
+      { intrant_id: prefix+'-i-05', bande_id: bid, date_intrant: mk(14), type:'vaccin',      nom_produit:'Vaccin Bronchite infectieuse',   quantite: Math.round(100*scale), unite:'dose', cout_total_fcfa: Math.round(14000*scale) }
+    ];
+  }
+  const intrB1full = [
+    ...genIntrants('LTS-2025-01','2025-08-12','b1',1),
+    { intrant_id:'b1-i-06', bande_id:'LTS-2025-01', date_intrant:'2025-08-30', type:'medicament', nom_produit:'Enrofloxacine (antibiotique préventif)', quantite:1, unite:'L', cout_total_fcfa:22000 },
+    { intrant_id:'b1-i-07', bande_id:'LTS-2025-01', date_intrant:'2025-09-02', type:'vaccin', nom_produit:'Vaccin Salmonelle', quantite:100, unite:'dose', cout_total_fcfa:18000 },
+    { intrant_id:'b1-i-08', bande_id:'LTS-2025-01', date_intrant:'2025-09-06', type:'vitamine', nom_produit:'Vitamines C stress thermique', quantite:3, unite:'kg', cout_total_fcfa:12000 }
+  ];
+  const intrB2full = [
+    ...genIntrants('LTS-2025-02','2025-10-20','b2',1.18),
+    { intrant_id:'b2-i-06', bande_id:'LTS-2025-02', date_intrant:'2025-11-07', type:'medicament', nom_produit:'Enrofloxacine (antibiotique préventif)', quantite:1, unite:'L', cout_total_fcfa:22000 },
+    { intrant_id:'b2-i-07', bande_id:'LTS-2025-02', date_intrant:'2025-11-10', type:'vaccin', nom_produit:'Vaccin Salmonelle', quantite:118, unite:'dose', cout_total_fcfa:21240 },
+    { intrant_id:'b2-i-08', bande_id:'LTS-2025-02', date_intrant:'2025-11-14', type:'vitamine', nom_produit:'Vitamines C stress thermique', quantite:4, unite:'kg', cout_total_fcfa:14000 }
+  ];
+  const intrB3 = genIntrants('LTS-2026-01', b3EntreeS, 'b3', 1.41);
+  const demoIntrants = [...intrB1full, ...intrB2full, ...intrB3];
+
+  // ══════ FORMULATIONS (alimentsPhases) ══════
+  const ap = (id, bid, phase, nom, mpId, qte, prix, dateStr) => ({
+    ap_id: id, bande_id: bid, phase, mp_id: mpId, nom_mp: nom,
+    quantite_kg: qte, prix_unitaire: prix, cout_total: Math.round(qte * prix), date_livraison: dateStr
   });
-  const demoAlimentsPhases = [
-    // Pré-démarrage
-    ap('demo-ap-001','pre_demarrage','Maïs',           'mp-001', 900,  120, mkDate(1)),
-    ap('demo-ap-002','pre_demarrage','Tourteau de soja','mp-002', 400,  220, mkDate(1)),
-    ap('demo-ap-003','pre_demarrage','Prémix vitamines','mp-003',  20, 1500, mkDate(1)),
-    ap('demo-ap-004','pre_demarrage','Sel',             'mp-004',   8,   80, mkDate(1)),
-    ap('demo-ap-005','pre_demarrage','Lysine',          'mp-005',   4, 1200, mkDate(1)),
-    // Démarrage
-    ap('demo-ap-006','demarrage','Maïs',           'mp-001', 1800, 120, mkDate(11)),
-    ap('demo-ap-007','demarrage','Tourteau de soja','mp-002',  700, 220, mkDate(11)),
-    ap('demo-ap-008','demarrage','Prémix vitamines','mp-003',   35,1500, mkDate(11)),
-    ap('demo-ap-009','demarrage','Sel',             'mp-004',   15,  80, mkDate(11)),
-    ap('demo-ap-010','demarrage','Lysine',          'mp-005',    8,1200, mkDate(11)),
-    // Croissance
-    ap('demo-ap-011','croissance','Maïs',           'mp-001', 3500, 115, mkDate(22)),
-    ap('demo-ap-012','croissance','Tourteau de soja','mp-002', 1200, 215, mkDate(22)),
-    ap('demo-ap-013','croissance','Prémix vitamines','mp-003',   55,1500, mkDate(22)),
-    ap('demo-ap-014','croissance','Sel',             'mp-004',   25,  80, mkDate(22)),
-    ap('demo-ap-015','croissance','Lysine',          'mp-005',   15,1200, mkDate(22))
+  const demoAlim = [
+    // ── Batch 1 ──
+    ap('b1-ap-01','LTS-2025-01','pre_demarrage','Maïs','mp-001',550,195,'2025-08-12'),
+    ap('b1-ap-02','LTS-2025-01','pre_demarrage','Tourteau de soja','mp-002',220,380,'2025-08-12'),
+    ap('b1-ap-03','LTS-2025-01','pre_demarrage','Prémix vitamines-minéraux','mp-003',30,850,'2025-08-12'),
+    ap('b1-ap-04','LTS-2025-01','pre_demarrage','Farine de poisson','mp-004',45,420,'2025-08-12'),
+    ap('b1-ap-05','LTS-2025-01','pre_demarrage','Lysine','mp-006',8,1200,'2025-08-12'),
+    ap('b1-ap-06','LTS-2025-01','pre_demarrage','Sel','mp-008',4,150,'2025-08-12'),
+    ap('b1-ap-07','LTS-2025-01','demarrage','Maïs','mp-001',1850,195,'2025-08-22'),
+    ap('b1-ap-08','LTS-2025-01','demarrage','Tourteau de soja','mp-002',680,380,'2025-08-22'),
+    ap('b1-ap-09','LTS-2025-01','demarrage','Prémix vitamines-minéraux','mp-003',85,850,'2025-08-22'),
+    ap('b1-ap-10','LTS-2025-01','demarrage','Farine de poisson','mp-004',95,420,'2025-08-22'),
+    ap('b1-ap-11','LTS-2025-01','demarrage','Huile de palme','mp-005',45,650,'2025-08-22'),
+    ap('b1-ap-12','LTS-2025-01','demarrage','Lysine','mp-006',22,1200,'2025-08-22'),
+    ap('b1-ap-13','LTS-2025-01','demarrage','Sel','mp-008',12,150,'2025-08-22'),
+    ap('b1-ap-14','LTS-2025-01','croissance','Maïs','mp-001',3200,195,'2025-09-02'),
+    ap('b1-ap-15','LTS-2025-01','croissance','Tourteau de soja','mp-002',980,380,'2025-09-02'),
+    ap('b1-ap-16','LTS-2025-01','croissance','Prémix vitamines-minéraux','mp-003',120,850,'2025-09-02'),
+    ap('b1-ap-17','LTS-2025-01','croissance','Huile de palme','mp-005',95,650,'2025-09-02'),
+    ap('b1-ap-18','LTS-2025-01','croissance','Lysine','mp-006',35,1200,'2025-09-02'),
+    ap('b1-ap-19','LTS-2025-01','croissance','Carbonate de calcium','mp-007',28,180,'2025-09-02'),
+    ap('b1-ap-20','LTS-2025-01','croissance','Sel','mp-008',18,150,'2025-09-02'),
+    // ── Batch 2 (scaled ~1.18x) ──
+    ap('b2-ap-01','LTS-2025-02','pre_demarrage','Maïs','mp-001',650,195,'2025-10-20'),
+    ap('b2-ap-02','LTS-2025-02','pre_demarrage','Tourteau de soja','mp-002',260,380,'2025-10-20'),
+    ap('b2-ap-03','LTS-2025-02','pre_demarrage','Prémix vitamines-minéraux','mp-003',35,850,'2025-10-20'),
+    ap('b2-ap-04','LTS-2025-02','pre_demarrage','Farine de poisson','mp-004',53,420,'2025-10-20'),
+    ap('b2-ap-05','LTS-2025-02','pre_demarrage','Lysine','mp-006',9,1200,'2025-10-20'),
+    ap('b2-ap-06','LTS-2025-02','pre_demarrage','Sel','mp-008',5,150,'2025-10-20'),
+    ap('b2-ap-07','LTS-2025-02','demarrage','Maïs','mp-001',2180,195,'2025-10-30'),
+    ap('b2-ap-08','LTS-2025-02','demarrage','Tourteau de soja','mp-002',800,380,'2025-10-30'),
+    ap('b2-ap-09','LTS-2025-02','demarrage','Prémix vitamines-minéraux','mp-003',100,850,'2025-10-30'),
+    ap('b2-ap-10','LTS-2025-02','demarrage','Farine de poisson','mp-004',112,420,'2025-10-30'),
+    ap('b2-ap-11','LTS-2025-02','demarrage','Huile de palme','mp-005',53,650,'2025-10-30'),
+    ap('b2-ap-12','LTS-2025-02','demarrage','Lysine','mp-006',26,1200,'2025-10-30'),
+    ap('b2-ap-13','LTS-2025-02','demarrage','Sel','mp-008',14,150,'2025-10-30'),
+    ap('b2-ap-14','LTS-2025-02','croissance','Maïs','mp-001',3775,195,'2025-11-10'),
+    ap('b2-ap-15','LTS-2025-02','croissance','Tourteau de soja','mp-002',1155,380,'2025-11-10'),
+    ap('b2-ap-16','LTS-2025-02','croissance','Prémix vitamines-minéraux','mp-003',142,850,'2025-11-10'),
+    ap('b2-ap-17','LTS-2025-02','croissance','Huile de palme','mp-005',112,650,'2025-11-10'),
+    ap('b2-ap-18','LTS-2025-02','croissance','Lysine','mp-006',41,1200,'2025-11-10'),
+    ap('b2-ap-19','LTS-2025-02','croissance','Carbonate de calcium','mp-007',33,180,'2025-11-10'),
+    ap('b2-ap-20','LTS-2025-02','croissance','Sel','mp-008',21,150,'2025-11-10'),
+    // ── Batch 3 (in progress — pre-demarrage complete + demarrage partial) ──
+    ap('b3-ap-01','LTS-2026-01','pre_demarrage','Maïs','mp-001',775,195,mkD(b3EntreeS,0)),
+    ap('b3-ap-02','LTS-2026-01','pre_demarrage','Tourteau de soja','mp-002',310,380,mkD(b3EntreeS,0)),
+    ap('b3-ap-03','LTS-2026-01','pre_demarrage','Prémix vitamines-minéraux','mp-003',42,850,mkD(b3EntreeS,0)),
+    ap('b3-ap-04','LTS-2026-01','pre_demarrage','Farine de poisson','mp-004',63,420,mkD(b3EntreeS,0)),
+    ap('b3-ap-05','LTS-2026-01','pre_demarrage','Lysine','mp-006',11,1200,mkD(b3EntreeS,0)),
+    ap('b3-ap-06','LTS-2026-01','pre_demarrage','Sel','mp-008',6,150,mkD(b3EntreeS,0)),
+    ap('b3-ap-07','LTS-2026-01','demarrage','Maïs','mp-001',1200,195,mkD(b3EntreeS,11)),
+    ap('b3-ap-08','LTS-2026-01','demarrage','Tourteau de soja','mp-002',440,380,mkD(b3EntreeS,11)),
+    ap('b3-ap-09','LTS-2026-01','demarrage','Prémix vitamines-minéraux','mp-003',55,850,mkD(b3EntreeS,11)),
+    ap('b3-ap-10','LTS-2026-01','demarrage','Farine de poisson','mp-004',62,420,mkD(b3EntreeS,11)),
+    ap('b3-ap-11','LTS-2026-01','demarrage','Huile de palme','mp-005',28,650,mkD(b3EntreeS,11)),
+    ap('b3-ap-12','LTS-2026-01','demarrage','Lysine','mp-006',14,1200,mkD(b3EntreeS,11)),
+    ap('b3-ap-13','LTS-2026-01','demarrage','Sel','mp-008',8,150,mkD(b3EntreeS,11))
   ];
 
-  // Supprimer une éventuelle démo précédente et injecter
-  STATE.bandes          = STATE.bandes.filter(b => b.bande_id !== DEMO_ID);
-  STATE.saisies         = STATE.saisies.filter(s => s.bande_id !== DEMO_ID);
-  STATE.intrants        = STATE.intrants.filter(i => i.bande_id !== DEMO_ID);
-  STATE.alimentsPhases  = STATE.alimentsPhases.filter(a => a.bande_id !== DEMO_ID);
+  // ══════ FOURNISSEURS ══════
+  const demoFournisseurs = [
+    { fournisseur_id:'fourn-001', nom:"Poussins d'Or", type:'poussin', contact_nom:'Kouadio Marcel', telephone:'+225 07 12 34 56', email:'', adresse:'Zone industrielle de Yopougon, Abidjan', pays:"Côte d'Ivoire", statut:'actif', note:"Fournisseur principal poussins Cobb 500. Délai commande 5 jours ouvrés." },
+    { fournisseur_id:'fourn-002', nom:'Agri-Ivoire SARL', type:'mp', contact_nom:'Diallo Mamadou', telephone:'+225 05 87 23 45', email:'', adresse:'Azaguié marché central', pays:"Côte d'Ivoire", statut:'actif', note:"Maïs local. Qualité variable selon saison. Tester taux humidité à réception." },
+    { fournisseur_id:'fourn-003', nom:'SoproPharma Vétérinaire', type:'medicament', contact_nom:'Dr. Kouassi Adjoua', telephone:'+225 27 21 45 67', email:'', adresse:'Marcory, Abidjan', pays:"Côte d'Ivoire", statut:'actif', note:"Vaccins et médicaments vétérinaires. Chaîne du froid respectée. Facture systématique." },
+    { fournisseur_id:'fourn-004', nom:'Nutri-Bétail CI', type:'mp', contact_nom:"N'Goran Serge", telephone:'+225 07 56 78 90', email:'', adresse:'Yopougon, Abidjan', pays:"Côte d'Ivoire", statut:'actif', note:"Tourteau de soja, prémix, lysine. Livraison à la ferme sur commande min 500kg." },
+    { fournisseur_id:'fourn-005', nom:'Matières Grasses Ivoire', type:'mp', contact_nom:'Bamba Salimata', telephone:'+225 05 34 56 12', email:'', adresse:'Adjamé, Abidjan', pays:"Côte d'Ivoire", statut:'actif', note:"Huile de palme brute pour alimentation animale." }
+  ];
 
-  STATE.bandes.unshift(demoBande);
+  // ══════ STOCKS ══════
+  const demoStocks = [
+    { stock_id:'stk-01', type_produit:'Maïs', categorie:'mp', quantite_actuelle:2800, unite:'kg', seuil_alerte:500, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-02', type_produit:'Tourteau de soja', categorie:'mp', quantite_actuelle:850, unite:'kg', seuil_alerte:200, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-03', type_produit:'Prémix vitamines-minéraux', categorie:'mp', quantite_actuelle:120, unite:'kg', seuil_alerte:30, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-04', type_produit:'Farine de poisson', categorie:'mp', quantite_actuelle:180, unite:'kg', seuil_alerte:50, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-05', type_produit:'Huile de palme', categorie:'mp', quantite_actuelle:95, unite:'kg', seuil_alerte:30, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-06', type_produit:'Lysine', categorie:'mp', quantite_actuelle:42, unite:'kg', seuil_alerte:10, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-07', type_produit:'Carbonate de calcium', categorie:'mp', quantite_actuelle:80, unite:'kg', seuil_alerte:20, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-08', type_produit:'Sel', categorie:'mp', quantite_actuelle:35, unite:'kg', seuil_alerte:10, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-09', type_produit:'Vaccin Newcastle H120', categorie:'medicament', quantite_actuelle:80, unite:'dose', seuil_alerte:20, emplacement:'Réfrigérateur', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-10', type_produit:'Vaccin Gumboro', categorie:'medicament', quantite_actuelle:80, unite:'dose', seuil_alerte:20, emplacement:'Réfrigérateur', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-11', type_produit:'Vaccin Bronchite infectieuse', categorie:'medicament', quantite_actuelle:80, unite:'dose', seuil_alerte:20, emplacement:'Réfrigérateur', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-12', type_produit:'Enrofloxacine', categorie:'medicament', quantite_actuelle:2, unite:'L', seuil_alerte:0.5, emplacement:'Armoire médicaments', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-13', type_produit:'Vitamines C', categorie:'medicament', quantite_actuelle:4, unite:'kg', seuil_alerte:1, emplacement:'Armoire médicaments', derniere_mise_a_jour:todayS },
+    { stock_id:'stk-14', type_produit:'Désinfectant polyvalent', categorie:'autre', quantite_actuelle:8, unite:'L', seuil_alerte:2, emplacement:'Local entretien', derniere_mise_a_jour:todayS }
+  ];
+
+  // ══════ CLIENTS ══════
+  const demoClients = [
+    { client_id:'cli-001', nom:'Grossiste Bamba & Frères', type:'revendeur', contact_nom:'Bamba Oumar', telephone:'+225 07 88 12 34', email:'', adresse:'', ville:'Cocody, Abidjan', statut:'actif', note:"Client depuis bande 1. Paiement 48h après livraison." },
+    { client_id:'cli-002', nom:'Distribution Plateau SARL', type:'revendeur', contact_nom:'Touré Fatoumata', telephone:'+225 05 23 45 67', email:'', adresse:'', ville:'Plateau, Abidjan', statut:'actif', note:"Commandes régulières. Veut facture proforma 5j avant." },
+    { client_id:'cli-003', nom:'Marché de Gros Adjamé', type:'revendeur', contact_nom:'Koné Ibrahim', telephone:'+225 07 45 67 89', email:'', adresse:'', ville:'Adjamé, Abidjan', statut:'actif', note:"Volume élevé mais prix négocié -5%. Cash à livraison." }
+  ];
+
+  // ══════ COMMANDES + LIGNES ══════
+  const livPlus15 = mkD(today, 15);
+  const demoCommandes = [
+    { commande_id:'cmd-b1-01', client_id:'cli-001', date_commande:'2025-09-13', date_livraison_souhaitee:'2025-09-14', bande_id:'LTS-2025-01', statut:'livree', note:'Bande 1 — grossiste Cocody', montant_total_fcfa:6020000 },
+    { commande_id:'cmd-b1-02', client_id:'cli-003', date_commande:'2025-09-13', date_livraison_souhaitee:'2025-09-14', bande_id:'LTS-2025-01', statut:'livree', note:'Bande 1 — grossiste Adjamé', montant_total_fcfa:4920000 },
+    { commande_id:'cmd-b2-01', client_id:'cli-001', date_commande:'2025-11-20', date_livraison_souhaitee:'2025-11-21', bande_id:'LTS-2025-02', statut:'livree', note:'Bande 2 — 60% volume Cocody', montant_total_fcfa:7040000 },
+    { commande_id:'cmd-b2-02', client_id:'cli-002', date_commande:'2025-11-20', date_livraison_souhaitee:'2025-11-21', bande_id:'LTS-2025-02', statut:'livree', note:'Bande 2 — 40% Plateau', montant_total_fcfa:4620000 },
+    { commande_id:'cmd-b3-01', client_id:'cli-001', date_commande:todayS, date_livraison_souhaitee:livPlus15, bande_id:'LTS-2026-01', statut:'confirmee', note:'Bande 3 — commande anticipée Bamba', montant_total_fcfa:8360000 }
+  ];
+  const demoLignes = [
+    { ligne_id:'lig-b1-01', commande_id:'cmd-b1-01', produit:'poulet_entier', description:'Poulet entier', quantite_kg:2800, prix_kg_fcfa:2150, montant_fcfa:6020000 },
+    { ligne_id:'lig-b1-02', commande_id:'cmd-b1-02', produit:'poulet_entier', description:'Poulet entier', quantite_kg:2400, prix_kg_fcfa:2050, montant_fcfa:4920000 },
+    { ligne_id:'lig-b2-01', commande_id:'cmd-b2-01', produit:'poulet_entier', description:'Poulet entier', quantite_kg:3200, prix_kg_fcfa:2200, montant_fcfa:7040000 },
+    { ligne_id:'lig-b2-02', commande_id:'cmd-b2-02', produit:'poulet_entier', description:'Poulet entier', quantite_kg:2100, prix_kg_fcfa:2200, montant_fcfa:4620000 },
+    { ligne_id:'lig-b3-01', commande_id:'cmd-b3-01', produit:'poulet_entier', description:'Poulet entier', quantite_kg:3800, prix_kg_fcfa:2200, montant_fcfa:8360000 }
+  ];
+
+  // ══════ RECEPTIONS + INSPECTIONS ══════
+  const demoReceptions = [
+    { reception_id:'recep-01', fournisseur_id:'fourn-002', date_reception:mkD(b3EntreeS,-2), type_produit:'Maïs', categorie:'mp', quantite:4000, unite:'kg', prix_unitaire_fcfa:195, cout_total_fcfa:780000, bande_id:'LTS-2026-01', numero_lot:'AGR-2026-044', date_peremption:'' },
+    { reception_id:'recep-02', fournisseur_id:'fourn-001', date_reception:b3EntreeS, type_produit:'Poussins Cobb 500', categorie:'poussin', quantite:12000, unite:'unité', prix_unitaire_fcfa:650, cout_total_fcfa:7800000, bande_id:'LTS-2026-01', numero_lot:'PO-2026-118', date_peremption:'' },
+    { reception_id:'recep-03', fournisseur_id:'fourn-004', date_reception:mkD(b3EntreeS,5), type_produit:'Tourteau de soja', categorie:'mp', quantite:1200, unite:'kg', prix_unitaire_fcfa:380, cout_total_fcfa:456000, bande_id:'LTS-2026-01', numero_lot:'NB-2026-032', date_peremption:'' }
+  ];
+  const demoInspections = [
+    { inspection_id:'insp-01', reception_id:'recep-01', date_inspection:mkD(b3EntreeS,-2), inspecteur:'Mounir Zakka', aspect_visuel:'conforme', odeur:'conforme', humidite_pct:13.5, temperature_c:'', resultat_global:'accepte', commentaire:'' },
+    { inspection_id:'insp-02', reception_id:'recep-02', date_inspection:b3EntreeS, inspecteur:'Stephen Aboumrad', aspect_visuel:'conforme', odeur:'conforme', humidite_pct:'', temperature_c:32, resultat_global:'accepte', commentaire:"Poussins vifs, uniformes. Quelques sujets faibles isolés (12 têtes)." },
+    { inspection_id:'insp-03', reception_id:'recep-03', date_inspection:mkD(b3EntreeS,5), inspecteur:'Mounir Zakka', aspect_visuel:'a_surveiller', odeur:'conforme', humidite_pct:14.8, temperature_c:'', resultat_global:'accepte_avec_reserve', commentaire:"Légère coloration jaune sur 2 sacs. Stockage immédiat en entrepôt sec. À surveiller." }
+  ];
+
+  // ══════ INJECT INTO STATE ══════
+  DEMO_IDS.forEach(id => {
+    STATE.bandes = STATE.bandes.filter(b => b.bande_id !== id);
+    STATE.saisies = STATE.saisies.filter(s => s.bande_id !== id);
+    STATE.intrants = STATE.intrants.filter(i => i.bande_id !== id);
+    STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.bande_id !== id);
+  });
+  STATE.fournisseurs = STATE.fournisseurs.filter(f => !f.fournisseur_id.startsWith('fourn-'));
+  STATE.stocks = STATE.stocks.filter(s => !s.stock_id.startsWith('stk-'));
+  STATE.clients = STATE.clients.filter(c => !c.client_id.startsWith('cli-'));
+  STATE.commandes = STATE.commandes.filter(c => !c.commande_id.startsWith('cmd-'));
+  STATE.lignesCommande = STATE.lignesCommande.filter(l => !l.ligne_id.startsWith('lig-'));
+  STATE.receptions = STATE.receptions.filter(r => !r.reception_id.startsWith('recep-'));
+  STATE.inspections = STATE.inspections.filter(i => !i.inspection_id.startsWith('insp-'));
+
+  STATE.bandes.push(...demoBandes);
   STATE.saisies.push(...demoSaisies);
   STATE.intrants.push(...demoIntrants);
-  STATE.alimentsPhases.push(...demoAlimentsPhases);
+  STATE.alimentsPhases.push(...demoAlim);
+  STATE.fournisseurs.push(...demoFournisseurs);
+  STATE.stocks.push(...demoStocks);
+  STATE.clients.push(...demoClients);
+  STATE.commandes.push(...demoCommandes);
+  STATE.lignesCommande.push(...demoLignes);
+  STATE.receptions.push(...demoReceptions);
+  STATE.inspections.push(...demoInspections);
   STATE.loaded = true;
 
-  // Persister dans le cache local
+  // Persist
   try {
     const cached = JSON.parse(localStorage.getItem('coqorico_cache') || '{}');
-    cached.bandes         = STATE.bandes;
-    cached.saisies        = STATE.saisies;
-    cached.intrants       = STATE.intrants;
-    cached.alimentsPhases = STATE.alimentsPhases;
-    cached.matieres       = STATE.matieres;
-    cached.formulationsMP = STATE.formulationsMP;
-    cached.fournisseurs   = STATE.fournisseurs;
-    cached.receptions     = STATE.receptions;
-    cached.inspections    = STATE.inspections;
-    cached.stocks         = STATE.stocks;
-    cached.clients        = STATE.clients;
-    cached.commandes      = STATE.commandes;
-    cached.lignesCommande = STATE.lignesCommande;
-    cached.cachedAt       = new Date().toISOString();
+    Object.keys(STATE).forEach(k => { if (k !== 'loaded') cached[k] = STATE[k]; });
+    cached.cachedAt = new Date().toISOString();
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
 
   renderDashboard();
-  toast('Bande démo chargée — visible dans toutes les pages');
+  toast('Données démo SIVA chargées — 3 bandes, fournisseurs, stocks, clients');
 }
 
 function clearDemoData() {
   if (!confirm('Supprimer toutes les données de démonstration ?')) return;
-  const DEMO_ID = 'demo-bande-001';
-  STATE.bandes         = STATE.bandes.filter(b => b.bande_id !== DEMO_ID);
-  STATE.saisies        = STATE.saisies.filter(s => s.bande_id !== DEMO_ID);
-  STATE.intrants       = STATE.intrants.filter(i => i.bande_id !== DEMO_ID);
-  STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.bande_id !== DEMO_ID);
+  DEMO_IDS.forEach(id => {
+    STATE.bandes = STATE.bandes.filter(b => b.bande_id !== id);
+    STATE.saisies = STATE.saisies.filter(s => s.bande_id !== id);
+    STATE.intrants = STATE.intrants.filter(i => i.bande_id !== id);
+    STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.bande_id !== id);
+  });
+  STATE.fournisseurs = STATE.fournisseurs.filter(f => !f.fournisseur_id.startsWith('fourn-'));
+  STATE.stocks = STATE.stocks.filter(s => !s.stock_id.startsWith('stk-'));
+  STATE.clients = STATE.clients.filter(c => !c.client_id.startsWith('cli-'));
+  STATE.commandes = STATE.commandes.filter(c => !c.commande_id.startsWith('cmd-'));
+  STATE.lignesCommande = STATE.lignesCommande.filter(l => !l.ligne_id.startsWith('lig-'));
+  STATE.receptions = STATE.receptions.filter(r => !r.reception_id.startsWith('recep-'));
+  STATE.inspections = STATE.inspections.filter(i => !i.inspection_id.startsWith('insp-'));
 
   try {
     const cached = JSON.parse(localStorage.getItem('coqorico_cache') || '{}');
-    cached.bandes         = STATE.bandes;
-    cached.saisies        = STATE.saisies;
-    cached.intrants       = STATE.intrants;
-    cached.alimentsPhases = STATE.alimentsPhases;
-    cached.matieres       = STATE.matieres;
-    cached.formulationsMP = STATE.formulationsMP;
-    cached.fournisseurs   = STATE.fournisseurs;
-    cached.receptions     = STATE.receptions;
-    cached.inspections    = STATE.inspections;
-    cached.stocks         = STATE.stocks;
-    cached.clients        = STATE.clients;
-    cached.commandes      = STATE.commandes;
-    cached.lignesCommande = STATE.lignesCommande;
+    Object.keys(STATE).forEach(k => { if (k !== 'loaded') cached[k] = STATE[k]; });
     localStorage.setItem('coqorico_cache', JSON.stringify(cached));
   } catch(e) {}
 
@@ -3670,15 +3782,16 @@ const PHASES = [
 ];
 
 const DEFAULT_MP = [
-  { mp_id: 'mp-001', nom: 'Maïs',                actif: true },
-  { mp_id: 'mp-002', nom: 'Tourteau de soja',    actif: true },
-  { mp_id: 'mp-003', nom: 'Prémix vitamines',    actif: true },
-  { mp_id: 'mp-004', nom: 'Sel',                 actif: true },
-  { mp_id: 'mp-005', nom: 'Lysine',              actif: true },
-  { mp_id: 'mp-006', nom: 'Farine de poisson',   actif: true },
-  { mp_id: 'mp-007', nom: 'Huile de palme',      actif: true },
-  { mp_id: 'mp-008', nom: 'Carbonate de calcium', actif: true },
-  { mp_id: 'mp-009', nom: 'Autre',               actif: true }
+  { mp_id: 'mp-001', nom: 'Maïs',                       actif: true },
+  { mp_id: 'mp-002', nom: 'Tourteau de soja',           actif: true },
+  { mp_id: 'mp-003', nom: 'Prémix vitamines-minéraux',  actif: true },
+  { mp_id: 'mp-004', nom: 'Farine de poisson',          actif: true },
+  { mp_id: 'mp-005', nom: 'Huile de palme',             actif: true },
+  { mp_id: 'mp-006', nom: 'Lysine',                     actif: true },
+  { mp_id: 'mp-007', nom: 'Carbonate de calcium',       actif: true },
+  { mp_id: 'mp-008', nom: 'Sel',                        actif: true },
+  { mp_id: 'mp-009', nom: 'Son de blé',                 actif: true },
+  { mp_id: 'mp-010', nom: 'Autre',                      actif: true }
 ];
 
 let currentAlimPhase = 'pre_demarrage';
