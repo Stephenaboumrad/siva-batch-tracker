@@ -52,7 +52,7 @@
   --border: #FFD4A8;
   --red: #E74C3C;
   --orange: #FF8C00;
-  --sidebar-w: 250px;
+  --header-h: 60px;
 }
 html { font-size: 15px; line-height: 1.6; }
 body {
@@ -60,101 +60,141 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  display: flex;
+  flex-direction: column;
 }
 
-/* ── Sidebar ── */
-#sidebar {
-  width: var(--sidebar-w);
-  min-height: 100vh;
+/* ── Top Header Bar ── */
+#top-header {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--header-h);
   background: #FF6B00;
   color: #fff;
   display: flex;
-  flex-direction: column;
-  position: fixed;
-  top: 0; left: 0; bottom: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
   z-index: 100;
-  transition: transform 0.3s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 }
-#sidebar .logo {
-  padding: 1.5rem 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.2);
-  text-align: center;
+
+/* Header — Left (logo) */
+#top-header .hdr-left {
+  display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0;
 }
-#sidebar .logo h1 {
+#top-header .hdr-logo {
   font-family: 'Nunito', sans-serif;
-  font-size: 1.5rem; font-weight: 900; letter-spacing: 0.08em;
-  color: #FFFFFF;
-  background: rgba(0,0,0,0.20);
-  display: inline-block;
-  padding: 0.25rem 1rem;
-  border-radius: 8px;
-  text-transform: uppercase;
-  -webkit-text-stroke: 0;
-  text-stroke: 0;
-  text-shadow: none;
+  font-size: 1.25rem; font-weight: 900; letter-spacing: 0.08em;
+  color: #fff; text-transform: uppercase;
+  background: rgba(0,0,0,0.18);
+  padding: 0.15rem 0.75rem; border-radius: 6px;
+  white-space: nowrap;
 }
-#sidebar .logo small {
-  font-family: 'Nunito Sans', sans-serif;
-  font-size: 0.6rem; display: block; margin-top: 4px;
-  color: rgba(255,255,255,0.80); letter-spacing: 0.03em; font-style: italic;
+#top-header .hdr-subtitle {
+  font-size: 0.58rem; color: rgba(255,255,255,0.65);
+  font-style: italic; white-space: nowrap;
 }
-#sidebar .logo small:last-child {
-  font-family: 'Nunito Sans', sans-serif;
-  font-size: 0.58rem; color: rgba(255,255,255,0.60); font-style: italic;
+
+/* Header — Center (nav) */
+#top-header .hdr-nav {
+  display: flex; align-items: center; gap: 0;
+  overflow-x: auto; flex: 1; justify-content: center;
+  margin: 0 1rem;
 }
-#sidebar nav { flex: 1; padding: 0.5rem 0.5rem; }
-#sidebar nav a {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 0.7rem 1.2rem;
-  color: rgba(255,255,255,0.75);
+#top-header .hdr-nav a {
+  color: rgba(255,255,255,0.70);
   text-decoration: none;
   font-family: 'Nunito', sans-serif;
-  font-size: 0.88rem; font-weight: 600;
-  transition: all 0.2s;
-  border-left: 3px solid transparent;
-  border-radius: 10px;
-  margin-bottom: 2px;
+  font-size: 0.82rem; font-weight: 700;
+  padding: 0 1rem; height: var(--header-h);
+  display: flex; align-items: center;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
 }
-#sidebar nav a:hover { background: rgba(255,255,255,0.15); color: #fff; }
-#sidebar nav a.active {
-  background: rgba(0,0,0,0.20);
-  color: #FFFFFF;
-  border-left-color: #FFFFFF;
-  font-weight: 700;
-}
-#sidebar nav a .icon { font-size: 1.1rem; width: 1.5rem; text-align: center; }
-
-/* ── Mobile hamburger ── */
-#menu-toggle {
-  display: none;
-  position: fixed;
-  top: 0.75rem; left: 0.75rem;
-  z-index: 200;
-  background: #FF6B00;
+#top-header .hdr-nav a .icon { display: none; }
+#top-header .hdr-nav a:hover { color: #fff; }
+#top-header .hdr-nav a.active {
   color: #fff;
-  border: none;
-  border-radius: 12px;
-  width: 42px; height: 42px;
-  font-size: 1.3rem;
-  cursor: pointer;
-  box-shadow: 0 3px 10px rgba(255,107,0,0.35);
+  border-bottom-color: #fff;
 }
-#sidebar-overlay {
+
+/* Header — Right (user + sync + logout) */
+#top-header .hdr-right {
+  display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0;
+}
+#top-header .hdr-sync {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; color: rgba(255,255,255,0.75);
+}
+#top-header .hdr-user {
+  font-size: 0.78rem; color: rgba(255,255,255,0.85);
+  font-weight: 600; white-space: nowrap;
+}
+#top-header .hdr-alerts {
+  position: relative;
+}
+#top-header .hdr-logout {
+  background: transparent; border: 1.5px solid rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.8); border-radius: 50px;
+  padding: 0.3rem 0.8rem; font-family: 'Nunito', sans-serif;
+  font-size: 0.72rem; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap;
+}
+#top-header .hdr-logout:hover { border-color: #fff; color: #fff; }
+
+/* Alert badge in header */
+.hdr-alert-badge {
+  background: #E74C3C; color: #fff; font-size: 0.6rem; font-weight: 700;
+  border-radius: 50px; padding: 0.1rem 0.4rem; min-width: 1.1rem;
+  text-align: center; display: inline-block;
+}
+
+/* Sync dot */
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.sync-dot.green { background: #27AE60; }
+.sync-dot.orange { background: #FF8C00; }
+.sync-dot.red { background: #E74C3C; }
+
+/* Mobile hamburger */
+#mobile-menu-btn {
+  display: none;
+  background: transparent; border: none; color: #fff;
+  font-size: 1.5rem; cursor: pointer; padding: 0.25rem;
+}
+
+/* Mobile dropdown menu */
+#mobile-menu {
   display: none;
   position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
+  top: var(--header-h); left: 0; right: 0; bottom: 0;
+  background: #FF6B00;
   z-index: 99;
+  padding: 1rem;
+  overflow-y: auto;
 }
+#mobile-menu.open { display: block; }
+#mobile-menu a {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  color: rgba(255,255,255,0.80);
+  text-decoration: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem; font-weight: 700;
+  border-radius: 10px;
+  margin-bottom: 0.25rem;
+  transition: background 0.2s;
+}
+#mobile-menu a .icon { font-size: 1.2rem; width: 1.8rem; text-align: center; }
+#mobile-menu a:hover, #mobile-menu a.active { background: rgba(0,0,0,0.15); color: #fff; }
 
 /* ── Main ── */
 #main {
-  margin-left: var(--sidebar-w);
+  margin-top: var(--header-h);
   flex: 1;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--header-h));
   padding: 2rem;
   background: var(--bg);
+  width: 100%;
 }
 #main h2 {
   font-family: 'Nunito', sans-serif;
@@ -439,8 +479,8 @@ body.role-chef_bande .manager-only { display: none !important; }
 .alert-item.critical { background: #FDECEA; border-left: 4px solid #E74C3C; color: #7B1A1A; }
 .alert-item .alert-icon { font-size: 1rem; flex-shrink: 0; }
 .sidebar-badge {
-  background: #E74C3C; color: #fff; font-size: 0.65rem; font-weight: 700;
-  border-radius: 50px; padding: 0.1rem 0.45rem; margin-left: auto; min-width: 1.2rem; text-align: center;
+  background: #E74C3C; color: #fff; font-size: 0.6rem; font-weight: 700;
+  border-radius: 50px; padding: 0.1rem 0.4rem; margin-left: 0.25rem; min-width: 1.1rem; text-align: center; display: inline-block;
 }
 
 /* ── Forecast chip ── */
@@ -456,17 +496,11 @@ body.role-chef_bande .manager-only { display: none !important; }
   border-radius: 10px; margin-bottom: 1rem; font-size: 0.85rem; color: #7A3A00; display: none;
 }
 
-/* ── Sync indicator ── */
+/* ── Sync indicator (in header) ── */
 #sync-status {
-  padding: 0.5rem 1.25rem; font-size: 0.75rem; color: rgba(255,255,255,0.60);
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; color: rgba(255,255,255,0.75);
 }
-#sync-status .sync-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-}
-#sync-status .sync-dot.green { background: #27AE60; }
-#sync-status .sync-dot.orange { background: #FF8C00; }
-#sync-status .sync-dot.red { background: #E74C3C; }
 
 /* ── Supply Chain flow indicator ── */
 .sc-flow {
@@ -598,12 +632,12 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  :root { --sidebar-w: 0px; }
-  #sidebar { transform: translateX(-250px); width: 250px; }
-  #sidebar.open { transform: translateX(0); }
-  #menu-toggle { display: block; }
-  #sidebar-overlay.open { display: block; }
-  #main { margin-left: 0; padding: 1rem; padding-top: 3.5rem; }
+  #top-header .hdr-nav { display: none; }
+  #top-header .hdr-subtitle { display: none; }
+  #top-header .hdr-user { display: none; }
+  #top-header .hdr-sync { display: none; }
+  #mobile-menu-btn { display: block; }
+  #main { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }
   .dash-grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
@@ -612,29 +646,24 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 </head>
 <body>
 
-<!-- Mobile menu toggle -->
-<button id="menu-toggle" onclick="toggleSidebar()">&#9776;</button>
-<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<!-- Top Header Bar -->
+<div id="top-header">
+  <!-- Left: Logo -->
+  <div class="hdr-left">
+    <span class="hdr-logo">COQORICO</span>
+    <span class="hdr-subtitle">Les Terres du Sud — Azaguié</span>
+  </div>
 
-<!-- Sidebar -->
-<div id="sidebar">
-  <div class="logo">
-    <h1>COQORICO</h1>
-    <small>Société Ivoirienne de Volaille et Assimilés</small>
-    <small style="font-style:italic;font-size:0.6rem;">Les Terres du Sud — Azaguié</small>
-  </div>
-  <div id="user-badge" style="display:none;text-align:center;padding:0.5rem 0.75rem;font-size:0.8rem;color:#fff;background:rgba(0,0,0,0.18);border-radius:10px;margin:0.5rem 0.75rem;border-bottom:none;">
-    <span id="user-badge-name"></span>
-  </div>
-  <nav>
+  <!-- Center: Nav -->
+  <nav class="hdr-nav" id="header-nav">
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
-      <span class="icon">&#128202;</span> Tableau de bord <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
-    </a>
-    <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
-      <span class="icon">&#128221;</span> Saisie du jour
+      <span class="icon">&#128202;</span> Vue Opérationnelle <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
       <span class="icon">&#128200;</span> Données historisées
+    </a>
+    <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
+      <span class="icon">&#128221;</span> Saisie du jour
     </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
       <span class="icon">&#128666;</span> Supply Chain
@@ -643,18 +672,49 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
       <span class="icon">&#128188;</span> Clients & Commandes
     </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
-      <span class="icon">&#128230;</span> Exports
+      <span class="icon">&#128230;</span> Rapports & Exports
     </a>
     <a href="#" data-page="settings" onclick="navigate('settings',this)">
       <span class="icon">&#9881;</span> Paramètres
     </a>
   </nav>
-  <div id="sync-status">
-    <span class="sync-dot green"></span> Synchronisé
+
+  <!-- Right: User + Sync + Logout -->
+  <div class="hdr-right">
+    <div id="sync-status">
+      <span class="sync-dot green"></span> <span id="sync-text">Synchronisé</span>
+    </div>
+    <div id="user-badge" class="hdr-user" style="display:none;">
+      <span id="user-badge-name"></span>
+    </div>
+    <button class="hdr-logout" onclick="logout()">Déconnexion</button>
+    <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
   </div>
-  <div style="padding:0.75rem 1.25rem;border-top:1px solid rgba(255,255,255,0.2);">
-    <button onclick="logout()" style="background:transparent;color:rgba(255,255,255,0.60);border:none;border-radius:10px;padding:0.5rem 1rem;width:100%;font-size:0.8rem;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:600;transition:color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.60)'">Déconnexion</button>
-  </div>
+</div>
+
+<!-- Mobile fullscreen dropdown menu -->
+<div id="mobile-menu">
+  <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this);closeMobileMenu()">
+    <span class="icon">&#128202;</span> Vue Opérationnelle
+  </a>
+  <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
+    <span class="icon">&#128200;</span> Données historisées
+  </a>
+  <a href="#" data-page="saisie" onclick="navigate('saisie',this);closeMobileMenu()">
+    <span class="icon">&#128221;</span> Saisie du jour
+  </a>
+  <a href="#" data-page="supply" onclick="navigate('supply',this);closeMobileMenu()">
+    <span class="icon">&#128666;</span> Supply Chain
+  </a>
+  <a href="#" data-page="clients" onclick="navigate('clients',this);closeMobileMenu()">
+    <span class="icon">&#128188;</span> Clients & Commandes
+  </a>
+  <a href="#" data-page="exports" onclick="navigate('exports',this);closeMobileMenu()">
+    <span class="icon">&#128230;</span> Rapports & Exports
+  </a>
+  <a href="#" data-page="settings" onclick="navigate('settings',this);closeMobileMenu()">
+    <span class="icon">&#9881;</span> Paramètres
+  </a>
 </div>
 
 <!-- Login Screen -->
@@ -1835,8 +1895,8 @@ function applyRoleAccess() {
   // Set body class for CSS-based role hiding
   document.body.className = 'role-' + currentUser.role;
 
-  // Show/hide sidebar nav items
-  document.querySelectorAll('#sidebar nav a').forEach(a => {
+  // Show/hide nav items in header + mobile menu
+  document.querySelectorAll('#header-nav a, #mobile-menu a').forEach(a => {
     const page = a.getAttribute('data-page');
     a.style.display = allowedPages.includes(page) ? '' : 'none';
   });
@@ -2162,9 +2222,21 @@ function hideOfflineBanner() {
 function navigate(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
-  if (el) el.classList.add('active');
-  closeSidebar();
+  // Update active state in header nav
+  document.querySelectorAll('#header-nav a').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('#mobile-menu a').forEach(a => a.classList.remove('active'));
+  // Find and activate the clicked link or match by data-page
+  if (el) {
+    el.classList.add('active');
+    // Also sync the other nav
+    const dp = el.getAttribute('data-page');
+    if (dp) {
+      document.querySelectorAll('#header-nav a[data-page="' + dp + '"], #mobile-menu a[data-page="' + dp + '"]').forEach(a => a.classList.add('active'));
+    }
+  } else {
+    document.querySelectorAll('[data-page="' + page + '"]').forEach(a => a.classList.add('active'));
+  }
+  closeMobileMenu();
 
   switch (page) {
     case 'dashboard': renderDashboard(); break;
@@ -2179,14 +2251,15 @@ function navigate(page, el) {
   return false;
 }
 
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebar-overlay').classList.toggle('open');
+function toggleMobileMenu() {
+  document.getElementById('mobile-menu').classList.toggle('open');
 }
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('open');
+function closeMobileMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
 }
+// Keep old names as aliases for any remaining references
+function toggleSidebar() { toggleMobileMenu(); }
+function closeSidebar() { closeMobileMenu(); }
 
 // ── Compute indicators for a batch ──
 function computeIndicators(bande) {
