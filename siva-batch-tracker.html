@@ -75,6 +75,7 @@ body {
   padding: 0 1.25rem;
   z-index: 100;
   box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  overflow: hidden;
 }
 
 /* Header — Left (logo) */
@@ -97,21 +98,22 @@ body {
 /* Header — Center (nav) */
 #top-header .hdr-nav {
   display: flex; align-items: center; gap: 0;
-  overflow-x: auto; flex: 1; justify-content: center;
-  margin: 0 1rem;
+  overflow: hidden; flex: 1; justify-content: center;
+  margin: 0 0.5rem;
 }
 #top-header .hdr-nav a {
   color: rgba(255,255,255,0.70);
   text-decoration: none;
   font-family: 'Nunito', sans-serif;
-  font-size: 0.82rem; font-weight: 700;
-  padding: 0 1rem; height: var(--header-h);
+  font-size: 0.78rem; font-weight: 700;
+  padding: 0 0.65rem; height: var(--header-h);
   display: flex; align-items: center;
   border-bottom: 3px solid transparent;
   white-space: nowrap;
   transition: color 0.2s, border-color 0.2s;
 }
 #top-header .hdr-nav a .icon { display: none; }
+#top-header .hdr-nav .nav-short { display: none; }
 #top-header .hdr-nav a:hover { color: #fff; }
 #top-header .hdr-nav a.active {
   color: #fff;
@@ -725,18 +727,18 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 .commercial-grid .card { min-height: 300px; }
 
 /* ── Nav abbreviation for medium screens ── */
-.nav-appro-short { display: none; }
-.nav-appro-full { display: inline; }
 @media (max-width: 1400px) {
-  .nav-appro-full { display: none; }
-  .nav-appro-short { display: inline; }
+  #top-header .hdr-nav .nav-full { display: none; }
+  #top-header .hdr-nav .nav-short { display: inline; }
+}
+@media (max-width: 1200px) {
+  #top-header .hdr-nav a { font-size: 0.72rem; padding: 0 0.45rem; }
+  #top-header .hdr-nav a .icon { display: inline; font-size: 0.85rem; margin-right: 0.2rem; }
 }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
   #top-header .hdr-nav { display: none; }
-  .nav-appro-full { display: none !important; }
-  .nav-appro-short { display: inline !important; }
   #top-header .hdr-subtitle { display: none; }
   #top-header .hdr-user { display: none; }
   #top-header .hdr-sync { display: none; }
@@ -756,28 +758,28 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
   <!-- Left: Logo -->
   <div class="hdr-left">
     <span class="hdr-logo">COQORICO</span>
-    <span class="hdr-subtitle">Les Terres du Sud — Azaguié</span>
+    <span class="hdr-subtitle">SIVA</span>
   </div>
 
   <!-- Center: Nav -->
   <nav class="hdr-nav" id="header-nav">
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
-      <span class="icon">&#128202;</span> Vue Opérationnelle <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
+      <span class="icon">&#128202;</span> <span class="nav-full">Vue Opérationnelle</span><span class="nav-short">Vue Op.</span> <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
     <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
-      <span class="icon">&#128221;</span> Saisie du jour
+      <span class="icon">&#128221;</span> Saisie
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> Données historisées
+      <span class="icon">&#128200;</span> <span class="nav-full">Données historisées</span><span class="nav-short">Historique</span>
     </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon">&#129385;</span> Abattage
     </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
-      <span class="icon">&#128666;</span> <span class="nav-appro-full">Chaîne d'approvisionnement</span><span class="nav-appro-short">Appro.</span>
+      <span class="icon">&#128666;</span> <span class="nav-full">Chaîne d'appro.</span><span class="nav-short">Appro.</span>
     </a>
     <a href="#" data-page="clients" onclick="navigate('clients',this)">
-      <span class="icon">&#128188;</span> Clients & Commandes
+      <span class="icon">&#128188;</span> <span class="nav-full">Clients & Commandes</span><span class="nav-short">Clients</span>
     </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
       <span class="icon">&#128176;</span> Trésorerie
