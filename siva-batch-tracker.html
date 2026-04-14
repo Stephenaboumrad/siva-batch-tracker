@@ -724,9 +724,19 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 }
 .commercial-grid .card { min-height: 300px; }
 
+/* ── Nav abbreviation for medium screens ── */
+.nav-appro-short { display: none; }
+.nav-appro-full { display: inline; }
+@media (max-width: 1400px) {
+  .nav-appro-full { display: none; }
+  .nav-appro-short { display: inline; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   #top-header .hdr-nav { display: none; }
+  .nav-appro-full { display: none !important; }
+  .nav-appro-short { display: inline !important; }
   #top-header .hdr-subtitle { display: none; }
   #top-header .hdr-user { display: none; }
   #top-header .hdr-sync { display: none; }
@@ -754,20 +764,20 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
       <span class="icon">&#128202;</span> Vue Opérationnelle <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
-    <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> Données historisées
-    </a>
     <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
       <span class="icon">&#128221;</span> Saisie du jour
     </a>
+    <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
+      <span class="icon">&#128200;</span> Données historisées
+    </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
-      <span class="icon">&#128666;</span> Supply Chain
+      <span class="icon">&#128666;</span> <span class="nav-appro-full">Chaîne d'approvisionnement</span><span class="nav-appro-short">Appro.</span>
     </a>
     <a href="#" data-page="clients" onclick="navigate('clients',this)">
       <span class="icon">&#128188;</span> Clients & Commandes
     </a>
     <a href="#" data-page="exports" onclick="navigate('exports',this)">
-      <span class="icon">&#128230;</span> Rapports & Exports
+      <span class="icon">&#128176;</span> Trésorerie
     </a>
     <a href="#" data-page="settings" onclick="navigate('settings',this)">
       <span class="icon">&#9881;</span> Paramètres
@@ -792,20 +802,20 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
   <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this);closeMobileMenu()">
     <span class="icon">&#128202;</span> Vue Opérationnelle
   </a>
-  <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
-    <span class="icon">&#128200;</span> Données historisées
-  </a>
   <a href="#" data-page="saisie" onclick="navigate('saisie',this);closeMobileMenu()">
     <span class="icon">&#128221;</span> Saisie du jour
   </a>
+  <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
+    <span class="icon">&#128200;</span> Données historisées
+  </a>
   <a href="#" data-page="supply" onclick="navigate('supply',this);closeMobileMenu()">
-    <span class="icon">&#128666;</span> Supply Chain
+    <span class="icon">&#128666;</span> Chaîne d'approvisionnement
   </a>
   <a href="#" data-page="clients" onclick="navigate('clients',this);closeMobileMenu()">
     <span class="icon">&#128188;</span> Clients & Commandes
   </a>
   <a href="#" data-page="exports" onclick="navigate('exports',this);closeMobileMenu()">
-    <span class="icon">&#128230;</span> Rapports & Exports
+    <span class="icon">&#128176;</span> Trésorerie
   </a>
   <a href="#" data-page="settings" onclick="navigate('settings',this);closeMobileMenu()">
     <span class="icon">&#9881;</span> Paramètres
@@ -1013,7 +1023,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 
   <!-- ═══════════════ PAGE: ALIMENTATION ═══════════════ -->
   <div id="page-supply" class="page">
-    <h2>&#128666; Supply Chain</h2>
+    <h2>&#128666; Chaîne d'approvisionnement</h2>
 
     <!-- Flow indicator -->
     <div class="sc-flow" id="sc-flow">
@@ -1203,22 +1213,50 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 
   <!-- ═══════════════ PAGE: EXPORTS ═══════════════ -->
   <div id="page-exports" class="page">
-    <h2>&#128230; Exports</h2>
-    <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
-      <label>Sélectionner une bande</label>
-      <select id="export-bande-select"></select>
+    <h2>&#128176; Trésorerie</h2>
+    <p style="color:#7A3A00;font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">Suivi financier des bandes et de l'exploitation</p>
+
+    <!-- Zone 1: KPIs financiers -->
+    <div id="treso-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+
+    <!-- Zone 2: Tableau par bande -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Performance financière par bande</h3></div>
+      <div id="treso-table" class="table-wrap"></div>
     </div>
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-      <button class="btn btn-primary" onclick="exportPDF()">&#128196; Exporter PDF</button>
-      <button class="btn btn-gold" onclick="exportExcel()">&#128202; Exporter Excel</button>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        <h3>Résumé financier</h3>
-        <button class="btn btn-outline btn-sm" onclick="copyFinancialSummary()">Copier</button>
+
+    <!-- Zone 3 + 4: Charts -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;margin-bottom:1.5rem;">
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Répartition des coûts par poste</h3></div>
+        <div style="position:relative;height:280px;"><canvas id="chart-treso-costs"></canvas></div>
+        <div id="treso-costs-legend" style="font-size:0.8rem;color:#7A3A00;margin-top:0.5rem;"></div>
       </div>
-      <div id="financial-summary"></div>
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">CA vs Coûts par bande</h3></div>
+        <div style="font-size:0.75rem;color:#7A3A00;margin-bottom:0.5rem;">
+          <span style="display:inline-block;width:12px;height:12px;background:#27AE60;border-radius:2px;vertical-align:middle;"></span> CA réalisé &nbsp;
+          <span style="display:inline-block;width:12px;height:12px;background:#FF6B00;border-radius:2px;vertical-align:middle;"></span> Coût total &nbsp;
+          <span style="display:inline-block;width:12px;height:3px;background:#E74C3C;border-radius:1px;vertical-align:middle;border-top:2px dashed #E74C3C;"></span> Marge brute
+        </div>
+        <div style="position:relative;height:260px;"><canvas id="chart-treso-ca"></canvas></div>
+      </div>
     </div>
+
+    <!-- Zone 5: Flux mensuel -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Flux mensuel</h3></div>
+      <div id="treso-flux" class="table-wrap"></div>
+    </div>
+
+    <!-- Zone 6: Export buttons -->
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;padding-top:0.5rem;">
+      <button class="btn btn-primary" onclick="exportBilanPDF()">&#128196; Télécharger bilan PDF</button>
+      <button class="btn btn-gold" onclick="exportBilanExcel()">&#128202; Exporter Excel</button>
+      <button class="btn btn-outline" onclick="exportPDF()">&#128203; Registre JGAP (PDF)</button>
+    </div>
+    <!-- Hidden select for legacy exportPDF -->
+    <select id="export-bande-select" style="display:none;"></select>
   </div>
 
   <!-- ═══════════════ PAGE: PARAMETRES ═══════════════ -->
@@ -3429,77 +3467,284 @@ async function deleteIntrant(intrantId) {
 }
 
 // ── Exports ──
-function initExportsPage() {
+let tresoCharts = { costs: null, ca: null };
+
+function initExportsPage() { initTresoreriePage(); }
+
+function computeBandeFinancials(bande) {
+  const ind = computeIndicators(bande);
+  const coutFormulations = computeCoutAlimentaire(bande.bande_id);
+  const coutTotal = ind.coutPoussins + ind.coutAliment + ind.coutIntrants + coutFormulations;
+  const caRealise = STATE.commandes
+    .filter(c => c.bande_id === bande.bande_id && c.statut === 'livree')
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const margeBrute = caRealise - coutTotal;
+  const carcasseKg = ind.totalCarcasseKg || 0;
+  const margeKg = carcasseKg > 0 ? margeBrute / carcasseKg : 0;
+  const coutRevientKg = carcasseKg > 0 ? coutTotal / carcasseKg : 0;
+  return { ind, coutFormulations, coutTotal, caRealise, margeBrute, carcasseKg, margeKg, coutRevientKg };
+}
+
+function initTresoreriePage() {
+  // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
   select.innerHTML = STATE.bandes.map(b =>
-    `<option value="${b.bande_id}">${b.nom_bande} (${b.statut === 'en_cours' ? 'En cours' : 'Terminée'})</option>`
+    '<option value="' + b.bande_id + '">' + b.nom_bande + '</option>'
   ).join('');
-  renderFinancialSummary();
-  select.onchange = renderFinancialSummary;
-}
 
-function renderFinancialSummary() {
-  const bandeId = document.getElementById('export-bande-select').value;
-  const container = document.getElementById('financial-summary');
-  if (!bandeId) { container.innerHTML = '<p style="color:var(--text-light);">Sélectionnez une bande</p>'; return; }
+  const today = todayStr();
+  const thisMonth = today.slice(0, 7);
+  const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
 
-  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
-  const ind = computeIndicators(bande);
+  // ── Zone 1: KPIs ──
+  const caEncaisse = STATE.commandes
+    .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth))
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const caAttente = STATE.commandes
+    .filter(c => c.statut === 'confirmee' || c.statut === 'en_preparation')
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const coutsEngages = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
+  const margeEstimee = caEncaisse - coutsEngages;
+  const totalCarcKg = allBF.reduce((s, bf) => s + bf.fin.carcasseKg, 0);
+  const margeKgGlobal = totalCarcKg > 0 ? margeEstimee / totalCarcKg : 0;
 
-  const rows = [
-    ['Produit brut (vente carcasses)', fmt(ind.produitBrut) + ' FCFA'],
-    ['Coût poussins', fmt(ind.coutPoussins) + ' FCFA'],
-    ['Coût aliment', fmt(ind.coutAliment) + ' FCFA'],
-    ['Coût alimentaire (formulations)', fmt(computeCoutAlimentaire(bandeId)) + ' FCFA'],
-    ['Coût intrants (médicaments/vaccins)', fmt(ind.coutIntrants) + ' FCFA'],
-    ['<strong>Marge brute</strong>', `<strong style="color:${ind.margeBrute >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(ind.margeBrute)} FCFA</strong>`],
-    ['Marge par kg carcasse', fmt(ind.margeParKg) + ' FCFA/kg'],
-    ['', ''],
-    ['Nb oiseaux vendus', fmt(ind.nbSortie)],
-    ['Poids carcasse moyen', fmt(ind.poidsCarcasseSortie) + ' g'],
-    ['Total carcasse produit', fmt(ind.totalCarcasseKg, 1) + ' kg'],
-    ['Prix vente', fmt(ind.prixVente) + ' FCFA/kg'],
-    ['Rendement carcasse', ind.rendement + '%'],
-    ['IC final', ind.ic != null ? fmt(ind.ic, 2) : '—'],
-    ['Taux mortalité', fmt(ind.tauxMort, 1) + '%']
-  ];
+  document.getElementById('treso-kpis').innerHTML =
+    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA encaissé ce mois</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi" style="border-left-color:#FF8C00;"><div class="dk-value" style="color:#FF8C00;">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
 
-  let html = '<table>';
-  rows.forEach(([label, value]) => {
-    if (!label && !value) {
-      html += '<tr><td colspan="2" style="border:none;height:0.5rem;"></td></tr>';
-    } else {
-      html += `<tr><td>${label}</td><td style="text-align:right;font-weight:500;">${value}</td></tr>`;
-    }
+  // ── Zone 2: Table par bande ──
+  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th>Oiseaux</th><th style="text-align:right;">Coût total</th><th style="text-align:right;">CA réalisé</th><th style="text-align:right;">Marge brute</th><th style="text-align:right;">Marge/kg</th><th style="text-align:right;">Coût revient/kg</th></tr></thead><tbody>';
+  let totCout = 0, totCA = 0, totMarge = 0;
+  allBF.forEach(bf => {
+    const b = bf.bande, f = bf.fin;
+    const borderColor = b.statut === 'en_cours' ? '#FF8C00' : f.margeBrute >= 0 ? '#27AE60' : '#E74C3C';
+    const statutBadge = b.statut === 'en_cours'
+      ? '<span class="badge badge-green">En cours</span> <span class="badge badge-orange" style="font-size:0.65rem;">Projection</span>'
+      : '<span class="badge badge-grey">Terminée</span>';
+    const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
+    tblHtml += '<tr style="border-left:4px solid ' + borderColor + ';">' +
+      '<td><strong>' + b.nom_bande + '</strong></td>' +
+      '<td>' + statutBadge + '</td>' +
+      '<td>' + fmt(nb) + '</td>' +
+      '<td style="text-align:right;">' + fmt(f.coutTotal) + '</td>' +
+      '<td style="text-align:right;">' + fmt(f.caRealise) + '</td>' +
+      '<td style="text-align:right;color:' + (f.margeBrute >= 0 ? '#27AE60' : '#E74C3C') + ';font-weight:700;">' + fmt(f.margeBrute) + '</td>' +
+      '<td style="text-align:right;">' + fmt(f.margeKg) + '</td>' +
+      '<td style="text-align:right;">' + fmt(f.coutRevientKg) + '</td></tr>';
+    totCout += f.coutTotal; totCA += f.caRealise; totMarge += f.margeBrute;
   });
-  html += '</table>';
-  container.innerHTML = html;
+  tblHtml += '</tbody><tfoot><tr style="font-weight:700;background:#FFF3E8;">' +
+    '<td colspan="3">TOTAL</td>' +
+    '<td style="text-align:right;">' + fmt(totCout) + '</td>' +
+    '<td style="text-align:right;">' + fmt(totCA) + '</td>' +
+    '<td style="text-align:right;color:' + (totMarge >= 0 ? '#27AE60' : '#E74C3C') + ';">' + fmt(totMarge) + '</td>' +
+    '<td colspan="2"></td></tr></tfoot></table>';
+  document.getElementById('treso-table').innerHTML = tblHtml;
+
+  // ── Zone 3: Donut chart — cost breakdown ──
+  if (tresoCharts.costs) tresoCharts.costs.destroy();
+  if (tresoCharts.ca) tresoCharts.ca.destroy();
+
+  const totPoussins = allBF.reduce((s, bf) => s + bf.fin.ind.coutPoussins, 0);
+  const totAliment = allBF.reduce((s, bf) => s + bf.fin.ind.coutAliment, 0);
+  const totIntrants = allBF.reduce((s, bf) => s + bf.fin.ind.coutIntrants, 0);
+  const totFormulations = allBF.reduce((s, bf) => s + bf.fin.coutFormulations, 0);
+  const costData = [totPoussins, totAliment, totIntrants, totFormulations];
+  const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Matières premières MP'];
+  const costColors = ['#FF8C00', '#FF6B00', '#1565C0', '#27AE60'];
+
+  const ctx1 = document.getElementById('chart-treso-costs');
+  if (ctx1) {
+    tresoCharts.costs = new Chart(ctx1.getContext('2d'), {
+      type: 'doughnut',
+      data: { labels: costLabels, datasets: [{ data: costData, backgroundColor: costColors }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+  const costTotal = costData.reduce((a, b) => a + b, 0);
+  document.getElementById('treso-costs-legend').innerHTML = costLabels.map((l, i) =>
+    '<span style="display:inline-flex;align-items:center;gap:0.3rem;margin-right:1rem;">' +
+    '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + costColors[i] + ';"></span>' +
+    l + ' : ' + fmt(costData[i]) + ' FCFA (' + (costTotal > 0 ? Math.round(costData[i] / costTotal * 100) : 0) + '%)</span>'
+  ).join('');
+
+  // ── Zone 4: Grouped bar chart — CA vs Costs per batch ──
+  const batchNames = allBF.map(bf => bf.bande.nom_bande);
+  const batchCA = allBF.map(bf => bf.fin.caRealise);
+  const batchCosts = allBF.map(bf => bf.fin.coutTotal);
+  const batchMarges = allBF.map(bf => bf.fin.margeBrute);
+
+  const ctx2 = document.getElementById('chart-treso-ca');
+  if (ctx2) {
+    tresoCharts.ca = new Chart(ctx2.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: batchNames,
+        datasets: [
+          { label: 'CA réalisé', data: batchCA, backgroundColor: '#27AE60', borderRadius: 4 },
+          { label: 'Coût total', data: batchCosts, backgroundColor: '#FF6B00', borderRadius: 4 },
+          { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: '#E74C3C', borderDash: [6, 3], borderWidth: 2, pointRadius: 4, fill: false }
+        ]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  }
+
+  // ── Zone 5: Flux mensuel (last 6 months) ──
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    months.push(d.toISOString().slice(0, 7));
+  }
+  const monthNames = months.map(m => {
+    const [y, mo] = m.split('-');
+    return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'][parseInt(mo) - 1] + ' ' + y;
+  });
+
+  let fluxHtml = '<table><thead><tr><th>Mois</th><th style="text-align:right;">Entrées (CA livré)</th><th style="text-align:right;">Sorties (coûts)</th><th style="text-align:right;">Solde</th><th style="text-align:right;">Cumulé</th></tr></thead><tbody>';
+  let cumule = 0;
+  months.forEach((m, idx) => {
+    const entrees = STATE.commandes
+      .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(m))
+      .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+    // Sorties: batch costs for batches with date_entree in this month
+    const sorties = STATE.bandes
+      .filter(b => b.date_entree && b.date_entree.startsWith(m))
+      .reduce((s, b) => { const f = computeBandeFinancials(b); return s + f.coutTotal; }, 0);
+    const solde = entrees - sorties;
+    cumule += solde;
+    fluxHtml += '<tr><td><strong>' + monthNames[idx] + '</strong></td>' +
+      '<td style="text-align:right;color:#27AE60;">' + (entrees > 0 ? '+' + fmt(entrees) : '—') + '</td>' +
+      '<td style="text-align:right;color:#E74C3C;">' + (sorties > 0 ? '-' + fmt(sorties) : '—') + '</td>' +
+      '<td style="text-align:right;font-weight:700;color:' + (solde >= 0 ? '#27AE60' : '#E74C3C') + ';">' + fmt(solde) + '</td>' +
+      '<td style="text-align:right;color:' + (cumule >= 0 ? '#27AE60' : '#E74C3C') + ';">' + fmt(cumule) + '</td></tr>';
+  });
+  fluxHtml += '</tbody></table>';
+  document.getElementById('treso-flux').innerHTML = fluxHtml;
 }
 
-function copyFinancialSummary() {
-  const bandeId = document.getElementById('export-bande-select').value;
-  if (!bandeId) return;
-  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
-  const ind = computeIndicators(bande);
+// ── Bilan PDF export ──
+function exportBilanPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pw = doc.internal.pageSize.getWidth();
+  const now = new Date();
+  const moisAnnee = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][now.getMonth()] + ' ' + now.getFullYear();
+  let y = 15;
 
-  const text = `RÉSUMÉ FINANCIER — ${bande.nom_bande}
-${'═'.repeat(40)}
-Produit brut:          ${fmt(ind.produitBrut)} FCFA
-Coût poussins:         ${fmt(ind.coutPoussins)} FCFA
-Coût aliment:          ${fmt(ind.coutAliment)} FCFA
-Coût intrants:         ${fmt(ind.coutIntrants)} FCFA
-${'─'.repeat(40)}
-MARGE BRUTE:           ${fmt(ind.margeBrute)} FCFA
-Marge/kg carcasse:     ${fmt(ind.margeParKg)} FCFA/kg
-${'─'.repeat(40)}
-Oiseaux vendus:        ${fmt(ind.nbSortie)}
-Total carcasse:        ${fmt(ind.totalCarcasseKg, 1)} kg
-IC final:              ${ind.ic != null ? fmt(ind.ic, 2) : '—'}
-Mortalité:             ${fmt(ind.tauxMort, 1)}%
-${'═'.repeat(40)}
-SIVA — Société Ivoirienne de Volaille et Assimilés / Les Terres du Sud — Azaguié`;
+  // Header
+  doc.setFillColor(255, 107, 0);
+  doc.rect(0, 0, pw, 28, 'F');
+  doc.setTextColor(255);
+  doc.setFontSize(18);
+  doc.setFont(undefined, 'bold');
+  doc.text('COQORICO', 10, 12);
+  doc.setFontSize(11);
+  doc.text('Bilan Financier — ' + moisAnnee, 10, 22);
+  doc.setFontSize(8);
+  doc.text('Les Terres du Sud — Azaguié', pw - 10, 22, { align: 'right' });
+  y = 35;
 
-  navigator.clipboard.writeText(text).then(() => toast('Copié dans le presse-papier'));
+  // KPIs
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'bold');
+  doc.text('Indicateurs clés', 10, y); y += 6;
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9);
+
+  const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
+  const today = todayStr();
+  const thisMonth = today.slice(0, 7);
+  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const coutsT = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
+
+  doc.text('CA encaissé ce mois : ' + fmt(caEnc) + ' FCFA', 14, y); y += 5;
+  doc.text('Coûts engagés : ' + fmt(coutsT) + ' FCFA', 14, y); y += 5;
+  doc.text('Marge brute estimée : ' + fmt(caEnc - coutsT) + ' FCFA', 14, y); y += 10;
+
+  // Table
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(10);
+  doc.text('Performance par bande', 10, y); y += 6;
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+
+  const cols = [10, 45, 75, 105, 135, 165];
+  doc.setFillColor(255, 243, 232);
+  doc.rect(10, y, pw - 20, 6, 'F');
+  ['Bande', 'Oiseaux', 'Coût total', 'CA réalisé', 'Marge', 'Marge/kg'].forEach((h, i) => doc.text(h, cols[i], y + 4));
+  y += 8;
+
+  allBF.forEach(bf => {
+    if (y > 270) { doc.addPage(); y = 15; }
+    const b = bf.bande, f = bf.fin;
+    const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
+    doc.text(b.nom_bande, cols[0], y);
+    doc.text(fmt(nb), cols[1], y);
+    doc.text(fmt(f.coutTotal), cols[2], y);
+    doc.text(fmt(f.caRealise), cols[3], y);
+    doc.text(fmt(f.margeBrute), cols[4], y);
+    doc.text(fmt(f.margeKg) + ' FCFA', cols[5], y);
+    y += 5;
+  });
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(150);
+  doc.text('Document confidentiel — SIVA / Les Terres du Sud — ' + now.toLocaleDateString('fr-FR'), 10, 285);
+
+  doc.save('bilan-financier-' + thisMonth + '.pdf');
+  toast('Bilan PDF généré');
+}
+
+// ── Bilan Excel export ──
+function exportBilanExcel() {
+  const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
+  const wb = XLSX.utils.book_new();
+  const today = todayStr();
+  const thisMonth = today.slice(0, 7);
+
+  // Sheet 1: KPIs
+  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const coutsT = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    ['KPIs Financiers — ' + thisMonth],
+    [], ['CA encaissé ce mois', caEnc],
+    ['Coûts engagés', coutsT],
+    ['Marge brute estimée', caEnc - coutsT]
+  ]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'KPIs');
+
+  // Sheet 2: Par bande
+  const ws2Data = [['Bande', 'Statut', 'Oiseaux', 'Coût total', 'CA réalisé', 'Marge brute', 'Marge/kg', 'Coût revient/kg']];
+  allBF.forEach(bf => {
+    const b = bf.bande, f = bf.fin;
+    const nb = b.statut === 'termine' ? (Number(b.nb_oiseaux_sortie) || f.ind.effectifActuel) : f.ind.effectifActuel;
+    ws2Data.push([b.nom_bande, b.statut, nb, f.coutTotal, f.caRealise, f.margeBrute, Math.round(f.margeKg), Math.round(f.coutRevientKg)]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Par bande');
+
+  // Sheet 3: Flux mensuel
+  const ws3Data = [['Mois', 'Entrées (CA)', 'Sorties (coûts)', 'Solde', 'Cumulé']];
+  let cumule = 0;
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const m = d.toISOString().slice(0, 7);
+    const entrees = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(m)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+    const sorties = STATE.bandes.filter(b => b.date_entree && b.date_entree.startsWith(m)).reduce((s, b) => s + computeBandeFinancials(b).coutTotal, 0);
+    const solde = entrees - sorties;
+    cumule += solde;
+    ws3Data.push([m, entrees, sorties, solde, cumule]);
+  }
+  const ws3 = XLSX.utils.aoa_to_sheet(ws3Data);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Flux mensuel');
+
+  XLSX.writeFile(wb, 'bilan-financier-' + thisMonth + '.xlsx');
+  toast('Excel exporté');
 }
 
 // ── PDF Export ──
