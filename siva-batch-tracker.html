@@ -758,6 +758,112 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
   .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
+/* ── Deadline timers ── */
+.deadlines-section-title {
+  font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.72rem;
+  color: #6D4C41; text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 0.75rem; margin-top: 0.25rem;
+}
+.deadlines-row {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px;
+  margin-bottom: 1.25rem; scrollbar-width: thin;
+}
+.deadline-card {
+  width: 200px; flex-shrink: 0; background: #FFFFFF;
+  border: 1px solid #FFE0CC; border-radius: 8px;
+  padding: 0.85rem 1rem; cursor: default;
+}
+.deadline-card .dl-icon { font-size: 1rem; margin-bottom: 0.3rem; }
+.deadline-card .dl-label {
+  font-size: 0.72rem; font-weight: 600; color: #1A0A00;
+  line-height: 1.3; margin-bottom: 0.4rem;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.deadline-card .dl-count {
+  font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 800;
+  line-height: 1; margin-bottom: 0.25rem;
+}
+.deadline-card .dl-sub { font-size: 0.68rem; color: #9E9E9E; }
+.deadline-card .dl-date { font-size: 0.65rem; color: #BDBDBD; margin-top: 0.4rem; }
+
+/* ── Notification panel ── */
+.notif-panel {
+  position: fixed; top: 56px; right: 0; bottom: 0;
+  width: 380px; background: #FFFFFF;
+  border-left: 1px solid #FFE0CC;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.10);
+  z-index: 200; display: none;
+  flex-direction: column; overflow: hidden;
+}
+.notif-panel.open { display: flex; }
+.notif-panel-header {
+  padding: 1rem 1.25rem; border-bottom: 1px solid #FFE0CC;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.notif-panel-header h3 { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.95rem; color: #1A0A00; margin: 0; }
+.notif-panel-tabs {
+  display: flex; border-bottom: 1px solid #FFE0CC; padding: 0 1rem;
+}
+.notif-panel-tabs button {
+  padding: 0.55rem 0.85rem; border: none; background: none;
+  font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 500;
+  color: #6D4C41; cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.notif-panel-tabs button.active { color: #E65100; border-bottom-color: #E65100; font-weight: 600; }
+.notif-panel-body { flex: 1; overflow-y: auto; padding: 0.75rem 1rem; }
+.notif-card {
+  background: #FFFFFF; border: 1px solid #FFE0CC;
+  border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.75rem;
+}
+.notif-card.unread { border-left: 3px solid #E65100; }
+.notif-card .nc-header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; margin-bottom: 0.4rem;
+}
+.notif-card .nc-title {
+  font-size: 0.82rem; font-weight: 600; color: #1A0A00;
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.notif-card .nc-time { font-size: 0.7rem; color: #9E9E9E; white-space: nowrap; }
+.notif-card .nc-author { font-size: 0.72rem; color: #6D4C41; margin-bottom: 0.25rem; }
+.notif-card .nc-payload {
+  background: #FFF8F5; border-radius: 6px;
+  padding: 0.5rem 0.65rem; font-size: 0.75rem;
+  color: #6D4C41; margin: 0.5rem 0; line-height: 1.6;
+}
+.notif-card .nc-actions { display: flex; gap: 0.5rem; margin-top: 0.65rem; }
+.nc-note-input {
+  width: 100%; margin-top: 0.5rem; padding: 0.4rem 0.6rem;
+  border: 1px solid #FFCCAA; border-radius: 6px;
+  font-size: 0.78rem; font-family: 'Inter', sans-serif; display: none;
+}
+.hdr-bell {
+  background: transparent; border: none;
+  color: rgba(255,255,255,0.8); cursor: pointer;
+  font-size: 1.1rem; position: relative;
+  padding: 0.25rem; display: flex; align-items: center;
+}
+.bell-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: #C62828; color: white;
+  border-radius: 50%; width: 16px; height: 16px;
+  font-size: 0.6rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.notif-status-badge {
+  display: inline-block; padding: 0.15rem 0.45rem; border-radius: 4px;
+  font-size: 0.68rem; font-weight: 600;
+}
+.notif-status-badge.en_attente { background: #FFF8E1; color: #F57F17; }
+.notif-status-badge.validee { background: #E8F5E9; color: #2E7D32; }
+.notif-status-badge.rejetee { background: #FFEBEE; color: #C62828; }
+@media (max-width: 768px) {
+  .notif-panel { width: 100%; }
+  .deadlines-row { gap: 8px; }
+  .deadline-card { width: 170px; }
+}
 </style>
 </head>
 <body>
@@ -800,6 +906,7 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
 
   <!-- Right: User + Sync + Logout -->
   <div class="hdr-right">
+    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Notifications">🔔<span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
     <div id="sync-status">
       <span class="sync-dot green"></span> <span id="sync-text">Synchronisé</span>
     </div>
@@ -837,6 +944,19 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
   <a href="#" data-page="settings" onclick="navigate('settings',this);closeMobileMenu()">
     <span class="icon">&#9881;</span> Paramètres
   </a>
+</div>
+
+<!-- Notification Panel -->
+<div id="notif-panel" class="notif-panel">
+  <div class="notif-panel-header">
+    <h3>Activité &amp; Validations</h3>
+    <button onclick="toggleNotifPanel()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#6D4C41;">&times;</button>
+  </div>
+  <div class="notif-panel-tabs">
+    <button class="active" onclick="switchNotifTab('pending',this)">En attente <span id="notif-pending-count" style="background:#FFF8E1;color:#F57F17;border-radius:4px;padding:0 0.35rem;font-size:0.68rem;margin-left:0.3rem;"></span></button>
+    <button onclick="switchNotifTab('history',this)">Historique</button>
+  </div>
+  <div class="notif-panel-body" id="notif-panel-body"></div>
 </div>
 
 <!-- Login Screen -->
@@ -884,6 +1004,8 @@ tr.row-inactive td { background: #FFF3E8; color: #9e9e9e; }
     <div id="dash-alerts"></div>
     <!-- Zone 2: KPIs agrégés -->
     <div id="dash-kpis" class="dash-kpi-bar"></div>
+    <!-- Zone 2b: Deadline timers -->
+    <div id="dash-deadlines"></div>
     <!-- Zone 3: Bandes actives -->
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
@@ -1833,7 +1955,8 @@ const SHEETS = {
   ABATTAGES: 'Abattages',
   EMPLOYES: 'Employes',
   PAIES: 'Paies',
-  DEPENSES_RH: 'DepensesRH'
+  DEPENSES_RH: 'DepensesRH',
+  NOTIFICATIONS: 'Notifications'
 };
 
 const HEADERS = {
@@ -1915,6 +2038,11 @@ const HEADERS = {
   DepensesRH: [
     'depense_id','date_depense','type','description',
     'montant_fcfa','employe_id','note'
+  ],
+  Notifications: [
+    'notif_id','type','action','bande_id','bande_nom',
+    'auteur_matricule','auteur_nom','date_action','statut',
+    'valide_par','date_validation','payload_json','note_manager','lu_par'
   ]
 };
 
@@ -2040,6 +2168,13 @@ function doGet(e) {
         };
         break;
 
+      case 'getNotifications':
+        result = getSheetData(ss, SHEETS.NOTIFICATIONS);
+        if (e.parameter.statut) {
+          result = result.filter(r => r.statut === e.parameter.statut);
+        }
+        break;
+
       case 'getAll':
         result = {
           bandes: getSheetData(ss, SHEETS.BANDES),
@@ -2058,7 +2193,8 @@ function doGet(e) {
           abattages: getSheetData(ss, SHEETS.ABATTAGES),
           employes: getSheetData(ss, SHEETS.EMPLOYES),
           paies: getSheetData(ss, SHEETS.PAIES),
-          depensesRH: getSheetData(ss, SHEETS.DEPENSES_RH)
+          depensesRH: getSheetData(ss, SHEETS.DEPENSES_RH),
+          notifications: getSheetData(ss, SHEETS.NOTIFICATIONS)
         };
         break;
 
@@ -2212,6 +2348,12 @@ function doPost(e) {
       case 'deleteDepenseRH':
         result = deleteRow(ss, SHEETS.DEPENSES_RH, 'depense_id', data.payload.depense_id);
         break;
+      case 'addNotification':
+        result = addRow(ss, SHEETS.NOTIFICATIONS, HEADERS.Notifications, data.payload);
+        break;
+      case 'updateNotification':
+        result = updateRow(ss, SHEETS.NOTIFICATIONS, HEADERS.Notifications, 'notif_id', data.payload.notif_id, data.payload);
+        break;
 
       default:
         result = { error: 'Action inconnue: ' + action };
@@ -2332,6 +2474,10 @@ function doLogin() {
 
 function logout() {
   currentUser = null;
+  if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
+  document.getElementById('notif-bell').style.display = 'none';
+  const notifPanel = document.getElementById('notif-panel');
+  if (notifPanel) notifPanel.classList.remove('open');
   document.body.className = '';
   document.getElementById('login-matricule').value = '';
   document.getElementById('login-password').value = '';
@@ -2361,6 +2507,9 @@ function applyRoleAccess() {
   const badgeName = document.getElementById('user-badge-name');
   badge.style.display = '';
   badgeName.textContent = currentUser.matricule + ' — ' + currentUser.name;
+
+  // Show bell for all roles
+  document.getElementById('notif-bell').style.display = '';
 }
 
 function isManager() {
@@ -2372,7 +2521,7 @@ const PLACEHOLDER_URL = 'VOTRE_URL_APPS_SCRIPT_ICI';
 let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDER_URL;
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null };
 
 // ── Slaughter forecast constants (configurable) ──
@@ -2382,6 +2531,7 @@ const TARGET_CARCASS_YIELD_PCT = 58; // rendement => 1900 × 0.58 = 1102g
 // ── Offline / Sync state ──
 let isOnline = true;
 let syncCheckInterval = null;
+let notifPollInterval = null;
 
 // ── Cobb 500 standard curve ──
 const COBB_STANDARD = [
@@ -2605,6 +2755,7 @@ async function loadAllData() {
     STATE.employes = data.employes || [];
     STATE.paies = data.paies || [];
     STATE.depensesRH = data.depensesRH || [];
+    STATE.notifications = data.notifications || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières on first load if sheet is empty
@@ -2629,6 +2780,7 @@ async function loadAllData() {
         employes: STATE.employes,
         paies: STATE.paies,
         depensesRH: STATE.depensesRH,
+        notifications: STATE.notifications,
         cachedAt: new Date().toISOString()
       }));
     } catch (e) { /* localStorage full or unavailable */ }
@@ -2656,6 +2808,7 @@ async function loadAllData() {
       STATE.employes = cached.employes || [];
       STATE.paies = cached.paies || [];
       STATE.depensesRH = cached.depensesRH || [];
+      STATE.notifications = cached.notifications || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -2958,6 +3111,375 @@ function computeSlaughterForecast(bande, ind) {
   };
 }
 
+// ── Notifications & Deadlines ──
+const NOTIF_ICONS = { saisie: '📋', intrant: '💉', reception: '📦', abattage: '🔪' };
+
+function createNotification(type, action, bandeId, bandeNom, payload) {
+  const notif = {
+    notif_id: 'notif-' + uuid(),
+    type: type,
+    action: action,
+    bande_id: bandeId || '',
+    bande_nom: bandeNom || '',
+    auteur_matricule: currentUser.matricule,
+    auteur_nom: currentUser.name,
+    date_action: new Date().toISOString(),
+    statut: type === 'saisie' ? 'validee' : 'en_attente',
+    valide_par: type === 'saisie' ? 'auto' : '',
+    date_validation: type === 'saisie' ? new Date().toISOString() : '',
+    payload_json: JSON.stringify(payload),
+    note_manager: '',
+    lu_par: currentUser.matricule
+  };
+  STATE.notifications = STATE.notifications || [];
+  STATE.notifications.push(notif);
+  apiPost({ action: 'addNotification', payload: notif }).catch(() => {});
+  updateBellBadge();
+  return notif;
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notif-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    renderNotifPanel('pending');
+    markNotifsRead();
+  }
+}
+
+function switchNotifTab(tab, btn) {
+  document.querySelectorAll('.notif-panel-tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderNotifPanel(tab);
+}
+
+function renderNotifPanel(tab) {
+  const body = document.getElementById('notif-panel-body');
+  let notifs = STATE.notifications || [];
+  if (tab === 'pending') {
+    notifs = notifs.filter(n => n.statut === 'en_attente');
+  }
+  notifs = notifs.sort((a, b) => (b.date_action || '').localeCompare(a.date_action || '')).slice(0, 50);
+
+  const pendingCount = (STATE.notifications || []).filter(n => n.statut === 'en_attente').length;
+  const countEl = document.getElementById('notif-pending-count');
+  if (countEl) countEl.textContent = pendingCount > 0 ? pendingCount : '';
+
+  if (notifs.length === 0) {
+    body.innerHTML = '<p style="text-align:center;color:#9E9E9E;font-size:0.85rem;padding:2rem 0;">' +
+      (tab === 'pending' ? 'Aucune action en attente' : 'Aucun historique') + '</p>';
+    return;
+  }
+
+  let html = '';
+  notifs.forEach(n => {
+    const icon = NOTIF_ICONS[n.type] || '📝';
+    const isUnread = !(n.lu_par || '').includes(currentUser.matricule);
+    const timeAgo = formatTimeAgo(n.date_action);
+    let payload = {};
+    try { payload = JSON.parse(n.payload_json || '{}'); } catch(e) {}
+
+    html += '<div class="notif-card' + (isUnread ? ' unread' : '') + '">';
+    html += '<div class="nc-header"><div class="nc-title">' + icon + ' ' + escHtml(n.action) + '</div><span class="nc-time">' + timeAgo + '</span></div>';
+    html += '<div class="nc-author">' + escHtml(n.auteur_nom) + ' — ' + escHtml(n.auteur_matricule) + '</div>';
+    if (n.bande_nom) html += '<div style="font-size:0.72rem;color:#6D4C41;margin-bottom:0.25rem;">Bande : ' + escHtml(n.bande_nom) + '</div>';
+    html += '<span class="notif-status-badge ' + n.statut + '">' + formatNotifStatut(n.statut) + '</span>';
+
+    // Payload summary for managers
+    if (isManager() && n.statut === 'en_attente') {
+      html += '<div class="nc-payload">' + formatNotifPayload(n.type, payload) + '</div>';
+      html += '<input class="nc-note-input" id="nc-note-' + n.notif_id + '" placeholder="Note (optionnel pour rejet)…">';
+      html += '<div class="nc-actions">';
+      html += '<button class="btn btn-sm" style="background:#2E7D32;color:#fff;border-radius:6px;" onclick="validateNotif(\'' + n.notif_id + '\')">✓ Valider</button>';
+      html += '<button class="btn btn-sm" style="background:#C62828;color:#fff;border-radius:6px;" onclick="showRejectNote(\'' + n.notif_id + '\')">✗ Rejeter</button>';
+      html += '</div>';
+    } else if (isManager() && n.statut !== 'en_attente') {
+      html += '<div class="nc-payload">' + formatNotifPayload(n.type, payload) + '</div>';
+      if (n.note_manager) html += '<div style="font-size:0.72rem;color:#C62828;margin-top:0.3rem;">Note : ' + escHtml(n.note_manager) + '</div>';
+    }
+
+    html += '</div>';
+  });
+  body.innerHTML = html;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+function formatNotifStatut(s) {
+  if (s === 'en_attente') return 'En attente';
+  if (s === 'validee') return 'Validée';
+  if (s === 'rejetee') return 'Rejetée';
+  return s;
+}
+
+function formatNotifPayload(type, p) {
+  if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g';
+  if (type === 'intrant') return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + ' — ' + fmt(p.cout_total_fcfa || 0) + ' FCFA';
+  if (type === 'reception') return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + ' @ ' + fmt(p.prix_unitaire_fcfa || 0) + ' FCFA';
+  if (type === 'abattage') return (p.nb_oiseaux_abattus || 0) + ' oiseaux | ' + (p.poids_vif_total_kg || 0) + ' kg vif';
+  return JSON.stringify(p).slice(0, 120);
+}
+
+function formatTimeAgo(isoDate) {
+  if (!isoDate) return '';
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "à l'instant";
+  if (mins < 60) return 'il y a ' + mins + 'min';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return 'il y a ' + hrs + 'h';
+  const days = Math.floor(hrs / 24);
+  return 'il y a ' + days + 'j';
+}
+
+function showRejectNote(notifId) {
+  const input = document.getElementById('nc-note-' + notifId);
+  if (input) {
+    input.style.display = input.style.display === 'none' ? 'block' : 'none';
+    if (input.style.display === 'block') {
+      // Change reject button to confirm reject
+      input.focus();
+      input.onkeydown = function(e) { if (e.key === 'Enter') rejectNotif(notifId); };
+    }
+  }
+  // Also add a confirm button if not present
+  const card = input.closest('.notif-card');
+  const actions = card.querySelector('.nc-actions');
+  const existingConfirm = actions.querySelector('.reject-confirm-btn');
+  if (!existingConfirm && input.style.display === 'block') {
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-sm reject-confirm-btn';
+    confirmBtn.style.cssText = 'background:#7B1A1A;color:#fff;border-radius:6px;';
+    confirmBtn.textContent = 'Confirmer rejet';
+    confirmBtn.onclick = () => rejectNotif(notifId);
+    actions.appendChild(confirmBtn);
+  }
+}
+
+async function validateNotif(notifId) {
+  const notif = STATE.notifications.find(n => n.notif_id === notifId);
+  if (!notif) return;
+
+  // Update notification status
+  notif.statut = 'validee';
+  notif.valide_par = currentUser.name;
+  notif.date_validation = new Date().toISOString();
+
+  // Execute the original action
+  let payload = {};
+  try { payload = JSON.parse(notif.payload_json || '{}'); } catch(e) {}
+  const actionMap = { intrant: 'addIntrant', reception: 'addReception', abattage: 'addAbattage' };
+  const apiAction = actionMap[notif.type];
+
+  if (apiAction) {
+    try {
+      await apiPost({ action: apiAction, payload: payload });
+      // Push to local state
+      if (notif.type === 'intrant') STATE.intrants.push(payload);
+      else if (notif.type === 'reception') STATE.receptions.push(payload);
+      else if (notif.type === 'abattage') STATE.abattages.push(payload);
+    } catch(err) {
+      toast('Erreur lors de l\'exécution : ' + err.message, 'error');
+      // Revert notification
+      notif.statut = 'en_attente';
+      notif.valide_par = '';
+      notif.date_validation = '';
+      renderNotifPanel('pending');
+      return;
+    }
+  }
+
+  // Persist notification update
+  apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
+
+  toast('✅ ' + (NOTIF_ICONS[notif.type] || '') + ' ' + notif.type + ' validé et enregistré');
+  updateBellBadge();
+  renderNotifPanel('pending');
+  // Re-render active page
+  renderDashboard();
+}
+
+async function rejectNotif(notifId) {
+  const notif = STATE.notifications.find(n => n.notif_id === notifId);
+  if (!notif) return;
+
+  const noteInput = document.getElementById('nc-note-' + notifId);
+  const note = noteInput ? noteInput.value.trim() : '';
+
+  notif.statut = 'rejetee';
+  notif.valide_par = currentUser.name;
+  notif.date_validation = new Date().toISOString();
+  notif.note_manager = note;
+
+  apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
+
+  toast('❌ ' + notif.type + ' rejeté' + (note ? ' — ' + note : ''));
+  updateBellBadge();
+  renderNotifPanel('pending');
+}
+
+function updateBellBadge() {
+  const bell = document.getElementById('notif-bell');
+  const badge = document.getElementById('bell-badge');
+  if (!bell || !badge || !currentUser) return;
+
+  bell.style.display = '';
+  let count = 0;
+  if (isManager()) {
+    count = (STATE.notifications || []).filter(n => n.statut === 'en_attente').length;
+  } else {
+    count = (STATE.notifications || []).filter(n =>
+      n.auteur_matricule === currentUser.matricule &&
+      !(n.lu_par || '').includes(currentUser.matricule) &&
+      n.statut !== 'en_attente'
+    ).length;
+  }
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function markNotifsRead() {
+  (STATE.notifications || []).forEach(n => {
+    if (!(n.lu_par || '').includes(currentUser.matricule)) {
+      n.lu_par = (n.lu_par ? n.lu_par + ',' : '') + currentUser.matricule;
+    }
+  });
+}
+
+function startNotifPolling() {
+  if (notifPollInterval) clearInterval(notifPollInterval);
+  if (!isManager()) return;
+  notifPollInterval = setInterval(async () => {
+    if (!isConfigured() || !currentUser) return;
+    try {
+      const data = await apiGet({ action: 'getNotifications', statut: 'en_attente' });
+      const newNotifs = (data || []).filter(n => !(STATE.notifications || []).some(x => x.notif_id === n.notif_id));
+      if (newNotifs.length > 0) {
+        STATE.notifications.push(...newNotifs);
+        toast('🔔 ' + newNotifs.length + ' nouvelle(s) action(s) en attente de validation');
+        updateBellBadge();
+      }
+    } catch(e) { /* silent */ }
+  }, 60000);
+}
+
+// ── Deadline Timers ──
+function computeDeadlines(batchData) {
+  const deadlines = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  batchData.forEach(bd => {
+    const { bande: b, ind, jour, forecast } = bd;
+
+    // 1. ABATTAGE ESTIMÉ
+    if (forecast && forecast.status === 'projected' && forecast.date) {
+      const fDate = new Date(forecast.date);
+      fDate.setHours(0, 0, 0, 0);
+      const daysLeft = Math.ceil((fDate - today) / 86400000);
+      deadlines.push({
+        label: 'Abattage estimé — ' + b.nom_bande,
+        icon: '🔪',
+        color: daysLeft <= 7 ? '#C62828' : '#E65100',
+        date: fDate,
+        daysLeft: daysLeft,
+        sub: 'Poids vif actuel : ' + (ind.dernierPoids || 0) + 'g / cible 1 900g'
+      });
+    }
+
+    // 2. FIN DE PHASE ALIMENTAIRE
+    if (b.statut === 'en_cours') {
+      let phaseName, phaseEndDay;
+      if (jour <= 10) { phaseName = 'Pré-démarrage'; phaseEndDay = 10; }
+      else if (jour <= 21) { phaseName = 'Démarrage'; phaseEndDay = 21; }
+      else {
+        phaseName = 'Croissance';
+        phaseEndDay = forecast && forecast.status === 'projected' ? (jour + (forecast.daysLeft || 0)) : null;
+      }
+      if (phaseEndDay) {
+        const entreeDate = new Date(b.date_entree);
+        const endDate = new Date(entreeDate);
+        endDate.setDate(endDate.getDate() + phaseEndDay);
+        endDate.setHours(0, 0, 0, 0);
+        const daysLeft = Math.ceil((endDate - today) / 86400000);
+        if (daysLeft >= 0 && daysLeft <= 14) {
+          deadlines.push({
+            label: 'Fin phase ' + phaseName + ' — ' + b.nom_bande,
+            icon: '🌿',
+            color: '#F57F17',
+            date: endDate,
+            daysLeft: daysLeft,
+            sub: 'Jour actuel : J' + jour
+          });
+        }
+      }
+    }
+  });
+
+  // 3. LIVRAISONS À VENIR
+  const todayS = today.toISOString().slice(0, 10);
+  const in14 = new Date(today); in14.setDate(in14.getDate() + 14);
+  const in14S = in14.toISOString().slice(0, 10);
+  STATE.commandes.filter(c =>
+    (c.statut === 'confirmee' || c.statut === 'en_preparation') &&
+    c.date_livraison_souhaitee >= todayS && c.date_livraison_souhaitee <= in14S
+  ).forEach(c => {
+    const cl = STATE.clients.find(x => x.client_id === c.client_id);
+    const livDate = new Date(c.date_livraison_souhaitee);
+    livDate.setHours(0, 0, 0, 0);
+    const daysLeft = Math.ceil((livDate - today) / 86400000);
+    deadlines.push({
+      label: 'Livraison — ' + (cl ? cl.nom : '?'),
+      icon: '📦',
+      color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? '#F57F17' : '#E65100',
+      date: livDate,
+      daysLeft: daysLeft,
+      sub: fmt(Number(c.montant_total_fcfa) || 0) + ' FCFA'
+    });
+  });
+
+  // Sort by days left ascending
+  deadlines.sort((a, b) => a.daysLeft - b.daysLeft);
+  return deadlines;
+}
+
+function renderDeadlines(batchData) {
+  const container = document.getElementById('dash-deadlines');
+  if (!container) return;
+  const deadlines = computeDeadlines(batchData);
+
+  if (deadlines.length === 0) {
+    container.innerHTML = '<div class="deadlines-section-title">ÉCHÉANCES À VENIR</div>' +
+      '<p style="font-size:0.82rem;color:#9E9E9E;margin-bottom:1.25rem;">Aucune échéance dans les 14 prochains jours</p>';
+    return;
+  }
+
+  let html = '<div class="deadlines-section-title">ÉCHÉANCES À VENIR</div><div class="deadlines-row">';
+  deadlines.forEach(dl => {
+    let countText, countColor;
+    if (dl.daysLeft < 0) { countText = 'EN RETARD'; countColor = '#C62828'; }
+    else if (dl.daysLeft === 0) { countText = "AUJOURD'HUI"; countColor = '#C62828'; }
+    else { countText = 'J-' + dl.daysLeft; countColor = dl.color; }
+
+    const dateStr = dl.date.toLocaleDateString('fr-FR');
+    html += '<div class="deadline-card" style="border-top:3px solid ' + dl.color + ';">';
+    html += '<div class="dl-icon">' + dl.icon + '</div>';
+    html += '<div class="dl-label">' + escHtml(dl.label) + '</div>';
+    html += '<div class="dl-count" style="color:' + countColor + ';">' + countText + '</div>';
+    html += '<div class="dl-sub">' + escHtml(dl.sub) + '</div>';
+    html += '<div class="dl-date">' + dateStr + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 // ── Dashboard ──
 function renderDashboard() {
   const grid = document.getElementById('dash-grid');
@@ -2975,6 +3497,7 @@ function renderDashboard() {
     document.getElementById('dash-kpis').innerHTML = '';
     document.getElementById('dash-commandes').innerHTML = '';
     document.getElementById('dash-stocks-watch').innerHTML = '';
+    document.getElementById('dash-deadlines').innerHTML = '';
     return;
   }
 
@@ -3016,6 +3539,9 @@ function renderDashboard() {
     '<div class="dash-kpi' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Prochaine sortie estimée</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi"><div class="dk-value">' + fmt(confirmedTotal) + '</div><div class="dk-label">Commandes confirmées</div><div class="dk-sub">' + confirmedCmds.length + ' commande(s)</div></div>' +
     '<div class="dash-kpi' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
+
+  // ── Zone 2b: Deadline timers ──
+  renderDeadlines(batchData);
 
   // ── Zone 3: Enriched batch cards ──
   const TARGET_DAYS = 32;
@@ -3458,8 +3984,14 @@ async function submitSaisie() {
   btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
 
   try {
+    const bandeName = bande ? bande.nom_bande : bandeId;
+
+    // Saisie always goes through (just logged)
     await apiPost({ action: 'addSaisie', payload: saisiePayload });
     STATE.saisies.push(saisiePayload);
+    if (currentUser && currentUser.role === 'chef_bande') {
+      createNotification('saisie', 'Saisie J' + jourBande + ' — ' + bandeName, bandeId, bandeName, saisiePayload);
+    }
 
     // If intrant form is visible and has data
     if (document.getElementById('intrant-subform').style.display !== 'none') {
@@ -3475,8 +4007,14 @@ async function submitSaisie() {
           unite: document.getElementById('intrant-unite').value,
           cout_total_fcfa: Number(document.getElementById('intrant-cout').value) || 0
         };
-        await apiPost({ action: 'addIntrant', payload: intrantPayload });
-        STATE.intrants.push(intrantPayload);
+        if (currentUser && currentUser.role === 'chef_bande') {
+          // Block: requires manager validation
+          createNotification('intrant', nomProduit + ' ajouté — ' + bandeName, bandeId, bandeName, intrantPayload);
+          toast('✅ Intrant envoyé pour validation — en attente d\'approbation');
+        } else {
+          await apiPost({ action: 'addIntrant', payload: intrantPayload });
+          STATE.intrants.push(intrantPayload);
+        }
       }
     }
 
@@ -4718,6 +5256,39 @@ function loadDemoData() {
   STATE.employes.push(...demoEmployes);
   STATE.paies.push(...demoPaies);
   STATE.depensesRH.push(...demoDepensesRH);
+  // ══════ NOTIFICATIONS (demo) ══════
+  const now = new Date();
+  const demoNotifications = [
+    {
+      notif_id: 'notif-demo-001', type: 'saisie', action: 'Saisie J18 — LTS-2026-01',
+      bande_id: 'LTS-2026-01', bande_nom: 'LTS-2026-01',
+      auteur_matricule: 'SIVA-003', auteur_nom: 'Démonstration',
+      date_action: new Date(now.getTime() - 3600000).toISOString(),
+      statut: 'validee', valide_par: 'auto',
+      date_validation: new Date(now.getTime() - 3600000).toISOString(),
+      payload_json: JSON.stringify({ mortalite_jour: 2, aliment_consomme_kg: 1464, poids_vif_moyen_g: 720 }),
+      note_manager: '', lu_par: 'SIVA-003'
+    },
+    {
+      notif_id: 'notif-demo-002', type: 'intrant', action: 'Vaccin Salmonelle ajouté — LTS-2026-01',
+      bande_id: 'LTS-2026-01', bande_nom: 'LTS-2026-01',
+      auteur_matricule: 'SIVA-003', auteur_nom: 'Démonstration',
+      date_action: new Date(now.getTime() - 1800000).toISOString(),
+      statut: 'en_attente', valide_par: '', date_validation: '',
+      payload_json: JSON.stringify({ intrant_id: 'intr-demo-v', bande_id: 'LTS-2026-01', date_intrant: todayS, type: 'vaccin', nom_produit: 'Vaccin Salmonelle', quantite: 120, unite: 'dose', cout_total_fcfa: 17000 }),
+      note_manager: '', lu_par: 'SIVA-003'
+    },
+    {
+      notif_id: 'notif-demo-003', type: 'reception', action: 'Réception Maïs — Agri-Supply CI',
+      bande_id: '', bande_nom: '',
+      auteur_matricule: 'SIVA-003', auteur_nom: 'Démonstration',
+      date_action: new Date(now.getTime() - 900000).toISOString(),
+      statut: 'en_attente', valide_par: '', date_validation: '',
+      payload_json: JSON.stringify({ reception_id: 'recep-demo-m', fournisseur_id: 'fourn-001', date_reception: todayS, type_produit: 'Maïs', categorie: 'aliment', quantite: 2000, unite: 'kg', prix_unitaire_fcfa: 195, cout_total_fcfa: 390000, bande_id: '', numero_lot: 'LOT-2026-04', date_peremption: '' }),
+      note_manager: '', lu_par: 'SIVA-003'
+    }
+  ];
+  STATE.notifications.push(...demoNotifications);
   STATE.loaded = true;
 
   // Persist
@@ -5464,13 +6035,20 @@ async function submitReception() {
   const btn = document.querySelector('#reception-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
-    await apiPost({ action: 'addReception', payload });
-    STATE.receptions.push(payload);
-    lastReceptionId = payload.reception_id;
-    closeReceptionModal();
-    renderReceptions();
-    toast('Réception enregistrée');
-    document.getElementById('inspection-prompt').style.display = 'flex';
+    if (currentUser && currentUser.role === 'chef_bande') {
+      const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === fournId);
+      createNotification('reception', 'Réception ' + produit + ' — ' + (fourn ? fourn.nom : '?'), '', '', payload);
+      toast('✅ Réception envoyée pour validation — en attente d\'approbation');
+      closeReceptionModal();
+    } else {
+      await apiPost({ action: 'addReception', payload });
+      STATE.receptions.push(payload);
+      lastReceptionId = payload.reception_id;
+      closeReceptionModal();
+      renderReceptions();
+      toast('Réception enregistrée');
+      document.getElementById('inspection-prompt').style.display = 'flex';
+    }
   } catch (err) {
     if (err.message.includes("file d'attente")) {
       STATE.receptions.push(payload);
@@ -6779,18 +7357,25 @@ async function submitAbattage(statut) {
   const btn = document.querySelector('#abattage-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
-    await apiPost({ action: 'addAbattage', payload });
-    STATE.abattages.push(payload);
-    closeAbattageModal();
-    renderAbattageSessions();
-    toast('Session enregistrée');
-    if (statut === 'valide') {
-      const bande = STATE.bandes.find(b => b.bande_id === bandeId && b.statut === 'en_cours');
-      if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
-        const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round(payload.poids_vif_moyen_kg * 1000) };
-        try { await apiPost({ action: 'updateBande', payload: cp }); } catch(e) {}
-        Object.assign(bande, cp);
-        toast('Bande clôturée');
+    if (currentUser && currentUser.role === 'chef_bande') {
+      const abBande = STATE.bandes.find(b => b.bande_id === bandeId);
+      createNotification('abattage', 'Session abattage — ' + (abBande ? abBande.nom_bande : bandeId), bandeId, abBande ? abBande.nom_bande : '', payload);
+      toast('✅ Abattage envoyé pour validation — en attente d\'approbation');
+      closeAbattageModal();
+    } else {
+      await apiPost({ action: 'addAbattage', payload });
+      STATE.abattages.push(payload);
+      closeAbattageModal();
+      renderAbattageSessions();
+      toast('Session enregistrée');
+      if (statut === 'valide') {
+        const bande = STATE.bandes.find(b => b.bande_id === bandeId && b.statut === 'en_cours');
+        if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
+          const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round(payload.poids_vif_moyen_kg * 1000) };
+          try { await apiPost({ action: 'updateBande', payload: cp }); } catch(e) {}
+          Object.assign(bande, cp);
+          toast('Bande clôturée');
+        }
       }
     }
   } catch (err) {
@@ -7126,6 +7711,8 @@ async function init() {
     await loadAllData();
   }
   renderDashboard();
+  updateBellBadge();
+  startNotifPolling();
   updateSyncStatus();
   startSyncChecker();
 }
