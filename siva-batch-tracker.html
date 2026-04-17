@@ -1048,6 +1048,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <label>Aliment consommé (kg)</label>
           <input type="number" id="saisie-aliment" step="0.1" min="0" placeholder="0.0">
         </div>
+        <div class="form-group">
+          <label>Eau consommée (L)</label>
+          <input type="number" id="saisie-eau" step="0.1" min="0" placeholder="0.0">
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1058,6 +1062,22 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <label>Poids vif moyen (g)</label>
           <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0">
         </div>
+      </div>
+
+      <!-- Ambiance bâtiment -->
+      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Ambiance bâtiment</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Température (°C)</label>
+            <input type="number" id="saisie-temperature" step="0.1" min="0" max="50" placeholder="—">
+          </div>
+          <div class="form-group">
+            <label>Humidité (%)</label>
+            <input type="number" id="saisie-humidite" step="0.1" min="0" max="100" placeholder="—">
+          </div>
+        </div>
+        <div id="saisie-ambiance-hint" style="font-size:11px;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.5rem;font-style:italic;"></div>
       </div>
 
       <!-- Intrant sub-form -->
@@ -1134,6 +1154,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="card">
         <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Mortalité cumulée (%)</h3>
         <div class="chart-container" style="height:250px;"><canvas id="chart-mortalite"></canvas></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:1rem;">
+        <div class="card">
+          <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Ambiance bâtiment (Température & Humidité)</h3>
+          <div class="chart-container"><canvas id="chart-ambiance"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Consommation d'eau & Ratio Eau/Aliment</h3>
+          <div class="chart-container"><canvas id="chart-eau"></canvas></div>
+        </div>
       </div>
       <div class="card">
         <div class="card-header">
@@ -2512,18 +2542,50 @@ let APPS_SCRIPT_URL = localStorage.getItem('siva_apps_script_url') || PLACEHOLDE
 
 // ── State ──
 let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], loaded: false };
-let ficheCharts = { poids: null, ic: null, mortalite: null };
+let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null };
 
-// ── Slaughter forecast constants (configurable) ──
-const TARGET_LIVE_WEIGHT_G = 1900;
-const TARGET_CARCASS_YIELD_PCT = 58; // rendement => 1900 × 0.58 = 1102g
+// ── Cycle & performance constants ──
+const TARGET_CARCASS_WEIGHT_G = 1200;  // Poids carcasse cible : 1,2 kg
+const TARGET_CARCASS_YIELD_PCT = 58;
+const TARGET_LIVE_WEIGHT_G = Math.round(TARGET_CARCASS_WEIGHT_G / (TARGET_CARCASS_YIELD_PCT / 100)); // ~2069g vif
+const CYCLE_DURATION_DAYS = 42;       // Durée max cycle poulet de chair
+const TARGET_DAYS = 42;               // Barre de progression
+
+// ── Phases du cycle d'élevage ──
+const CYCLE_PHASES = [
+  { id: 'reception',     label: 'Réception',       start: 0,  end: 0,  color: '#6366F1' },
+  { id: 'pre_demarrage', label: 'Pré-démarrage',   start: 1,  end: 10, color: '#F59E0B' },
+  { id: 'demarrage',     label: 'Démarrage',       start: 11, end: 21, color: '#10B981' },
+  { id: 'croissance',    label: 'Croissance',      start: 22, end: 35, color: '#3B82F6' },
+  { id: 'finition',      label: 'Finition',        start: 36, end: 42, color: '#8B5CF6' }
+];
+
+// ── Normes ambiance par phase (température °C, humidité %) ──
+const AMBIANCE_NORMS = [
+  { dayMin: 0,  dayMax: 3,  tempMin: 32, tempMax: 34, humMin: 60, humMax: 70 },
+  { dayMin: 4,  dayMax: 7,  tempMin: 30, tempMax: 32, humMin: 60, humMax: 70 },
+  { dayMin: 8,  dayMax: 14, tempMin: 28, tempMax: 30, humMin: 55, humMax: 65 },
+  { dayMin: 15, dayMax: 21, tempMin: 26, tempMax: 28, humMin: 55, humMax: 65 },
+  { dayMin: 22, dayMax: 28, tempMin: 24, tempMax: 26, humMin: 50, humMax: 65 },
+  { dayMin: 29, dayMax: 42, tempMin: 22, tempMax: 24, humMin: 50, humMax: 65 }
+];
+
+// ── Normes consommation eau (L/1000 oiseaux/jour) ──
+const WATER_NORMS = [
+  { dayMin: 0, dayMax: 7, min: 30, max: 60 },
+  { dayMin: 8, dayMax: 14, min: 60, max: 100 },
+  { dayMin: 15, dayMax: 21, min: 100, max: 160 },
+  { dayMin: 22, dayMax: 28, min: 160, max: 230 },
+  { dayMin: 29, dayMax: 35, min: 230, max: 280 },
+  { dayMin: 36, dayMax: 42, min: 280, max: 330 }
+];
 
 // ── Offline / Sync state ──
 let isOnline = true;
 let syncCheckInterval = null;
 let notifPollInterval = null;
 
-// ── Cobb 500 standard curve ──
+// ── Cobb 500 standard curve (J0-J42) ──
 const COBB_STANDARD = [
   { day: 0, weight: 42 }, { day: 1, weight: 52 }, { day: 2, weight: 66 },
   { day: 3, weight: 82 }, { day: 4, weight: 100 }, { day: 5, weight: 120 },
@@ -2538,8 +2600,31 @@ const COBB_STANDARD = [
   { day: 30, weight: 1360 }, { day: 31, weight: 1440 }, { day: 32, weight: 1520 },
   { day: 33, weight: 1600 }, { day: 34, weight: 1700 }, { day: 35, weight: 1800 },
   { day: 36, weight: 1890 }, { day: 37, weight: 1980 }, { day: 38, weight: 2070 },
-  { day: 39, weight: 2160 }, { day: 40, weight: 2250 }, { day: 42, weight: 2450 }
+  { day: 39, weight: 2160 }, { day: 40, weight: 2250 }, { day: 41, weight: 2350 },
+  { day: 42, weight: 2450 }
 ];
+
+// ── Helper: get current phase for a batch day ──
+function getCurrentPhase(jour) {
+  return CYCLE_PHASES.find(p => jour >= p.start && jour <= p.end) || CYCLE_PHASES[CYCLE_PHASES.length - 1];
+}
+
+// ── Helper: get ambiance norms for a batch day ──
+function getAmbianceNorm(jour) {
+  return AMBIANCE_NORMS.find(n => jour >= n.dayMin && jour <= n.dayMax) || AMBIANCE_NORMS[AMBIANCE_NORMS.length - 1];
+}
+
+// ── Helper: get water norm for a batch day ──
+function getWaterNorm(jour) {
+  return WATER_NORMS.find(n => jour >= n.dayMin && jour <= n.dayMax) || WATER_NORMS[WATER_NORMS.length - 1];
+}
+
+// ── Helper: compute Performance Index (IP) ──
+// IP = (Viabilité% × Poids vif moyen en kg) / (IC × Âge en jours) × 100
+function computeIP(viabilitePct, poidsVifG, ic, jourBande) {
+  if (!ic || ic <= 0 || !jourBande || jourBande <= 0 || !poidsVifG) return 0;
+  return ((viabilitePct * (poidsVifG / 1000)) / (ic * jourBande)) * 100;
+}
 
 // ── Helpers ──
 function uuid() {
@@ -2885,24 +2970,33 @@ function computeIndicators(bande) {
 
   let mortCum = 0;
   let alimentTotal = 0;
+  let eauTotal = 0;
   let dernierPoids = poidsInitial;
   let dernierJour = 0;
   let lastSaisieDate = null;
+  let lastTemp = null;
+  let lastHumidite = null;
 
   const dailyData = saisies.map(s => {
     const jour = Number(s.jour_bande) || (daysBetween(bande.date_entree, s.date_saisie) + 1);
     mortCum += Number(s.mortalite_jour) || 0;
     alimentTotal += Number(s.aliment_consomme_kg) || 0;
+    eauTotal += Number(s.eau_consommee_l) || 0;
     const poids = Number(s.poids_vif_moyen_g) || dernierPoids;
     dernierPoids = poids;
     dernierJour = jour;
     lastSaisieDate = s.date_saisie;
+    if (s.temperature_c != null && s.temperature_c !== 0) lastTemp = Number(s.temperature_c);
+    if (s.humidite_pct != null && s.humidite_pct !== 0) lastHumidite = Number(s.humidite_pct);
 
     const effectif = nbEntree - mortCum;
     const ic = (effectif > 0 && poids > 0)
       ? alimentTotal / ((poids / 1000) * effectif)
       : null;
     const gmq = (jour > 0) ? (poids - poidsInitial) / jour : 0;
+    const eauAlim = (Number(s.aliment_consomme_kg) > 0 && Number(s.eau_consommee_l) > 0)
+      ? Number(s.eau_consommee_l) / Number(s.aliment_consomme_kg)
+      : null;
 
     return {
       ...s,
@@ -2911,10 +3005,14 @@ function computeIndicators(bande) {
       taux_mort: nbEntree > 0 ? (mortCum / nbEntree) * 100 : 0,
       effectif: nbEntree - mortCum,
       aliment_total: alimentTotal,
+      eau_total: eauTotal,
       ic: ic,
       gmq: gmq,
       poids: poids,
-      poids_carcasse: poids * rendement / 100
+      poids_carcasse: poids * rendement / 100,
+      temperature_c: s.temperature_c || null,
+      humidite_pct: s.humidite_pct || null,
+      eau_alim_ratio: eauAlim
     };
   });
 
@@ -2947,11 +3045,24 @@ function computeIndicators(bande) {
   const totalCarcasseKg = nbSortie * poidsCarcasseSortie / 1000;
   const margeParKg = totalCarcasseKg > 0 ? margeBrute / totalCarcasseKg : 0;
 
+  // Performance Index (IP) — standard avicole
+  const viabilite = 100 - tauxMort;
+  const ip = computeIP(viabilite, dernierPoids, ic, dernierJour);
+
+  // Target progress: carcasse estimée vs cible 1.2 kg
+  const carcasseEstimee = dernierPoids * rendement / 100;
+  const pctCible = TARGET_CARCASS_WEIGHT_G > 0 ? Math.min(100, (carcasseEstimee / TARGET_CARCASS_WEIGHT_G) * 100) : 0;
+
+  // Current phase
+  const phase = getCurrentPhase(dernierJour);
+
   return {
     saisies: dailyData,
     intrants,
-    mortCum, tauxMort, effectifActuel, alimentTotal,
+    mortCum, tauxMort, effectifActuel, alimentTotal, eauTotal,
     ic, gmq, dernierPoids, dernierJour, poidsCarcasse, lastSaisieDate,
+    ip, viabilite, carcasseEstimee, pctCible, phase,
+    lastTemp, lastHumidite,
     coutPoussins, coutAliment, coutIntrants, produitBrut, margeBrute, margeParKg,
     nbSortie, poidsCarcasseSortie, totalCarcasseKg, prixVente, rendement, poidsInitial
   };
@@ -2986,12 +3097,35 @@ function checkAlerts() {
       alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Aucune saisie aujourd\'hui' });
     }
 
-    // Abattage à planifier si J28+
+    // Abattage à planifier — basé sur le poids carcasse cible
     const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
-    if (jour >= 28) {
+    if (ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G * 0.9) {
       const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
       if (!hasAbattage) {
-        alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Abattage à planifier (J' + jour + ', poids estimé ' + fmt(ind.dernierPoids) + 'g)' });
+        alerts.push({ level: ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G ? 'critical' : 'warning', icon: '🔪', text: b.nom_bande + ' — Poids carcasse cible atteint (' + fmt(Math.round(ind.carcasseEstimee)) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g) — planifier abattage' });
+      }
+    } else if (jour >= 35) {
+      const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
+      if (!hasAbattage) {
+        alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — J' + jour + ' sans abattage planifié (carcasse estimée ' + fmt(Math.round(ind.carcasseEstimee)) + 'g)' });
+      }
+    }
+
+    // Alertes ambiance (température et humidité)
+    if (ind.lastTemp != null) {
+      const norm = getAmbianceNorm(jour);
+      if (ind.lastTemp < norm.tempMin - 3 || ind.lastTemp > norm.tempMax + 3) {
+        alerts.push({ level: 'critical', icon: '🌡️', text: b.nom_bande + ' — Température critique : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+      } else if (ind.lastTemp < norm.tempMin || ind.lastTemp > norm.tempMax) {
+        alerts.push({ level: 'warning', icon: '🌡️', text: b.nom_bande + ' — Température hors norme : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+      }
+    }
+    if (ind.lastHumidite != null) {
+      const norm = getAmbianceNorm(jour);
+      if (ind.lastHumidite < norm.humMin - 10 || ind.lastHumidite > norm.humMax + 10) {
+        alerts.push({ level: 'critical', icon: '💧', text: b.nom_bande + ' — Humidité critique : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
+      } else if (ind.lastHumidite < norm.humMin || ind.lastHumidite > norm.humMax) {
+        alerts.push({ level: 'warning', icon: '💧', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
       }
     }
   });
@@ -3056,9 +3190,11 @@ function renderAlerts(alerts) {
 function computeSlaughterForecast(bande, ind) {
   const currentWeight = ind.dernierPoids || 0;
 
-  // Already at target weight
-  if (currentWeight >= TARGET_LIVE_WEIGHT_G) {
-    return { status: 'reached', text: '✅ Poids cible atteint' };
+  // Already at target weight (carcasse cible atteinte)
+  const rendement = Number(bande.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT;
+  const carcasseActuelle = currentWeight * rendement / 100;
+  if (carcasseActuelle >= TARGET_CARCASS_WEIGHT_G) {
+    return { status: 'reached', text: '&#9989; Carcasse cible atteinte (' + Math.round(carcasseActuelle) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g)' };
   }
 
   // Compute GMQ from last 3 days average
@@ -3093,9 +3229,10 @@ function computeSlaughterForecast(bande, ind) {
   const dateStr = estDate.toLocaleDateString('fr-FR');
   const daysLeft = Math.ceil(remaining);
 
+  const projCarcasse = Math.round((currentWeight + gmq3d * remaining) * rendement / 100);
   return {
     status: 'projected',
-    text: 'Abattage estimé : ' + dateStr + ' (dans ' + daysLeft + ' jours)',
+    text: 'Sortie estimée : ' + dateStr + ' (J+' + daysLeft + ') — carcasse ' + projCarcasse + 'g cible',
     date: estDate,
     daysLeft: daysLeft
   };
@@ -3524,17 +3661,22 @@ function renderDashboard() {
     forecastCls = dl < 7 ? '' : ' dk-success';
   }
 
+  // Average IP across active batches
+  const avgIP = batchData.filter(bd => bd.ind.ip > 0).length > 0
+    ? Math.round(batchData.filter(bd => bd.ind.ip > 0).reduce((s, bd) => s + bd.ind.ip, 0) / batchData.filter(bd => bd.ind.ip > 0).length)
+    : 0;
+  const ipCls = avgIP >= 300 ? ' dk-success' : avgIP >= 250 ? '' : ' dk-danger';
+
   document.getElementById('dash-kpis').innerHTML =
-    '<div class="dash-kpi"><div class="dk-value">🐔 ' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div></div>' +
-    '<div class="dash-kpi' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Prochaine sortie estimée</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(confirmedTotal) + '</div><div class="dk-label">Commandes confirmées</div><div class="dk-sub">' + confirmedCmds.length + ' commande(s)</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' lot(s) actif(s)</div></div>' +
+    '<div class="dash-kpi' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
+    '<div class="dash-kpi' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
 
   // ── Zone 2b: Deadline timers ──
   renderDeadlines(batchData);
 
   // ── Zone 3: Enriched batch cards ──
-  const TARGET_DAYS = 32;
   function getCobbGmq(day) {
     if (day <= 10) return 50;
     if (day <= 21) return 70;
@@ -3546,47 +3688,79 @@ function renderDashboard() {
     const { bande: b, ind, jour, forecast } = bd;
     const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
-    // Phase pill
-    let phasePill;
-    if (jour <= 10) phasePill = '<span class="phase-pill pre">Pré-démarrage</span>';
-    else if (jour <= 21) phasePill = '<span class="phase-pill dem">Démarrage</span>';
-    else phasePill = '<span class="phase-pill cro">Croissance</span>';
+    // Phase pill with dynamic colors
+    const phase = getCurrentPhase(jour);
+    const phasePill = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>`;
 
-    // Progress bar
-    const pct = Math.min(100, Math.round((jour / TARGET_DAYS) * 100));
-    const barColor = pct < 60 ? '#10B981' : pct < 85 ? '#F59E0B' : '#E74C3C';
+    // Progress bar — cycle J42
+    const pctJour = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
+    const barColor = pctJour < 60 ? '#10B981' : pctJour < 85 ? '#F59E0B' : '#E74C3C';
+
+    // Carcass target progress
+    const carcEst = Math.round(ind.dernierPoids * (Number(b.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT) / 100);
+    const pctCarcasse = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
+    const carcColor = pctCarcasse < 50 ? '#3B82F6' : pctCarcasse < 90 ? '#10B981' : '#059669';
 
     // GMQ vs Cobb norm
     const expectedGmq = getCobbGmq(jour);
     const gmqRatio = expectedGmq > 0 ? ind.gmq / expectedGmq : 1;
     let gmqHtml;
-    if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">✓ Dans la norme</div>';
-    else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ Légèrement faible</div>';
-    else gmqHtml = '<div class="gmq-norm bad">↓ Sous la norme</div>';
+    if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">&#10003; GMQ dans la norme Cobb</div>';
+    else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ GMQ légèrement faible</div>';
+    else gmqHtml = '<div class="gmq-norm bad">&#8595; GMQ sous la norme</div>';
+
+    // Ambiance mini-panel
+    let ambianceHtml = '';
+    if (ind.lastTemp != null || ind.lastHumidite != null) {
+      const norm = getAmbianceNorm(jour);
+      const tempOk = ind.lastTemp != null && ind.lastTemp >= norm.tempMin && ind.lastTemp <= norm.tempMax;
+      const humOk = ind.lastHumidite != null && ind.lastHumidite >= norm.humMin && ind.lastHumidite <= norm.humMax;
+      ambianceHtml = `<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;">`;
+      if (ind.lastTemp != null) {
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? '#ECFDF5' : '#FEF2F2'};color:${tempOk ? '#059669' : '#DC2626'};font-weight:600;">&#127777; ${fmt(ind.lastTemp,1)}°C</span>`;
+      }
+      if (ind.lastHumidite != null) {
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? '#ECFDF5' : '#FEF2F2'};color:${humOk ? '#059669' : '#DC2626'};font-weight:600;">&#128167; ${fmt(ind.lastHumidite,0)}%</span>`;
+      }
+      if (ind.eauTotal > 0) {
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:#EFF6FF;color:#3B82F6;font-weight:600;">&#128166; ${fmt(ind.eauTotal,0)} L</span>`;
+      }
+      ambianceHtml += `</div>`;
+    }
+
+    // IP badge
+    const ipVal = ind.ip || 0;
+    const ipColor = ipVal >= 300 ? '#059669' : ipVal >= 250 ? '#F59E0B' : '#EF4444';
+    const ipHtml = ipVal > 0 ? `<span style="padding:2px 8px;border-radius:4px;background:${ipColor}12;color:${ipColor};font-weight:700;font-size:11px;">IP ${fmt(ipVal, 0)}</span>` : '';
 
     cardsHtml += `
       <div class="card">
         <div class="card-header">
           <h3 style="font-size:1rem;font-weight:800;text-transform:none;letter-spacing:0;">${b.nom_bande}</h3>
-          <div>${phasePill}</div>
+          <div style="display:flex;gap:6px;align-items:center;">${ipHtml} ${phasePill}</div>
         </div>
         <div class="mini-bar-wrap">
-          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
-          <span class="mini-bar-label">J${jour} / J${TARGET_DAYS}</span>
+          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pctJour}%;background:${barColor};"></div></div>
+          <span class="mini-bar-label">J${jour} / J${CYCLE_DURATION_DAYS}</span>
+        </div>
+        <div class="mini-bar-wrap" style="margin-top:2px;">
+          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pctCarcasse}%;background:${carcColor};"></div></div>
+          <span class="mini-bar-label">${fmt(carcEst)}g / ${TARGET_CARCASS_WEIGHT_G}g carc.</span>
         </div>
         <div class="stat-grid">
           <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
-          <div class="stat-item"><div class="label">Mortalité</div><div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div></div>
+          <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:var(--${mortClass === 'green' ? 'accent-green' : mortClass === 'orange' ? 'accent-amber' : 'accent-red'})">${fmt(ind.viabilite,1)}%</div></div>
           <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div></div>
           <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
           <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
-          <div class="stat-item"><div class="label">Aliment total</div><div class="value">${fmt(ind.alimentTotal,0)} kg</div></div>
+          <div class="stat-item"><div class="label">Aliment</div><div class="value">${fmt(ind.alimentTotal,0)} kg</div></div>
         </div>
         ${gmqHtml}
+        ${ambianceHtml}
         <div class="forecast-chip">${forecast.text}</div>
         <div class="quick-actions">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openSaisieFor('${b.bande_id}')">Saisie du jour ↗</button>
-          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Voir détail ↗</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openSaisieFor('${b.bande_id}')">Saisie terrain &#8599;</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Analyses &#8599;</button>
         </div>
       </div>`;
   });
@@ -3910,8 +4084,12 @@ function initSaisiePage() {
   document.getElementById('saisie-date').value = todayStr();
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
+  document.getElementById('saisie-eau').value = '';
   document.getElementById('saisie-nb-peses').value = '';
   document.getElementById('saisie-poids').value = '';
+  document.getElementById('saisie-temperature').value = '';
+  document.getElementById('saisie-humidite').value = '';
+  document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
   updateSaisieInfo();
@@ -3922,20 +4100,40 @@ function initSaisiePage() {
 function updateSaisieInfo() {
   const bandeId = document.getElementById('saisie-bande').value;
   const infoDiv = document.getElementById('saisie-info');
-  if (!bandeId) { infoDiv.innerHTML = ''; return; }
+  const hintDiv = document.getElementById('saisie-ambiance-hint');
+  if (!bandeId) { infoDiv.innerHTML = ''; if (hintDiv) hintDiv.innerHTML = ''; return; }
 
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   if (!bande) return;
 
   const ind = computeIndicators(bande);
   const jour = daysBetween(bande.date_entree, document.getElementById('saisie-date').value || todayStr()) + 1;
+  const phase = getCurrentPhase(jour);
+  const norm = getAmbianceNorm(jour);
+  const viab = 100 - ind.tauxMort;
+  const ip = computeIP(viab, ind.dernierPoids, ind.ic, jour);
+  const carcEst = Math.round(ind.dernierPoids * (bande.rendement_carcasse_pct || TARGET_CARCASS_YIELD_PCT) / 100);
+  const pctCible = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
 
   infoDiv.innerHTML = `
-    <div style="background:#f5f5f5;border-radius:6px;padding:0.75rem;font-size:0.85rem;">
-      <strong>J${jour}</strong> — Effectif : <strong>${fmt(ind.effectifActuel)}</strong>
-      | Mort. cumulée : <strong>${fmt(ind.mortCum)}</strong> (${fmt(ind.tauxMort,1)}%)
-      | Dernier poids : <strong>${fmt(ind.dernierPoids)} g</strong>
+    <div style="background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;padding:0.75rem 1rem;font-size:0.85rem;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>
+        <strong style="font-family:var(--mono);">J${jour}</strong>
+        <span style="color:var(--text-muted);font-size:12px;">/ J${CYCLE_DURATION_DAYS}</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;">
+        <span>Effectif : <strong>${fmt(ind.effectifActuel)}</strong></span>
+        <span>Mort. : <strong>${fmt(ind.tauxMort,1)}%</strong></span>
+        <span>Poids vif : <strong>${fmt(ind.dernierPoids)} g</strong></span>
+        <span>Carcasse est. : <strong>${fmt(carcEst)} g</strong> (${pctCible}% de ${TARGET_CARCASS_WEIGHT_G/1000} kg cible)</span>
+        ${ip > 0 ? `<span>IP : <strong>${fmt(ip,0)}</strong></span>` : ''}
+      </div>
     </div>`;
+
+  if (hintDiv) {
+    hintDiv.innerHTML = `Normes J${jour} : Temp. ${norm.tempMin}–${norm.tempMax}°C | Hum. ${norm.humMin}–${norm.humMax}%`;
+  }
 }
 
 function toggleIntrantForm() {
@@ -3965,8 +4163,11 @@ async function submitSaisie() {
     jour_bande: jourBande,
     mortalite_jour: Number(document.getElementById('saisie-mortalite').value) || 0,
     aliment_consomme_kg: Number(document.getElementById('saisie-aliment').value) || 0,
+    eau_consommee_l: Number(document.getElementById('saisie-eau').value) || 0,
     nb_oiseaux_peses: Number(document.getElementById('saisie-nb-peses').value) || 0,
-    poids_vif_moyen_g: Number(document.getElementById('saisie-poids').value) || 0
+    poids_vif_moyen_g: Number(document.getElementById('saisie-poids').value) || 0,
+    temperature_c: Number(document.getElementById('saisie-temperature').value) || null,
+    humidite_pct: Number(document.getElementById('saisie-humidite').value) || null
   };
 
   const btn = document.getElementById('btn-submit-saisie');
@@ -4026,8 +4227,12 @@ async function submitSaisie() {
 function resetSaisieForm() {
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
+  document.getElementById('saisie-eau').value = '';
   document.getElementById('saisie-nb-peses').value = '';
   document.getElementById('saisie-poids').value = '';
+  document.getElementById('saisie-temperature').value = '';
+  document.getElementById('saisie-humidite').value = '';
+  document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-nom').value = '';
   document.getElementById('intrant-quantite').value = '';
   document.getElementById('intrant-cout').value = '';
@@ -4053,7 +4258,7 @@ function renderRecentSaisies() {
   }
 
   let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">3 dernières saisies</h3><div class="table-wrap"><table><thead><tr>' +
-    '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Pesés</th><th>Poids</th></tr></thead><tbody>';
+    '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
 
   recent.forEach(s => {
     html += `<tr>
@@ -4061,8 +4266,10 @@ function renderRecentSaisies() {
       <td>J${s.jour_bande}</td>
       <td>${s.mortalite_jour}</td>
       <td>${fmt(Number(s.aliment_consomme_kg), 1)} kg</td>
-      <td>${s.nb_oiseaux_peses || '—'}</td>
+      <td>${Number(s.eau_consommee_l) ? fmt(Number(s.eau_consommee_l), 1) + ' L' : '—'}</td>
       <td>${s.poids_vif_moyen_g ? fmt(Number(s.poids_vif_moyen_g)) + ' g' : '—'}</td>
+      <td>${s.temperature_c ? fmt(Number(s.temperature_c), 1) + '°' : '—'}</td>
+      <td>${s.humidite_pct ? fmt(Number(s.humidite_pct), 0) + '%' : '—'}</td>
     </tr>`;
   });
 
@@ -4092,25 +4299,36 @@ function loadFicheBande() {
   const jour = ind.dernierJour || daysBetween(bande.date_entree, todayStr()) + 1;
   const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
-  // Header
+  // Header with enriched metrics
   const ficheForecast = bande.statut === 'en_cours' ? computeSlaughterForecast(bande, ind) : null;
+  const phase = getCurrentPhase(jour);
+  const carcEst = Math.round(ind.dernierPoids * (Number(bande.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT) / 100);
+  const pctCible = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
+  const ipVal = ind.ip || 0;
+  const ipColor = ipVal >= 300 ? '#059669' : ipVal >= 250 ? '#F59E0B' : '#EF4444';
+
   document.getElementById('fiche-header').innerHTML = `
     <div class="card-header">
       <h3>${bande.nom_bande}</h3>
-      <span class="badge badge-${bande.statut === 'en_cours' ? 'green' : 'grey'}">${bande.statut === 'en_cours' ? 'En cours — J' + jour : 'Terminée'}</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${ipVal > 0 ? `<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${ipColor}12;color:${ipColor};">IP ${fmt(ipVal, 0)}</span>` : ''}
+        <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>
+        <span class="badge badge-${bande.statut === 'en_cours' ? 'green' : 'grey'}">${bande.statut === 'en_cours' ? 'J' + jour + '/' + CYCLE_DURATION_DAYS : 'Terminée'}</span>
+      </div>
     </div>
     <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem;">
       Entrée : ${fmtDate(bande.date_entree)} | ${fmt(bande.nb_poussins_entree)} poussins | ${bande.fournisseur_poussins || '—'}
       ${bande.date_sortie ? ' | Sortie : ' + fmtDate(bande.date_sortie) : ''}
+      | Cible carcasse : ${TARGET_CARCASS_WEIGHT_G/1000} kg (${pctCible}% atteint)
     </div>
     <div class="stat-grid">
       <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
-      <div class="stat-item"><div class="label">Mortalité</div><div class="value" style="color:var(--${mortClass})">${fmt(ind.tauxMort,1)}%</div></div>
+      <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:${mortClass === 'green' ? '#059669' : mortClass === 'orange' ? '#F59E0B' : '#EF4444'}">${fmt(ind.viabilite,1)}%</div></div>
       <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic,2) : '—'}</div></div>
       <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
-      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(ind.poidsCarcasse)} g</div></div>
-      <div class="stat-item"><div class="label">Coût alimentaire</div><div class="value">${fmt(computeCoutAlimentaire(bande.bande_id))} FCFA</div></div>
+      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(carcEst)} g</div></div>
+      <div class="stat-item"><div class="label">Eau totale</div><div class="value">${ind.eauTotal > 0 ? fmt(ind.eauTotal,0) + ' L' : '—'}</div></div>
       <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
@@ -4209,6 +4427,86 @@ function renderFicheCharts(ind) {
     },
     options: chartOptions('Mortalité (%)')
   });
+
+  // Chart 4: Ambiance (Temperature + Humidity)
+  if (ficheCharts.ambiance) ficheCharts.ambiance.destroy();
+  const tempData = ind.saisies.filter(s => s.temperature_c);
+  const humData = ind.saisies.filter(s => s.humidite_pct);
+  if (tempData.length > 0 || humData.length > 0) {
+    const ctxA = document.getElementById('chart-ambiance').getContext('2d');
+    ficheCharts.ambiance = new Chart(ctxA, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          {
+            label: 'Température (°C)',
+            data: ind.saisies.map(s => s.temperature_c || null),
+            borderColor: '#EF4444',
+            backgroundColor: 'rgba(239,68,68,0.08)',
+            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Humidité (%)',
+            data: ind.saisies.map(s => s.humidite_pct || null),
+            borderColor: '#3B82F6',
+            backgroundColor: 'rgba(59,130,246,0.08)',
+            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, spanGaps: true,
+        scales: {
+          y: { position: 'left', title: { display: true, text: 'Température °C' }, suggestedMin: 18, suggestedMax: 38 },
+          y1: { position: 'right', title: { display: true, text: 'Humidité %' }, suggestedMin: 30, suggestedMax: 90, grid: { drawOnChartArea: false } },
+          x: { title: { display: false } }
+        },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
+
+  // Chart 5: Water consumption + ratio eau/aliment
+  if (ficheCharts.eau) ficheCharts.eau.destroy();
+  const eauData = ind.saisies.filter(s => Number(s.eau_consommee_l) > 0);
+  if (eauData.length > 0) {
+    const ctxE = document.getElementById('chart-eau').getContext('2d');
+    ficheCharts.eau = new Chart(ctxE, {
+      type: 'line',
+      data: {
+        labels: days,
+        datasets: [
+          {
+            label: 'Eau (L/jour)',
+            data: ind.saisies.map(s => Number(s.eau_consommee_l) || null),
+            borderColor: '#3B82F6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            borderWidth: 2, tension: 0.3, fill: true, pointRadius: 3,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Ratio Eau/Aliment',
+            data: ind.saisies.map(s => s.eau_alim_ratio || null),
+            borderColor: '#8B5CF6',
+            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3, borderDash: [5, 3],
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, spanGaps: true,
+        scales: {
+          y: { position: 'left', title: { display: true, text: 'Litres' }, beginAtZero: true },
+          y1: { position: 'right', title: { display: true, text: 'Ratio' }, beginAtZero: true, grid: { drawOnChartArea: false } },
+          x: { title: { display: false } }
+        },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
 }
 
 function mapToLabels(labels, dayNums, values) {
@@ -4256,23 +4554,29 @@ function renderFicheSaisiesTable(ind, bande) {
   }
 
   let html = '<table><thead><tr>' +
-    '<th>Date</th><th>Jour</th><th>Mort. jour</th><th>Mort. cum.</th><th>Effectif</th>' +
-    '<th>Aliment (kg)</th><th>Alim. cum.</th><th>Pesés</th><th>Poids (g)</th><th>IC</th><th>GMQ</th><th></th>' +
+    '<th>Date</th><th>Jour</th><th>Phase</th><th>Mort.</th><th>Eff.</th>' +
+    '<th>Alim. (kg)</th><th>Eau (L)</th><th>Poids (g)</th><th>IC</th><th>GMQ</th>' +
+    '<th>T°C</th><th>Hum%</th><th></th>' +
     '</tr></thead><tbody>';
 
   ind.saisies.forEach(s => {
+    const p = getCurrentPhase(s.jour_bande);
+    const norm = getAmbianceNorm(s.jour_bande);
+    const tempOk = !s.temperature_c || (s.temperature_c >= norm.tempMin && s.temperature_c <= norm.tempMax);
+    const humOk = !s.humidite_pct || (s.humidite_pct >= norm.humMin && s.humidite_pct <= norm.humMax);
     html += `<tr>
       <td>${fmtDate(s.date_saisie)}</td>
       <td>J${s.jour_bande}</td>
+      <td><span style="font-size:9px;font-weight:600;color:${p.color};">${p.label.substring(0,4)}.</span></td>
       <td>${s.mortalite_jour}</td>
-      <td>${s.mort_cum}</td>
       <td>${fmt(s.effectif)}</td>
       <td>${fmt(Number(s.aliment_consomme_kg), 1)}</td>
-      <td>${fmt(s.aliment_total, 1)}</td>
-      <td>${s.nb_oiseaux_peses || '—'}</td>
+      <td>${Number(s.eau_consommee_l) ? fmt(Number(s.eau_consommee_l), 1) : '—'}</td>
       <td>${fmt(s.poids)}</td>
       <td>${s.ic != null ? fmt(s.ic, 2) : '—'}</td>
       <td>${fmt(s.gmq, 1)}</td>
+      <td style="color:${tempOk ? 'inherit' : '#EF4444'};font-weight:${tempOk ? '400' : '700'};">${s.temperature_c ? fmt(s.temperature_c, 1) : '—'}</td>
+      <td style="color:${humOk ? 'inherit' : '#EF4444'};font-weight:${humOk ? '400' : '700'};">${s.humidite_pct ? fmt(s.humidite_pct, 0) : '—'}</td>
       <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteSaisie('${s.saisie_id}')">&#10005;</button></td>
     </tr>`;
   });
@@ -4995,6 +5299,15 @@ function loadDemoData() {
     for (let i = 0; i < days; i++) {
       const day = i + 1;
       const poids = weightProfile[i] || weightProfile[weightProfile.length - 1];
+      // Generate realistic environmental data
+      const norm = AMBIANCE_NORMS.find(n => day >= n.dayMin && day <= n.dayMax) || AMBIANCE_NORMS[AMBIANCE_NORMS.length - 1];
+      const tempBase = (norm.tempMin + norm.tempMax) / 2;
+      const humBase = (norm.humMin + norm.humMax) / 2;
+      const tempVar = (Math.random() - 0.5) * 3; // +/- 1.5°C variance
+      const humVar = (Math.random() - 0.5) * 8; // +/- 4% variance
+      // Water: roughly 1.7-2.0 × feed consumption for broilers
+      const waterRatio = 1.7 + Math.random() * 0.4;
+      const eauL = Math.round(feedProfile[i] * waterRatio * 10) / 10;
       out.push({
         saisie_id: bandeId + '-s-' + String(day).padStart(3, '0'),
         bande_id: bandeId,
@@ -5002,8 +5315,11 @@ function loadDemoData() {
         jour_bande: day,
         mortalite_jour: mortProfile[i] || 0,
         aliment_consomme_kg: feedProfile[i] || 0,
+        eau_consommee_l: eauL,
         nb_oiseaux_peses: (day % 3 === 0 || day === 1) ? 30 : 0,
-        poids_vif_moyen_g: (day % 3 === 0 || day === 1) ? poids : 0
+        poids_vif_moyen_g: (day % 3 === 0 || day === 1) ? poids : 0,
+        temperature_c: Math.round((tempBase + tempVar) * 10) / 10,
+        humidite_pct: Math.round(humBase + humVar)
       });
     }
     return out;
@@ -6645,7 +6961,7 @@ function generateBonLivraison(cmdId) {
   doc.text('ELEVAGE PRO', 14, 20);
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text('ElevagePro — Plateforme de Gestion d'Élevage Intensif', 14, 26);
+  doc.text('ElevagePro — Plateforme de Gestion d\'Elevage Intensif', 14, 26);
   doc.text('Les Terres du Sud — Azaguié', 14, 30);
 
   doc.setFontSize(14);
