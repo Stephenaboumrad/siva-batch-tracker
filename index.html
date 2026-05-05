@@ -295,6 +295,15 @@ body::before {
   letter-spacing:0.12em; white-space:nowrap; text-transform:uppercase;
   border-left:none; padding-left:0; text-align:center;
 }
+#top-header .hdr-logo-img {
+  height:44px; width:auto; display:block; margin:0 auto 6px;
+}
+.siva-login-logo {
+  height:140px; width:auto; display:block; margin:0 auto 12px;
+}
+#mobile-top-bar .mtb-logo-img {
+  height:32px; width:auto; display:block;
+}
 
 /* ── Sidebar Nav ── */
 #top-header .hdr-nav {
@@ -1031,6 +1040,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 @media (max-width:768px) {
   :root { --sidebar-w: 0px; --bottom-bar-h: 56px; }
   body::before { background-size:20px 20px; }
+  .siva-login-logo { height:100px; }
 
   /* Hide desktop sidebar, show mobile nav */
   #top-header { display:none; }
@@ -1239,7 +1249,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="top-header">
   <!-- Left: Logo -->
   <div class="hdr-left">
-    <span class="hdr-logo">COQORICO</span>
+    <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="hdr-logo-img">
     <span class="hdr-subtitle">SIVA &middot; AgriTech</span>
   </div>
 
@@ -1320,7 +1330,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
 <!-- Mobile Top Bar -->
 <div id="mobile-top-bar">
-  <span class="mtb-logo">COQORICO</span>
+  <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="mtb-logo-img">
   <span class="mtb-title" id="mtb-page-title">Dashboard</span>
   <div class="mtb-actions">
     <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode soleil">&#9728;</button>
@@ -1384,7 +1394,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div style="position:absolute;top:-30%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(249,115,22,0.12) 0%,transparent 70%);pointer-events:none;"></div>
   <div style="background:#FFFFFF;border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,0.5);padding:44px 40px;max-width:420px;width:92%;text-align:center;position:relative;border:1px solid rgba(226,232,240,0.2);">
     <div style="margin-bottom:36px;">
-      <div style="font-family:'DM Sans',sans-serif;font-size:28px;font-weight:900;letter-spacing:0.14em;margin-bottom:4px;background:linear-gradient(135deg,#EA580C,#F97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">COQORICO</div>
+      <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="siva-login-logo">
       <div style="font-family:'DM Sans',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Gestion Avicole Professionnelle</div>
       <div style="width:40px;height:2px;background:linear-gradient(90deg,#EA580C,#FB923C);margin:14px auto 0;border-radius:1px;"></div>
     </div>
