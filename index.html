@@ -179,6 +179,26 @@ body::before {
   animation: breathe 2s var(--ease-live) infinite;
 }
 
+/* ── Demo data indicator (honnête : pas de flux temps réel certifié) ── */
+.demo-indicator {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 12px; border-radius:var(--radius-full);
+  background:rgba(148,163,184,0.12); border:1px solid rgba(148,163,184,0.35);
+  font-family:var(--mono); font-size:10px; font-weight:700;
+  color:#64748B; letter-spacing:0.06em; text-transform:uppercase;
+}
+.demo-indicator .demo-dot {
+  width:8px; height:8px; border-radius:50%; background:#94A3B8;
+}
+.demo-banner {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; margin-bottom:var(--space-4);
+  border-radius:var(--radius-md);
+  background:#FEF9C3; border:1px solid #FDE68A;
+  color:#A16207; font-size:13px; font-weight:500; line-height:1.4;
+}
+.demo-banner .demo-banner-icon { font-size:16px; flex-shrink:0; }
+
 /* ── Status semantic colors ── */
 .status-nominal { color: var(--c-forest-600); }
 .status-watch { color: var(--c-amber-600); }
@@ -1848,12 +1868,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3);">
       <div>
         <h2 style="margin-bottom:4px;">&#128225; Monitoring IoT</h2>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Surveillance en temps réel — Bâtiment A (85 &times; 12 m)</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Ambiance bâtiment — Bâtiment A (85 &times; 12 m)</p>
       </div>
       <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
-        <span class="live-indicator"><span class="live-dot"></span> EN DIRECT</span>
+        <span class="demo-indicator"><span class="demo-dot"></span> Données de démonstration</span>
         <span id="iot-last-sync" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;"></span>
       </div>
+    </div>
+
+    <!-- Bandeau honnête : ces données sont simulées tant que le flux capteurs n'est pas branché -->
+    <div class="demo-banner">
+      <span class="demo-banner-icon">&#9888;</span>
+      <span>Ces mesures sont <strong>simulées</strong> à des fins de démonstration — aucun capteur n'est encore connecté. Ne pas les utiliser pour des décisions d'élevage.</span>
     </div>
 
     <!-- Zone Schematic -->
@@ -3105,8 +3131,9 @@ function selectZone(index) {
 function updateIoTSyncTime() {
   const el = document.getElementById('iot-last-sync');
   if (!el) return;
+  // Heure réelle de génération du mock (new Date()), pas un horodatage figé.
   const now = new Date();
-  el.textContent = 'Mise à jour ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.textContent = 'Simulation générée à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // ── Navigation ──
@@ -8004,7 +8031,12 @@ async function submitAbattage(statut) {
 // ══════════════════════════════════════════
 // ── Monitoring IoT Module ──
 // ══════════════════════════════════════════
-// TODO: brancher API ThingSpeak (ESP32 → ThingSpeak → fetch API côté front)
+// ⚠️ DONNÉES SIMULÉES — generateIoTMockData() produit un mock, ce n'est PAS du temps réel.
+// TODO: remplacer par flux ThingSpeak réel (ESP32 → ThingSpeak → fetch API côté front).
+//       Mapper les champs reçus vers les colonnes existantes de la table `saisies` :
+//       eau_consommee_l / temperature_c / humidite_pct.
+//       Une fois le flux branché : retirer le bandeau .demo-banner et l'indicateur .demo-indicator
+//       de la page IoT (#page-iot) et rétablir un vrai indicateur d'état de connexion.
 
 let iotCharts = { temp: null, hum: null, air: null };
 
