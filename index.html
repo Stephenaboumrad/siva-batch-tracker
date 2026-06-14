@@ -199,6 +199,14 @@ body::before {
 }
 .demo-banner .demo-banner-icon { font-size:16px; flex-shrink:0; }
 
+/* ── Validation de saisie terrain (bienveillante : alerter, pas bloquer) ── */
+.input-warn  { border-color:#F59E0B !important; box-shadow:0 0 0 3px rgba(245,158,11,0.18) !important; }
+.input-error { border-color:#EF4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,0.18) !important; }
+.field-msg { font-size:11px; margin-top:4px; line-height:1.3; display:none; font-weight:600; }
+.field-msg.show { display:block; }
+.field-msg.warn  { color:#B45309; }
+.field-msg.error { color:#DC2626; }
+
 /* ── Status semantic colors ── */
 .status-nominal { color: var(--c-forest-600); }
 .status-watch { color: var(--c-amber-600); }
@@ -1497,6 +1505,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Mortalité du jour</label>
           <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric">
+          <div class="field-msg" id="saisie-msg-mortalite"></div>
         </div>
       </div>
       <div class="form-row">
@@ -1517,6 +1526,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Poids vif moyen (g)</label>
           <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0" inputmode="decimal">
+          <div class="field-msg" id="saisie-msg-poids"></div>
         </div>
       </div>
 
@@ -1527,10 +1537,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div class="form-group">
             <label>Température (°C)</label>
             <input type="number" id="saisie-temperature" step="0.1" min="0" max="50" placeholder="—">
+            <div class="field-msg" id="saisie-msg-temperature"></div>
           </div>
           <div class="form-group">
             <label>Humidité (%)</label>
             <input type="number" id="saisie-humidite" step="0.1" min="0" max="100" placeholder="—">
+            <div class="field-msg" id="saisie-msg-humidite"></div>
           </div>
         </div>
         <div id="saisie-ambiance-hint" style="font-size:11px;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.5rem;font-style:italic;"></div>
@@ -4521,9 +4533,91 @@ function initSaisiePage() {
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  clearSaisieValidation();
+  // Validation terrain en temps réel (à la frappe), bienveillante.
+  SAISIE_VALIDATED_FIELDS.forEach(f => {
+    const el = document.getElementById('saisie-' + f);
+    if (el) el.oninput = () => validateSaisieField(f);
+  });
+  // Le jour de cycle (donc les normes/effectif) dépend de la date → revalider à son changement.
+  const dateEl = document.getElementById('saisie-date');
+  if (dateEl) dateEl.onchange = () => { updateSaisieInfo(); };
   updateSaisieInfo();
   select.onchange = updateSaisieInfo;
   renderRecentSaisies();
+}
+
+// ── Validation de saisie terrain (temps réel, bienveillante : alerter, pas bloquer) ──
+const SAISIE_VALIDATED_FIELDS = ['mortalite', 'temperature', 'humidite', 'poids'];
+
+function getCobbStandardWeight(jour) {
+  const d = Math.max(0, Math.min(CYCLE_DURATION_DAYS, Math.round(jour)));
+  const row = COBB_STANDARD.find(c => c.day === d);
+  return row ? row.weight : COBB_STANDARD[COBB_STANDARD.length - 1].weight;
+}
+
+function getSaisieValidationContext() {
+  const bandeId = document.getElementById('saisie-bande').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return null;
+  const ind = computeIndicators(bande);
+  const dateVal = document.getElementById('saisie-date').value || todayStr();
+  const jour = Math.max(1, daysBetween(bande.date_entree, dateVal) + 1);
+  return { bande, jour, effectif: ind.effectifActuel, norm: getAmbianceNorm(jour) };
+}
+
+function setFieldMsg(field, kind, text) {
+  const input = document.getElementById('saisie-' + field);
+  const msg = document.getElementById('saisie-msg-' + field);
+  if (!input || !msg) return;
+  input.classList.remove('input-warn', 'input-error');
+  msg.classList.remove('show', 'warn', 'error');
+  if (!kind) { msg.textContent = ''; return; }
+  input.classList.add(kind === 'error' ? 'input-error' : 'input-warn');
+  msg.classList.add('show', kind);
+  msg.textContent = text;
+}
+
+function clearSaisieValidation() {
+  SAISIE_VALIDATED_FIELDS.forEach(f => setFieldMsg(f, null));
+}
+
+function validateSaisieField(field) {
+  const ctx = getSaisieValidationContext();
+  const input = document.getElementById('saisie-' + field);
+  if (!input) return;
+  const raw = input.value;
+  if (raw === '' || raw == null) { setFieldMsg(field, null); return; }
+  const val = Number(raw);
+  if (!Number.isFinite(val)) { setFieldMsg(field, null); return; }
+  if (!ctx) { setFieldMsg(field, null); return; }
+
+  if (field === 'mortalite') {
+    if (val > ctx.effectif) {
+      setFieldMsg(field, 'error', 'Supérieur à l\'effectif (' + fmt(ctx.effectif) + ')');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'temperature') {
+    const n = ctx.norm;
+    if (val < n.tempMin || val > n.tempMax) {
+      setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.tempMin + '–' + n.tempMax + '°C) — confirmer ?');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'humidite') {
+    const n = ctx.norm;
+    if (val < n.humMin || val > n.humMax) {
+      setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.humMin + '–' + n.humMax + '%) — confirmer ?');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'poids') {
+    if (val > 0) {
+      const std = getCobbStandardWeight(ctx.jour);
+      if (val < std * 0.5 || val > std * 1.6) {
+        setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (~' + fmt(std) + ' g attendu) — confirmer ?');
+      } else { setFieldMsg(field, null); }
+    } else { setFieldMsg(field, null); }
+  }
+}
+
+function validateAllSaisieFields() {
+  SAISIE_VALIDATED_FIELDS.forEach(validateSaisieField);
 }
 
 function updateSaisieInfo() {
@@ -4563,6 +4657,9 @@ function updateSaisieInfo() {
   if (hintDiv) {
     hintDiv.innerHTML = `Normes J${jour} : Temp. ${norm.tempMin}–${norm.tempMax}°C | Hum. ${norm.humMin}–${norm.humMax}%`;
   }
+
+  // Re-évalue les champs déjà remplis (le jour/effectif/normes viennent de changer).
+  validateAllSaisieFields();
 }
 
 function toggleIntrantForm() {
@@ -4667,6 +4764,7 @@ function resetSaisieForm() {
   document.getElementById('intrant-cout').value = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  clearSaisieValidation();
   updateSaisieInfo();
   renderRecentSaisies();
 }
