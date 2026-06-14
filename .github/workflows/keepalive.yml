@@ -1,0 +1,44 @@
+name: Supabase Keepalive
+
+# Empêche la mise en pause du projet Supabase (offre Free : pause après 7 jours
+# d'inactivité, restauration manuelle requise). Un ping quotidien de l'endpoint
+# REST atteint la base via PostgREST et compte comme activité → le compteur des
+# 7 jours est réinitialisé. Voir audit du 2026-06-14.
+#
+# La clé ci-dessous est la "publishable key" Supabase : elle est PUBLIQUE par
+# conception (déjà présente dans index.html du dépôt public). Aucun secret ici.
+# Pour la déplacer dans un secret : Settings > Secrets > Actions, puis remplacer
+# les valeurs par ${{ secrets.SUPABASE_URL }} / ${{ secrets.SUPABASE_KEY }}.
+
+on:
+  schedule:
+    # Tous les jours à 06:00 UTC (= 06:00 à Abidjan, UTC+0, pas de DST).
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}   # déclenchement manuel possible depuis l'onglet Actions
+
+# Évite les exécutions concurrentes si un run manuel chevauche le cron.
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: 'https://wlcvapssgxqptmeulqdc.supabase.co'
+      SUPABASE_KEY: 'sb_publishable_PXMCqNteVUPUBALVjnSxYQ_rogyUk_K'
+    steps:
+      - name: Ping Supabase REST (lecture table bandes)
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/bandes?select=bande_id&limit=1")
+          echo "Supabase REST a répondu : HTTP ${code}"
+          if [ "${code}" != "200" ] && [ "${code}" != "206" ]; then
+            echo "::error::Ping Supabase échoué (HTTP ${code}). Le projet est peut-être en pause, ou la clé/URL a changé."
+            exit 1
+          fi
+          echo "Projet Supabase actif — compteur d'inactivité réinitialisé."
