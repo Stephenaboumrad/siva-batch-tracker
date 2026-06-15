@@ -179,6 +179,34 @@ body::before {
   animation: breathe 2s var(--ease-live) infinite;
 }
 
+/* ── Demo data indicator (honnête : pas de flux temps réel certifié) ── */
+.demo-indicator {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 12px; border-radius:var(--radius-full);
+  background:rgba(148,163,184,0.12); border:1px solid rgba(148,163,184,0.35);
+  font-family:var(--mono); font-size:10px; font-weight:700;
+  color:#64748B; letter-spacing:0.06em; text-transform:uppercase;
+}
+.demo-indicator .demo-dot {
+  width:8px; height:8px; border-radius:50%; background:#94A3B8;
+}
+.demo-banner {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; margin-bottom:var(--space-4);
+  border-radius:var(--radius-md);
+  background:#FEF9C3; border:1px solid #FDE68A;
+  color:#A16207; font-size:13px; font-weight:500; line-height:1.4;
+}
+.demo-banner .demo-banner-icon { font-size:16px; flex-shrink:0; }
+
+/* ── Validation de saisie terrain (bienveillante : alerter, pas bloquer) ── */
+.input-warn  { border-color:#F59E0B !important; box-shadow:0 0 0 3px rgba(245,158,11,0.18) !important; }
+.input-error { border-color:#EF4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,0.18) !important; }
+.field-msg { font-size:11px; margin-top:4px; line-height:1.3; display:none; font-weight:600; }
+.field-msg.show { display:block; }
+.field-msg.warn  { color:#B45309; }
+.field-msg.error { color:#DC2626; }
+
 /* ── Status semantic colors ── */
 .status-nominal { color: var(--c-forest-600); }
 .status-watch { color: var(--c-amber-600); }
@@ -1477,6 +1505,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Mortalité du jour</label>
           <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric">
+          <div class="field-msg" id="saisie-msg-mortalite"></div>
         </div>
       </div>
       <div class="form-row">
@@ -1497,6 +1526,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Poids vif moyen (g)</label>
           <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0" inputmode="decimal">
+          <div class="field-msg" id="saisie-msg-poids"></div>
         </div>
       </div>
 
@@ -1507,10 +1537,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div class="form-group">
             <label>Température (°C)</label>
             <input type="number" id="saisie-temperature" step="0.1" min="0" max="50" placeholder="—">
+            <div class="field-msg" id="saisie-msg-temperature"></div>
           </div>
           <div class="form-group">
             <label>Humidité (%)</label>
             <input type="number" id="saisie-humidite" step="0.1" min="0" max="100" placeholder="—">
+            <div class="field-msg" id="saisie-msg-humidite"></div>
           </div>
         </div>
         <div id="saisie-ambiance-hint" style="font-size:11px;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.5rem;font-style:italic;"></div>
@@ -1848,12 +1880,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3);">
       <div>
         <h2 style="margin-bottom:4px;">&#128225; Monitoring IoT</h2>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Surveillance en temps réel — Bâtiment A (85 &times; 12 m)</p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Ambiance bâtiment — Bâtiment A (85 &times; 12 m)</p>
       </div>
       <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
-        <span class="live-indicator"><span class="live-dot"></span> EN DIRECT</span>
+        <span class="demo-indicator"><span class="demo-dot"></span> Données de démonstration</span>
         <span id="iot-last-sync" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;"></span>
       </div>
+    </div>
+
+    <!-- Bandeau honnête : ces données sont simulées tant que le flux capteurs n'est pas branché -->
+    <div class="demo-banner">
+      <span class="demo-banner-icon">&#9888;</span>
+      <span>Ces mesures sont <strong>simulées</strong> à des fins de démonstration — aucun capteur n'est encore connecté. Ne pas les utiliser pour des décisions d'élevage.</span>
     </div>
 
     <!-- Zone Schematic -->
@@ -2483,6 +2521,11 @@ const TARGET_CARCASS_YIELD_PCT = 58;
 const TARGET_LIVE_WEIGHT_G = Math.round(TARGET_CARCASS_WEIGHT_G / (TARGET_CARCASS_YIELD_PCT / 100)); // ~2069g vif
 const CYCLE_DURATION_DAYS = 42;       // Durée max cycle poulet de chair
 const TARGET_DAYS = 42;               // Barre de progression
+const TARGET_SLAUGHTER_DAYS = 32;     // Cible abattage Cobb 500 (~31–33 j) — ancre la projection de sortie
+
+// ── Seuils qualité de l'air (module IoT) — source de vérité unique ──
+// Température/humidité : voir AMBIANCE_NORMS (partagé Dashboard ↔ IoT).
+const IOT_AIR_NORMS = { nh3Max: 20, nh3Crit: 25, co2Max: 2500 };
 
 // ── Phases du cycle d'élevage ──
 const CYCLE_PHASES = [
@@ -2537,9 +2580,33 @@ const COBB_STANDARD = [
   { day: 42, weight: 2450 }
 ];
 
+// ── Helper: jour de cycle "réel" d'un lot ──
+// Source de vérité = les DATES : jour = (aujourd'hui − date de mise en place) + 1.
+// Jamais un compteur arbitraire (ex : jour_bande figé d'une vieille saisie).
+// Retourne null si la date de mise en place est manquante ou incohérente.
+function cycleDay(bande, refDate) {
+  if (!bande || !bande.date_entree) return null;
+  const d = daysBetween(bande.date_entree, refDate || todayStr()) + 1;
+  if (!Number.isFinite(d) || d < 1) return null;
+  return d;
+}
+
 // ── Helper: get current phase for a batch day ──
 function getCurrentPhase(jour) {
   return CYCLE_PHASES.find(p => jour >= p.start && jour <= p.end) || CYCLE_PHASES[CYCLE_PHASES.length - 1];
+}
+
+// ── Helper: norme d'ambiance de référence pour le module IoT ──
+// Aligne les seuils IoT sur le lot actif (même AMBIANCE_NORMS que le Dashboard),
+// pour que les deux modules ne se contredisent jamais sur le même lot.
+function getIoTReferenceNorm() {
+  const active = STATE.bandes
+    .filter(b => b.statut === 'en_cours')
+    .map(b => ({ b, jour: cycleDay(b) }))
+    .filter(x => x.jour != null)
+    .sort((a, z) => z.jour - a.jour)[0];
+  const jour = active ? active.jour : 21;   // défaut documenté : mi-cycle si aucun lot actif
+  return getAmbianceNorm(jour);
 }
 
 // ── Helper: get ambiance norms for a batch day ──
@@ -3045,10 +3112,14 @@ function generateZoneData(data) {
     { id: 'Z3', label: 'Zone 3', temp: latest.temp + 0.8 + Math.random() * 0.5, hum: latest.hum + 1, nh3: latest.nh3 * 1.15, co2: latest.co2 * 1.1, lux: latest.lux * 0.9 },
     { id: 'Z4', label: 'Zone 4 — Fond', temp: latest.temp + 1.2 + Math.random() * 0.5, hum: latest.hum + 3, nh3: latest.nh3 * 1.3, co2: latest.co2 * 1.2, lux: latest.lux * 0.85 }
   ];
+  // Seuils alignés sur la norme d'ambiance du lot actif (même source que le Dashboard).
+  const norm = getIoTReferenceNorm();
   zones.forEach(z => {
-    z.tempStatus = z.temp >= 24 && z.temp <= 32 ? 'nominal' : z.temp > 35 ? 'critical' : 'watch';
-    z.humStatus = z.hum >= 55 && z.hum <= 75 ? 'nominal' : z.hum > 85 ? 'critical' : 'watch';
-    z.nh3Status = z.nh3 <= 20 ? 'nominal' : z.nh3 > 25 ? 'critical' : 'alert';
+    z.tempStatus = (z.temp >= norm.tempMin && z.temp <= norm.tempMax) ? 'nominal'
+      : (z.temp < norm.tempMin - 3 || z.temp > norm.tempMax + 3) ? 'critical' : 'watch';
+    z.humStatus = (z.hum >= norm.humMin && z.hum <= norm.humMax) ? 'nominal'
+      : (z.hum < norm.humMin - 10 || z.hum > norm.humMax + 10) ? 'critical' : 'watch';
+    z.nh3Status = z.nh3 <= IOT_AIR_NORMS.nh3Max ? 'nominal' : z.nh3 > IOT_AIR_NORMS.nh3Crit ? 'critical' : 'alert';
     z.overall = [z.tempStatus, z.humStatus, z.nh3Status].includes('critical') ? 'critical'
       : [z.tempStatus, z.humStatus, z.nh3Status].includes('alert') ? 'alert'
       : [z.tempStatus, z.humStatus, z.nh3Status].includes('watch') ? 'watch' : 'nominal';
@@ -3105,8 +3176,9 @@ function selectZone(index) {
 function updateIoTSyncTime() {
   const el = document.getElementById('iot-last-sync');
   if (!el) return;
+  // Heure réelle de génération du mock (new Date()), pas un horodatage figé.
   const now = new Date();
-  el.textContent = 'Mise à jour ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.textContent = 'Simulation générée à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // ── Navigation ──
@@ -3173,15 +3245,20 @@ function computeIndicators(bande) {
   let lastSaisieDate = null;
   let lastTemp = null;
   let lastHumidite = null;
+  // Dernière PESÉE réelle (poids_vif_moyen_g > 0), distincte du poids initial reporté.
+  let poidsMesure = null;
+  let jourPesee = null;
 
   const dailyData = saisies.map(s => {
     const jour = Number(s.jour_bande) || (daysBetween(bande.date_entree, s.date_saisie) + 1);
     mortCum += Number(s.mortalite_jour) || 0;
     alimentTotal += Number(s.aliment_consomme_kg) || 0;
     eauTotal += Number(s.eau_consommee_l) || 0;
-    const poids = Number(s.poids_vif_moyen_g) || dernierPoids;
+    const poidsMesureJour = Number(s.poids_vif_moyen_g) || 0;
+    const poids = poidsMesureJour || dernierPoids;
     dernierPoids = poids;
     dernierJour = jour;
+    if (poidsMesureJour > 0) { poidsMesure = poidsMesureJour; jourPesee = jour; }
     lastSaisieDate = s.date_saisie;
     if (s.temperature_c != null && s.temperature_c !== 0) lastTemp = Number(s.temperature_c);
     if (s.humidite_pct != null && s.humidite_pct !== 0) lastHumidite = Number(s.humidite_pct);
@@ -3218,8 +3295,13 @@ function computeIndicators(bande) {
   const ic = (effectifActuel > 0 && dernierPoids > 0)
     ? alimentTotal / ((dernierPoids / 1000) * effectifActuel)
     : null;
-  const gmq = dernierJour > 0 ? (dernierPoids - poidsInitial) / dernierJour : 0;
-  const poidsCarcasse = dernierPoids * rendement / 100;
+  // Jour de cycle réel (basé sur les dates), indépendant de la fréquence des saisies.
+  const jourActuel = cycleDay(bande);
+  const hasWeighing = poidsMesure != null;
+  // GMQ = gain moyen depuis le démarrage jusqu'à la DERNIÈRE PESÉE réelle.
+  // null si aucune pesée : on n'invente pas un GMQ à partir du poids initial reporté.
+  const gmq = (hasWeighing && jourPesee > 0) ? (poidsMesure - poidsInitial) / jourPesee : null;
+  const poidsCarcasse = (hasWeighing ? poidsMesure : 0) * rendement / 100;
 
   // Financial
   const coutPoussins = nbEntree * (Number(bande.prix_poussin_unitaire) || 0);
@@ -3242,22 +3324,23 @@ function computeIndicators(bande) {
   const totalCarcasseKg = nbSortie * poidsCarcasseSortie / 1000;
   const margeParKg = totalCarcasseKg > 0 ? margeBrute / totalCarcasseKg : 0;
 
-  // Performance Index (IP) — standard avicole
+  // Performance Index (IP) — standard avicole. Âge = jour de cycle réel ; poids = pesée réelle.
   const viabilite = 100 - tauxMort;
-  const ip = computeIP(viabilite, dernierPoids, ic, dernierJour);
+  const ip = computeIP(viabilite, hasWeighing ? poidsMesure : 0, ic, jourActuel != null ? jourActuel : dernierJour);
 
-  // Target progress: carcasse estimée vs cible 1.2 kg
-  const carcasseEstimee = dernierPoids * rendement / 100;
+  // Target progress: carcasse estimée vs cible (basée sur la dernière pesée, 0 si jamais pesé).
+  const carcasseEstimee = (hasWeighing ? poidsMesure : 0) * rendement / 100;
   const pctCible = TARGET_CARCASS_WEIGHT_G > 0 ? Math.min(100, (carcasseEstimee / TARGET_CARCASS_WEIGHT_G) * 100) : 0;
 
-  // Current phase
-  const phase = getCurrentPhase(dernierJour);
+  // Current phase — basée sur le jour de cycle réel (dates), pas sur la dernière saisie.
+  const phase = getCurrentPhase(jourActuel != null ? jourActuel : dernierJour);
 
   return {
     saisies: dailyData,
     intrants,
     mortCum, tauxMort, effectifActuel, alimentTotal, eauTotal,
-    ic, gmq, dernierPoids, dernierJour, poidsCarcasse, lastSaisieDate,
+    ic, gmq, dernierPoids, dernierJour, jourActuel, poidsMesure, jourPesee, hasWeighing,
+    poidsCarcasse, lastSaisieDate,
     ip, viabilite, carcasseEstimee, pctCible, phase,
     lastTemp, lastHumidite,
     coutPoussins, coutAliment, coutIntrants, produitBrut, margeBrute, margeParKg,
@@ -3295,8 +3378,8 @@ function checkAlerts() {
     }
 
     // Abattage à planifier — basé sur le poids carcasse cible
-    const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
-    if (ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G * 0.9) {
+    const jour = ind.jourActuel || ind.dernierJour || (daysBetween(b.date_entree, todayStr()) + 1);
+    if (ind.hasWeighing && ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G * 0.9) {
       const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
       if (!hasAbattage) {
         alerts.push({ level: ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G ? 'critical' : 'warning', icon: '🔪', text: b.nom_bande + ' — Poids carcasse cible atteint (' + fmt(Math.round(ind.carcasseEstimee)) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g) — planifier abattage' });
@@ -3384,55 +3467,54 @@ function renderAlerts(alerts) {
 }
 
 // ── Slaughter forecast ──
+// Projection ANCRÉE sur les dates : sortie ≈ mise en place + TARGET_SLAUGHTER_DAYS (~32 j, Cobb 500).
+// Le GMQ ne fait que raffiner cette ancre, et le résultat est borné [jour actuel, CYCLE_DURATION_DAYS]
+// pour ne JAMAIS produire de valeur absurde (ex : « J+225 ») même avec des pesées aberrantes/manquantes.
 function computeSlaughterForecast(bande, ind) {
-  const currentWeight = ind.dernierPoids || 0;
-
-  // Already at target weight (carcasse cible atteinte)
   const rendement = Number(bande.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT;
+  const jourActuel = ind.jourActuel || cycleDay(bande) || ind.dernierJour || 0;
+
+  // Poids de référence = dernière PESÉE réelle (jamais le poids initial reporté).
+  const currentWeight = ind.poidsMesure || 0;
   const carcasseActuelle = currentWeight * rendement / 100;
-  if (carcasseActuelle >= TARGET_CARCASS_WEIGHT_G) {
+  if (currentWeight > 0 && carcasseActuelle >= TARGET_CARCASS_WEIGHT_G) {
     return { status: 'reached', text: '&#9989; Carcasse cible atteinte (' + Math.round(carcasseActuelle) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g)' };
   }
 
-  // Compute GMQ from last 3 days average
-  const saisies = ind.saisies;
-  if (saisies.length < 2) {
-    return { status: 'nodata', text: '— données insuffisantes' };
-  }
-
-  // Get last 3 saisies with weight data
-  const withWeight = saisies.filter(s => s.poids > 0);
-  if (withWeight.length < 2) {
-    return { status: 'nodata', text: '— données insuffisantes' };
-  }
-
-  const recent = withWeight.slice(-Math.min(4, withWeight.length));
-  const first = recent[0];
-  const last = recent[recent.length - 1];
-  const daysDiff = last.jour_bande - first.jour_bande;
-
-  if (daysDiff <= 0) {
-    return { status: 'nodata', text: '— données insuffisantes' };
-  }
-
-  const gmq3d = (last.poids - first.poids) / daysDiff;
-  if (gmq3d <= 0) {
-    return { status: 'nodata', text: '— données insuffisantes' };
-  }
-
-  const remaining = (TARGET_LIVE_WEIGHT_G - currentWeight) / gmq3d;
-  const estDate = new Date();
-  estDate.setDate(estDate.getDate() + Math.ceil(remaining));
-  const dateStr = estDate.toLocaleDateString('fr-FR');
-  const daysLeft = Math.ceil(remaining);
-
-  const projCarcasse = Math.round((currentWeight + gmq3d * remaining) * rendement / 100);
-  return {
-    status: 'projected',
-    text: 'Sortie estimée : ' + dateStr + ' (J+' + daysLeft + ') — carcasse ' + projCarcasse + 'g cible',
-    date: estDate,
-    daysLeft: daysLeft
+  // Construit une projection à partir d'un jour-cible de cycle, toujours bornée.
+  const buildForecast = (targetDay, extra) => {
+    const clampedDay = Math.min(CYCLE_DURATION_DAYS, Math.max(jourActuel || 1, Math.round(targetDay)));
+    const daysLeft = Math.max(0, clampedDay - (jourActuel || 0));
+    const estDate = new Date(); estDate.setHours(0, 0, 0, 0);
+    estDate.setDate(estDate.getDate() + daysLeft);
+    return {
+      status: 'projected',
+      date: estDate,
+      daysLeft: daysLeft,
+      targetDay: clampedDay,
+      text: 'Sortie estimée : ' + estDate.toLocaleDateString('fr-FR') + ' (J' + clampedDay + ')' + (extra || '')
+    };
   };
+
+  // Ancre par défaut : mise en place + cible abattage (~32 j).
+  const anchor = buildForecast(TARGET_SLAUGHTER_DAYS, ' — cible ~' + TARGET_SLAUGHTER_DAYS + ' j');
+
+  // Raffinement pondéral seulement si pesées plausibles ; sinon on garde l'ancre date.
+  const withWeight = ind.saisies.filter(s => Number(s.poids_vif_moyen_g) > 0);
+  if (withWeight.length >= 2 && currentWeight > 0) {
+    const recent = withWeight.slice(-Math.min(4, withWeight.length));
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    const daysDiff = last.jour_bande - first.jour_bande;
+    const gmq = daysDiff > 0 ? (Number(last.poids_vif_moyen_g) - Number(first.poids_vif_moyen_g)) / daysDiff : 0;
+    // GMQ plausible (≥ 10 g/j) → projection pondérale bornée ; sinon données trop bruitées → ancre date.
+    if (gmq >= 10) {
+      const projDay = jourActuel + (TARGET_LIVE_WEIGHT_G - currentWeight) / gmq;
+      const projCarcasse = Math.round(TARGET_LIVE_WEIGHT_G * rendement / 100);
+      return buildForecast(projDay, ' — carcasse ' + projCarcasse + 'g cible');
+    }
+  }
+  return anchor;
 }
 
 // ── Notifications & Deadlines ──
@@ -3713,7 +3795,7 @@ function computeDeadlines(batchData) {
         color: daysLeft <= 7 ? '#C62828' : '#EA580C',
         date: fDate,
         daysLeft: daysLeft,
-        sub: 'Poids vif actuel : ' + (ind.dernierPoids || 0) + 'g / cible 1 900g'
+        sub: 'Poids vif : ' + (ind.hasWeighing ? Math.round(ind.poidsMesure) + 'g' : 'non pesé') + ' / cible ' + fmt(TARGET_LIVE_WEIGHT_G) + 'g'
       });
     }
 
@@ -3841,7 +3923,7 @@ function renderDashboard() {
     forecast: null
   }));
   batchData.forEach(bd => {
-    bd.jour = bd.ind.dernierJour || daysBetween(bd.bande.date_entree, todayStr()) + 1;
+    bd.jour = bd.ind.jourActuel || bd.ind.dernierJour || (daysBetween(bd.bande.date_entree, todayStr()) + 1);
     bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
   });
 
@@ -3862,7 +3944,7 @@ function renderDashboard() {
     const mortStatus = pi.tauxMort < 3 ? 'nominal' : pi.tauxMort <= 5 ? 'watch' : 'critical';
     const icStatus = pi.ic && pi.ic < 1.8 ? 'nominal' : pi.ic && pi.ic < 2.2 ? 'watch' : 'alert';
     const gmqNorm = pj <= 10 ? 50 : pj <= 21 ? 70 : 80;
-    const gmqStatus = pi.gmq >= gmqNorm * 0.95 ? 'nominal' : pi.gmq >= gmqNorm * 0.8 ? 'watch' : 'critical';
+    const gmqStatus = pi.gmq == null ? 'watch' : pi.gmq >= gmqNorm * 0.95 ? 'nominal' : pi.gmq >= gmqNorm * 0.8 ? 'watch' : 'critical';
 
     const heroHtml = `
       <div class="hero-batch-card card-stagger">
@@ -3890,7 +3972,7 @@ function renderDashboard() {
               <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${mortStatus} status-live"></span>${fmt(pi.tauxMort,1)}%</div><div class="hm-label">Mortalité cum.</div></div>
               <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${icStatus}"></span>${pi.ic != null ? fmt(pi.ic, 2) : '—'}</div><div class="hm-label">IC cumulatif</div></div>
               <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${gmqStatus}"></span>${fmt(pi.gmq,1)}</div><div class="hm-label">GMQ (g/j)</div></div>
-              <div class="hero-metric"><div class="hm-value">${fmt(pi.dernierPoids)}</div><div class="hm-label">Poids vif (g)</div></div>
+              <div class="hero-metric"><div class="hm-value">${pi.hasWeighing ? fmt(pi.poidsMesure) : '—'}</div><div class="hm-label">Poids vif (g)${pi.hasWeighing ? '' : '<br><span style="font-size:9px;">non pesé</span>'}</div></div>
             </div>
             ${pf ? '<div class="forecast-chip" style="margin-top:var(--space-3);">' + pf.text + '</div>' : ''}
           </div>
@@ -3913,7 +3995,7 @@ function renderDashboard() {
   let forecastCls = '';
   if (nearestForecast) {
     const dl = nearestForecast.forecast.daysLeft;
-    forecastHtml = 'dans ' + dl + ' jours';
+    forecastHtml = dl <= 0 ? "aujourd'hui" : 'dans ' + dl + ' jour' + (dl > 1 ? 's' : '');
     forecastSub = nearestForecast.bande.nom_bande;
     forecastCls = dl < 7 ? '' : ' dk-success';
   }
@@ -3963,16 +4045,17 @@ function renderDashboard() {
     const pctJour = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
     const barColor = pctJour < 60 ? '#F97316' : pctJour < 85 ? '#F59E0B' : '#E74C3C';
 
-    // Carcass target progress
-    const carcEst = Math.round(ind.dernierPoids * (Number(b.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT) / 100);
+    // Carcass target progress (basé sur la dernière pesée réelle, 0 si jamais pesé)
+    const carcEst = Math.round(ind.carcasseEstimee);
     const pctCarcasse = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
     const carcColor = pctCarcasse < 50 ? '#3B82F6' : pctCarcasse < 90 ? '#F97316' : '#EA580C';
 
     // GMQ vs Cobb norm
     const expectedGmq = getCobbGmq(jour);
-    const gmqRatio = expectedGmq > 0 ? ind.gmq / expectedGmq : 1;
+    const gmqRatio = (ind.gmq != null && expectedGmq > 0) ? ind.gmq / expectedGmq : null;
     let gmqHtml;
-    if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">&#10003; GMQ dans la norme Cobb</div>';
+    if (gmqRatio == null) gmqHtml = '<div class="gmq-norm">&#9878; Pas encore de pesée</div>';
+    else if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">&#10003; GMQ dans la norme Cobb</div>';
     else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ GMQ légèrement faible</div>';
     else gmqHtml = '<div class="gmq-norm bad">&#8595; GMQ sous la norme</div>';
 
@@ -4018,8 +4101,8 @@ function renderDashboard() {
           <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
           <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:var(--${mortClass === 'green' ? 'accent-green' : mortClass === 'orange' ? 'accent-amber' : 'accent-red'})">${fmt(ind.viabilite,1)}%</div></div>
           <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div></div>
-          <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
-          <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
+          <div class="stat-item"><div class="label">GMQ</div><div class="value">${ind.gmq != null ? fmt(ind.gmq,1) + ' g/j' : '—'}</div></div>
+          <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
           <div class="stat-item"><div class="label">Aliment</div><div class="value">${fmt(ind.alimentTotal,0)} kg</div></div>
         </div>
         ${gmqHtml}
@@ -4450,9 +4533,91 @@ function initSaisiePage() {
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  clearSaisieValidation();
+  // Validation terrain en temps réel (à la frappe), bienveillante.
+  SAISIE_VALIDATED_FIELDS.forEach(f => {
+    const el = document.getElementById('saisie-' + f);
+    if (el) el.oninput = () => validateSaisieField(f);
+  });
+  // Le jour de cycle (donc les normes/effectif) dépend de la date → revalider à son changement.
+  const dateEl = document.getElementById('saisie-date');
+  if (dateEl) dateEl.onchange = () => { updateSaisieInfo(); };
   updateSaisieInfo();
   select.onchange = updateSaisieInfo;
   renderRecentSaisies();
+}
+
+// ── Validation de saisie terrain (temps réel, bienveillante : alerter, pas bloquer) ──
+const SAISIE_VALIDATED_FIELDS = ['mortalite', 'temperature', 'humidite', 'poids'];
+
+function getCobbStandardWeight(jour) {
+  const d = Math.max(0, Math.min(CYCLE_DURATION_DAYS, Math.round(jour)));
+  const row = COBB_STANDARD.find(c => c.day === d);
+  return row ? row.weight : COBB_STANDARD[COBB_STANDARD.length - 1].weight;
+}
+
+function getSaisieValidationContext() {
+  const bandeId = document.getElementById('saisie-bande').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return null;
+  const ind = computeIndicators(bande);
+  const dateVal = document.getElementById('saisie-date').value || todayStr();
+  const jour = Math.max(1, daysBetween(bande.date_entree, dateVal) + 1);
+  return { bande, jour, effectif: ind.effectifActuel, norm: getAmbianceNorm(jour) };
+}
+
+function setFieldMsg(field, kind, text) {
+  const input = document.getElementById('saisie-' + field);
+  const msg = document.getElementById('saisie-msg-' + field);
+  if (!input || !msg) return;
+  input.classList.remove('input-warn', 'input-error');
+  msg.classList.remove('show', 'warn', 'error');
+  if (!kind) { msg.textContent = ''; return; }
+  input.classList.add(kind === 'error' ? 'input-error' : 'input-warn');
+  msg.classList.add('show', kind);
+  msg.textContent = text;
+}
+
+function clearSaisieValidation() {
+  SAISIE_VALIDATED_FIELDS.forEach(f => setFieldMsg(f, null));
+}
+
+function validateSaisieField(field) {
+  const ctx = getSaisieValidationContext();
+  const input = document.getElementById('saisie-' + field);
+  if (!input) return;
+  const raw = input.value;
+  if (raw === '' || raw == null) { setFieldMsg(field, null); return; }
+  const val = Number(raw);
+  if (!Number.isFinite(val)) { setFieldMsg(field, null); return; }
+  if (!ctx) { setFieldMsg(field, null); return; }
+
+  if (field === 'mortalite') {
+    if (val > ctx.effectif) {
+      setFieldMsg(field, 'error', 'Supérieur à l\'effectif (' + fmt(ctx.effectif) + ')');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'temperature') {
+    const n = ctx.norm;
+    if (val < n.tempMin || val > n.tempMax) {
+      setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.tempMin + '–' + n.tempMax + '°C) — confirmer ?');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'humidite') {
+    const n = ctx.norm;
+    if (val < n.humMin || val > n.humMax) {
+      setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.humMin + '–' + n.humMax + '%) — confirmer ?');
+    } else { setFieldMsg(field, null); }
+  } else if (field === 'poids') {
+    if (val > 0) {
+      const std = getCobbStandardWeight(ctx.jour);
+      if (val < std * 0.5 || val > std * 1.6) {
+        setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (~' + fmt(std) + ' g attendu) — confirmer ?');
+      } else { setFieldMsg(field, null); }
+    } else { setFieldMsg(field, null); }
+  }
+}
+
+function validateAllSaisieFields() {
+  SAISIE_VALIDATED_FIELDS.forEach(validateSaisieField);
 }
 
 function updateSaisieInfo() {
@@ -4469,8 +4634,8 @@ function updateSaisieInfo() {
   const phase = getCurrentPhase(jour);
   const norm = getAmbianceNorm(jour);
   const viab = 100 - ind.tauxMort;
-  const ip = computeIP(viab, ind.dernierPoids, ind.ic, jour);
-  const carcEst = Math.round(ind.dernierPoids * (bande.rendement_carcasse_pct || TARGET_CARCASS_YIELD_PCT) / 100);
+  const ip = computeIP(viab, ind.hasWeighing ? ind.poidsMesure : 0, ind.ic, jour);
+  const carcEst = Math.round(ind.carcasseEstimee);
   const pctCible = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
 
   infoDiv.innerHTML = `
@@ -4483,8 +4648,8 @@ function updateSaisieInfo() {
       <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px;">
         <span>Effectif : <strong>${fmt(ind.effectifActuel)}</strong></span>
         <span>Mort. : <strong>${fmt(ind.tauxMort,1)}%</strong></span>
-        <span>Poids vif : <strong>${fmt(ind.dernierPoids)} g</strong></span>
-        <span>Carcasse est. : <strong>${fmt(carcEst)} g</strong> (${pctCible}% de ${TARGET_CARCASS_WEIGHT_G/1000} kg cible)</span>
+        <span>Poids vif : <strong>${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : 'non pesé'}</strong></span>
+        <span>Carcasse est. : <strong>${ind.hasWeighing ? fmt(carcEst) + ' g' : '—'}</strong>${ind.hasWeighing ? ' (' + pctCible + '% de ' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg cible)' : ''}</span>
         ${ip > 0 ? `<span>IP : <strong>${fmt(ip,0)}</strong></span>` : ''}
       </div>
     </div>`;
@@ -4492,6 +4657,9 @@ function updateSaisieInfo() {
   if (hintDiv) {
     hintDiv.innerHTML = `Normes J${jour} : Temp. ${norm.tempMin}–${norm.tempMax}°C | Hum. ${norm.humMin}–${norm.humMax}%`;
   }
+
+  // Re-évalue les champs déjà remplis (le jour/effectif/normes viennent de changer).
+  validateAllSaisieFields();
 }
 
 function toggleIntrantForm() {
@@ -4596,6 +4764,7 @@ function resetSaisieForm() {
   document.getElementById('intrant-cout').value = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
+  clearSaisieValidation();
   updateSaisieInfo();
   renderRecentSaisies();
 }
@@ -4654,13 +4823,14 @@ function loadFicheBande() {
   if (!bande) return;
 
   const ind = computeIndicators(bande);
-  const jour = ind.dernierJour || daysBetween(bande.date_entree, todayStr()) + 1;
+  // Lot actif : jour réel (dates). Lot terminé : dernier jour saisi (historique).
+  const jour = (bande.statut === 'en_cours' && ind.jourActuel) ? ind.jourActuel : (ind.dernierJour || daysBetween(bande.date_entree, todayStr()) + 1);
   const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
   // Header with enriched metrics
   const ficheForecast = bande.statut === 'en_cours' ? computeSlaughterForecast(bande, ind) : null;
   const phase = getCurrentPhase(jour);
-  const carcEst = Math.round(ind.dernierPoids * (Number(bande.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT) / 100);
+  const carcEst = Math.round(ind.carcasseEstimee);
   const pctCible = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
   const ipVal = ind.ip || 0;
   const ipColor = ipVal >= 300 ? '#22C55E' : ipVal >= 250 ? '#F97316' : '#EF4444';
@@ -4683,9 +4853,9 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
       <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:${mortClass === 'green' ? '#EA580C' : mortClass === 'orange' ? '#F59E0B' : '#EF4444'}">${fmt(ind.viabilite,1)}%</div></div>
       <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic,2) : '—'}</div></div>
-      <div class="stat-item"><div class="label">GMQ</div><div class="value">${fmt(ind.gmq,1)} g/j</div></div>
-      <div class="stat-item"><div class="label">Poids vif</div><div class="value">${fmt(ind.dernierPoids)} g</div></div>
-      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${fmt(carcEst)} g</div></div>
+      <div class="stat-item"><div class="label">GMQ</div><div class="value">${ind.gmq != null ? fmt(ind.gmq,1) + ' g/j' : '—'}</div></div>
+      <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
+      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${ind.hasWeighing ? fmt(carcEst) + ' g' : '—'}</div></div>
       <div class="stat-item"><div class="label">Eau totale</div><div class="value">${ind.eauTotal > 0 ? fmt(ind.eauTotal,0) + ' L' : '—'}</div></div>
       <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
@@ -8004,21 +8174,30 @@ async function submitAbattage(statut) {
 // ══════════════════════════════════════════
 // ── Monitoring IoT Module ──
 // ══════════════════════════════════════════
-// TODO: brancher API ThingSpeak (ESP32 → ThingSpeak → fetch API côté front)
+// ⚠️ DONNÉES SIMULÉES — generateIoTMockData() produit un mock, ce n'est PAS du temps réel.
+// TODO: remplacer par flux ThingSpeak réel (ESP32 → ThingSpeak → fetch API côté front).
+//       Mapper les champs reçus vers les colonnes existantes de la table `saisies` :
+//       eau_consommee_l / temperature_c / humidite_pct.
+//       Une fois le flux branché : retirer le bandeau .demo-banner et l'indicateur .demo-indicator
+//       de la page IoT (#page-iot) et rétablir un vrai indicateur d'état de connexion.
 
 let iotCharts = { temp: null, hum: null, air: null };
 
 function generateIoTMockData() {
   const now = new Date();
   const points = [];
+  // Centrer le mock sur la norme d'ambiance du lot actif → cohérent avec le Dashboard et les seuils KPI.
+  const norm = getIoTReferenceNorm();
+  const tempCenter = (norm.tempMin + norm.tempMax) / 2;
+  const humCenter = (norm.humMin + norm.humMax) / 2;
   for (let i = 23; i >= 0; i--) {
     const t = new Date(now - i * 3600000);
     const hour = t.getHours();
     const isNight = hour < 6 || hour > 20;
     points.push({
       time: t.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      temp: 27 + (isNight ? -2 : 2) + (Math.random() - 0.5) * 3,
-      hum: 65 + (isNight ? 5 : -3) + (Math.random() - 0.5) * 8,
+      temp: tempCenter + (isNight ? -1 : 1) + (Math.random() - 0.5) * 2,
+      hum: humCenter + (isNight ? 4 : -2) + (Math.random() - 0.5) * 8,
       nh3: 8 + Math.random() * 10 + (isNight ? 4 : 0),
       co2: 800 + Math.random() * 1200 + (isNight ? 400 : 0),
       lux: isNight ? 5 + Math.random() * 5 : 30 + Math.random() * 20
@@ -8040,12 +8219,15 @@ function initIoTPage() {
   // Last sync time
   updateIoTSyncTime();
 
+  // Seuils température/humidité = norme d'ambiance du lot actif (même source que le Dashboard).
+  const norm = getIoTReferenceNorm();
+
   // KPI cards
   const kpis = [
-    { icon: '&#127777;', label: 'Température', value: latest.temp.toFixed(1), unit: '°C', sensor: 'DHT22', status: latest.temp >= 24 && latest.temp <= 32 ? 'normal' : 'alerte' },
-    { icon: '&#128167;', label: 'Humidité', value: latest.hum.toFixed(0), unit: '%', sensor: 'DHT22', status: latest.hum >= 55 && latest.hum <= 75 ? 'normal' : 'alerte' },
-    { icon: '&#9888;', label: 'NH3', value: latest.nh3.toFixed(1), unit: 'ppm', sensor: 'MQ-135', status: latest.nh3 <= 20 ? 'normal' : 'alerte' },
-    { icon: '&#127787;', label: 'CO2', value: Math.round(latest.co2).toLocaleString('fr-FR'), unit: 'ppm', sensor: 'MQ-135', status: latest.co2 <= 2500 ? 'normal' : 'alerte' },
+    { icon: '&#127777;', label: 'Température', value: latest.temp.toFixed(1), unit: '°C', sensor: 'DHT22', status: (latest.temp >= norm.tempMin && latest.temp <= norm.tempMax) ? 'normal' : 'alerte' },
+    { icon: '&#128167;', label: 'Humidité', value: latest.hum.toFixed(0), unit: '%', sensor: 'DHT22', status: (latest.hum >= norm.humMin && latest.hum <= norm.humMax) ? 'normal' : 'alerte' },
+    { icon: '&#9888;', label: 'NH3', value: latest.nh3.toFixed(1), unit: 'ppm', sensor: 'MQ-135', status: latest.nh3 <= IOT_AIR_NORMS.nh3Max ? 'normal' : 'alerte' },
+    { icon: '&#127787;', label: 'CO2', value: Math.round(latest.co2).toLocaleString('fr-FR'), unit: 'ppm', sensor: 'MQ-135', status: latest.co2 <= IOT_AIR_NORMS.co2Max ? 'normal' : 'alerte' },
     { icon: '&#128161;', label: 'Éclairage', value: latest.lux.toFixed(0), unit: 'lux', sensor: 'BH1750', status: 'normal' }
   ];
 
@@ -8106,8 +8288,8 @@ function initIoTPage() {
         id: 'thresholdBands',
         beforeDraw(chart) {
           const { ctx, chartArea, scales } = chart;
-          const yMin = scales.y.getPixelForValue(24);
-          const yMax = scales.y.getPixelForValue(32);
+          const yMin = scales.y.getPixelForValue(norm.tempMin);
+          const yMax = scales.y.getPixelForValue(norm.tempMax);
           ctx.save();
           ctx.setLineDash([5, 5]);
           ctx.strokeStyle = 'rgba(220,38,38,0.4)';
@@ -8155,8 +8337,8 @@ function initIoTPage() {
         id: 'thresholdBandsHum',
         beforeDraw(chart) {
           const { ctx, chartArea, scales } = chart;
-          const yMin = scales.y.getPixelForValue(55);
-          const yMax = scales.y.getPixelForValue(75);
+          const yMin = scales.y.getPixelForValue(norm.humMin);
+          const yMax = scales.y.getPixelForValue(norm.humMax);
           ctx.save();
           ctx.setLineDash([5, 5]);
           ctx.strokeStyle = 'rgba(59,130,246,0.4)';
