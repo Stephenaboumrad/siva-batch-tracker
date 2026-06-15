@@ -4800,7 +4800,8 @@ function renderRecentSaisies() {
     return;
   }
 
-  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">3 dernières saisies</h3><div class="table-wrap"><table><thead><tr>' +
+  const titre = recent.length > 1 ? recent.length + ' dernières saisies' : 'Dernière saisie';
+  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table><thead><tr>' +
     '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
 
   recent.forEach(s => {
