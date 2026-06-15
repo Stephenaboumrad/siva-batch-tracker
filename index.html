@@ -1678,10 +1678,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Tab 3: Statistiques -->
     <div id="ab-tab-stats" style="display:none;">
-      <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
-        <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
-        <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
+      <div id="ab-stats-empty" class="empty-state" style="display:none;">
+        <div class="icon">&#128202;</div>
+        <p>Aucune donnée d'abattage pour le moment.<br>Les statistiques s'afficheront après votre première session d'abattage validée.</p>
+      </div>
+      <div id="ab-stats-content">
+        <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
+          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
+          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -7982,10 +7988,17 @@ async function validateAbattage(id) {
 // ── Tab 3: Stats ──
 function renderAbattageStats() {
   const validated = STATE.abattages.filter(a => a.statut === 'valide' || a.statut === 'termine');
+  const emptyEl = document.getElementById('ab-stats-empty');
+  const contentEl = document.getElementById('ab-stats-content');
   if (validated.length === 0) {
+    // État vide explicite (icône + message) au lieu de cartes graphiques vides.
+    if (emptyEl) emptyEl.style.display = '';
+    if (contentEl) contentEl.style.display = 'none';
     document.getElementById('ab-stats-kpis').innerHTML = '';
     return;
   }
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (contentEl) contentEl.style.display = '';
 
   const avgRendement = validated.reduce((s, a) => s + (Number(a.rendement_carcasse_pct) || 0), 0) / validated.length;
   const avgPerte = validated.reduce((s, a) => {
