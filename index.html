@@ -106,22 +106,36 @@
   --stagger-delay: 60ms;
 }
 
-/* ── Mode Soleil (high-contrast outdoor) ── */
+/* ── Mode Soleil (contraste maximal, lecture en plein soleil) ── */
 body.mode-soleil {
-  --page-bg: #FFF8F0;
+  --page-bg: #FFFFFF;
   --card-bg: #FFFFFF;
-  --text-primary: #0D0A08;
-  --text-secondary: #362C24;
-  --text-muted: #4A3F35;
-  --border: #9A8E82;
-  --border-subtle: #C9BEB4;
+  --text-primary: #000000;
+  --text-secondary: #141414;
+  --text-muted: #2B2B2B;
+  --border: #000000;
+  --border-subtle: #4A4A4A;
 }
-body.mode-soleil .card { box-shadow: var(--shadow-md); border-width: 2px; }
+body.mode-soleil .card { box-shadow: none; border: 2px solid #000; }
 body.mode-soleil .stat-item .value,
 body.mode-soleil .kpi-card .kpi-value,
 body.mode-soleil .dash-kpi .dk-value,
 body.mode-soleil .iot-kpi-card .iot-kpi-value { font-weight: 800; }
-body.mode-soleil .btn { font-weight: 700; }
+body.mode-soleil .btn { font-weight: 800; }
+/* CTA principal : orange massif, plein contraste */
+body.mode-soleil .btn-primary {
+  background: #EA580C;
+  color: #FFFFFF;
+  border: 2px solid #9A3412;
+  box-shadow: none;
+  font-size: 1.05rem;
+  padding: 0.85rem 1.4rem;
+}
+/* Écran Saisie : +12 % de police pour la lisibilité terrain */
+body.mode-soleil #page-saisie { font-size: 1.12em; }
+body.mode-soleil #page-saisie label { font-weight: 700; }
+body.mode-soleil #page-saisie .form-group input,
+body.mode-soleil #page-saisie .form-group select { font-size: 1.05em; padding: 0.7rem 0.85rem; }
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1042,14 +1056,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #plus-sheet a:active { background:var(--surface); }
 #plus-sheet a .icon { font-size:20px; width:32px; text-align:center; }
 
-/* ── Mode soleil toggle ── */
+/* ── Mode soleil toggle (découvrable, avec état on/off) ── */
 .mode-soleil-toggle {
-  display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
-  color:rgba(255,255,255,0.4); cursor:pointer; padding:6px 10px;
-  border-radius:var(--radius-sm); transition:all .15s; border:none; background:none;
+  display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700;
+  color:rgba(255,255,255,0.85); cursor:pointer; padding:8px 10px;
+  border-radius:var(--radius-sm); transition:all .15s;
+  border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.06);
   width:100%;
 }
-.mode-soleil-toggle:hover { color:rgba(255,255,255,0.7); background:rgba(255,255,255,0.04); }
+.mode-soleil-toggle:hover { color:#fff; background:rgba(255,255,255,0.12); }
+.mode-soleil-toggle.active { background:#EA580C; color:#fff; border-color:#EA580C; }
+/* Bouton mode soleil mobile : état actif visible */
+#mtb-soleil.active { background:#EA580C; color:#fff; border-radius:var(--radius-sm); }
 
 /* ── Pull to refresh ── */
 .ptr-indicator {
@@ -1325,7 +1343,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="user-badge" class="hdr-user" style="display:none;">
       <span id="user-badge-name"></span>
     </div>
-    <button class="mode-soleil-toggle" onclick="toggleModeSoleil()">&#9728; Mode soleil</button>
+    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9728; Mode soleil : OFF</button>
     <button class="hdr-logout" onclick="logout()">Déconnexion</button>
     <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
   </div>
@@ -3066,9 +3084,27 @@ function closePlusSheet() {
 function toggleModeSoleil() {
   document.body.classList.toggle('mode-soleil');
   localStorage.setItem('coqorico_soleil', document.body.classList.contains('mode-soleil') ? '1' : '0');
+  setSoleilUI();
+}
+// Reflète l'état on/off du mode soleil sur tous les déclencheurs (sidebar, mobile, Paramètres).
+function setSoleilUI() {
+  const on = document.body.classList.contains('mode-soleil');
+  const btn = document.getElementById('soleil-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('active', on);
+    btn.innerHTML = '☀ Mode soleil : ' + (on ? '<strong>ON</strong>' : 'OFF');
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const mtb = document.getElementById('mtb-soleil');
+  if (mtb) { mtb.classList.toggle('active', on); mtb.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  const sw = document.getElementById('param-soleil-switch');
+  if (sw) sw.classList.toggle('on', on);
+  const st = document.getElementById('param-soleil-state');
+  if (st) st.textContent = on ? 'Activé' : 'Désactivé';
 }
 // Restore on load
 if (localStorage.getItem('coqorico_soleil') === '1') document.body.classList.add('mode-soleil');
+setSoleilUI();
 
 // ── Number Tween ──
 function tweenValue(el, from, to, duration, formatter) {
