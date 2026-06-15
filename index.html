@@ -1069,6 +1069,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 /* Bouton mode soleil mobile : état actif visible */
 #mtb-soleil.active { background:#EA580C; color:#fff; border-radius:var(--radius-sm); }
 
+/* ── Paramètres ── */
+.param-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; cursor:pointer; padding:6px 0; }
+.param-switch { width:44px; height:26px; border-radius:999px; background:#C9BEB4; position:relative; transition:background .15s; flex-shrink:0; }
+.param-switch::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .15s; box-shadow:0 1px 3px rgba(0,0,0,0.25); }
+.param-switch.on { background:#EA580C; }
+.param-switch.on::after { transform:translateX(18px); }
+.param-info-row { display:flex; justify-content:space-between; gap:1rem; padding:9px 0; border-bottom:1px solid var(--border-subtle); font-size:0.9rem; }
+.param-info-row:last-child { border-bottom:none; }
+.param-info-row span { color:var(--text-muted); }
+
 /* ── Pull to refresh ── */
 .ptr-indicator {
   text-align:center; padding:12px; font-size:12px; color:var(--text-muted);
@@ -1322,6 +1332,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="iot" onclick="navigate('iot',this)">
       <span class="icon">&#128225;</span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
+    <a href="#" data-page="parametres" onclick="navigate('parametres',this)">
+      <span class="icon">&#9881;</span> <span class="nav-full">Paramètres</span><span class="nav-short">Param.</span>
+    </a>
   </nav>
 
   <!-- Lot actif block -->
@@ -1418,6 +1431,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon">&#129385;</span> Transformation</a>
     <a href="#" onclick="navigateFromSheet('supply')"><span class="icon">&#128666;</span> Supply Chain</a>
     <a href="#" onclick="navigateFromSheet('clients')"><span class="icon">&#128188;</span> Commercial & Ventes</a>
+    <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon">&#9881;</span> Paramètres</a>
   </div>
 </div>
 
@@ -1992,6 +2006,39 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 
   <!-- ═══════════════ PAGE: PARAMETRES ═══════════════ -->
+  <div id="page-parametres" class="page">
+    <h2>&#9881; Paramètres</h2>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Affichage</h3></div>
+      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode soleil">
+        <div>
+          <div style="font-weight:700;">&#9728; Mode soleil</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Contraste maximal (fond blanc, texte noir) pour la lecture en plein soleil.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <span id="param-soleil-state" style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);">Désactivé</span>
+          <span id="param-soleil-switch" class="param-switch"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Compte</h3></div>
+      <div id="param-compte"></div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Données de référence</h3></div>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin:0 0 0.75rem;">Les matières premières se gèrent depuis l'écran Supply Chain (onglet Alimentation).</p>
+      <button class="btn btn-outline btn-sm manager-only" onclick="navigate('supply',null)">Gérer les matières premières</button>
+    </div>
+
+    <div class="card" style="max-width:640px;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Application</h3></div>
+      <div id="param-app"></div>
+    </div>
+  </div>
 </div><!-- /main -->
 
 <!-- Modal: Ajouter entrée alimentation -->
@@ -2401,8 +2448,8 @@ const AUTH_USERS = [
 ];
 let currentUser = null; // { matricule, name, role }
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -3047,7 +3094,8 @@ const PAGE_TITLES = {
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
-  iot: 'Monitoring IoT'
+  iot: 'Monitoring IoT',
+  parametres: 'Paramètres'
 };
 
 function navigateTab(page) {
@@ -3270,6 +3318,7 @@ function navigate(page, el) {
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
     case 'iot': initIoTPage(); break;
+    case 'parametres': initParametresPage(); break;
   }
   return false;
 }
@@ -5754,6 +5803,27 @@ function exportExcel() {
 
   XLSX.writeFile(wb, `COQORICO_${bande.nom_bande}.xlsx`);
   toast('Excel généré');
+}
+
+// ── Paramètres ──
+function initParametresPage() {
+  setSoleilUI();
+  const u = currentUser || {};
+  const roleLabel = u.role === 'manager' ? 'Manager' : u.role === 'chef_bande' ? 'Chef de bande' : (u.role || '—');
+  const compteEl = document.getElementById('param-compte');
+  if (compteEl) {
+    compteEl.innerHTML =
+      '<div class="param-info-row"><span>Nom</span><strong>' + escHtml(u.name || '—') + '</strong></div>' +
+      '<div class="param-info-row"><span>Matricule</span><strong>' + escHtml(u.matricule || '—') + '</strong></div>' +
+      '<div class="param-info-row"><span>Rôle</span><strong>' + roleLabel + '</strong></div>';
+  }
+  const appEl = document.getElementById('param-app');
+  if (appEl) {
+    appEl.innerHTML =
+      '<div class="param-info-row"><span>Application</span><strong>SIVA Batch Tracker</strong></div>' +
+      '<div class="param-info-row"><span>Source de données</span><strong>Supabase</strong></div>' +
+      '<div class="param-info-row"><span>État de connexion</span><strong>' + (isOnline ? 'En ligne' : 'Hors ligne') + '</strong></div>';
+  }
 }
 
 // ── Settings ──
