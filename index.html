@@ -21,7 +21,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800;9..40,900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* ═══════════════════════════════════════════════════
    COQORICO — AgriTech Avicole Professionnelle
@@ -31,54 +31,106 @@
 
 /* ── Layer 1: Primitive tokens ── */
 :root {
-  --c-orange-50: #FFF7ED; --c-orange-100: #FFEDD5; --c-orange-200: #FED7AA;
-  --c-orange-300: #FDBA74; --c-orange-400: #FB923C; --c-orange-500: #F97316;
-  --c-orange-600: #EA580C; --c-orange-700: #C2410C; --c-orange-800: #9A3412;
-  --c-orange-900: #7C2D12;
+  /* Orange de marque — accent maîtrisé (réservé CTA / nav active / marque) */
+  --c-orange-50: #FBEADD; --c-orange-100: #FAD9C2; --c-orange-200: #F6BD96;
+  --c-orange-300: #F0A06B; --c-orange-400: #EC8340; --c-orange-500: #F0701A;
+  --c-orange-600: #E2640F; --c-orange-700: #B84E0A; --c-orange-800: #8F3D08;
+  --c-orange-900: #6B2D06;
 
-  --c-forest-50: #F0FDF4; --c-forest-100: #DCFCE7; --c-forest-200: #BBF7D0;
-  --c-forest-300: #86EFAC; --c-forest-400: #4ADE80; --c-forest-500: #22C55E;
-  --c-forest-600: #16A34A; --c-forest-700: #15803D; --c-forest-800: #166534;
-  --c-forest-900: #14532D;
+  /* Vert "donnée/état" — désaturé, sérieux */
+  --c-forest-50: #E7F4EE; --c-forest-100: #C9E9D8; --c-forest-200: #9BD3B6;
+  --c-forest-300: #66BB91; --c-forest-400: #34A56F; --c-forest-500: #168A53;
+  --c-forest-600: #0E7C4A; --c-forest-700: #0B663C; --c-forest-800: #084F2F;
+  --c-forest-900: #063A22;
 
-  --c-sand-50: #FAF8F5; --c-sand-100: #F5F0EB; --c-sand-200: #E8E0D8;
-  --c-sand-300: #C9BEB4; --c-sand-400: #9A8E82; --c-sand-500: #6B5E52;
-  --c-sand-600: #4A3F35; --c-sand-700: #362C24; --c-sand-800: #2C1810;
-  --c-sand-900: #1A0F0A;
+  /* "sand" — NEUTRES FROIDS (nomenclature conservée, sémantique remappée chaud→froid) */
+  --c-sand-50: #F4F6F8; --c-sand-100: #EDF1F4; --c-sand-200: #E6EBEF;
+  --c-sand-300: #D4DBE2; --c-sand-400: #8A95A1; --c-sand-500: #6B7884;
+  --c-sand-600: #4A5663; --c-sand-700: #2E3A46; --c-sand-800: #1A2531;
+  --c-sand-900: #0F1822;
 
-  --c-red-500: #EF4444; --c-red-600: #DC2626;
-  --c-amber-500: #F59E0B; --c-amber-600: #D97706;
-  --c-teal-500: #14B8A6; --c-teal-600: #0D9488;
-  --c-blue-500: #3B82F6; --c-blue-600: #2563EB;
+  --c-red-500: #C8332B; --c-red-600: #B22A23;
+  --c-amber-500: #B7791F; --c-amber-600: #95621A;
+  --c-teal-500: #0E9488; --c-teal-600: #0B756B;
+  --c-blue-500: #2563EB; --c-blue-600: #1D4FD7;
 
-  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 20px; --radius-full: 9999px;
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px; --space-16: 64px;
+  /* Radius — durcis, plafonnés bas (cartes/panneaux 4-6px, inputs/boutons 3-4px) */
+  --radius-xs: 2px; --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 8px; --radius-full: 9999px;
+  /* Espacement — resserré pour la densité (~25-30% plus compact) */
+  --space-1: 4px; --space-2: 6px; --space-3: 10px; --space-4: 14px; --space-5: 18px; --space-6: 22px; --space-8: 30px; --space-10: 40px; --space-12: 44px; --space-16: 60px;
 }
 
-/* ── Layer 2: Semantic tokens ── */
+/* ── Layer 2: Semantic tokens (instrument de pilotage — neutres froids, accent maîtrisé) ── */
 :root {
-  --primary: var(--c-orange-600);
-  --primary-dark: var(--c-orange-700);
-  --primary-mid: var(--c-orange-500);
-  --primary-light: var(--c-orange-400);
-  --primary-xlight: var(--c-orange-50);
+  /* ===== Fonds / surfaces ===== */
+  --color-bg:            #F4F6F8;
+  --color-surface:       #FFFFFF;
+  --color-surface-alt:   #EDF1F4;
+  --color-border:        #D4DBE2;
+  --color-border-subtle: #E6EBEF;
+  /* ===== Texte ===== */
+  --color-text:          #0F1822;
+  --color-text-secondary:#4A5663;
+  --color-text-muted:    #8A95A1;
+  /* ===== Accent marque (orange SIVA maîtrisé) ===== */
+  --color-accent:        #E2640F;
+  --color-accent-hover:  #B84E0A;
+  --color-accent-soft:   #FBEADD;
+  /* ===== Couleurs de donnée / états ===== */
+  --color-data-blue:     #2563EB;
+  --color-success:       #0E7C4A;
+  --color-warning:       #B7791F;
+  --color-danger:        #C8332B;
+  --color-success-bg:    #E7F4EE;
+  --color-warning-bg:    #F8F1E2;
+  --color-danger-bg:     #F8E9E8;
 
-  --navbar-bg: #2C1810;
-  --navbar-deep: #1A0F0A;
-  --accent-green: var(--c-forest-500);
-  --accent-red: var(--c-red-500);
-  --accent-blue: var(--c-blue-500);
-  --accent-amber: var(--c-amber-500);
+  /* ===== Navbar (neutre froid sombre, fini le chocolat) ===== */
+  --navbar-bg:           #11181F;
+  --navbar-deep:         #0B1116;
+  --navbar-active:       #1C2730;
+  --navbar-text:         #AEB9C4;
+  --navbar-text-active:  #FFFFFF;
 
-  --text-primary: var(--c-sand-900);
-  --text-secondary: var(--c-sand-600);
-  --text-muted: var(--c-sand-500);
-  --border: var(--c-sand-300);
-  --border-subtle: var(--c-sand-200);
-  --card-bg: #FFFDFB;
-  --page-bg: #FAF6F1;
-  --white: #FFFDFB;
-  --surface: var(--c-sand-50);
+  /* ===== Typographie ===== */
+  --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --fs-display: 24px;  --fs-h2: 18px;  --fs-h3: 15px;
+  --fs-body: 13px;     --fs-label: 11px;  --fs-caption: 11px;
+  --fw-regular: 400;   --fw-medium: 500;  --fw-semibold: 600;
+  --ls-label: 0.08em;
+
+  /* ===== Graphiques / instrumentation (consommé en PASSE 2) ===== */
+  --chart-line-width: 1.5px;
+  --chart-grid: #E6EBEF;
+  --chart-axis-text: var(--color-text-muted);
+  --chart-fill-opacity: 0.05;
+  --chart-tension: 0;
+  --chart-observed: var(--color-accent);
+  --chart-reference: #8A95A1;
+  --chart-point-radius: 0;
+
+  /* ===== Alias de compatibilité : anciens noms → nouvelle sémantique froide ===== */
+  --primary: var(--color-accent);
+  --primary-dark: var(--color-accent-hover);
+  --primary-mid: var(--color-accent);
+  --primary-light: #EC8340;
+  --primary-xlight: var(--color-accent-soft);
+
+  --accent-green: var(--color-success);
+  --accent-red: var(--color-danger);
+  --accent-blue: var(--color-data-blue);
+  --accent-amber: var(--color-warning);
+
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --border: var(--color-border);
+  --border-subtle: var(--color-border-subtle);
+  --card-bg: var(--color-surface);
+  --page-bg: var(--color-bg);
+  --white: var(--color-surface);
+  --surface: var(--color-surface-alt);
 
   --header-h: 56px;
   --bottom-bar-h: 0px;
@@ -89,53 +141,63 @@
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-live: cubic-bezier(0.4, 0, 0.6, 1);
 
-  --shadow-sm: 0 1px 2px rgba(26,15,10,0.05), 0 1px 3px rgba(26,15,10,0.03);
-  --shadow-md: 0 4px 12px rgba(26,15,10,0.07), 0 2px 4px rgba(26,15,10,0.04);
-  --shadow-lg: 0 12px 36px rgba(26,15,10,0.09), 0 4px 12px rgba(26,15,10,0.05);
-  --shadow-xl: 0 24px 56px rgba(26,15,10,0.14), 0 8px 20px rgba(26,15,10,0.07);
-  --shadow-inner: inset 0 1px 2px rgba(26,15,10,0.04);
-  --shadow-glow-primary: 0 0 20px rgba(234,88,12,0.18);
-  --shadow-glow-green: 0 0 16px rgba(34,197,94,0.12);
-  --shadow-glow-red: 0 0 16px rgba(239,68,68,0.12);
+  /* Ombres — courtes, nettes, sans glow coloré (l'état se signale par bordure + dot) */
+  --shadow-sm: 0 1px 1px rgba(15,24,34,0.06);
+  --shadow-md: 0 1px 3px rgba(15,24,34,0.10);
+  --shadow-lg: 0 4px 12px rgba(15,24,34,0.12);
+  --shadow-xl: 0 8px 24px rgba(15,24,34,0.14);
+  --shadow-inner: inset 0 1px 2px rgba(15,24,34,0.05);
+  --shadow-glow-primary: none;
+  --shadow-glow-green: none;
+  --shadow-glow-red: none;
 
-  --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono: var(--font-mono);
+  --sans: var(--font-sans);
 
   /* agritech micro-interaction tokens */
   --tween-duration: 600ms;
   --stagger-delay: 60ms;
 }
 
-/* ── Mode Soleil (contraste maximal, lecture en plein soleil) ── */
-body.mode-soleil {
-  --page-bg: #FFFFFF;
-  --card-bg: #FFFFFF;
-  --text-primary: #000000;
-  --text-secondary: #141414;
-  --text-muted: #2B2B2B;
-  --border: #000000;
-  --border-subtle: #4A4A4A;
+/* ── Thème sombre — Monitoring IoT / "console SCADA".
+   Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
+   pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
+   ET les primitives --c-* (ramp "sand" inversée + accents/états éclaircis)
+   pour que les ~44 usages directs s'adaptent aussi. ── */
+[data-theme="dark"] {
+  --color-bg:            #0E1419;
+  --color-surface:       #161E26;
+  --color-surface-alt:   #1E2832;
+  --color-border:        #2A3742;
+  --color-border-subtle: #202B34;
+  --color-text:          #E4E9ED;
+  --color-text-secondary:#9BA8B4;
+  --color-text-muted:    #6B7884;
+  --color-accent:        #F2761C;
+  --color-accent-hover:  #FF8A33;
+  --color-accent-soft:   #2A1C10;
+  --color-data-blue:     #4D9DFF;
+  --color-success:       #2FB87A;
+  --color-warning:       #E0A030;
+  --color-danger:        #FF5247;
+  --chart-grid:          #2A3742;
+
+  /* Primitives — ramp "sand" INVERSÉE (50=surface sombre … 900=texte clair) */
+  --c-sand-50: #1E2832; --c-sand-100: #1A2531; --c-sand-200: #2A3742;
+  --c-sand-300: #2A3742; --c-sand-400: #6B7884; --c-sand-500: #8A95A1;
+  --c-sand-600: #9BA8B4; --c-sand-700: #C2CBD3; --c-sand-800: #DCE2E7;
+  --c-sand-900: #E4E9ED;
+  /* Accent & états directs — éclaircis pour fond sombre */
+  --c-orange-50: #2A1C10; --c-orange-500: #F2761C; --c-orange-600: #F2761C; --c-orange-700: #FF8A33;
+  --c-forest-500: #2FB87A; --c-forest-600: #2FB87A;
+  --c-red-500: #FF5247; --c-red-600: #FF5247;
+  --c-amber-500: #E0A030; --c-amber-600: #E0A030;
+  --c-blue-500: #4D9DFF; --c-blue-600: #4D9DFF;
 }
-body.mode-soleil .card { box-shadow: none; border: 2px solid #000; }
-body.mode-soleil .stat-item .value,
-body.mode-soleil .kpi-card .kpi-value,
-body.mode-soleil .dash-kpi .dk-value,
-body.mode-soleil .iot-kpi-card .iot-kpi-value { font-weight: 800; }
-body.mode-soleil .btn { font-weight: 800; }
-/* CTA principal : orange massif, plein contraste */
-body.mode-soleil .btn-primary {
-  background: #EA580C;
-  color: #FFFFFF;
-  border: 2px solid #9A3412;
-  box-shadow: none;
-  font-size: 1.05rem;
-  padding: 0.85rem 1.4rem;
-}
-/* Écran Saisie : +12 % de police pour la lisibilité terrain */
-body.mode-soleil #page-saisie { font-size: 1.12em; }
-body.mode-soleil #page-saisie label { font-weight: 700; }
-body.mode-soleil #page-saisie .form-group input,
-body.mode-soleil #page-saisie .form-group select { font-size: 1.05em; padding: 0.7rem 0.85rem; }
+
+/* ── Le toggle "Mode Soleil" a été reconverti en MODE SOMBRE (console SCADA) :
+   l'ancien mode jour plein-contraste (body.mode-soleil) est retiré au profit de
+   [data-theme="dark"] ci-dessus, posé sur <html>. ── */
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -149,12 +211,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* subtle grid pattern — warm tone */
+/* subtle grid pattern — cool instrument tone */
 body::before {
   content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
   background-image:
-    linear-gradient(rgba(154,142,130,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(154,142,130,0.06) 1px, transparent 1px);
+    linear-gradient(rgba(74,86,99,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,86,99,0.045) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
@@ -240,7 +302,7 @@ body::before {
   position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
   font-family:var(--mono); font-variant-numeric:tabular-nums;
 }
-.progress-arc-text .arc-day { font-size:28px; font-weight:800; line-height:1; color:var(--text-primary); }
+.progress-arc-text .arc-day { font-size:28px; font-weight:600; line-height:1; color:var(--text-primary); }
 .progress-arc-text .arc-total { font-size:11px; color:var(--text-muted); font-weight:600; }
 
 /* ── Hero batch card (dashboard) ── */
@@ -260,7 +322,7 @@ body::before {
 .hero-batch-metrics { flex:1; display:grid; grid-template-columns:repeat(4, 1fr); gap:var(--space-3); }
 .hero-batch-info { flex:1; }
 .hero-batch-info h3 {
-  font-family:var(--sans); font-size:20px; font-weight:800; color:var(--text-primary);
+  font-family:var(--sans); font-size:20px; font-weight:600; color:var(--text-primary);
   letter-spacing:-0.02em; margin-bottom:4px;
 }
 .hero-batch-info .hero-sub {
@@ -297,12 +359,12 @@ body::before {
 #top-header {
   position:fixed; top:0; left:0; bottom:0;
   width:var(--sidebar-w);
-  background:linear-gradient(180deg, #2C1810 0%, #1A0F0A 100%);
+  background:linear-gradient(180deg, var(--navbar-bg) 0%, var(--navbar-deep) 100%);
   color:#fff;
   display:flex; flex-direction:column;
   padding:var(--space-6) 0;
   z-index:100;
-  box-shadow:1px 0 0 rgba(255,255,255,0.04), 4px 0 24px rgba(26,15,10,0.35);
+  box-shadow:1px 0 0 rgba(255,255,255,0.04), 4px 0 24px rgba(11,17,22,0.35);
   overflow-y:auto; overflow-x:hidden;
 }
 #top-header::after {
@@ -324,7 +386,7 @@ body::before {
   margin-bottom:var(--space-4); flex-shrink:0;
 }
 #top-header .hdr-logo {
-  font-family:var(--sans); font-size:17px; font-weight:900;
+  font-family:var(--sans); font-size:17px; font-weight:700;
   letter-spacing:0.14em; text-transform:uppercase;
   background:linear-gradient(135deg,#FDBA74 0%,#FB923C 40%,#F97316 100%);
   background-size:200% 200%;
@@ -416,16 +478,16 @@ body::before {
 /* ── Mobile menu button ── */
 #mobile-menu-btn {
   display:none; position:fixed; top:12px; right:12px; z-index:101;
-  background:linear-gradient(135deg,#2C1810,#1A0F0A); border:1px solid rgba(255,255,255,0.1);
+  background:linear-gradient(135deg,var(--navbar-bg),var(--navbar-deep)); border:1px solid rgba(255,255,255,0.1);
   color:rgba(255,255,255,0.7); font-size:1.35rem; cursor:pointer; padding:10px 12px; line-height:1;
   border-radius:var(--radius-sm); transition:all .15s;
-  box-shadow:0 2px 12px rgba(26,15,10,0.4);
+  box-shadow:0 2px 12px rgba(11,17,22,0.4);
 }
-#mobile-menu-btn:hover { background:#2C1810; color:#fff; }
+#mobile-menu-btn:hover { background:var(--navbar-bg); color:#fff; }
 #mobile-menu {
   display:none; position:fixed;
   top:0; left:0; right:0; bottom:0;
-  background:linear-gradient(180deg, #2C1810, #1A0F0A); z-index:99;
+  background:linear-gradient(180deg, var(--navbar-bg), var(--navbar-deep)); z-index:99;
   padding:60px var(--space-4) var(--space-4); overflow-y:auto;
 }
 #mobile-menu.open { display:block; animation:menuReveal .25s var(--ease-out); }
@@ -452,7 +514,7 @@ body::before {
   width:auto; max-width:none;
 }
 #main h2 {
-  font-family:var(--sans); font-size:22px; font-weight:800;
+  font-family:var(--sans); font-size:22px; font-weight:600;
   margin-bottom:var(--space-6); color:var(--text-primary);
   display:flex; align-items:center; gap:var(--space-2);
   letter-spacing:-0.03em;
@@ -595,7 +657,7 @@ tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--s
 #toast {
   position:fixed; bottom:calc(24px + var(--bottom-bar-h)); right:24px;
   padding:14px 24px; border-radius:var(--radius-md);
-  color:#fff; background:#2C1810;
+  color:#fff; background:var(--navbar-bg);
   font-family:var(--sans); font-weight:600; font-size:13px;
   z-index:500; transform:translateY(120px) scale(0.95); opacity:0;
   transition:all .4s var(--ease-spring);
@@ -626,7 +688,7 @@ tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--s
   animation:modalIn .3s var(--ease-spring);
 }
 @keyframes modalIn { from{opacity:0;transform:translateY(28px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
-.modal h3 { font-family:var(--sans); color:var(--text-primary); margin-bottom:var(--space-5); font-weight:800; font-size:18px; letter-spacing:-0.02em; }
+.modal h3 { font-family:var(--sans); color:var(--text-primary); margin-bottom:var(--space-5); font-weight:600; font-size:18px; letter-spacing:-0.02em; }
 .modal-actions { display:flex; gap:var(--space-2); justify-content:flex-end; margin-top:var(--space-6); }
 
 /* ══════════════ TABS ══════════════ */
@@ -878,7 +940,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 .deadline-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
 .deadline-card .dl-icon { font-size:16px; margin-bottom:6px; }
 .deadline-card .dl-label { font-family:var(--sans); font-size:12px; font-weight:600; color:var(--text-secondary); line-height:1.4; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.deadline-card .dl-count { font-family:var(--mono); font-size:34px; font-weight:800; line-height:1; margin-bottom:4px; font-variant-numeric:tabular-nums; }
+.deadline-card .dl-count { font-family:var(--mono); font-size:34px; font-weight:600; line-height:1; margin-bottom:4px; font-variant-numeric:tabular-nums; }
 .deadline-card .dl-sub { font-size:10px; color:var(--text-muted); }
 .deadline-card .dl-date { font-family:var(--mono); font-size:10px; color:var(--text-muted); margin-top:8px; font-weight:500; }
 
@@ -928,7 +990,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   border-radius:var(--radius-full); width:16px; height:16px;
   font-size:9px; font-weight:700;
   display:flex; align-items:center; justify-content:center;
-  border:2px solid #2C1810;
+  border:2px solid var(--navbar-bg);
   animation:pulse-dot 2s infinite;
 }
 .notif-status-badge { display:inline-flex; align-items:center; padding:3px 9px; border-radius:var(--radius-full); font-family:var(--sans); font-size:10px; font-weight:700; text-transform:uppercase; }
@@ -964,7 +1026,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 .iot-zone.alert { background:linear-gradient(135deg, #FFF7ED, #FFEDD5); }
 .iot-zone.critical { background:linear-gradient(135deg, #FEF2F2, #FEE2E2); }
 .iot-zone-label { font-family:var(--mono); font-size:11px; font-weight:700; color:var(--text-secondary); letter-spacing:0.04em; }
-.iot-zone-temp { font-family:var(--mono); font-size:22px; font-weight:800; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
+.iot-zone-temp { font-family:var(--mono); font-size:22px; font-weight:600; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
 .iot-zone-sub { font-size:10px; color:var(--text-muted); }
 .iot-zone-pip { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
 .iot-zone-detail {
@@ -983,7 +1045,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #bottom-tab-bar {
   display:none; position:fixed; bottom:0; left:0; right:0;
   background:var(--card-bg); border-top:1px solid var(--border-subtle);
-  box-shadow:0 -4px 20px rgba(26,15,10,0.08);
+  box-shadow:0 -4px 20px rgba(11,17,22,0.08);
   z-index:100; padding:0 0 env(safe-area-inset-bottom);
 }
 #bottom-tab-bar .tab-bar-inner {
@@ -1006,17 +1068,17 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #mobile-top-bar {
   display:none; position:fixed; top:0; left:0; right:0; height:56px;
   background:var(--card-bg); border-bottom:1px solid var(--border-subtle);
-  box-shadow:0 2px 12px rgba(26,15,10,0.06);
+  box-shadow:0 2px 12px rgba(11,17,22,0.06);
   z-index:100; padding:0 var(--space-4);
   align-items:center; justify-content:space-between;
 }
 #mobile-top-bar .mtb-title {
-  font-family:var(--sans); font-size:16px; font-weight:800;
+  font-family:var(--sans); font-size:16px; font-weight:600;
   color:var(--text-primary); letter-spacing:-0.02em;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 #mobile-top-bar .mtb-logo {
-  font-family:var(--sans); font-size:14px; font-weight:900;
+  font-family:var(--sans); font-size:14px; font-weight:700;
   letter-spacing:0.12em; color:var(--c-orange-600);
 }
 #mobile-top-bar .mtb-actions { display:flex; align-items:center; gap:8px; }
@@ -1030,7 +1092,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
 /* ── Plus bottom sheet ── */
 #plus-sheet-overlay {
-  display:none; position:fixed; inset:0; background:rgba(26,15,10,0.4);
+  display:none; position:fixed; inset:0; background:rgba(11,17,22,0.4);
   backdrop-filter:blur(4px); z-index:200;
 }
 #plus-sheet-overlay.open { display:block; animation:overlayIn .15s var(--ease); }
@@ -1228,7 +1290,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 .iot-kpi-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
 .iot-kpi-card .iot-kpi-icon { font-size:24px; margin-bottom:6px; }
-.iot-kpi-card .iot-kpi-value { font-family:var(--mono); font-size:26px; font-weight:800; color:var(--text-primary); }
+.iot-kpi-card .iot-kpi-value { font-family:var(--mono); font-size:26px; font-weight:600; color:var(--text-primary); }
 .iot-kpi-card .iot-kpi-unit { font-size:12px; color:var(--text-muted); font-weight:600; }
 .iot-kpi-card .iot-kpi-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin-top:4px; }
 .iot-kpi-card .iot-kpi-sensor { font-size:9px; color:var(--text-muted); margin-top:2px; }
@@ -1277,10 +1339,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
 /* ══════════════ LOGIN SCREEN OVERRIDES ══════════════ */
 #login-screen {
-  background:linear-gradient(135deg, #1A0F0A, #2C1810, #1A0F0A) !important;
+  background:linear-gradient(135deg, var(--navbar-deep), var(--navbar-bg), var(--navbar-deep)) !important;
 }
 #login-screen > div:first-child {
-  background:conic-gradient(from 220deg at 40% 60%, #1A0F0A 0deg, #2C1810 60deg, #1A0F0A 120deg, #362C24 180deg, #1A0F0A 240deg, #2C1810 360deg) !important;
+  background:conic-gradient(from 220deg at 40% 60%, var(--navbar-deep) 0deg, var(--navbar-bg) 60deg, var(--navbar-deep) 120deg, var(--navbar-active) 180deg, var(--navbar-deep) 240deg, var(--navbar-bg) 360deg) !important;
   opacity:0.5 !important;
 }
 #login-screen > div:nth-child(2) {
@@ -1356,7 +1418,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="user-badge" class="hdr-user" style="display:none;">
       <span id="user-badge-name"></span>
     </div>
-    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9728; Mode soleil : OFF</button>
+    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9790; Mode sombre : OFF</button>
     <button class="hdr-logout" onclick="logout()">Déconnexion</button>
     <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
   </div>
@@ -1392,7 +1454,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="mtb-logo-img">
   <span class="mtb-title" id="mtb-page-title">Dashboard</span>
   <div class="mtb-actions">
-    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode soleil">&#9728;</button>
+    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode sombre">&#9790;</button>
     <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Notifications" style="display:none;">&#128276;<span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
   </div>
 </div>
@@ -1449,25 +1511,25 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 </div>
 
 <!-- Login Screen -->
-<div id="login-screen" style="position:fixed;inset:0;background:#1A0F0A;display:flex;align-items:center;justify-content:center;z-index:1000;overflow:hidden;">
-  <div style="position:absolute;inset:0;opacity:0.4;background:conic-gradient(from 180deg at 50% 50%, #1A0F0A 0deg, #2C1810 90deg, #1A0F0A 180deg, #362C24 270deg, #1A0F0A 360deg);"></div>
+<div id="login-screen" style="position:fixed;inset:0;background:var(--navbar-deep);display:flex;align-items:center;justify-content:center;z-index:1000;overflow:hidden;">
+  <div style="position:absolute;inset:0;opacity:0.4;background:conic-gradient(from 180deg at 50% 50%, var(--navbar-deep) 0deg, var(--navbar-bg) 90deg, var(--navbar-deep) 180deg, var(--navbar-active) 270deg, var(--navbar-deep) 360deg);"></div>
   <div style="position:absolute;top:-30%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(249,115,22,0.12) 0%,transparent 70%);pointer-events:none;"></div>
   <div style="background:#FFFFFF;border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,0.5);padding:44px 40px;max-width:420px;width:92%;text-align:center;position:relative;border:1px solid rgba(226,232,240,0.2);">
     <div style="margin-bottom:36px;">
       <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="siva-login-logo">
-      <div style="font-family:'DM Sans',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Gestion Avicole Professionnelle</div>
+      <div style="font-family:'Inter',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;">Gestion Avicole Professionnelle</div>
       <div style="width:40px;height:2px;background:linear-gradient(90deg,#EA580C,#FB923C);margin:14px auto 0;border-radius:1px;"></div>
     </div>
     <div style="text-align:left;margin-bottom:14px;">
-      <label style="display:block;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Identifiant</label>
-      <input type="text" id="login-matricule" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:#1A0F0A;" placeholder="SIVA-001" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      <label style="display:block;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Identifiant</label>
+      <input type="text" id="login-matricule" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="SIVA-001" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
     </div>
     <div style="text-align:left;margin-bottom:4px;">
-      <label style="display:block;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Mot de passe</label>
-      <input type="password" id="login-password" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:#1A0F0A;" placeholder="Votre mot de passe" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')doLogin()">
+      <label style="display:block;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Mot de passe</label>
+      <input type="password" id="login-password" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="Votre mot de passe" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div id="login-error" style="color:#DC2626;font-size:12px;margin-top:8px;min-height:1.2rem;font-family:'DM Sans',sans-serif;font-weight:600;"></div>
-    <button onclick="doLogin()" style="width:100%;margin-top:18px;padding:14px 16px;background:linear-gradient(135deg,#EA580C,#F97316);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.02em;cursor:pointer;transition:all 0.15s;min-height:50px;box-shadow:0 2px 8px rgba(234,88,12,0.3);" onmouseover="this.style.background='linear-gradient(135deg,#C2410C,#EA580C)';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(234,88,12,0.35)'" onmouseout="this.style.background='linear-gradient(135deg,#EA580C,#F97316)';this.style.transform='none';this.style.boxShadow='0 2px 8px rgba(234,88,12,0.3)'">Connexion</button>
+    <div id="login-error" style="color:#DC2626;font-size:12px;margin-top:8px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:600;"></div>
+    <button onclick="doLogin()" style="width:100%;margin-top:18px;padding:14px 16px;background:linear-gradient(135deg,#EA580C,#F97316);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.02em;cursor:pointer;transition:all 0.15s;min-height:50px;box-shadow:0 2px 8px rgba(234,88,12,0.3);" onmouseover="this.style.background='linear-gradient(135deg,#C2410C,#EA580C)';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(234,88,12,0.35)'" onmouseout="this.style.background='linear-gradient(135deg,#EA580C,#F97316)';this.style.transform='none';this.style.boxShadow='0 2px 8px rgba(234,88,12,0.3)'">Connexion</button>
     <div style="margin-top:28px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#94A3B8;letter-spacing:0.06em;">SIVA &middot; AZAGUIE &middot; COTE D'IVOIRE</div>
   </div>
 </div>
@@ -2019,10 +2081,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
       <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Affichage</h3></div>
-      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode soleil">
+      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode sombre">
         <div>
-          <div style="font-weight:700;">&#9728; Mode soleil</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);">Contraste maximal (fond blanc, texte noir) pour la lecture en plein soleil.</div>
+          <div style="font-weight:700;">&#9790; Mode sombre</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Console sombre (esthétique SCADA) pour le monitoring et la lecture en faible luminosité.</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
           <span id="param-soleil-state" style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);">Désactivé</span>
@@ -2428,7 +2490,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="ab-calc-couts" style="font-size:0.85rem;color:#C2410C;font-weight:600;margin-bottom:0.5rem;"></div>
 
     <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">5. Observations</h4>
-    <div class="form-group"><textarea id="ab-note" rows="2" placeholder="Observations, incidents, qualité…" style="width:100%;padding:0.6rem 0.85rem;border:1px solid #A7F3D0;border-radius:6px;font-size:0.85rem;font-family:'DM Sans',sans-serif;background:#FFFFFF;"></textarea></div>
+    <div class="form-group"><textarea id="ab-note" rows="2" placeholder="Observations, incidents, qualité…" style="width:100%;padding:0.6rem 0.85rem;border:1px solid #A7F3D0;border-radius:6px;font-size:0.85rem;font-family:'Inter',sans-serif;background:#FFFFFF;"></textarea></div>
 
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeAbattageModal()">Annuler</button>
@@ -3136,19 +3198,25 @@ function closePlusSheet() {
   document.getElementById('plus-sheet-overlay').classList.remove('open');
 }
 
-// ── Mode Soleil ──
+// ── Mode sombre (ex-"Mode Soleil", reconverti en console SCADA) ──
+// Pose / retire data-theme="dark" sur <html>. La clé localStorage et les ids des
+// contrôles sont conservés (coqorico_soleil, #soleil-toggle-btn…) pour ne pas toucher
+// la structure ; seuls le comportement et les libellés changent.
+function isDarkMode() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 function toggleModeSoleil() {
-  document.body.classList.toggle('mode-soleil');
-  localStorage.setItem('coqorico_soleil', document.body.classList.contains('mode-soleil') ? '1' : '0');
+  const on = !isDarkMode();
+  if (on) document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('coqorico_soleil', on ? '1' : '0');
   setSoleilUI();
 }
-// Reflète l'état on/off du mode soleil sur tous les déclencheurs (sidebar, mobile, Paramètres).
+// Reflète l'état on/off du mode sombre sur tous les déclencheurs (sidebar, mobile, Paramètres).
 function setSoleilUI() {
-  const on = document.body.classList.contains('mode-soleil');
+  const on = isDarkMode();
   const btn = document.getElementById('soleil-toggle-btn');
   if (btn) {
     btn.classList.toggle('active', on);
-    btn.innerHTML = '☀ Mode soleil : ' + (on ? '<strong>ON</strong>' : 'OFF');
+    btn.innerHTML = '☾ Mode sombre : ' + (on ? '<strong>ON</strong>' : 'OFF');
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
   const mtb = document.getElementById('mtb-soleil');
@@ -3159,7 +3227,7 @@ function setSoleilUI() {
   if (st) st.textContent = on ? 'Activé' : 'Désactivé';
 }
 // Restore on load
-if (localStorage.getItem('coqorico_soleil') === '1') document.body.classList.add('mode-soleil');
+if (localStorage.getItem('coqorico_soleil') === '1') document.documentElement.setAttribute('data-theme', 'dark');
 setSoleilUI();
 
 // ── Number Tween ──
