@@ -159,9 +159,11 @@
   --stagger-delay: 60ms;
 }
 
-/* ── Thème sombre — Monitoring IoT / "console SCADA". DÉFINI, prêt à câbler.
-   ⚠ NON branché sur le toggle "Mode Soleil" (qui est un mode JOUR plein-contraste,
-   sémantiquement opposé) : voir la note de PR / la décision à valider. ── */
+/* ── Thème sombre — Monitoring IoT / "console SCADA".
+   Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
+   pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
+   ET les primitives --c-* (ramp "sand" inversée + accents/états éclaircis)
+   pour que les ~44 usages directs s'adaptent aussi. ── */
 [data-theme="dark"] {
   --color-bg:            #0E1419;
   --color-surface:       #161E26;
@@ -179,38 +181,23 @@
   --color-warning:       #E0A030;
   --color-danger:        #FF5247;
   --chart-grid:          #2A3742;
+
+  /* Primitives — ramp "sand" INVERSÉE (50=surface sombre … 900=texte clair) */
+  --c-sand-50: #1E2832; --c-sand-100: #1A2531; --c-sand-200: #2A3742;
+  --c-sand-300: #2A3742; --c-sand-400: #6B7884; --c-sand-500: #8A95A1;
+  --c-sand-600: #9BA8B4; --c-sand-700: #C2CBD3; --c-sand-800: #DCE2E7;
+  --c-sand-900: #E4E9ED;
+  /* Accent & états directs — éclaircis pour fond sombre */
+  --c-orange-50: #2A1C10; --c-orange-500: #F2761C; --c-orange-600: #F2761C; --c-orange-700: #FF8A33;
+  --c-forest-500: #2FB87A; --c-forest-600: #2FB87A;
+  --c-red-500: #FF5247; --c-red-600: #FF5247;
+  --c-amber-500: #E0A030; --c-amber-600: #E0A030;
+  --c-blue-500: #4D9DFF; --c-blue-600: #4D9DFF;
 }
 
-/* ── Mode Soleil (contraste maximal, lecture en plein soleil) ── */
-body.mode-soleil {
-  --page-bg: #FFFFFF;
-  --card-bg: #FFFFFF;
-  --text-primary: #000000;
-  --text-secondary: #141414;
-  --text-muted: #2B2B2B;
-  --border: #000000;
-  --border-subtle: #4A4A4A;
-}
-body.mode-soleil .card { box-shadow: none; border: 2px solid #000; }
-body.mode-soleil .stat-item .value,
-body.mode-soleil .kpi-card .kpi-value,
-body.mode-soleil .dash-kpi .dk-value,
-body.mode-soleil .iot-kpi-card .iot-kpi-value { font-weight: 800; }
-body.mode-soleil .btn { font-weight: 800; }
-/* CTA principal : orange massif, plein contraste */
-body.mode-soleil .btn-primary {
-  background: #EA580C;
-  color: #FFFFFF;
-  border: 2px solid #9A3412;
-  box-shadow: none;
-  font-size: 1.05rem;
-  padding: 0.85rem 1.4rem;
-}
-/* Écran Saisie : +12 % de police pour la lisibilité terrain */
-body.mode-soleil #page-saisie { font-size: 1.12em; }
-body.mode-soleil #page-saisie label { font-weight: 700; }
-body.mode-soleil #page-saisie .form-group input,
-body.mode-soleil #page-saisie .form-group select { font-size: 1.05em; padding: 0.7rem 0.85rem; }
+/* ── Le toggle "Mode Soleil" a été reconverti en MODE SOMBRE (console SCADA) :
+   l'ancien mode jour plein-contraste (body.mode-soleil) est retiré au profit de
+   [data-theme="dark"] ci-dessus, posé sur <html>. ── */
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1431,7 +1418,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="user-badge" class="hdr-user" style="display:none;">
       <span id="user-badge-name"></span>
     </div>
-    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9728; Mode soleil : OFF</button>
+    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9790; Mode sombre : OFF</button>
     <button class="hdr-logout" onclick="logout()">Déconnexion</button>
     <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
   </div>
@@ -1467,7 +1454,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="mtb-logo-img">
   <span class="mtb-title" id="mtb-page-title">Dashboard</span>
   <div class="mtb-actions">
-    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode soleil">&#9728;</button>
+    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode sombre">&#9790;</button>
     <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Notifications" style="display:none;">&#128276;<span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
   </div>
 </div>
@@ -2094,10 +2081,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
       <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Affichage</h3></div>
-      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode soleil">
+      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode sombre">
         <div>
-          <div style="font-weight:700;">&#9728; Mode soleil</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);">Contraste maximal (fond blanc, texte noir) pour la lecture en plein soleil.</div>
+          <div style="font-weight:700;">&#9790; Mode sombre</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Console sombre (esthétique SCADA) pour le monitoring et la lecture en faible luminosité.</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
           <span id="param-soleil-state" style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);">Désactivé</span>
@@ -3211,19 +3198,25 @@ function closePlusSheet() {
   document.getElementById('plus-sheet-overlay').classList.remove('open');
 }
 
-// ── Mode Soleil ──
+// ── Mode sombre (ex-"Mode Soleil", reconverti en console SCADA) ──
+// Pose / retire data-theme="dark" sur <html>. La clé localStorage et les ids des
+// contrôles sont conservés (coqorico_soleil, #soleil-toggle-btn…) pour ne pas toucher
+// la structure ; seuls le comportement et les libellés changent.
+function isDarkMode() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 function toggleModeSoleil() {
-  document.body.classList.toggle('mode-soleil');
-  localStorage.setItem('coqorico_soleil', document.body.classList.contains('mode-soleil') ? '1' : '0');
+  const on = !isDarkMode();
+  if (on) document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('coqorico_soleil', on ? '1' : '0');
   setSoleilUI();
 }
-// Reflète l'état on/off du mode soleil sur tous les déclencheurs (sidebar, mobile, Paramètres).
+// Reflète l'état on/off du mode sombre sur tous les déclencheurs (sidebar, mobile, Paramètres).
 function setSoleilUI() {
-  const on = document.body.classList.contains('mode-soleil');
+  const on = isDarkMode();
   const btn = document.getElementById('soleil-toggle-btn');
   if (btn) {
     btn.classList.toggle('active', on);
-    btn.innerHTML = '☀ Mode soleil : ' + (on ? '<strong>ON</strong>' : 'OFF');
+    btn.innerHTML = '☾ Mode sombre : ' + (on ? '<strong>ON</strong>' : 'OFF');
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
   const mtb = document.getElementById('mtb-soleil');
@@ -3234,7 +3227,7 @@ function setSoleilUI() {
   if (st) st.textContent = on ? 'Activé' : 'Désactivé';
 }
 // Restore on load
-if (localStorage.getItem('coqorico_soleil') === '1') document.body.classList.add('mode-soleil');
+if (localStorage.getItem('coqorico_soleil') === '1') document.documentElement.setAttribute('data-theme', 'dark');
 setSoleilUI();
 
 // ── Number Tween ──
