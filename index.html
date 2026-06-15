@@ -1290,7 +1290,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="icon">&#128221;</span> Saisie Terrain
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> <span class="nav-full">Cycles d'élevage</span><span class="nav-short">Cycles</span>
+      <span class="icon">&#128200;</span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
     </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon">&#129385;</span> Transformation
@@ -1308,7 +1308,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- Lot actif block -->
   <div id="sidebar-lot-actif" class="sidebar-lot-actif" style="display:none;">
-    <div class="sla-title">Lot actif</div>
+    <div class="sla-title">Bande active</div>
     <div class="sla-id" id="sla-id"></div>
     <div class="sla-info" id="sla-info"></div>
     <div class="sla-progress-wrap">
@@ -1340,7 +1340,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <span class="icon">&#128221;</span> Saisie Terrain
   </a>
   <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
-    <span class="icon">&#128200;</span> Cycles d'élevage
+    <span class="icon">&#128200;</span> Bandes
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon">&#129385;</span> Transformation
@@ -1375,7 +1375,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </button>
     <button class="tab-item" data-page="fiche" onclick="navigateTab('fiche')">
       <span class="tab-icon">&#128200;</span>
-      <span>Cycles</span>
+      <span>Bandes</span>
     </button>
     <button class="tab-item" data-page="saisie" onclick="navigateTab('saisie')">
       <span class="tab-icon">&#128221;</span>
@@ -1396,7 +1396,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="plus-sheet-overlay" onclick="closePlusSheet()">
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon">&#128051;</span> Gestion des Lots</a>
+    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon">&#128051;</span> Bandes</a>
     <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon">&#129385;</span> Transformation</a>
     <a href="#" onclick="navigateFromSheet('supply')"><span class="icon">&#128666;</span> Supply Chain</a>
     <a href="#" onclick="navigateFromSheet('clients')"><span class="icon">&#128188;</span> Commercial & Ventes</a>
@@ -1462,8 +1462,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
         <div class="icon">&#128051;</div>
-        <p>Aucun lot actif.<br>Créez un lot d'élevage pour commencer le suivi.</p>
-        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouveau lot</button>
+        <p>Aucune bande active.<br>Créez une bande pour commencer le suivi.</p>
+        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouvelle bande</button>
       </div>
     </div>
     <!-- Zone 3b: Mortality chart -->
@@ -1476,7 +1476,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
   <div id="page-bandes" class="page">
-    <h2>&#128051; Gestion des Lots</h2>
+    <h2>&#128051; Gestion des bandes</h2>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div class="tabs">
         <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
@@ -1602,7 +1602,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: FICHE BANDE ═══════════════ -->
   <div id="page-fiche" class="page">
-    <h2>&#128200; Cycles d'élevage</h2>
+    <h2>&#128200; Bandes</h2>
     <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
       <label>Sélectionner une bande</label>
       <select id="fiche-bande-select" onchange="loadFicheBande()"></select>
@@ -3023,9 +3023,9 @@ function hideOfflineBanner() {
 // ── Mobile navigation (bottom tab bar) ──
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
-  bandes: 'Gestion des Lots',
+  bandes: 'Gestion des bandes',
   saisie: 'Saisie Terrain',
-  fiche: "Cycles d'élevage",
+  fiche: 'Bandes',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
@@ -4029,7 +4029,7 @@ function renderDashboard() {
   const ipCls = avgIP >= 300 ? ' dk-success' : avgIP >= 250 ? '' : ' dk-danger';
 
   document.getElementById('dash-kpis').innerHTML =
-    '<div class="dash-kpi card-stagger"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' lot(s) actif(s)</div></div>' +
+    '<div class="dash-kpi card-stagger"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
     '<div class="dash-kpi card-stagger' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
     '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi card-stagger' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
