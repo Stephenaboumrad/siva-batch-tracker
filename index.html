@@ -1647,6 +1647,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div id="fiche-content" style="display:none;">
       <div class="card" id="fiche-header"></div>
+      <!-- Encart Rentabilité (réservé managers SIVA-001 / SIVA-002) — rempli par renderFicheRentabilite() -->
+      <div class="card" id="fiche-rentabilite" style="display:none;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
         <div class="card">
           <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Poids vif moyen (g) vs Standard Cobb 500</h3>
@@ -2590,7 +2592,7 @@ const ACTION_MAP = {
 
 // ── State ──
 let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], loaded: false };
-let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null };
+let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Cycle & performance constants ──
 const TARGET_CARCASS_WEIGHT_G = 1200;  // Poids carcasse cible : 1,2 kg
@@ -5122,6 +5124,9 @@ function loadFicheBande() {
     </div>
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
+  // Encart Rentabilité (réservé managers SIVA-001 / SIVA-002)
+  renderFicheRentabilite(bande);
+
   // Charts
   renderFicheCharts(ind);
 
@@ -5130,6 +5135,107 @@ function loadFicheBande() {
 
   // Intrants table
   renderFicheIntrantsTable(ind);
+}
+
+// ── Encart Rentabilité de la fiche bande ──
+// Vue réservée aux managers SIVA-001 / SIVA-002 (pas au compte démo SIVA-003).
+function canViewRentabilite() {
+  return !!currentUser && SUPER_ADMIN_MATRICULES.includes(currentUser.matricule);
+}
+
+function renderFicheRentabilite(bande) {
+  const box = document.getElementById('fiche-rentabilite');
+  if (!box) return;
+  if (ficheCharts.rentabilite) { ficheCharts.rentabilite.destroy(); ficheCharts.rentabilite = null; }
+
+  if (!canViewRentabilite()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  const e = computeBandeEconomics(bande.bande_id);
+  if (!e) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+
+  const statutChip = e.cloturee
+    ? '<span class="badge badge-grey">Terminée</span>'
+    : '<span class="badge badge-green">En cours</span>';
+  const margeChip = e.margeDisponible
+    ? '<span class="badge badge-green">Marge réelle</span>'
+    : '<span class="badge badge-orange">Marge projetée — non disponible</span>';
+
+  // Astérisque si le coût de revient/kg s'appuie sur une projection (aucun abattage saisi).
+  const projete = e.coutRevientKg != null && !e.carcasseReelle;
+  const fcfa   = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA');
+  const fcfaKg = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA/kg');
+  const margeColor = v => (v == null ? 'var(--text-secondary)' : (v >= 0 ? '#16A34A' : '#EF4444'));
+  const stat = (label, value, color) =>
+    '<div class="stat-item"><div class="label">' + label + '</div>' +
+    '<div class="value" style="' + (color ? 'color:' + color + ';' : '') + '">' + value + '</div></div>';
+
+  const kpis = '<div class="stat-grid" style="margin-bottom:1rem;">' +
+    stat('Coût engagé à ce jour', fcfa(e.coutTotal), '#EA580C') +
+    stat('Coût de revient / kg' + (projete ? ' *' : ''), fcfaKg(e.coutRevientKg), '#1565C0') +
+    stat('Prix de cession moyen / kg', fcfaKg(e.prixCessionKg), '#3B82F6') +
+    stat('Marge nette / kg', fcfaKg(e.margeNetteKg), margeColor(e.margeNetteKg)) +
+    stat('Marge nette totale', fcfa(e.margeNetteTotale), margeColor(e.margeNetteTotale)) +
+    '</div>';
+
+  const ctxLine = '<div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.75rem;">' +
+    'Carcasse produite : ' + (e.carcasseReelle ? fmt(Math.round(e.carcasseKg)) + ' kg (abattage)' : (e.carcasseKg > 0 ? '≈ ' + fmt(Math.round(e.carcasseKg)) + ' kg (projection)' : '—')) +
+    ' · kg vendus : ' + (e.kgVendus > 0 ? fmt(Math.round(e.kgVendus)) + ' kg' : '—') +
+    ' · CA réalisé : ' + (e.caRealise > 0 ? fmt(e.caRealise) + ' FCFA' : '—') +
+    '</div>';
+
+  // Décomposition du coût en % (camembert + légende).
+  const hasCost = e.coutTotal > 0;
+  const legend = e.breakdown.map(c =>
+    '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">' +
+    '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + c.color + ';flex:none;"></span>' +
+    '<span style="flex:1;">' + c.label + (c.key === 'aliment' ? ' (' + (e.alimentSource === 'formulation' ? 'formulation' : 'forfait') + ')' : '') + '</span>' +
+    '<strong>' + fmt(Math.round(c.montant)) + ' FCFA</strong>' +
+    '<span style="color:var(--text-secondary);min-width:42px;text-align:right;">' + (hasCost ? Math.round(c.pct) : 0) + '%</span>' +
+    '</div>'
+  ).join('');
+  const breakdownBlock = hasCost
+    ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1rem;align-items:center;">' +
+        '<div class="chart-container" style="height:200px;"><canvas id="chart-fiche-renta"></canvas></div>' +
+        '<div>' + legend + '</div></div>'
+    : '<div class="empty-state" style="padding:1rem;"><p>Aucun coût saisi pour cette bande.</p></div>';
+
+  let note = '';
+  if (!e.margeDisponible) {
+    note = '<div style="font-size:0.75rem;color:#C2410C;background:#FFF3E8;border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.75rem;">' +
+      '⏳ Marge non disponible : elle ne sera calculée qu\'après abattage (kg produits) et ventes livrées. ' +
+      'Seul le <strong>coût engagé à ce jour</strong> est affiché.' +
+      (projete ? ' Le coût de revient/kg marqué « * » est une <strong>estimation projetée</strong> (pesées × rendement), pas un coût réel.' : '') +
+      '</div>';
+  } else if (projete) {
+    note = '<div style="font-size:0.75rem;color:#C2410C;margin-top:0.75rem;">* coût de revient/kg estimé sur projection (aucun abattage saisi).</div>';
+  }
+
+  box.innerHTML =
+    '<div class="card-header" style="margin-bottom:0.75rem;">' +
+      '<h3>💰 Rentabilité</h3>' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' + statutChip + margeChip + '</div>' +
+    '</div>' + kpis + ctxLine + breakdownBlock + note;
+
+  if (hasCost) {
+    const cvs = document.getElementById('chart-fiche-renta');
+    if (cvs) {
+      ficheCharts.rentabilite = new Chart(cvs.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: e.breakdown.map(c => c.label),
+          datasets: [{ data: e.breakdown.map(c => Math.round(c.montant)), backgroundColor: e.breakdown.map(c => c.color), borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => c.label + ' : ' + fmt(c.parsed) + ' FCFA' } }
+          }
+        }
+      });
+    }
+  }
 }
 
 function renderFicheCharts(ind) {
@@ -5458,19 +5564,88 @@ function switchRHSubTab(tab, btn) {
   if (tab === 'depenses') renderDepensesRH();
 }
 
-function computeBandeFinancials(bande) {
+// ══════════════════════════════════════════════════════════════════
+// ── SOCLE RENTABILITÉ — Coût de revient & P&L par bande ──
+// Fonction de calcul ISOLÉE et RÉUTILISABLE : agrège les composants de
+// coût DÉJÀ saisis (aucune écriture en base, aucune nouvelle saisie) et
+// produit le coût de revient/kg et la marge. Pensée pour servir de socle
+// à de futures features (benchmark inter-bandes, seuil de rentabilité,
+// décision d'abattage, clôture).
+// ══════════════════════════════════════════════════════════════════
+function computeBandeEconomics(bandeId) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return null;
   const ind = computeIndicators(bande);
-  const coutFormulations = computeCoutAlimentaire(bande.bande_id);
-  const coutAbattage = typeof computeCoutAbattage === 'function' ? computeCoutAbattage(bande.bande_id) : 0;
-  const coutTotal = ind.coutPoussins + ind.coutAliment + ind.coutIntrants + coutFormulations + coutAbattage;
-  const caRealise = STATE.commandes
-    .filter(c => c.bande_id === bande.bande_id && c.statut === 'livree')
-    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+
+  // ── Composants de coût (FCFA) ──
+  // Poussins : effectif initial × prix unitaire (bandes.prix_poussin_unitaire).
+  const coutPoussins = ind.coutPoussins;
+  // Aliment — règle EXCLUSIVE, jamais de double-comptage :
+  //   • si des formulations par phase existent (aliments_phases) → on les prend ;
+  //   • sinon → consommation réelle (saisies) × prix forfaitaire au kg (bandes.cout_aliment_kg).
+  const coutAlimentForfait = ind.coutAliment;                 // Σ conso saisies × cout_aliment_kg
+  const coutFormulations   = computeCoutAlimentaire(bandeId); // Σ aliments_phases.cout_total
+  const coutAliment   = coutFormulations > 0 ? coutFormulations : coutAlimentForfait;
+  const alimentSource = coutFormulations > 0 ? 'formulation' : 'forfait';
+  // Véto / intrants : Σ intrants.cout_total_fcfa.
+  const coutIntrants = ind.coutIntrants;
+  // Abattage : Σ (main-d'œuvre + transport + emballage + autres) du module Abattage.
+  const coutAbattage = computeCoutAbattage(bandeId);
+  const coutTotal = coutPoussins + coutAliment + coutIntrants + coutAbattage;
+
+  // Décomposition du coût en % (pour barre / camembert).
+  const breakdown = [
+    { key: 'poussins', label: 'Poussins',        montant: coutPoussins, color: '#F59E0B' },
+    { key: 'aliment',  label: 'Aliment',         montant: coutAliment,  color: '#3B82F6' },
+    { key: 'intrants', label: 'Intrants / Véto', montant: coutIntrants, color: '#1565C0' },
+    { key: 'abattage', label: 'Abattage',        montant: coutAbattage, color: '#9C27B0' }
+  ];
+  breakdown.forEach(c => { c.pct = coutTotal > 0 ? (c.montant / coutTotal) * 100 : 0; });
+
+  // ── Production de carcasse (kg) ──
+  // Réel = module Abattage (poids carcasse total saisi). Sinon projection (pesées × rendement).
+  const abattages = STATE.abattages.filter(a => a.bande_id === bandeId);
+  const carcasseAbattueKg = abattages.reduce((s, a) => s + (Number(a.poids_carcasse_total_kg) || 0), 0);
+  const nbAbattus = abattages.reduce((s, a) => s + (Number(a.nb_oiseaux_abattus) || 0), 0);
+  const carcasseReelle = carcasseAbattueKg > 0;
+  const carcasseKg = carcasseReelle ? carcasseAbattueKg : (ind.totalCarcasseKg || 0);
+
+  // ── Revenu réalisé (commandes livrées) + kg vendus (lignes de commande) ──
+  const cmdLivrees = STATE.commandes.filter(c => c.bande_id === bandeId && c.statut === 'livree');
+  const caRealise = cmdLivrees.reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const idsLivrees = new Set(cmdLivrees.map(c => c.commande_id));
+  const kgVendus = STATE.lignesCommande
+    .filter(l => idsLivrees.has(l.commande_id))
+    .reduce((s, l) => s + (Number(l.quantite_kg) || 0), 0);
+
+  // ── Indicateurs (null = non calculable → affiché "—", jamais 0 trompeur ni NaN) ──
+  const coutRevientKg = carcasseKg > 0 ? coutTotal / carcasseKg : null;
+  const prixCessionKg = kgVendus  > 0 ? caRealise / kgVendus   : null;
+  const margeNetteKg  = (prixCessionKg != null && coutRevientKg != null) ? prixCessionKg - coutRevientKg : null;
+
+  // Une marge n'est "réelle" que si la bande a produit (abattage) ET vendu (commandes livrées).
+  // Tant que ce n'est pas le cas (bande en cours), on n'affiche que le coût engagé, pas de marge.
+  const margeDisponible = carcasseReelle && caRealise > 0;
+  const margeNetteTotale = margeDisponible ? (caRealise - coutTotal) : null;
+  const cloturee = bande.statut === 'termine';
+
+  // ── Compat. legacy (Trésorerie & exports PDF/Excel) ──
   const margeBrute = caRealise - coutTotal;
-  const carcasseKg = ind.totalCarcasseKg || 0;
-  const margeKg = carcasseKg > 0 ? margeBrute / carcasseKg : 0;
-  const coutRevientKg = carcasseKg > 0 ? coutTotal / carcasseKg : 0;
-  return { ind, coutFormulations, coutAbattage, coutTotal, caRealise, margeBrute, carcasseKg, margeKg, coutRevientKg };
+  const margeKg = carcasseKg > 0 ? margeBrute / carcasseKg : null;
+
+  return {
+    bande, ind, statut: bande.statut, cloturee, margeDisponible,
+    coutPoussins, coutAliment, coutAlimentForfait, coutFormulations, alimentSource,
+    coutIntrants, coutAbattage, coutTotal, coutEngage: coutTotal, breakdown,
+    carcasseReelle, carcasseKg, carcasseAbattueKg, nbAbattus, kgVendus,
+    caRealise, coutRevientKg, prixCessionKg, margeNetteKg, margeNetteTotale,
+    margeBrute, margeKg
+  };
+}
+
+// Ancienne signature (objet bande) conservée : délègue au socle partagé.
+function computeBandeFinancials(bande) {
+  return computeBandeEconomics(bande.bande_id);
 }
 
 function initTresoreriePage() {
@@ -5535,15 +5710,14 @@ function initTresoreriePage() {
   if (tresoCharts.costs) tresoCharts.costs.destroy();
   if (tresoCharts.ca) tresoCharts.ca.destroy();
 
-  const totPoussins = allBF.reduce((s, bf) => s + bf.fin.ind.coutPoussins, 0);
-  const totAliment = allBF.reduce((s, bf) => s + bf.fin.ind.coutAliment, 0);
-  const totIntrants = allBF.reduce((s, bf) => s + bf.fin.ind.coutIntrants, 0);
-  const totFormulations = allBF.reduce((s, bf) => s + bf.fin.coutFormulations, 0);
+  const totPoussins = allBF.reduce((s, bf) => s + bf.fin.coutPoussins, 0);
+  const totAliment = allBF.reduce((s, bf) => s + bf.fin.coutAliment, 0); // coût aliment résolu (forfait OU formulation, jamais les deux)
+  const totIntrants = allBF.reduce((s, bf) => s + bf.fin.coutIntrants, 0);
   const totAbattage = allBF.reduce((s, bf) => s + (bf.fin.coutAbattage || 0), 0);
   const totRH = computeRHMoisTotal(thisMonth);
-  const costData = [totPoussins, totAliment, totIntrants, totFormulations, totAbattage, totRH];
-  const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Matières premières MP', 'Abattage', 'Charges RH'];
-  const costColors = ['#F59E0B', '#3B82F6', '#1565C0', '#F97316', '#9C27B0', '#E91E63'];
+  const costData = [totPoussins, totAliment, totIntrants, totAbattage, totRH];
+  const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Abattage', 'Charges RH'];
+  const costColors = ['#F59E0B', '#3B82F6', '#1565C0', '#9C27B0', '#E91E63'];
 
   const ctx1 = document.getElementById('chart-treso-costs');
   if (ctx1) {
@@ -5713,7 +5887,7 @@ function exportBilanExcel() {
   allBF.forEach(bf => {
     const b = bf.bande, f = bf.fin;
     const nb = b.statut === 'termine' ? (Number(b.nb_oiseaux_sortie) || f.ind.effectifActuel) : f.ind.effectifActuel;
-    ws2Data.push([b.nom_bande, b.statut, nb, f.coutTotal, f.caRealise, f.margeBrute, Math.round(f.margeKg), Math.round(f.coutRevientKg)]);
+    ws2Data.push([b.nom_bande, b.statut, nb, f.coutTotal, f.caRealise, f.margeBrute, f.margeKg == null ? '—' : Math.round(f.margeKg), f.coutRevientKg == null ? '—' : Math.round(f.coutRevientKg)]);
   });
   const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
   XLSX.utils.book_append_sheet(wb, ws2, 'Par bande');
