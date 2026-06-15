@@ -1515,7 +1515,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="tab-btn" onclick="filterBandes('en_cours',this)">En cours</button>
         <button class="tab-btn" onclick="filterBandes('termine',this)">Terminées</button>
       </div>
-      <button class="btn btn-primary manager-only" onclick="showNewBandeModal()">+ Nouvelle bande</button>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;min-height:44px;">
+          <input type="checkbox" id="show-archived-bandes" onchange="toggleArchivedBandes(this.checked)" style="width:18px;height:18px;cursor:pointer;">
+          Afficher les bandes archivées
+        </label>
+        <button class="btn btn-primary manager-only" onclick="showNewBandeModal()">+ Nouvelle bande</button>
+      </div>
     </div>
     <div id="bandes-list"></div>
   </div>
@@ -2688,7 +2694,7 @@ function getCurrentPhase(jour) {
 // pour que les deux modules ne se contredisent jamais sur le même lot.
 function getIoTReferenceNorm() {
   const active = STATE.bandes
-    .filter(b => b.statut === 'en_cours')
+    .filter(b => b.statut === 'en_cours' && !b.archivee)
     .map(b => ({ b, jour: cycleDay(b) }))
     .filter(x => x.jour != null)
     .sort((a, z) => z.jour - a.jour)[0];
@@ -3458,7 +3464,7 @@ function computeIndicators(bande) {
 // ── Alerts system ──
 function checkAlerts() {
   const alerts = [];
-  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
 
   activeBandes.forEach(b => {
     const ind = computeIndicators(b);
@@ -3997,7 +4003,7 @@ function renderDeadlines(batchData) {
 function renderDashboard() {
   const grid = document.getElementById('dash-grid');
   const emptyDiv = document.getElementById('dash-empty');
-  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
 
   // Zone 1: Alerts
   const alerts = checkAlerts();
@@ -4368,7 +4374,7 @@ function renderDashMortalityCharts(batchData) {
 // ── Sidebar Lot Actif ──
 function updateSidebarLotActif() {
   const panel = document.getElementById('sidebar-lot-actif');
-  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours');
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
   if (activeBandes.length === 0) { panel.style.display = 'none'; return; }
   const b = activeBandes[0];
   const ind = computeIndicators(b);
@@ -4383,6 +4389,7 @@ function updateSidebarLotActif() {
 function openFiche(bandeId) {
   navigate('fiche', document.querySelector('[data-page=fiche]'));
   setTimeout(() => {
+    populateFicheSelect(bandeId); // inclut la bande même si archivée
     document.getElementById('fiche-bande-select').value = bandeId;
     loadFicheBande();
   }, 50);
@@ -4398,18 +4405,25 @@ function openSaisieFor(bandeId) {
 
 // ── Bandes list ──
 let bandeFilter = 'all';
+let showArchivedBandes = false;
 function filterBandes(f, btn) {
   bandeFilter = f;
   document.querySelectorAll('#page-bandes .tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderBandes();
 }
+function toggleArchivedBandes(checked) {
+  showArchivedBandes = checked;
+  renderBandes();
+}
 
 function renderBandes() {
   const container = document.getElementById('bandes-list');
-  let bandes = STATE.bandes;
+  let bandes = STATE.bandes.slice();
   if (bandeFilter === 'en_cours') bandes = bandes.filter(b => b.statut === 'en_cours');
   if (bandeFilter === 'termine') bandes = bandes.filter(b => b.statut === 'termine');
+  // Les bandes archivées sont masquées par défaut (toggle "Afficher les archivées").
+  if (!showArchivedBandes) bandes = bandes.filter(b => !b.archivee);
 
   if (bandes.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="icon">&#128051;</div><p>Aucune bande trouvée</p></div>';
@@ -4421,25 +4435,153 @@ function renderBandes() {
     '</tr></thead><tbody>';
 
   bandes.forEach(b => {
-    const ind = computeIndicators(b);
     const statusBadge = b.statut === 'en_cours'
       ? '<span class="badge badge-green">En cours</span>'
       : '<span class="badge badge-grey">Terminée</span>';
+    const archBadge = b.archivee ? ' <span class="badge badge-grey">Archivée</span>' : '';
+    let actions = `<button class="btn btn-outline btn-sm" onclick="openFiche('${b.bande_id}')">Voir</button>`;
+    if (!b.archivee) {
+      if (b.statut === 'en_cours') actions += ` <button class="btn btn-sm btn-gold manager-only" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>`;
+      actions += ` <button class="btn btn-sm btn-outline manager-only" onclick="archiveBande('${b.bande_id}')">Archiver</button>`;
+    } else {
+      actions += ` <button class="btn btn-sm btn-outline manager-only" onclick="unarchiveBande('${b.bande_id}')">Désarchiver</button>`;
+      if (canDeleteBande()) actions += ` <button class="btn btn-sm btn-danger" onclick="showDeleteBandeModal('${b.bande_id}')">Supprimer définitivement</button>`;
+    }
     html += `<tr>
-      <td><strong>${b.nom_bande}</strong></td>
+      <td><strong>${escHtml(b.nom_bande || b.bande_id)}</strong></td>
       <td>${fmtDate(b.date_entree)}</td>
       <td>${fmt(b.nb_poussins_entree)}</td>
-      <td>${b.fournisseur_poussins || '—'}</td>
-      <td>${statusBadge}</td>
-      <td>
-        <button class="btn btn-outline btn-sm" onclick="openFiche('${b.bande_id}')">Voir</button>
-        ${b.statut === 'en_cours' ? `<button class="btn btn-sm btn-gold manager-only" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>` : ''}
-      </td>
+      <td>${escHtml(b.fournisseur_poussins || '—')}</td>
+      <td>${statusBadge}${archBadge}</td>
+      <td><div style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div></td>
     </tr>`;
   });
 
   html += '</tbody></table></div>';
   container.innerHTML = html;
+}
+
+// ── Gestion des bandes : archivage & suppression ──
+
+// Suppression définitive réservée aux comptes admin (pas au compte démo/chef de bande).
+const SUPER_ADMIN_MATRICULES = ['SIVA-001', 'SIVA-002'];
+function canDeleteBande() {
+  return !!currentUser && SUPER_ADMIN_MATRICULES.includes(currentUser.matricule);
+}
+
+// Compte les lignes liées à une bande (depuis STATE) pour la confirmation de suppression.
+function countBandeLinks(bandeId) {
+  return {
+    saisies:      STATE.saisies.filter(s => s.bande_id === bandeId).length,
+    abattages:    STATE.abattages.filter(a => a.bande_id === bandeId).length,
+    intrants:     STATE.intrants.filter(i => i.bande_id === bandeId).length,
+    aliments:     STATE.alimentsPhases.filter(a => a.bande_id === bandeId).length,
+    formulations: STATE.formulationsMP.filter(f => f.bande_id === bandeId).length,
+    // SET NULL (conservées, détachées) :
+    commandes:    STATE.commandes.filter(c => c.bande_id === bandeId).length,
+    receptions:   STATE.receptions.filter(r => r.bande_id === bandeId).length
+  };
+}
+
+function archiveBande(bandeId) { return setBandeArchivee(bandeId, true); }
+function unarchiveBande(bandeId) { return setBandeArchivee(bandeId, false); }
+
+async function setBandeArchivee(bandeId, archivee) {
+  const payload = { bande_id: bandeId, archivee };
+  const applyLocal = () => {
+    const b = STATE.bandes.find(x => x.bande_id === bandeId);
+    if (b) b.archivee = archivee;
+    renderBandes();
+    updateSidebarLotActif();
+  };
+  try {
+    await apiPost({ action: 'updateBande', payload });
+    applyLocal();
+    toast(archivee ? 'Bande archivée ✓' : 'Bande désarchivée ✓');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      applyLocal();
+      toast((archivee ? 'Bande archivée' : 'Bande désarchivée') + ' (hors ligne — sera synchronisée)');
+    } else {
+      toast('Erreur : ' + err.message, 'error');
+    }
+  }
+}
+
+// Modale de confirmation : libellé + nombre de lignes liées supprimées.
+function showDeleteBandeModal(bandeId) {
+  if (!canDeleteBande()) { toast('Action réservée à un manager (SIVA-001 / SIVA-002)', 'error'); return; }
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+  const c = countBandeLinks(bandeId);
+
+  const supprimees = [];
+  if (c.saisies) supprimees.push(c.saisies + ' saisie' + (c.saisies > 1 ? 's' : ''));
+  if (c.abattages) supprimees.push(c.abattages + ' abattage' + (c.abattages > 1 ? 's' : ''));
+  if (c.intrants) supprimees.push(c.intrants + ' intrant' + (c.intrants > 1 ? 's' : ''));
+  if (c.aliments) supprimees.push(c.aliments + ' ligne(s) alimentation');
+  if (c.formulations) supprimees.push(c.formulations + ' formulation(s)');
+  const supprimeesTxt = supprimees.length ? supprimees.join(', ') : 'aucune ligne liée';
+
+  const detachees = [];
+  if (c.commandes) detachees.push(c.commandes + ' commande(s)');
+  if (c.receptions) detachees.push(c.receptions + ' réception(s)');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3 style="color:var(--c-red-600);">&#9888; Supprimer définitivement</h3>
+      <p style="margin-bottom:0.5rem;">Bande : <strong>${escHtml(bandeLabel(bande, { statut: true }))}</strong></p>
+      <p style="margin-bottom:0.5rem;">Seront <strong>définitivement supprimées</strong> : ${supprimeesTxt}.</p>
+      ${detachees.length ? `<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;">${detachees.join(', ')} seront conservées mais détachées de cette bande.</p>` : ''}
+      <p style="color:var(--c-red-600);font-weight:700;margin-bottom:1rem;">Cette action est irréversible.</p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-danger" id="confirm-delete-bande-btn" onclick="confirmDeleteBande('${bandeId}')">Supprimer définitivement</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// Suppression ordonnée enfants -> parent (respect des contraintes FK, pas d'orphelins).
+async function deleteBandeComplete(bandeId) {
+  const childTables = ['saisies', 'intrants', 'aliments_phases', 'formulations_mp', 'abattages'];
+  for (const t of childTables) {
+    const { error } = await sb.from(t).delete().eq('bande_id', bandeId);
+    if (error) throw new Error('Suppression ' + t + ' : ' + error.message);
+  }
+  const { error } = await sb.from('bandes').delete().eq('bande_id', bandeId);
+  if (error) throw new Error('Suppression bande : ' + error.message);
+}
+
+async function confirmDeleteBande(bandeId) {
+  if (!canDeleteBande()) { toast('Action réservée à un manager (SIVA-001 / SIVA-002)', 'error'); return; }
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+  const btn = document.getElementById('confirm-delete-bande-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Suppression…'; }
+  try {
+    await deleteBandeComplete(bandeId);
+    // Nettoyage du STATE en mémoire (mêmes effets que les FK côté base).
+    STATE.saisies = STATE.saisies.filter(s => s.bande_id !== bandeId);
+    STATE.abattages = STATE.abattages.filter(a => a.bande_id !== bandeId);
+    STATE.intrants = STATE.intrants.filter(i => i.bande_id !== bandeId);
+    STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.bande_id !== bandeId);
+    STATE.formulationsMP = STATE.formulationsMP.filter(f => f.bande_id !== bandeId);
+    STATE.commandes.forEach(c => { if (c.bande_id === bandeId) c.bande_id = null; });
+    STATE.receptions.forEach(r => { if (r.bande_id === bandeId) r.bande_id = null; });
+    STATE.notifications.forEach(n => { if (n.bande_id === bandeId) n.bande_id = null; });
+    STATE.bandes = STATE.bandes.filter(b => b.bande_id !== bandeId);
+    closeModal();
+    renderBandes();
+    updateSidebarLotActif();
+    toast('Bande supprimée définitivement ✓');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Supprimer définitivement'; }
+    toast('Erreur : ' + err.message, 'error');
+  }
 }
 
 // ── New Bande Modal ──
@@ -4625,7 +4767,7 @@ function closeModal() {
 // ── Saisie du jour ──
 function initSaisiePage() {
   const select = document.getElementById('saisie-bande');
-  const active = STATE.bandes.filter(b => b.statut === 'en_cours');
+  const active = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
   select.innerHTML = active.length === 0
     ? '<option value="">Aucune bande active</option>'
     : active.map(b => `<option value="${b.bande_id}">${bandeLabel(b)}</option>`).join('');
@@ -4913,11 +5055,22 @@ function renderRecentSaisies() {
 }
 
 // ── Fiche Bande ──
-function initFichePage() {
+// Liste les bandes du sélecteur Cycles : actives (non archivées) par défaut,
+// + éventuellement une bande forcée (ex : "Voir" sur une bande archivée).
+function populateFicheSelect(forceId) {
   const select = document.getElementById('fiche-bande-select');
-  select.innerHTML = STATE.bandes.length === 0
+  let list = STATE.bandes.filter(b => !b.archivee);
+  if (forceId && !list.some(b => b.bande_id === forceId)) {
+    const extra = STATE.bandes.find(b => b.bande_id === forceId);
+    if (extra) list = [extra, ...list];
+  }
+  select.innerHTML = list.length === 0
     ? '<option value="">Aucune bande</option>'
-    : STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('');
+    : list.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}${b.archivee ? ' (archivée)' : ''}</option>`).join('');
+}
+
+function initFichePage() {
+  populateFicheSelect();
   loadFicheBande();
 }
 
@@ -6899,7 +7052,7 @@ function showReceptionModal() {
   });
   const bSel = document.getElementById('recep-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
-  STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
+  STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee).forEach(b => {
     bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('recep-date').value = todayStr();
@@ -7422,7 +7575,7 @@ function showCommandeModal() {
   });
   const bSel = document.getElementById('cmd-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
-  STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
+  STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee).forEach(b => {
     bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('cmd-date').value = todayStr();
@@ -8177,7 +8330,7 @@ function renderAbattageStats() {
 function showAbattageModal() {
   const sel = document.getElementById('ab-bande');
   sel.innerHTML = '<option value="">— Choisir —</option>';
-  STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
+  STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee).forEach(b => {
     sel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   sel.onchange = () => {
