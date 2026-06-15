@@ -2591,6 +2591,22 @@ function cycleDay(bande, refDate) {
   return d;
 }
 
+// ── Helper: libellé de bande lisible et non ambigu pour les sélecteurs ──
+// Ex : "B2026-7 · Bât. A · J28" (lot actif) ou "B2026-7 · Bât. A · Terminée".
+// Lève l'ambiguïté quand plusieurs bandes partagent le même nom (préfixe par défaut).
+function bandeLabel(bande, opts) {
+  opts = opts || {};
+  const parts = [(bande.nom_bande || bande.bande_id || '—')];
+  parts.push(bande.batiment || 'Bât. A');
+  if (bande.statut === 'en_cours') {
+    const j = cycleDay(bande);
+    if (j != null) parts.push('J' + j);
+  } else if (opts.statut) {
+    parts.push(bande.statut === 'termine' ? 'Terminée' : (bande.statut || ''));
+  }
+  return parts.filter(Boolean).join(' · ');
+}
+
 // ── Helper: get current phase for a batch day ──
 function getCurrentPhase(jour) {
   return CYCLE_PHASES.find(p => jour >= p.start && jour <= p.end) || CYCLE_PHASES[CYCLE_PHASES.length - 1];
@@ -4521,7 +4537,7 @@ function initSaisiePage() {
   const active = STATE.bandes.filter(b => b.statut === 'en_cours');
   select.innerHTML = active.length === 0
     ? '<option value="">Aucune bande active</option>'
-    : active.map(b => `<option value="${b.bande_id}">${b.nom_bande}</option>`).join('');
+    : active.map(b => `<option value="${b.bande_id}">${bandeLabel(b)}</option>`).join('');
   document.getElementById('saisie-date').value = todayStr();
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
@@ -4809,7 +4825,7 @@ function initFichePage() {
   const select = document.getElementById('fiche-bande-select');
   select.innerHTML = STATE.bandes.length === 0
     ? '<option value="">Aucune bande</option>'
-    : STATE.bandes.map(b => `<option value="${b.bande_id}">${b.nom_bande} (${b.statut === 'en_cours' ? 'En cours' : 'Terminée'})</option>`).join('');
+    : STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('');
   loadFicheBande();
 }
 
@@ -5216,7 +5232,7 @@ function initTresoreriePage() {
   // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
   select.innerHTML = STATE.bandes.map(b =>
-    '<option value="' + b.bande_id + '">' + b.nom_bande + '</option>'
+    '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
   ).join('');
 
   const today = todayStr();
@@ -6771,7 +6787,7 @@ function showReceptionModal() {
   const bSel = document.getElementById('recep-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+    bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('recep-date').value = todayStr();
   document.getElementById('recep-produit').value = '';
@@ -7294,7 +7310,7 @@ function showCommandeModal() {
   const bSel = document.getElementById('cmd-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+    bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('cmd-date').value = todayStr();
   document.getElementById('cmd-date-livraison').value = '';
@@ -8042,7 +8058,7 @@ function showAbattageModal() {
   const sel = document.getElementById('ab-bande');
   sel.innerHTML = '<option value="">— Choisir —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    sel.appendChild(new Option(b.nom_bande, b.bande_id));
+    sel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   sel.onchange = () => {
     const b = STATE.bandes.find(x => x.bande_id === sel.value);
