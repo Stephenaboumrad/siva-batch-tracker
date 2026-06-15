@@ -5163,6 +5163,11 @@ function renderFicheRentabilite(bande) {
 
   // Astérisque si le coût de revient/kg s'appuie sur une projection (aucun abattage saisi).
   const projete = e.coutRevientKg != null && !e.carcasseReelle;
+  // Coût de revient/kg fiable UNIQUEMENT si l'aliment est saisi en réel (formulations par phase)
+  // ET pèse au moins 40 % du coût engagé. En forfait — ou si l'aliment est marginal — le coût de
+  // revient est faussement bas (poste dominant non saisi) : on masque plutôt que d'induire en erreur.
+  const alimentPct = e.breakdown.find(c => c.key === 'aliment')?.pct ?? 0;
+  const coutRevientFiable = e.alimentSource === 'formulation' && alimentPct >= 40;
   const fcfa   = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA');
   const fcfaKg = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA/kg');
   const margeColor = v => (v == null ? 'var(--text-secondary)' : (v >= 0 ? '#16A34A' : '#EF4444'));
@@ -5172,7 +5177,9 @@ function renderFicheRentabilite(bande) {
 
   const kpis = '<div class="stat-grid" style="margin-bottom:1rem;">' +
     stat('Coût engagé à ce jour', fcfa(e.coutTotal), '#EA580C') +
-    stat('Coût de revient / kg' + (projete ? ' *' : ''), fcfaKg(e.coutRevientKg), '#1565C0') +
+    (coutRevientFiable
+      ? stat('Coût de revient / kg' + (projete ? ' *' : ''), fcfaKg(e.coutRevientKg), '#1565C0')
+      : stat('Coût de revient / kg — EN ATTENTE SAISIE ALIMENT', '—', 'var(--text-secondary)')) +
     stat('Prix de cession moyen / kg', fcfaKg(e.prixCessionKg), '#3B82F6') +
     stat('Marge nette / kg', fcfaKg(e.margeNetteKg), margeColor(e.margeNetteKg)) +
     stat('Marge nette totale', fcfa(e.margeNetteTotale), margeColor(e.margeNetteTotale)) +
