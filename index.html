@@ -106,22 +106,36 @@
   --stagger-delay: 60ms;
 }
 
-/* ── Mode Soleil (high-contrast outdoor) ── */
+/* ── Mode Soleil (contraste maximal, lecture en plein soleil) ── */
 body.mode-soleil {
-  --page-bg: #FFF8F0;
+  --page-bg: #FFFFFF;
   --card-bg: #FFFFFF;
-  --text-primary: #0D0A08;
-  --text-secondary: #362C24;
-  --text-muted: #4A3F35;
-  --border: #9A8E82;
-  --border-subtle: #C9BEB4;
+  --text-primary: #000000;
+  --text-secondary: #141414;
+  --text-muted: #2B2B2B;
+  --border: #000000;
+  --border-subtle: #4A4A4A;
 }
-body.mode-soleil .card { box-shadow: var(--shadow-md); border-width: 2px; }
+body.mode-soleil .card { box-shadow: none; border: 2px solid #000; }
 body.mode-soleil .stat-item .value,
 body.mode-soleil .kpi-card .kpi-value,
 body.mode-soleil .dash-kpi .dk-value,
 body.mode-soleil .iot-kpi-card .iot-kpi-value { font-weight: 800; }
-body.mode-soleil .btn { font-weight: 700; }
+body.mode-soleil .btn { font-weight: 800; }
+/* CTA principal : orange massif, plein contraste */
+body.mode-soleil .btn-primary {
+  background: #EA580C;
+  color: #FFFFFF;
+  border: 2px solid #9A3412;
+  box-shadow: none;
+  font-size: 1.05rem;
+  padding: 0.85rem 1.4rem;
+}
+/* Écran Saisie : +12 % de police pour la lisibilité terrain */
+body.mode-soleil #page-saisie { font-size: 1.12em; }
+body.mode-soleil #page-saisie label { font-weight: 700; }
+body.mode-soleil #page-saisie .form-group input,
+body.mode-soleil #page-saisie .form-group select { font-size: 1.05em; padding: 0.7rem 0.85rem; }
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1042,14 +1056,28 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #plus-sheet a:active { background:var(--surface); }
 #plus-sheet a .icon { font-size:20px; width:32px; text-align:center; }
 
-/* ── Mode soleil toggle ── */
+/* ── Mode soleil toggle (découvrable, avec état on/off) ── */
 .mode-soleil-toggle {
-  display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
-  color:rgba(255,255,255,0.4); cursor:pointer; padding:6px 10px;
-  border-radius:var(--radius-sm); transition:all .15s; border:none; background:none;
+  display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700;
+  color:rgba(255,255,255,0.85); cursor:pointer; padding:8px 10px;
+  border-radius:var(--radius-sm); transition:all .15s;
+  border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.06);
   width:100%;
 }
-.mode-soleil-toggle:hover { color:rgba(255,255,255,0.7); background:rgba(255,255,255,0.04); }
+.mode-soleil-toggle:hover { color:#fff; background:rgba(255,255,255,0.12); }
+.mode-soleil-toggle.active { background:#EA580C; color:#fff; border-color:#EA580C; }
+/* Bouton mode soleil mobile : état actif visible */
+#mtb-soleil.active { background:#EA580C; color:#fff; border-radius:var(--radius-sm); }
+
+/* ── Paramètres ── */
+.param-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; cursor:pointer; padding:6px 0; }
+.param-switch { width:44px; height:26px; border-radius:999px; background:#C9BEB4; position:relative; transition:background .15s; flex-shrink:0; }
+.param-switch::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .15s; box-shadow:0 1px 3px rgba(0,0,0,0.25); }
+.param-switch.on { background:#EA580C; }
+.param-switch.on::after { transform:translateX(18px); }
+.param-info-row { display:flex; justify-content:space-between; gap:1rem; padding:9px 0; border-bottom:1px solid var(--border-subtle); font-size:0.9rem; }
+.param-info-row:last-child { border-bottom:none; }
+.param-info-row span { color:var(--text-muted); }
 
 /* ── Pull to refresh ── */
 .ptr-indicator {
@@ -1290,7 +1318,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="icon">&#128221;</span> Saisie Terrain
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> <span class="nav-full">Cycles d'élevage</span><span class="nav-short">Cycles</span>
+      <span class="icon">&#128200;</span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
     </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon">&#129385;</span> Transformation
@@ -1304,11 +1332,14 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="iot" onclick="navigate('iot',this)">
       <span class="icon">&#128225;</span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
+    <a href="#" data-page="parametres" onclick="navigate('parametres',this)">
+      <span class="icon">&#9881;</span> <span class="nav-full">Paramètres</span><span class="nav-short">Param.</span>
+    </a>
   </nav>
 
   <!-- Lot actif block -->
   <div id="sidebar-lot-actif" class="sidebar-lot-actif" style="display:none;">
-    <div class="sla-title">Lot actif</div>
+    <div class="sla-title">Bande active</div>
     <div class="sla-id" id="sla-id"></div>
     <div class="sla-info" id="sla-info"></div>
     <div class="sla-progress-wrap">
@@ -1325,7 +1356,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="user-badge" class="hdr-user" style="display:none;">
       <span id="user-badge-name"></span>
     </div>
-    <button class="mode-soleil-toggle" onclick="toggleModeSoleil()">&#9728; Mode soleil</button>
+    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9728; Mode soleil : OFF</button>
     <button class="hdr-logout" onclick="logout()">Déconnexion</button>
     <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
   </div>
@@ -1340,7 +1371,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <span class="icon">&#128221;</span> Saisie Terrain
   </a>
   <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
-    <span class="icon">&#128200;</span> Cycles d'élevage
+    <span class="icon">&#128200;</span> Bandes
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon">&#129385;</span> Transformation
@@ -1375,7 +1406,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </button>
     <button class="tab-item" data-page="fiche" onclick="navigateTab('fiche')">
       <span class="tab-icon">&#128200;</span>
-      <span>Cycles</span>
+      <span>Bandes</span>
     </button>
     <button class="tab-item" data-page="saisie" onclick="navigateTab('saisie')">
       <span class="tab-icon">&#128221;</span>
@@ -1396,10 +1427,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="plus-sheet-overlay" onclick="closePlusSheet()">
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon">&#128051;</span> Gestion des Lots</a>
+    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon">&#128051;</span> Bandes</a>
     <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon">&#129385;</span> Transformation</a>
     <a href="#" onclick="navigateFromSheet('supply')"><span class="icon">&#128666;</span> Supply Chain</a>
     <a href="#" onclick="navigateFromSheet('clients')"><span class="icon">&#128188;</span> Commercial & Ventes</a>
+    <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon">&#9881;</span> Paramètres</a>
   </div>
 </div>
 
@@ -1462,8 +1494,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
         <div class="icon">&#128051;</div>
-        <p>Aucun lot actif.<br>Créez un lot d'élevage pour commencer le suivi.</p>
-        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouveau lot</button>
+        <p>Aucune bande active.<br>Créez une bande pour commencer le suivi.</p>
+        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouvelle bande</button>
       </div>
     </div>
     <!-- Zone 3b: Mortality chart -->
@@ -1476,7 +1508,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
   <div id="page-bandes" class="page">
-    <h2>&#128051; Gestion des Lots</h2>
+    <h2>&#128051; Gestion des bandes</h2>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div class="tabs">
         <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
@@ -1602,7 +1634,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: FICHE BANDE ═══════════════ -->
   <div id="page-fiche" class="page">
-    <h2>&#128200; Cycles d'élevage</h2>
+    <h2>&#128200; Bandes</h2>
     <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
       <label>Sélectionner une bande</label>
       <select id="fiche-bande-select" onchange="loadFicheBande()"></select>
@@ -1678,10 +1710,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Tab 3: Statistiques -->
     <div id="ab-tab-stats" style="display:none;">
-      <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
-        <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
-        <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
+      <div id="ab-stats-empty" class="empty-state" style="display:none;">
+        <div class="icon">&#128202;</div>
+        <p>Aucune donnée d'abattage pour le moment.<br>Les statistiques s'afficheront après votre première session d'abattage validée.</p>
+      </div>
+      <div id="ab-stats-content">
+        <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
+          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
+          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1968,6 +2006,39 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 
   <!-- ═══════════════ PAGE: PARAMETRES ═══════════════ -->
+  <div id="page-parametres" class="page">
+    <h2>&#9881; Paramètres</h2>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Affichage</h3></div>
+      <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode soleil">
+        <div>
+          <div style="font-weight:700;">&#9728; Mode soleil</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);">Contraste maximal (fond blanc, texte noir) pour la lecture en plein soleil.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <span id="param-soleil-state" style="font-size:0.8rem;font-weight:700;color:var(--text-secondary);">Désactivé</span>
+          <span id="param-soleil-switch" class="param-switch"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Compte</h3></div>
+      <div id="param-compte"></div>
+    </div>
+
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Données de référence</h3></div>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin:0 0 0.75rem;">Les matières premières se gèrent depuis l'écran Supply Chain (onglet Alimentation).</p>
+      <button class="btn btn-outline btn-sm manager-only" onclick="navigate('supply',null)">Gérer les matières premières</button>
+    </div>
+
+    <div class="card" style="max-width:640px;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Application</h3></div>
+      <div id="param-app"></div>
+    </div>
+  </div>
 </div><!-- /main -->
 
 <!-- Modal: Ajouter entrée alimentation -->
@@ -2377,8 +2448,8 @@ const AUTH_USERS = [
 ];
 let currentUser = null; // { matricule, name, role }
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
 
 function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -2589,6 +2660,22 @@ function cycleDay(bande, refDate) {
   const d = daysBetween(bande.date_entree, refDate || todayStr()) + 1;
   if (!Number.isFinite(d) || d < 1) return null;
   return d;
+}
+
+// ── Helper: libellé de bande lisible et non ambigu pour les sélecteurs ──
+// Ex : "B2026-7 · Bât. A · J28" (lot actif) ou "B2026-7 · Bât. A · Terminée".
+// Lève l'ambiguïté quand plusieurs bandes partagent le même nom (préfixe par défaut).
+function bandeLabel(bande, opts) {
+  opts = opts || {};
+  const parts = [(bande.nom_bande || bande.bande_id || '—')];
+  parts.push(bande.batiment || 'Bât. A');
+  if (bande.statut === 'en_cours') {
+    const j = cycleDay(bande);
+    if (j != null) parts.push('J' + j);
+  } else if (opts.statut) {
+    parts.push(bande.statut === 'termine' ? 'Terminée' : (bande.statut || ''));
+  }
+  return parts.filter(Boolean).join(' · ');
 }
 
 // ── Helper: get current phase for a batch day ──
@@ -3001,13 +3088,14 @@ function hideOfflineBanner() {
 // ── Mobile navigation (bottom tab bar) ──
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
-  bandes: 'Gestion des Lots',
+  bandes: 'Gestion des bandes',
   saisie: 'Saisie Terrain',
-  fiche: "Cycles d'élevage",
+  fiche: 'Bandes',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
-  iot: 'Monitoring IoT'
+  iot: 'Monitoring IoT',
+  parametres: 'Paramètres'
 };
 
 function navigateTab(page) {
@@ -3044,9 +3132,27 @@ function closePlusSheet() {
 function toggleModeSoleil() {
   document.body.classList.toggle('mode-soleil');
   localStorage.setItem('coqorico_soleil', document.body.classList.contains('mode-soleil') ? '1' : '0');
+  setSoleilUI();
+}
+// Reflète l'état on/off du mode soleil sur tous les déclencheurs (sidebar, mobile, Paramètres).
+function setSoleilUI() {
+  const on = document.body.classList.contains('mode-soleil');
+  const btn = document.getElementById('soleil-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('active', on);
+    btn.innerHTML = '☀ Mode soleil : ' + (on ? '<strong>ON</strong>' : 'OFF');
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const mtb = document.getElementById('mtb-soleil');
+  if (mtb) { mtb.classList.toggle('active', on); mtb.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  const sw = document.getElementById('param-soleil-switch');
+  if (sw) sw.classList.toggle('on', on);
+  const st = document.getElementById('param-soleil-state');
+  if (st) st.textContent = on ? 'Activé' : 'Désactivé';
 }
 // Restore on load
 if (localStorage.getItem('coqorico_soleil') === '1') document.body.classList.add('mode-soleil');
+setSoleilUI();
 
 // ── Number Tween ──
 function tweenValue(el, from, to, duration, formatter) {
@@ -3212,6 +3318,7 @@ function navigate(page, el) {
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
     case 'iot': initIoTPage(); break;
+    case 'parametres': initParametresPage(); break;
   }
   return false;
 }
@@ -4007,7 +4114,7 @@ function renderDashboard() {
   const ipCls = avgIP >= 300 ? ' dk-success' : avgIP >= 250 ? '' : ' dk-danger';
 
   document.getElementById('dash-kpis').innerHTML =
-    '<div class="dash-kpi card-stagger"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' lot(s) actif(s)</div></div>' +
+    '<div class="dash-kpi card-stagger"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
     '<div class="dash-kpi card-stagger' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
     '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi card-stagger' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
@@ -4521,7 +4628,7 @@ function initSaisiePage() {
   const active = STATE.bandes.filter(b => b.statut === 'en_cours');
   select.innerHTML = active.length === 0
     ? '<option value="">Aucune bande active</option>'
-    : active.map(b => `<option value="${b.bande_id}">${b.nom_bande}</option>`).join('');
+    : active.map(b => `<option value="${b.bande_id}">${bandeLabel(b)}</option>`).join('');
   document.getElementById('saisie-date').value = todayStr();
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
@@ -4784,7 +4891,8 @@ function renderRecentSaisies() {
     return;
   }
 
-  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">3 dernières saisies</h3><div class="table-wrap"><table><thead><tr>' +
+  const titre = recent.length > 1 ? recent.length + ' dernières saisies' : 'Dernière saisie';
+  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table><thead><tr>' +
     '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
 
   recent.forEach(s => {
@@ -4809,7 +4917,7 @@ function initFichePage() {
   const select = document.getElementById('fiche-bande-select');
   select.innerHTML = STATE.bandes.length === 0
     ? '<option value="">Aucune bande</option>'
-    : STATE.bandes.map(b => `<option value="${b.bande_id}">${b.nom_bande} (${b.statut === 'en_cours' ? 'En cours' : 'Terminée'})</option>`).join('');
+    : STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('');
   loadFicheBande();
 }
 
@@ -5216,7 +5324,7 @@ function initTresoreriePage() {
   // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
   select.innerHTML = STATE.bandes.map(b =>
-    '<option value="' + b.bande_id + '">' + b.nom_bande + '</option>'
+    '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
   ).join('');
 
   const today = todayStr();
@@ -5695,6 +5803,27 @@ function exportExcel() {
 
   XLSX.writeFile(wb, `COQORICO_${bande.nom_bande}.xlsx`);
   toast('Excel généré');
+}
+
+// ── Paramètres ──
+function initParametresPage() {
+  setSoleilUI();
+  const u = currentUser || {};
+  const roleLabel = u.role === 'manager' ? 'Manager' : u.role === 'chef_bande' ? 'Chef de bande' : (u.role || '—');
+  const compteEl = document.getElementById('param-compte');
+  if (compteEl) {
+    compteEl.innerHTML =
+      '<div class="param-info-row"><span>Nom</span><strong>' + escHtml(u.name || '—') + '</strong></div>' +
+      '<div class="param-info-row"><span>Matricule</span><strong>' + escHtml(u.matricule || '—') + '</strong></div>' +
+      '<div class="param-info-row"><span>Rôle</span><strong>' + roleLabel + '</strong></div>';
+  }
+  const appEl = document.getElementById('param-app');
+  if (appEl) {
+    appEl.innerHTML =
+      '<div class="param-info-row"><span>Application</span><strong>SIVA Batch Tracker</strong></div>' +
+      '<div class="param-info-row"><span>Source de données</span><strong>Supabase</strong></div>' +
+      '<div class="param-info-row"><span>État de connexion</span><strong>' + (isOnline ? 'En ligne' : 'Hors ligne') + '</strong></div>';
+  }
 }
 
 // ── Settings ──
@@ -6771,7 +6900,7 @@ function showReceptionModal() {
   const bSel = document.getElementById('recep-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+    bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('recep-date').value = todayStr();
   document.getElementById('recep-produit').value = '';
@@ -7294,7 +7423,7 @@ function showCommandeModal() {
   const bSel = document.getElementById('cmd-bande');
   bSel.innerHTML = '<option value="">— Aucune —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    bSel.appendChild(new Option(b.nom_bande, b.bande_id));
+    bSel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   document.getElementById('cmd-date').value = todayStr();
   document.getElementById('cmd-date-livraison').value = '';
@@ -7965,10 +8094,17 @@ async function validateAbattage(id) {
 // ── Tab 3: Stats ──
 function renderAbattageStats() {
   const validated = STATE.abattages.filter(a => a.statut === 'valide' || a.statut === 'termine');
+  const emptyEl = document.getElementById('ab-stats-empty');
+  const contentEl = document.getElementById('ab-stats-content');
   if (validated.length === 0) {
+    // État vide explicite (icône + message) au lieu de cartes graphiques vides.
+    if (emptyEl) emptyEl.style.display = '';
+    if (contentEl) contentEl.style.display = 'none';
     document.getElementById('ab-stats-kpis').innerHTML = '';
     return;
   }
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (contentEl) contentEl.style.display = '';
 
   const avgRendement = validated.reduce((s, a) => s + (Number(a.rendement_carcasse_pct) || 0), 0) / validated.length;
   const avgPerte = validated.reduce((s, a) => {
@@ -8042,7 +8178,7 @@ function showAbattageModal() {
   const sel = document.getElementById('ab-bande');
   sel.innerHTML = '<option value="">— Choisir —</option>';
   STATE.bandes.filter(b => b.statut === 'en_cours').forEach(b => {
-    sel.appendChild(new Option(b.nom_bande, b.bande_id));
+    sel.appendChild(new Option(bandeLabel(b), b.bande_id));
   });
   sel.onchange = () => {
     const b = STATE.bandes.find(x => x.bande_id === sel.value);
