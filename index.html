@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -198,6 +199,20 @@
 /* ── Le toggle "Mode Soleil" a été reconverti en MODE SOMBRE (console SCADA) :
    l'ancien mode jour plein-contraste (body.mode-soleil) est retiré au profit de
    [data-theme="dark"] ci-dessus, posé sur <html>. ── */
+
+/* ── Icônes Lucide (line, monochrome, héritent de currentColor) ── */
+[data-lucide] { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
+svg.lucide { width: 1em; height: 1em; stroke-width: 2; vertical-align: -0.125em; flex: none; }
+.hdr-nav .icon svg.lucide, #mobile-menu .icon svg.lucide, #plus-sheet .icon svg.lucide { width: 18px; height: 18px; stroke-width: 1.75; }
+.hdr-nav .icon, #mobile-menu .icon { display: inline-flex; align-items: center; }
+.tab-icon svg.lucide { width: 22px; height: 22px; stroke-width: 1.75; }
+.empty-state .icon svg.lucide { width: 40px; height: 40px; stroke-width: 1.5; color: var(--color-text-muted); }
+.iot-th-icon svg.lucide { width: 22px; height: 22px; stroke-width: 1.75; color: var(--color-text-secondary); }
+.iot-kpi-icon svg.lucide { width: 22px; height: 22px; stroke-width: 1.75; color: var(--color-text-secondary); }
+.alert-item .alert-icon svg.lucide, .deadline-card .dl-icon svg.lucide { vertical-align: -0.15em; }
+.mtb-btn svg.lucide, .hdr-bell svg.lucide, #mobile-menu-btn svg.lucide, .mode-soleil-toggle svg.lucide { width: 18px; height: 18px; }
+.sc-flow-chip svg.lucide { width: 14px; height: 14px; vertical-align: -0.18em; }
+h2 svg.lucide, h3 svg.lucide { width: 0.95em; height: 0.95em; vertical-align: -0.1em; color: var(--color-text-secondary); }
 
 /* ── Reset & base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -706,7 +721,7 @@ tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--s
 
 /* ── Empty States ── */
 .empty-state { text-align:center; padding:56px 24px; }
-.empty-state .icon { font-size:52px; margin-bottom:16px; display:block; filter:grayscale(0.15) drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
+.empty-state .icon { margin-bottom:16px; display:block; line-height:0; }
 .empty-state p { font-size:14px; line-height:1.7; max-width:280px; margin:0 auto; color:var(--text-muted); }
 
 /* ── Role visibility ── */
@@ -1014,17 +1029,19 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   padding:3px; position:relative;
 }
 .iot-zone {
-  background:var(--c-forest-50); border-radius:var(--radius-xs);
+  background:var(--c-sand-100); border-radius:var(--radius-xs);
   padding:var(--space-4); text-align:center; cursor:pointer;
   transition:all .2s var(--ease); position:relative; min-height:100px;
-  border:2px solid transparent;
+  border:2px solid transparent; overflow:hidden;
 }
 .iot-zone:hover { transform:scale(1.02); box-shadow:var(--shadow-md); z-index:1; }
 .iot-zone.active { border-color:var(--c-orange-500); box-shadow:var(--shadow-glow-primary); }
-.iot-zone.nominal { background:linear-gradient(135deg, #F0FDF4, #DCFCE7); }
-.iot-zone.watch { background:linear-gradient(135deg, #FFFBEB, #FEF3C7); }
-.iot-zone.alert { background:linear-gradient(135deg, #FFF7ED, #FFEDD5); }
-.iot-zone.critical { background:linear-gradient(135deg, #FEF2F2, #FEE2E2); }
+/* Fonds neutres : l'état d'une zone passe uniquement par la barre d'état colorée (instrument SCADA). */
+.iot-zone::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--c-sand-300); }
+.iot-zone.nominal::before { background:var(--c-forest-600); }
+.iot-zone.watch::before { background:var(--c-amber-600); }
+.iot-zone.alert::before { background:var(--c-orange-600); }
+.iot-zone.critical::before { background:var(--c-red-600); }
 .iot-zone-label { font-family:var(--mono); font-size:11px; font-weight:700; color:var(--text-secondary); letter-spacing:0.04em; }
 .iot-zone-temp { font-family:var(--mono); font-size:22px; font-weight:600; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
 .iot-zone-sub { font-size:10px; color:var(--text-muted); }
@@ -1374,28 +1391,28 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <!-- Center: Nav -->
   <nav class="hdr-nav" id="header-nav">
     <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
-      <span class="icon">&#128202;</span> <span class="nav-full">Dashboard</span><span class="nav-short">Dash</span> <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
+      <span class="icon"><i data-lucide="layout-dashboard"></i></span> <span class="nav-full">Dashboard</span><span class="nav-short">Dash</span> <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
     <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
-      <span class="icon">&#128221;</span> Saisie Terrain
+      <span class="icon"><i data-lucide="pencil-ruler"></i></span> Saisie Terrain
     </a>
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
-      <span class="icon">&#128200;</span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
+      <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
     </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
-      <span class="icon">&#129385;</span> Transformation
+      <span class="icon"><i data-lucide="package"></i></span> Transformation
     </a>
     <a href="#" data-page="supply" onclick="navigate('supply',this)">
-      <span class="icon">&#128666;</span> <span class="nav-full">Supply Chain</span><span class="nav-short">Supply</span>
+      <span class="icon"><i data-lucide="truck"></i></span> <span class="nav-full">Supply Chain</span><span class="nav-short">Supply</span>
     </a>
     <a href="#" data-page="clients" onclick="navigate('clients',this)">
-      <span class="icon">&#128188;</span> <span class="nav-full">Commercial & Ventes</span><span class="nav-short">Ventes</span>
+      <span class="icon"><i data-lucide="banknote"></i></span> <span class="nav-full">Commercial & Ventes</span><span class="nav-short">Ventes</span>
     </a>
     <a href="#" data-page="iot" onclick="navigate('iot',this)">
-      <span class="icon">&#128225;</span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
+      <span class="icon"><i data-lucide="activity"></i></span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
     <a href="#" data-page="parametres" onclick="navigate('parametres',this)">
-      <span class="icon">&#9881;</span> <span class="nav-full">Paramètres</span><span class="nav-short">Param.</span>
+      <span class="icon"><i data-lucide="settings"></i></span> <span class="nav-full">Paramètres</span><span class="nav-short">Param.</span>
     </a>
   </nav>
 
@@ -1411,41 +1428,41 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- Right: User + Sync + Logout -->
   <div class="hdr-right">
-    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Notifications">🔔<span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
+    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Notifications"><i data-lucide="bell"></i><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
     <div id="sync-status">
       <span class="sync-dot green"></span> <span id="sync-text">Synchronisé</span>
     </div>
     <div id="user-badge" class="hdr-user" style="display:none;">
       <span id="user-badge-name"></span>
     </div>
-    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false">&#9790; Mode sombre : OFF</button>
+    <button id="soleil-toggle-btn" class="mode-soleil-toggle" onclick="toggleModeSoleil()" aria-pressed="false"><i data-lucide="moon"></i> Mode sombre : OFF</button>
     <button class="hdr-logout" onclick="logout()">Déconnexion</button>
-    <button id="mobile-menu-btn" onclick="toggleMobileMenu()">&#9776;</button>
+    <button id="mobile-menu-btn" onclick="toggleMobileMenu()"><i data-lucide="menu"></i></button>
   </div>
 </div>
 
 <!-- Mobile fullscreen dropdown menu -->
 <div id="mobile-menu">
   <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this);closeMobileMenu()">
-    <span class="icon">&#128202;</span> Dashboard
+    <span class="icon"><i data-lucide="layout-dashboard"></i></span> Dashboard
   </a>
   <a href="#" data-page="saisie" onclick="navigate('saisie',this);closeMobileMenu()">
-    <span class="icon">&#128221;</span> Saisie Terrain
+    <span class="icon"><i data-lucide="pencil-ruler"></i></span> Saisie Terrain
   </a>
   <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
-    <span class="icon">&#128200;</span> Bandes
+    <span class="icon"><i data-lucide="chart-line"></i></span> Bandes
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
-    <span class="icon">&#129385;</span> Transformation
+    <span class="icon"><i data-lucide="package"></i></span> Transformation
   </a>
   <a href="#" data-page="supply" onclick="navigate('supply',this);closeMobileMenu()">
-    <span class="icon">&#128666;</span> Supply Chain
+    <span class="icon"><i data-lucide="truck"></i></span> Supply Chain
   </a>
   <a href="#" data-page="clients" onclick="navigate('clients',this);closeMobileMenu()">
-    <span class="icon">&#128188;</span> Commercial & Ventes
+    <span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes
   </a>
   <a href="#" data-page="iot" onclick="navigate('iot',this);closeMobileMenu()">
-    <span class="icon">&#128225;</span> Monitoring IoT
+    <span class="icon"><i data-lucide="activity"></i></span> Monitoring IoT
   </a>
 </div>
 
@@ -1454,8 +1471,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <img src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés" class="mtb-logo-img">
   <span class="mtb-title" id="mtb-page-title">Dashboard</span>
   <div class="mtb-actions">
-    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode sombre">&#9790;</button>
-    <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Notifications" style="display:none;">&#128276;<span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
+    <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode sombre"><i data-lucide="moon"></i></button>
+    <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Notifications" style="display:none;"><i data-lucide="bell"></i><span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
   </div>
 </div>
 
@@ -1463,23 +1480,23 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="bottom-tab-bar">
   <div class="tab-bar-inner">
     <button class="tab-item active" data-page="dashboard" onclick="navigateTab('dashboard')">
-      <span class="tab-icon">&#128202;</span>
+      <span class="tab-icon"><i data-lucide="layout-dashboard"></i></span>
       <span>Dashboard</span>
     </button>
     <button class="tab-item" data-page="fiche" onclick="navigateTab('fiche')">
-      <span class="tab-icon">&#128200;</span>
+      <span class="tab-icon"><i data-lucide="chart-line"></i></span>
       <span>Bandes</span>
     </button>
     <button class="tab-item" data-page="saisie" onclick="navigateTab('saisie')">
-      <span class="tab-icon">&#128221;</span>
+      <span class="tab-icon"><i data-lucide="pencil-ruler"></i></span>
       <span>Saisie</span>
     </button>
     <button class="tab-item" data-page="iot" onclick="navigateTab('iot')">
-      <span class="tab-icon">&#128225;</span>
+      <span class="tab-icon"><i data-lucide="activity"></i></span>
       <span>IoT</span>
     </button>
     <button class="tab-item" data-page="plus" onclick="openPlusSheet()">
-      <span class="tab-icon">&#8943;</span>
+      <span class="tab-icon"><i data-lucide="ellipsis"></i></span>
       <span>Plus</span>
     </button>
   </div>
@@ -1489,11 +1506,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="plus-sheet-overlay" onclick="closePlusSheet()">
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon">&#128051;</span> Bandes</a>
-    <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon">&#129385;</span> Transformation</a>
-    <a href="#" onclick="navigateFromSheet('supply')"><span class="icon">&#128666;</span> Supply Chain</a>
-    <a href="#" onclick="navigateFromSheet('clients')"><span class="icon">&#128188;</span> Commercial & Ventes</a>
-    <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon">&#9881;</span> Paramètres</a>
+    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
+    <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
+    <a href="#" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
+    <a href="#" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
+    <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
   </div>
 </div>
 
@@ -1545,7 +1562,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: DASHBOARD ═══════════════ -->
   <div id="page-dashboard" class="page active">
-    <h2>&#128202; Dashboard</h2>
+    <h2><i data-lucide="layout-dashboard"></i> Dashboard</h2>
     <!-- Zone 1: Alertes -->
     <div id="dash-alerts"></div>
     <!-- Zone 2: KPIs agrégés -->
@@ -1555,7 +1572,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Zone 3: Bandes actives -->
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
-        <div class="icon">&#128051;</div>
+        <div class="icon"><i data-lucide="inbox"></i></div>
         <p>Aucune bande active.<br>Créez une bande pour commencer le suivi.</p>
         <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouvelle bande</button>
       </div>
@@ -1570,7 +1587,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
   <div id="page-bandes" class="page">
-    <h2>&#128051; Gestion des bandes</h2>
+    <h2><i data-lucide="chart-line"></i> Gestion des bandes</h2>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div class="tabs">
         <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
@@ -1590,7 +1607,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: SAISIE DU JOUR ═══════════════ -->
   <div id="page-saisie" class="page">
-    <h2>&#128221; Saisie Terrain</h2>
+    <h2><i data-lucide="pencil-ruler"></i> Saisie Terrain</h2>
     <div class="card" style="max-width:700px;">
       <div class="form-group">
         <label>Bande</label>
@@ -1702,7 +1719,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: FICHE BANDE ═══════════════ -->
   <div id="page-fiche" class="page">
-    <h2>&#128200; Bandes</h2>
+    <h2><i data-lucide="chart-line"></i> Bandes</h2>
     <div class="form-group" style="max-width:300px;margin-bottom:1.5rem;">
       <label>Sélectionner une bande</label>
       <select id="fiche-bande-select" onchange="loadFicheBande()"></select>
@@ -1753,7 +1770,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <!-- ═══════════════ PAGE: ALIMENTATION ═══════════════ -->
   <!-- ═══════════════ PAGE: ABATTAGE ═══════════════ -->
   <div id="page-abattage" class="page">
-    <h2>&#129385; Transformation & Abattage</h2>
+    <h2><i data-lucide="package"></i> Transformation & Abattage</h2>
     <p style="color:#C2410C;font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">Suivi des journées d'abattage par bande</p>
 
     <div id="abattage-tabs" class="tabs" style="margin-bottom:1.25rem;">
@@ -1781,7 +1798,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Tab 3: Statistiques -->
     <div id="ab-tab-stats" style="display:none;">
       <div id="ab-stats-empty" class="empty-state" style="display:none;">
-        <div class="icon">&#128202;</div>
+        <div class="icon"><i data-lucide="inbox"></i></div>
         <p>Aucune donnée d'abattage pour le moment.<br>Les statistiques s'afficheront après votre première session d'abattage validée.</p>
       </div>
       <div id="ab-stats-content">
@@ -1795,19 +1812,19 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 
   <div id="page-supply" class="page">
-    <h2>&#128666; Supply Chain & Stocks</h2>
+    <h2><i data-lucide="truck"></i> Supply Chain & Stocks</h2>
 
     <!-- Flow indicator -->
     <div class="sc-flow" id="sc-flow">
-      <span class="sc-flow-chip" onclick="switchSupplyTab('fournisseurs')">&#127981; Fournisseur</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('fournisseurs')"><i data-lucide="factory"></i> Fournisseur</span>
       <span class="sc-flow-arrow">→</span>
-      <span class="sc-flow-chip" onclick="switchSupplyTab('receptions')">&#128230; Réception</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('receptions')"><i data-lucide="package"></i> Réception</span>
       <span class="sc-flow-arrow">→</span>
-      <span class="sc-flow-chip" onclick="switchSupplyTab('inspections')">&#128270; Inspection</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('inspections')"><i data-lucide="search"></i> Inspection</span>
       <span class="sc-flow-arrow">→</span>
-      <span class="sc-flow-chip" onclick="switchSupplyTab('stocks')">&#128230; Stock</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('stocks')"><i data-lucide="boxes"></i> Stock</span>
       <span class="sc-flow-arrow">→</span>
-      <span class="sc-flow-chip" onclick="switchSupplyTab('formulations')">&#127807; Formulation</span>
+      <span class="sc-flow-chip" onclick="switchSupplyTab('formulations')"><i data-lucide="wheat"></i> Formulation</span>
     </div>
 
     <!-- Tabs bar -->
@@ -1919,7 +1936,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: CLIENTS & COMMANDES ═══════════════ -->
   <div id="page-clients" class="page">
-    <h2>&#128188; Commercial & Ventes</h2>
+    <h2><i data-lucide="banknote"></i> Commercial & Ventes</h2>
 
     <!-- KPI bar -->
     <div class="kpi-bar" id="clients-kpi"></div>
@@ -1987,7 +2004,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div id="page-iot" class="page">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3);">
       <div>
-        <h2 style="margin-bottom:4px;">&#128225; Monitoring IoT</h2>
+        <h2 style="margin-bottom:4px;"><i data-lucide="activity"></i> Monitoring IoT</h2>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Ambiance bâtiment — Bâtiment A (85 &times; 12 m)</p>
       </div>
       <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;">
@@ -1998,14 +2015,14 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Bandeau honnête : ces données sont simulées tant que le flux capteurs n'est pas branché -->
     <div class="demo-banner">
-      <span class="demo-banner-icon">&#9888;</span>
+      <span class="demo-banner-icon"><i data-lucide="triangle-alert"></i></span>
       <span>Ces mesures sont <strong>simulées</strong> à des fins de démonstration — aucun capteur n'est encore connecté. Ne pas les utiliser pour des décisions d'élevage.</span>
     </div>
 
     <!-- Zone Schematic -->
     <div class="iot-building" id="iot-building">
       <div class="iot-building-title">
-        <h3>&#127970; Vue bâtiment — 4 zones</h3>
+        <h3><i data-lucide="warehouse"></i> Vue bâtiment — 4 zones</h3>
         <span style="font-size:11px;color:var(--text-muted);">Toucher une zone pour les détails</span>
       </div>
       <div class="iot-building-schematic" id="iot-zones"></div>
@@ -2038,35 +2055,35 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h3 style="font-size:15px;font-weight:700;margin-bottom:var(--space-3);color:var(--text-primary);">Seuils d'alerte configurés</h3>
     <div class="iot-thresholds-grid">
       <div class="card iot-threshold-card">
-        <div class="iot-th-icon">&#127777;</div>
+        <div class="iot-th-icon"><i data-lucide="thermometer"></i></div>
         <div class="iot-th-title">Température</div>
         <div class="iot-th-row"><span class="iot-th-label">Min</span><span class="iot-th-val">24°C</span></div>
         <div class="iot-th-row"><span class="iot-th-label">Max</span><span class="iot-th-val">32°C</span></div>
         <div class="iot-th-row critical"><span class="iot-th-label">Critique</span><span class="iot-th-val">&gt;35°C</span></div>
       </div>
       <div class="card iot-threshold-card">
-        <div class="iot-th-icon">&#128167;</div>
+        <div class="iot-th-icon"><i data-lucide="droplet"></i></div>
         <div class="iot-th-title">Humidité</div>
         <div class="iot-th-row"><span class="iot-th-label">Min</span><span class="iot-th-val">55%</span></div>
         <div class="iot-th-row"><span class="iot-th-label">Max</span><span class="iot-th-val">75%</span></div>
         <div class="iot-th-row critical"><span class="iot-th-label">Critique</span><span class="iot-th-val">&gt;85%</span></div>
       </div>
       <div class="card iot-threshold-card">
-        <div class="iot-th-icon">&#9888;</div>
+        <div class="iot-th-icon"><i data-lucide="wind"></i></div>
         <div class="iot-th-title">NH3</div>
         <div class="iot-th-row"><span class="iot-th-label">Min</span><span class="iot-th-val">0 ppm</span></div>
         <div class="iot-th-row"><span class="iot-th-label">Max</span><span class="iot-th-val">20 ppm</span></div>
         <div class="iot-th-row critical"><span class="iot-th-label">Critique</span><span class="iot-th-val">&gt;25 ppm</span></div>
       </div>
       <div class="card iot-threshold-card">
-        <div class="iot-th-icon">&#127787;</div>
+        <div class="iot-th-icon"><i data-lucide="cloud-fog"></i></div>
         <div class="iot-th-title">CO2</div>
         <div class="iot-th-row"><span class="iot-th-label">Min</span><span class="iot-th-val">0 ppm</span></div>
         <div class="iot-th-row"><span class="iot-th-label">Max</span><span class="iot-th-val">2 500 ppm</span></div>
         <div class="iot-th-row critical"><span class="iot-th-label">Critique</span><span class="iot-th-val">&gt;3 000 ppm</span></div>
       </div>
       <div class="card iot-threshold-card">
-        <div class="iot-th-icon">&#128161;</div>
+        <div class="iot-th-icon"><i data-lucide="sun"></i></div>
         <div class="iot-th-title">Éclairage</div>
         <div class="iot-th-row"><span class="iot-th-label">Min</span><span class="iot-th-val">20 lux</span></div>
         <div class="iot-th-row"><span class="iot-th-label">Max</span><span class="iot-th-val">60 lux</span></div>
@@ -2077,13 +2094,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: PARAMETRES ═══════════════ -->
   <div id="page-parametres" class="page">
-    <h2>&#9881; Paramètres</h2>
+    <h2><i data-lucide="settings"></i> Paramètres</h2>
 
     <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
       <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Affichage</h3></div>
       <div class="param-row" onclick="toggleModeSoleil()" role="switch" tabindex="0" aria-label="Mode sombre">
         <div>
-          <div style="font-weight:700;">&#9790; Mode sombre</div>
+          <div style="font-weight:700;"><i data-lucide="moon"></i> Mode sombre</div>
           <div style="font-size:0.8rem;color:var(--text-muted);">Console sombre (esthétique SCADA) pour le monitoring et la lecture en faible luminosité.</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -2114,7 +2131,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Ajouter entrée alimentation -->
 <div id="alim-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:500px;">
-    <h3>&#127807; Ajouter une matière première</h3>
+    <h3><i data-lucide="wheat"></i> Ajouter une matière première</h3>
     <div class="form-group">
       <label>Matière première</label>
       <select id="alim-modal-mp"></select>
@@ -2148,7 +2165,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouveau fournisseur -->
 <div id="fournisseur-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <h3>&#127981; Nouveau fournisseur</h3>
+    <h3><i data-lucide="factory"></i> Nouveau fournisseur</h3>
     <div class="form-row">
       <div class="form-group"><label>Nom</label><input type="text" id="fourn-nom" placeholder="Nom du fournisseur"></div>
       <div class="form-group"><label>Type</label>
@@ -2181,7 +2198,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvelle réception -->
 <div id="reception-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <h3>&#128230; Nouvelle réception</h3>
+    <h3><i data-lucide="package"></i> Nouvelle réception</h3>
     <div class="form-row">
       <div class="form-group"><label>Fournisseur</label><select id="recep-fournisseur"></select></div>
       <div class="form-group"><label>Date réception</label><input type="date" id="recep-date"></div>
@@ -2221,7 +2238,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvelle inspection -->
 <div id="inspection-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <h3>&#128270; Nouvelle inspection</h3>
+    <h3><i data-lucide="search"></i> Nouvelle inspection</h3>
     <div class="form-row">
       <div class="form-group"><label>Réception</label><select id="insp-reception"></select></div>
       <div class="form-group"><label>Date inspection</label><input type="date" id="insp-date"></div>
@@ -2265,7 +2282,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Ajouter au stock -->
 <div id="stock-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:500px;">
-    <h3>&#128230; Ajouter au stock</h3>
+    <h3><i data-lucide="boxes"></i> Ajouter au stock</h3>
     <div class="form-row">
       <div class="form-group"><label>Produit</label><input type="text" id="stock-produit" placeholder="Nom du produit"></div>
       <div class="form-group"><label>Catégorie</label>
@@ -2295,7 +2312,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Inspection prompt after reception -->
 <div id="inspection-prompt" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:400px;text-align:center;">
-    <h3>&#128270; Inspection qualité</h3>
+    <h3><i data-lucide="search"></i> Inspection qualité</h3>
     <p style="margin-bottom:1rem;color:var(--text-secondary);">Ajouter une inspection pour cette réception ?</p>
     <div class="modal-actions" style="justify-content:center;">
       <button class="btn btn-outline" onclick="document.getElementById('inspection-prompt').style.display='none'">Plus tard</button>
@@ -2307,7 +2324,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouveau client -->
 <div id="client-modal" class="modal-overlay" style="display:none;">
   <div class="modal">
-    <h3>&#128100; Nouveau client</h3>
+    <h3><i data-lucide="user"></i> Nouveau client</h3>
     <div class="form-row">
       <div class="form-group"><label>Nom</label><input type="text" id="cli-nom" placeholder="Nom du client"></div>
       <div class="form-group"><label>Type</label>
@@ -2340,7 +2357,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
-    <h3>&#128230; Nouvelle commande</h3>
+    <h3><i data-lucide="shopping-cart"></i> Nouvelle commande</h3>
     <div class="form-row">
       <div class="form-group"><label>Client</label>
         <select id="cmd-client"></select>
@@ -2375,7 +2392,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvel employé -->
 <div id="employe-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:550px;">
-    <h3>&#128100; Nouvel employé</h3>
+    <h3><i data-lucide="user"></i> Nouvel employé</h3>
     <div class="form-row">
       <div class="form-group"><label>Prénom</label><input type="text" id="emp-prenom"></div>
       <div class="form-group"><label>Nom</label><input type="text" id="emp-nom"></div>
@@ -2413,7 +2430,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvelle dépense RH -->
 <div id="depense-rh-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:500px;">
-    <h3>&#128176; Nouvelle dépense RH</h3>
+    <h3><i data-lucide="wallet"></i> Nouvelle dépense RH</h3>
     <div class="form-row">
       <div class="form-group"><label>Date</label><input type="date" id="drh-date"></div>
       <div class="form-group"><label>Type</label>
@@ -2442,7 +2459,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: Nouvelle session d'abattage -->
 <div id="abattage-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
-    <h3>&#129385; Nouvelle session d'abattage</h3>
+    <h3><i data-lucide="package"></i> Nouvelle session d'abattage</h3>
 
     <h4 style="color:#EA580C;font-size:0.85rem;margin-bottom:0.5rem;">1. Identification</h4>
     <div class="form-row">
@@ -3147,7 +3164,7 @@ function loadFromCache() {
 function showOfflineBanner(cachedAt) {
   const el = document.getElementById('offline-banner');
   const dateStr = cachedAt ? new Date(cachedAt).toLocaleString('fr-FR') : 'inconnue';
-  el.innerHTML = '&#9888;&#65039; Mode hors ligne — données du ' + dateStr;
+  el.innerHTML = '<i data-lucide="triangle-alert"></i> Mode hors ligne — données du ' + dateStr;
   el.style.display = '';
 }
 
@@ -3198,6 +3215,56 @@ function closePlusSheet() {
   document.getElementById('plus-sheet-overlay').classList.remove('open');
 }
 
+// ── PASSE 2 : icônes Lucide + instrumentation Chart.js (affichage uniquement) ──
+function cssVar(n){ try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || ''; } catch(e){ return ''; } }
+function refreshIcons(){ if (window.lucide && lucide.createIcons) { try { lucide.createIcons(); } catch(e){} } }
+(function initLucide(){
+  function boot(){
+    refreshIcons();
+    if (!document.body || !window.MutationObserver) return;
+    // Ré-rend les <i data-lucide> ajoutés dynamiquement (listes, empty-states, toggles).
+    let raf = 0;
+    new MutationObserver(function(){ if (raf) return; raf = requestAnimationFrame(function(){ raf = 0; refreshIcons(); }); })
+      .observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+// Registre instrumental commun à TOUS les graphiques (config d'affichage, pas la donnée).
+if (window.Chart) {
+  Chart.defaults.font.family = "'JetBrains Mono', 'SF Mono', monospace";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = '#8A95A1';                       // --color-text-muted : lisible en clair ET sombre
+  Chart.defaults.borderColor = 'rgba(138,149,161,0.22)';  // grille translucide : OK sur les 2 thèmes
+  Chart.defaults.elements.line.tension = 0;               // interpolation LINÉAIRE (fin du spline)
+  Chart.defaults.elements.line.borderWidth = 1.5;
+  Chart.defaults.elements.point.radius = 0;               // points au survol uniquement
+  Chart.defaults.elements.point.hoverRadius = 3;
+  Chart.defaults.elements.point.hitRadius = 8;
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.boxWidth = 8;
+  Chart.defaults.plugins.legend.labels.boxHeight = 8;
+}
+// Couleurs instrumentales lues sur les tokens CSS (feuilles) au moment du rendu →
+// s'adaptent automatiquement au thème clair / sombre (SCADA). Jamais de couleur en dur.
+function chartTokens(){
+  return {
+    grid:      cssVar('--chart-grid')          || 'rgba(138,149,161,0.22)',
+    axis:      cssVar('--color-text-muted')    || '#8A95A1',
+    text2:     cssVar('--color-text-secondary')|| '#4A5663',
+    observed:  cssVar('--color-accent')        || '#E2640F',
+    reference: cssVar('--chart-reference')     || '#8A95A1',
+    blue:      cssVar('--color-data-blue')     || '#2563EB',
+    red:       cssVar('--color-danger')        || '#C8332B',
+    green:     cssVar('--color-success')       || '#0E7C4A',
+    amber:     cssVar('--color-warning')       || '#B7791F'
+  };
+}
+function chartFill(hex, a){
+  const h = String(hex || '').replace('#','').trim();
+  if (h.length !== 6) return 'rgba(138,149,161,' + a + ')';
+  return 'rgba(' + parseInt(h.slice(0,2),16) + ',' + parseInt(h.slice(2,4),16) + ',' + parseInt(h.slice(4,6),16) + ',' + a + ')';
+}
+
 // ── Mode sombre (ex-"Mode Soleil", reconverti en console SCADA) ──
 // Pose / retire data-theme="dark" sur <html>. La clé localStorage et les ids des
 // contrôles sont conservés (coqorico_soleil, #soleil-toggle-btn…) pour ne pas toucher
@@ -3216,7 +3283,7 @@ function setSoleilUI() {
   const btn = document.getElementById('soleil-toggle-btn');
   if (btn) {
     btn.classList.toggle('active', on);
-    btn.innerHTML = '☾ Mode sombre : ' + (on ? '<strong>ON</strong>' : 'OFF');
+    btn.innerHTML = '<i data-lucide="moon"></i> Mode sombre : ' + (on ? '<strong>ON</strong>' : 'OFF');
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
   const mtb = document.getElementById('mtb-soleil');
@@ -3541,23 +3608,23 @@ function checkAlerts() {
 
     // Mortalité cumulée
     if (ind.tauxMort > 5) {
-      alerts.push({ level: 'critical', icon: '🔴', text: b.nom_bande + ' — Mortalité critique ' + fmt(ind.tauxMort, 1) + '%' });
+      alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — Mortalité critique ' + fmt(ind.tauxMort, 1) + '%' });
     } else if (ind.tauxMort > 3) {
-      alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Mortalité ' + fmt(ind.tauxMort, 1) + '%' });
+      alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Mortalité ' + fmt(ind.tauxMort, 1) + '%' });
     }
 
     // IC cumulatif
     if (ind.ic != null) {
       if (ind.ic > 2.5) {
-        alerts.push({ level: 'critical', icon: '🔴', text: b.nom_bande + ' — IC critique : ' + fmt(ind.ic, 2) });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — IC critique : ' + fmt(ind.ic, 2) });
       } else if (ind.ic > 2.2) {
-        alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — IC élevé : ' + fmt(ind.ic, 2) });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — IC élevé : ' + fmt(ind.ic, 2) });
       }
     }
 
     // Aucune saisie aujourd'hui
     if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) >= 1) {
-      alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — Aucune saisie aujourd\'hui' });
+      alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Aucune saisie aujourd\'hui' });
     }
 
     // Abattage à planifier — basé sur le poids carcasse cible
@@ -3565,12 +3632,12 @@ function checkAlerts() {
     if (ind.hasWeighing && ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G * 0.9) {
       const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
       if (!hasAbattage) {
-        alerts.push({ level: ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G ? 'critical' : 'warning', icon: '🔪', text: b.nom_bande + ' — Poids carcasse cible atteint (' + fmt(Math.round(ind.carcasseEstimee)) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g) — planifier abattage' });
+        alerts.push({ level: ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G ? 'critical' : 'warning', icon: '<i data-lucide="package"></i>', text: b.nom_bande + ' — Poids carcasse cible atteint (' + fmt(Math.round(ind.carcasseEstimee)) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g) — planifier abattage' });
       }
     } else if (jour >= 35) {
       const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
       if (!hasAbattage) {
-        alerts.push({ level: 'warning', icon: '⚠️', text: b.nom_bande + ' — J' + jour + ' sans abattage planifié (carcasse estimée ' + fmt(Math.round(ind.carcasseEstimee)) + 'g)' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — J' + jour + ' sans abattage planifié (carcasse estimée ' + fmt(Math.round(ind.carcasseEstimee)) + 'g)' });
       }
     }
 
@@ -3578,17 +3645,17 @@ function checkAlerts() {
     if (ind.lastTemp != null) {
       const norm = getAmbianceNorm(jour);
       if (ind.lastTemp < norm.tempMin - 3 || ind.lastTemp > norm.tempMax + 3) {
-        alerts.push({ level: 'critical', icon: '🌡️', text: b.nom_bande + ' — Température critique : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température critique : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
       } else if (ind.lastTemp < norm.tempMin || ind.lastTemp > norm.tempMax) {
-        alerts.push({ level: 'warning', icon: '🌡️', text: b.nom_bande + ' — Température hors norme : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température hors norme : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
       }
     }
     if (ind.lastHumidite != null) {
       const norm = getAmbianceNorm(jour);
       if (ind.lastHumidite < norm.humMin - 10 || ind.lastHumidite > norm.humMax + 10) {
-        alerts.push({ level: 'critical', icon: '💧', text: b.nom_bande + ' — Humidité critique : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité critique : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
       } else if (ind.lastHumidite < norm.humMin || ind.lastHumidite > norm.humMax) {
-        alerts.push({ level: 'warning', icon: '💧', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
       }
     }
   });
@@ -3598,7 +3665,7 @@ function checkAlerts() {
     const qty = Number(s.quantite_actuelle) || 0;
     const seuil = Number(s.seuil_alerte) || 0;
     if (seuil > 0 && qty <= seuil) {
-      alerts.push({ level: qty <= seuil * 0.5 ? 'critical' : 'warning', icon: '⚠️', text: 'Stock ' + s.type_produit + ' bas — ' + fmt(qty, 1) + ' ' + s.unite });
+      alerts.push({ level: qty <= seuil * 0.5 ? 'critical' : 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: 'Stock ' + s.type_produit + ' bas — ' + fmt(qty, 1) + ' ' + s.unite });
     }
   });
 
@@ -3612,7 +3679,7 @@ function checkAlerts() {
       const cl = STATE.clients.find(x => x.client_id === c.client_id);
       const clientName = cl ? cl.nom : '?';
       const dLabel = daysUntil === 0 ? "aujourd'hui" : 'dans ' + daysUntil + ' jour(s)';
-      alerts.push({ level: 'warning', icon: '📦', text: clientName + ' — livraison ' + dLabel });
+      alerts.push({ level: 'warning', icon: '<i data-lucide="truck"></i>', text: clientName + ' — livraison ' + dLabel });
     }
   });
 
@@ -3633,7 +3700,7 @@ function checkAlerts() {
 function renderAlerts(alerts) {
   const container = document.getElementById('dash-alerts');
   if (alerts.length === 0) {
-    container.innerHTML = '<p style="color:#27AE60;font-size:0.85rem;margin-bottom:0.75rem;">✅ Tout est normal</p>';
+    container.innerHTML = '<p style="color:#27AE60;font-size:0.85rem;margin-bottom:0.75rem;"><i data-lucide="circle-check"></i> Tout est normal</p>';
     return;
   }
 
@@ -3661,7 +3728,7 @@ function computeSlaughterForecast(bande, ind) {
   const currentWeight = ind.poidsMesure || 0;
   const carcasseActuelle = currentWeight * rendement / 100;
   if (currentWeight > 0 && carcasseActuelle >= TARGET_CARCASS_WEIGHT_G) {
-    return { status: 'reached', text: '&#9989; Carcasse cible atteinte (' + Math.round(carcasseActuelle) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g)' };
+    return { status: 'reached', text: '<i data-lucide="circle-check"></i> Carcasse cible atteinte (' + Math.round(carcasseActuelle) + 'g/' + TARGET_CARCASS_WEIGHT_G + 'g)' };
   }
 
   // Construit une projection à partir d'un jour-cible de cycle, toujours bornée.
@@ -3701,7 +3768,7 @@ function computeSlaughterForecast(bande, ind) {
 }
 
 // ── Notifications & Deadlines ──
-const NOTIF_ICONS = { saisie: '📋', intrant: '💉', reception: '📦', abattage: '🔪' };
+const NOTIF_ICONS = { saisie: '<i data-lucide="clipboard-list"></i>', intrant: '<i data-lucide="syringe"></i>', reception: '<i data-lucide="truck"></i>', abattage: '<i data-lucide="package"></i>' };
 
 function createNotification(type, action, bandeId, bandeNom, payload) {
   const notif = {
@@ -3762,7 +3829,7 @@ function renderNotifPanel(tab) {
 
   let html = '';
   notifs.forEach(n => {
-    const icon = NOTIF_ICONS[n.type] || '📝';
+    const icon = NOTIF_ICONS[n.type] || '<i data-lucide="bell"></i>';
     const isUnread = !(n.lu_par || '').includes(currentUser.matricule);
     const timeAgo = formatTimeAgo(n.date_action);
     let payload = {};
@@ -3779,8 +3846,8 @@ function renderNotifPanel(tab) {
       html += '<div class="nc-payload">' + formatNotifPayload(n.type, payload) + '</div>';
       html += '<input class="nc-note-input" id="nc-note-' + n.notif_id + '" placeholder="Note (optionnel pour rejet)…">';
       html += '<div class="nc-actions">';
-      html += '<button class="btn btn-sm" style="background:#2E7D32;color:#fff;border-radius:6px;" onclick="validateNotif(\'' + n.notif_id + '\')">✓ Valider</button>';
-      html += '<button class="btn btn-sm" style="background:#C62828;color:#fff;border-radius:6px;" onclick="showRejectNote(\'' + n.notif_id + '\')">✗ Rejeter</button>';
+      html += '<button class="btn btn-sm" style="background:#2E7D32;color:#fff;border-radius:6px;" onclick="validateNotif(\'' + n.notif_id + '\')"><i data-lucide="check"></i> Valider</button>';
+      html += '<button class="btn btn-sm" style="background:#C62828;color:#fff;border-radius:6px;" onclick="showRejectNote(\'' + n.notif_id + '\')"><i data-lucide="x"></i> Rejeter</button>';
       html += '</div>';
     } else if (isManager() && n.statut !== 'en_attente') {
       html += '<div class="nc-payload">' + formatNotifPayload(n.type, payload) + '</div>';
@@ -3883,7 +3950,7 @@ async function validateNotif(notifId) {
   // Persist notification update
   apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
 
-  toast('✅ ' + (NOTIF_ICONS[notif.type] || '') + ' ' + notif.type + ' validé et enregistré');
+  toast(notif.type + ' validé et enregistré');
   updateBellBadge();
   renderNotifPanel('pending');
   // Re-render active page
@@ -3904,7 +3971,7 @@ async function rejectNotif(notifId) {
 
   apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
 
-  toast('❌ ' + notif.type + ' rejeté' + (note ? ' — ' + note : ''));
+  toast(notif.type + ' rejeté' + (note ? ' — ' + note : ''));
   updateBellBadge();
   renderNotifPanel('pending');
 }
@@ -3951,7 +4018,7 @@ function startNotifPolling() {
       const newNotifs = (data || []).filter(n => !(STATE.notifications || []).some(x => x.notif_id === n.notif_id));
       if (newNotifs.length > 0) {
         STATE.notifications.push(...newNotifs);
-        toast('🔔 ' + newNotifs.length + ' nouvelle(s) action(s) en attente de validation');
+        toast(newNotifs.length + ' nouvelle(s) action(s) en attente de validation');
         updateBellBadge();
       }
     } catch(e) { /* silent */ }
@@ -3974,7 +4041,7 @@ function computeDeadlines(batchData) {
       const daysLeft = Math.ceil((fDate - today) / 86400000);
       deadlines.push({
         label: 'Abattage estimé — ' + b.nom_bande,
-        icon: '🔪',
+        icon: '<i data-lucide="package"></i>',
         color: daysLeft <= 7 ? '#C62828' : '#EA580C',
         date: fDate,
         daysLeft: daysLeft,
@@ -4000,7 +4067,7 @@ function computeDeadlines(batchData) {
         if (daysLeft >= 0 && daysLeft <= 14) {
           deadlines.push({
             label: 'Fin phase ' + phaseName + ' — ' + b.nom_bande,
-            icon: '🌿',
+            icon: '<i data-lucide="sprout"></i>',
             color: '#EA580C',
             date: endDate,
             daysLeft: daysLeft,
@@ -4025,7 +4092,7 @@ function computeDeadlines(batchData) {
     const daysLeft = Math.ceil((livDate - today) / 86400000);
     deadlines.push({
       label: 'Livraison — ' + (cl ? cl.nom : '?'),
-      icon: '📦',
+      icon: '<i data-lucide="truck"></i>',
       color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? '#EA580C' : '#EA580C',
       date: livDate,
       daysLeft: daysLeft,
@@ -4200,7 +4267,7 @@ function renderDashboard() {
 
   // ── Attention panel: surface the worst current metric ──
   if (alerts.length > 0) {
-    let attHtml = '<div class="attention-panel"><h4>&#9888; Ce qui demande de l\'attention</h4>';
+    let attHtml = '<div class="attention-panel"><h4><i data-lucide="triangle-alert"></i> Ce qui demande de l\'attention</h4>';
     alerts.slice(0, 4).forEach(a => {
       attHtml += '<div class="attention-item"><span style="font-size:16px;">' + a.icon + '</span><span>' + escHtml(a.text) + '</span></div>';
     });
@@ -4237,8 +4304,8 @@ function renderDashboard() {
     const expectedGmq = getCobbGmq(jour);
     const gmqRatio = (ind.gmq != null && expectedGmq > 0) ? ind.gmq / expectedGmq : null;
     let gmqHtml;
-    if (gmqRatio == null) gmqHtml = '<div class="gmq-norm">&#9878; Pas encore de pesée</div>';
-    else if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good">&#10003; GMQ dans la norme Cobb</div>';
+    if (gmqRatio == null) gmqHtml = '<div class="gmq-norm"><i data-lucide="scale"></i> Pas encore de pesée</div>';
+    else if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good"><i data-lucide="check"></i> GMQ dans la norme Cobb</div>';
     else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ GMQ légèrement faible</div>';
     else gmqHtml = '<div class="gmq-norm bad">&#8595; GMQ sous la norme</div>';
 
@@ -4250,13 +4317,13 @@ function renderDashboard() {
       const humOk = ind.lastHumidite != null && ind.lastHumidite >= norm.humMin && ind.lastHumidite <= norm.humMax;
       ambianceHtml = `<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;">`;
       if (ind.lastTemp != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? '#FFF7ED' : '#FEF2F2'};color:${tempOk ? '#EA580C' : '#DC2626'};font-weight:600;">&#127777; ${fmt(ind.lastTemp,1)}°C</span>`;
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? '#FFF7ED' : '#FEF2F2'};color:${tempOk ? '#EA580C' : '#DC2626'};font-weight:600;"><i data-lucide="thermometer"></i> ${fmt(ind.lastTemp,1)}°C</span>`;
       }
       if (ind.lastHumidite != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? '#FFF7ED' : '#FEF2F2'};color:${humOk ? '#EA580C' : '#DC2626'};font-weight:600;">&#128167; ${fmt(ind.lastHumidite,0)}%</span>`;
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? '#FFF7ED' : '#FEF2F2'};color:${humOk ? '#EA580C' : '#DC2626'};font-weight:600;"><i data-lucide="droplet"></i> ${fmt(ind.lastHumidite,0)}%</span>`;
       }
       if (ind.eauTotal > 0) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:#EFF6FF;color:#3B82F6;font-weight:600;">&#128166; ${fmt(ind.eauTotal,0)} L</span>`;
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:#EFF6FF;color:#3B82F6;font-weight:600;"><i data-lucide="droplets"></i> ${fmt(ind.eauTotal,0)} L</span>`;
       }
       ambianceHtml += `</div>`;
     }
@@ -4380,6 +4447,7 @@ function renderDashMortalityCharts(batchData) {
   // Destroy old charts
   Object.keys(dashMortalityCharts).forEach(k => { if (dashMortalityCharts[k]) { dashMortalityCharts[k].destroy(); } });
   dashMortalityCharts = {};
+  const t = chartTokens();
 
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:var(--space-4);">';
   batchData.forEach((bd, idx) => {
@@ -4415,8 +4483,8 @@ function renderDashMortalityCharts(batchData) {
         datasets: [{
           label: 'Morts',
           data: values,
-          backgroundColor: 'rgba(239,68,68,0.7)',
-          borderColor: '#DC2626',
+          backgroundColor: chartFill(t.red, 0.55),
+          borderColor: t.red,
           borderWidth: 1,
           borderRadius: 2
         }]
@@ -4427,13 +4495,13 @@ function renderDashMortalityCharts(batchData) {
         scales: {
           y: {
             beginAtZero: true,
-            ticks: { font: { family: "'DM Sans', sans-serif", size: 11 }, stepSize: 1 },
-            grid: { color: 'rgba(0,0,0,0.04)' },
-            title: { display: true, text: 'Oiseaux morts', font: { family: "'DM Sans', sans-serif", size: 11 } }
+            ticks: { color: t.axis, stepSize: 1 },
+            grid: { color: t.grid, drawTicks: false }, border: { display: false },
+            title: { display: true, text: 'Oiseaux morts', color: t.axis }
           },
           x: {
-            ticks: { font: { family: "'DM Sans', sans-serif", size: 10 }, maxTicksLimit: 20 },
-            grid: { display: false }
+            ticks: { color: t.axis, maxTicksLimit: 20 },
+            grid: { display: false }, border: { color: t.grid }
           }
         }
       }
@@ -4496,7 +4564,7 @@ function renderBandes() {
   if (!showArchivedBandes) bandes = bandes.filter(b => !b.archivee);
 
   if (bandes.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">&#128051;</div><p>Aucune bande trouvée</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune bande trouvée</p></div>';
     return;
   }
 
@@ -4567,7 +4635,7 @@ async function setBandeArchivee(bandeId, archivee) {
   try {
     await apiPost({ action: 'updateBande', payload });
     applyLocal();
-    toast(archivee ? 'Bande archivée ✓' : 'Bande désarchivée ✓');
+    toast(archivee ? 'Bande archivée' : 'Bande désarchivée');
   } catch (err) {
     if (err.message.includes("file d'attente")) {
       applyLocal();
@@ -4602,7 +4670,7 @@ function showDeleteBandeModal(bandeId) {
   overlay.id = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h3 style="color:var(--c-red-600);">&#9888; Supprimer définitivement</h3>
+      <h3 style="color:var(--c-red-600);"><i data-lucide="triangle-alert"></i> Supprimer définitivement</h3>
       <p style="margin-bottom:0.5rem;">Bande : <strong>${escHtml(bandeLabel(bande, { statut: true }))}</strong></p>
       <p style="margin-bottom:0.5rem;">Seront <strong>définitivement supprimées</strong> : ${supprimeesTxt}.</p>
       ${detachees.length ? `<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;">${detachees.join(', ')} seront conservées mais détachées de cette bande.</p>` : ''}
@@ -4647,7 +4715,7 @@ async function confirmDeleteBande(bandeId) {
     closeModal();
     renderBandes();
     updateSidebarLotActif();
-    toast('Bande supprimée définitivement ✓');
+    toast('Bande supprimée définitivement');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Supprimer définitivement'; }
     toast('Erreur : ' + err.message, 'error');
@@ -5046,7 +5114,7 @@ async function submitSaisie() {
         if (currentUser && currentUser.role === 'chef_bande') {
           // Block: requires manager validation
           createNotification('intrant', nomProduit + ' ajouté — ' + bandeName, bandeId, bandeName, intrantPayload);
-          toast('✅ Intrant envoyé pour validation — en attente d\'approbation');
+          toast('Intrant envoyé pour validation — en attente d\'approbation');
         } else {
           await apiPost({ action: 'addIntrant', payload: intrantPayload });
           STATE.intrants.push(intrantPayload);
@@ -5271,7 +5339,7 @@ function renderFicheRentabilite(bande) {
   let note = '';
   if (!e.margeDisponible) {
     note = '<div style="font-size:0.75rem;color:#C2410C;background:#FFF3E8;border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.75rem;">' +
-      '⏳ Marge non disponible : elle ne sera calculée qu\'après abattage (kg produits) et ventes livrées. ' +
+      '<i data-lucide="hourglass"></i> Marge non disponible : elle ne sera calculée qu\'après abattage (kg produits) et ventes livrées. ' +
       'Seul le <strong>coût engagé à ce jour</strong> est affiché.' +
       (projete ? ' Le coût de revient/kg marqué « * » est une <strong>estimation projetée</strong> (pesées × rendement), pas un coût réel.' : '') +
       '</div>';
@@ -5281,7 +5349,7 @@ function renderFicheRentabilite(bande) {
 
   box.innerHTML =
     '<div class="card-header" style="margin-bottom:0.75rem;">' +
-      '<h3>💰 Rentabilité</h3>' +
+      '<h3><i data-lucide="wallet"></i> Rentabilité</h3>' +
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' + statutChip + margeChip + '</div>' +
     '</div>' + kpis + ctxLine + breakdownBlock + note;
 
@@ -5309,6 +5377,7 @@ function renderFicheRentabilite(bande) {
 function renderFicheCharts(ind) {
   // Destroy old charts
   Object.keys(ficheCharts).forEach(k => { if (ficheCharts[k]) ficheCharts[k].destroy(); });
+  const t = chartTokens();
 
   const days = ind.saisies.map(s => 'J' + s.jour_bande);
   const dayNums = ind.saisies.map(s => Number(s.jour_bande));
@@ -5329,20 +5398,20 @@ function renderFicheCharts(ind) {
         {
           label: 'Poids vif observé (g)',
           data: mapToLabels(cobbDays.length > days.length ? cobbDays : days, dayNums, ind.saisies.map(s => s.poids)),
-          borderColor: '#EA580C',
-          backgroundColor: 'rgba(234,88,12,0.1)',
-          borderWidth: 2,
-          tension: 0.3,
+          borderColor: t.observed,
+          backgroundColor: chartFill(t.observed, 0.05),
+          borderWidth: 1.5,
+          tension: 0,
           fill: true,
-          pointRadius: 3
+          pointRadius: 0
         },
         {
           label: 'Standard Cobb 500',
           data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days, dayNums),
-          borderColor: '#F97316',
-          borderWidth: 2,
-          borderDash: [6, 3],
-          tension: 0.3,
+          borderColor: t.reference,
+          borderWidth: 1,
+          borderDash: [4, 4],
+          tension: 0,
           fill: false,
           pointRadius: 0
         }
@@ -5360,12 +5429,12 @@ function renderFicheCharts(ind) {
       datasets: [{
         label: 'IC cumulatif',
         data: ind.saisies.map(s => s.ic),
-        borderColor: '#1565C0',
-        backgroundColor: 'rgba(21,101,192,0.1)',
-        borderWidth: 2,
-        tension: 0.3,
+        borderColor: t.blue,
+        backgroundColor: chartFill(t.blue, 0.05),
+        borderWidth: 1.5,
+        tension: 0,
         fill: true,
-        pointRadius: 3
+        pointRadius: 0
       }]
     },
     options: chartOptions('IC')
@@ -5380,12 +5449,12 @@ function renderFicheCharts(ind) {
       datasets: [{
         label: 'Mortalité cumulée (%)',
         data: ind.saisies.map(s => s.taux_mort),
-        borderColor: '#c62828',
-        backgroundColor: 'rgba(198,40,40,0.1)',
-        borderWidth: 2,
-        tension: 0.3,
+        borderColor: t.red,
+        backgroundColor: chartFill(t.red, 0.05),
+        borderWidth: 1.5,
+        tension: 0,
         fill: true,
-        pointRadius: 3
+        pointRadius: 0
       }]
     },
     options: chartOptions('Mortalité (%)')
@@ -5405,17 +5474,17 @@ function renderFicheCharts(ind) {
           {
             label: 'Température (°C)',
             data: ind.saisies.map(s => s.temperature_c || null),
-            borderColor: '#EF4444',
-            backgroundColor: 'rgba(239,68,68,0.08)',
-            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3,
+            borderColor: t.red,
+            backgroundColor: chartFill(t.red, 0.05),
+            borderWidth: 1.5, tension: 0, fill: false, pointRadius: 0,
             yAxisID: 'y'
           },
           {
             label: 'Humidité (%)',
             data: ind.saisies.map(s => s.humidite_pct || null),
-            borderColor: '#3B82F6',
-            backgroundColor: 'rgba(59,130,246,0.08)',
-            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3,
+            borderColor: t.blue,
+            backgroundColor: chartFill(t.blue, 0.05),
+            borderWidth: 1.5, tension: 0, fill: false, pointRadius: 0,
             yAxisID: 'y1'
           }
         ]
@@ -5423,11 +5492,11 @@ function renderFicheCharts(ind) {
       options: {
         responsive: true, maintainAspectRatio: false, spanGaps: true,
         scales: {
-          y: { position: 'left', title: { display: true, text: 'Température °C' }, suggestedMin: 18, suggestedMax: 38 },
-          y1: { position: 'right', title: { display: true, text: 'Humidité %' }, suggestedMin: 30, suggestedMax: 90, grid: { drawOnChartArea: false } },
-          x: { title: { display: false } }
+          y: { position: 'left', title: { display: true, text: 'Température °C', color: t.axis }, suggestedMin: 18, suggestedMax: 38, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } },
+          y1: { position: 'right', title: { display: true, text: 'Humidité %', color: t.axis }, suggestedMin: 30, suggestedMax: 90, grid: { drawOnChartArea: false }, border: { display: false }, ticks: { color: t.axis } },
+          x: { title: { display: false }, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }
         },
-        plugins: { legend: { position: 'bottom' } }
+        plugins: { legend: { position: 'bottom', labels: { color: t.axis } } }
       }
     });
   }
@@ -5445,16 +5514,16 @@ function renderFicheCharts(ind) {
           {
             label: 'Eau (L/jour)',
             data: ind.saisies.map(s => Number(s.eau_consommee_l) || null),
-            borderColor: '#3B82F6',
-            backgroundColor: 'rgba(59,130,246,0.1)',
-            borderWidth: 2, tension: 0.3, fill: true, pointRadius: 3,
+            borderColor: t.blue,
+            backgroundColor: chartFill(t.blue, 0.05),
+            borderWidth: 1.5, tension: 0, fill: true, pointRadius: 0,
             yAxisID: 'y'
           },
           {
             label: 'Ratio Eau/Aliment',
             data: ind.saisies.map(s => s.eau_alim_ratio || null),
-            borderColor: '#8B5CF6',
-            borderWidth: 2, tension: 0.3, fill: false, pointRadius: 3, borderDash: [5, 3],
+            borderColor: t.observed,
+            borderWidth: 1.5, tension: 0, fill: false, pointRadius: 0, borderDash: [4, 4],
             yAxisID: 'y1'
           }
         ]
@@ -5462,11 +5531,11 @@ function renderFicheCharts(ind) {
       options: {
         responsive: true, maintainAspectRatio: false, spanGaps: true,
         scales: {
-          y: { position: 'left', title: { display: true, text: 'Litres' }, beginAtZero: true },
-          y1: { position: 'right', title: { display: true, text: 'Ratio' }, beginAtZero: true, grid: { drawOnChartArea: false } },
-          x: { title: { display: false } }
+          y: { position: 'left', title: { display: true, text: 'Litres', color: t.axis }, beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } },
+          y1: { position: 'right', title: { display: true, text: 'Ratio', color: t.axis }, beginAtZero: true, grid: { drawOnChartArea: false }, border: { display: false }, ticks: { color: t.axis } },
+          x: { title: { display: false }, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }
         },
-        plugins: { legend: { position: 'bottom' } }
+        plugins: { legend: { position: 'bottom', labels: { color: t.axis } } }
       }
     });
   }
@@ -5497,14 +5566,15 @@ function mapCobbToLabels(labels, dayNums) {
 }
 
 function chartOptions(yLabel) {
+  const t = chartTokens();
   return {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      y: { beginAtZero: false, title: { display: true, text: yLabel } },
-      x: { title: { display: false } }
+      y: { beginAtZero: false, title: { display: true, text: yLabel, color: t.axis }, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } },
+      x: { title: { display: false }, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }
     },
-    plugins: { legend: { position: 'bottom' } },
+    plugins: { legend: { position: 'bottom', labels: { color: t.axis } } },
     spanGaps: true
   };
 }
@@ -5540,7 +5610,7 @@ function renderFicheSaisiesTable(ind, bande) {
       <td>${fmt(s.gmq, 1)}</td>
       <td style="color:${tempOk ? 'inherit' : '#EF4444'};font-weight:${tempOk ? '400' : '700'};">${s.temperature_c ? fmt(s.temperature_c, 1) : '—'}</td>
       <td style="color:${humOk ? 'inherit' : '#EF4444'};font-weight:${humOk ? '400' : '700'};">${s.humidite_pct ? fmt(s.humidite_pct, 0) : '—'}</td>
-      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteSaisie('${s.saisie_id}')">&#10005;</button></td>
+      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteSaisie('${s.saisie_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
 
@@ -5577,7 +5647,7 @@ function renderFicheIntrantsTable(ind) {
       <td>${i.nom_produit}</td>
       <td>${i.quantite} ${i.unite}</td>
       <td>${fmt(Number(i.cout_total_fcfa))}</td>
-      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteIntrant('${i.intrant_id}')">&#10005;</button></td>
+      <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteIntrant('${i.intrant_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
 
@@ -5777,6 +5847,7 @@ function initTresoreriePage() {
   // ── Zone 3: Donut chart — cost breakdown ──
   if (tresoCharts.costs) tresoCharts.costs.destroy();
   if (tresoCharts.ca) tresoCharts.ca.destroy();
+  const t = chartTokens();
 
   const totPoussins = allBF.reduce((s, bf) => s + bf.fin.coutPoussins, 0);
   const totAliment = allBF.reduce((s, bf) => s + bf.fin.coutAliment, 0); // coût aliment résolu (forfait OU formulation, jamais les deux)
@@ -5815,12 +5886,12 @@ function initTresoreriePage() {
       data: {
         labels: batchNames,
         datasets: [
-          { label: 'CA réalisé', data: batchCA, backgroundColor: '#F97316', borderRadius: 4 },
-          { label: 'Coût total', data: batchCosts, backgroundColor: '#3B82F6', borderRadius: 4 },
-          { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: '#E74C3C', borderDash: [6, 3], borderWidth: 2, pointRadius: 4, fill: false }
+          { label: 'CA réalisé', data: batchCA, backgroundColor: t.observed, borderRadius: 4 },
+          { label: 'Coût total', data: batchCosts, backgroundColor: t.blue, borderRadius: 4 },
+          { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: t.red, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } } }
     });
   }
 
@@ -6776,7 +6847,7 @@ function renderAllAlimPhases() {
           <td>${fmt(Number(e.prix_unitaire))}</td>
           <td>${fmt(Number(e.cout_total))}</td>
           <td>${fmtDate(e.date_livraison)}</td>
-          <td>${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')">&#10005;</button>` : ''}</td>
+          <td>${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
         </tr>`;
       });
     }
@@ -6953,7 +7024,7 @@ function showAddAlimModal(phase) {
 
   // Update modal title with phase name
   const phaseLabel = PHASES.find(p => p.id === currentAlimPhase)?.label || '';
-  document.querySelector('#alim-modal .modal h3').textContent = '🌿 Ajouter — ' + phaseLabel;
+  document.querySelector('#alim-modal .modal h3').textContent = 'Ajouter — ' + phaseLabel;
 
   document.getElementById('alim-modal-date').value = todayStr();
   document.getElementById('alim-modal-quantite').value = '';
@@ -7101,8 +7172,8 @@ function switchSupplyTab(tab, btn) {
 
 // ── Helper: category emoji ──
 function catEmoji(cat) {
-  const map = { mp: '🌽', medicament: '💊', equipement: '⚙️', poussin: '🐥', autre: '📦' };
-  return map[cat] || '📦';
+  const map = { mp: '<i data-lucide="wheat"></i>', medicament: '<i data-lucide="pill"></i>', equipement: '<i data-lucide="wrench"></i>', poussin: '<i data-lucide="bird"></i>', autre: '<i data-lucide="package"></i>' };
+  return map[cat] || '<i data-lucide="package"></i>';
 }
 function catLabel(cat) {
   const map = { mp: 'Matière première', medicament: 'Médicament', equipement: 'Équipement', poussin: 'Poussin', autre: 'Autre' };
@@ -7117,7 +7188,7 @@ function renderFournisseurs() {
   const container = document.getElementById('fournisseurs-list');
   const list = STATE.fournisseurs;
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">🏭</div><p>Aucun fournisseur enregistré.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun fournisseur enregistré.</p></div>';
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>Téléphone</th><th>Statut</th><th class="manager-only">Actions</th></tr></thead><tbody>';
@@ -7251,7 +7322,7 @@ function renderReceptions() {
   if (toDate) list = list.filter(r => r.date_reception <= toDate);
 
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Aucune réception enregistrée.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune réception enregistrée.</p></div>';
     return;
   }
 
@@ -7263,11 +7334,11 @@ function renderReceptions() {
     if (!insp) {
       inspBadge = '<span class="insp-badge pending">— En attente</span>';
     } else if (insp.resultat_global === 'accepte') {
-      inspBadge = '<span class="insp-badge accepted">✅ Accepté</span>';
+      inspBadge = '<span class="insp-badge accepted"><i data-lucide="circle-check"></i> Accepté</span>';
     } else if (insp.resultat_global === 'accepte_avec_reserve') {
-      inspBadge = '<span class="insp-badge reserve">⚠️ Avec réserve</span>';
+      inspBadge = '<span class="insp-badge reserve"><i data-lucide="triangle-alert"></i> Avec réserve</span>';
     } else {
-      inspBadge = '<span class="insp-badge refused">❌ Refusé</span>';
+      inspBadge = '<span class="insp-badge refused"><i data-lucide="circle-x"></i> Refusé</span>';
     }
     html += `<tr>
       <td>${fmtDate(r.date_reception)}</td>
@@ -7279,7 +7350,7 @@ function renderReceptions() {
       <td><strong>${fmt(Number(r.cout_total_fcfa))}</strong> FCFA</td>
       <td>${r.numero_lot || '—'}</td>
       <td>${inspBadge}</td>
-      <td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')">✕</button></td>
+      <td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
   html += '</tbody></table></div></div>';
@@ -7345,7 +7416,7 @@ async function submitReception() {
     if (currentUser && currentUser.role === 'chef_bande') {
       const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === fournId);
       createNotification('reception', 'Réception ' + produit + ' — ' + (fourn ? fourn.nom : '?'), '', '', payload);
-      toast('✅ Réception envoyée pour validation — en attente d\'approbation');
+      toast('Réception envoyée pour validation — en attente d\'approbation');
       closeReceptionModal();
     } else {
       await apiPost({ action: 'addReception', payload });
@@ -7393,7 +7464,7 @@ function renderInspections() {
   const container = document.getElementById('inspections-list');
   const list = [...STATE.inspections].sort((a, b) => new Date(b.date_inspection) - new Date(a.date_inspection));
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>Aucune inspection enregistrée.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune inspection enregistrée.</p></div>';
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Produit</th><th>Fournisseur</th><th>Visuel</th><th>Odeur</th><th>Humidité</th><th>Temp.</th><th>Résultat</th><th>Inspecteur</th><th>Commentaire</th></tr></thead><tbody>';
@@ -7401,8 +7472,8 @@ function renderInspections() {
     const recep = STATE.receptions.find(r => r.reception_id === ins.reception_id);
     const fourn = recep ? STATE.fournisseurs.find(f => f.fournisseur_id === recep.fournisseur_id) : null;
     const rowClass = ins.resultat_global === 'accepte' ? 'row-accepted' : ins.resultat_global === 'accepte_avec_reserve' ? 'row-reserve' : 'row-refused';
-    const resLabel = ins.resultat_global === 'accepte' ? '✅ Accepté' : ins.resultat_global === 'accepte_avec_reserve' ? '⚠️ Avec réserve' : '❌ Refusé';
-    const conformLabel = v => v === 'conforme' ? '✅' : v === 'non_conforme' ? '❌' : '⚠️';
+    const resLabel = ins.resultat_global === 'accepte' ? '<i data-lucide="circle-check"></i> Accepté' : ins.resultat_global === 'accepte_avec_reserve' ? '<i data-lucide="triangle-alert"></i> Avec réserve' : '<i data-lucide="circle-x"></i> Refusé';
+    const conformLabel = v => v === 'conforme' ? '<i data-lucide="check"></i>' : v === 'non_conforme' ? '<i data-lucide="x"></i>' : '<i data-lucide="triangle-alert"></i>';
     html += `<tr class="${rowClass}">
       <td>${fmtDate(ins.date_inspection)}</td>
       <td>${recep ? recep.type_produit : '—'}</td>
@@ -7485,7 +7556,7 @@ async function submitInspection() {
 function renderStocks() {
   const container = document.getElementById('stocks-grid');
   if (STATE.stocks.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📦</div><p>Aucun stock enregistré.</p></div>';
+    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun stock enregistré.</p></div>';
     return;
   }
   let html = '';
@@ -7498,15 +7569,15 @@ function renderStocks() {
       <div class="stock-name">${s.type_produit}</div>
       <div class="stock-cat">${catLabel(s.categorie)}</div>
       <div class="stock-qty">${fmt(qty, 1)} ${s.unite}</div>
-      ${isAlert ? '<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;">⚠️ Sous le seuil d\u0027alerte (' + fmt(seuil,1) + ' ' + s.unite + ')</div>' : ''}
-      <div class="stock-meta">📍 ${s.emplacement || '—'}</div>
+      ${isAlert ? '<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;"><i data-lucide="triangle-alert"></i> Sous le seuil d\u0027alerte (' + fmt(seuil,1) + ' ' + s.unite + ')</div>' : ''}
+      <div class="stock-meta"><i data-lucide="map-pin"></i> ${s.emplacement || '—'}</div>
       <div class="stock-meta">MAJ : ${fmtDate(s.derniere_mise_a_jour)}</div>
       <div class="manager-only inline-edit" id="stock-edit-${s.stock_id}" style="display:none;">
         <div class="form-group"><label>Quantité</label><input type="number" id="se-qty-${s.stock_id}" step="0.01" value="${qty}"></div>
         <div class="form-group"><label>Emplacement</label><input type="text" id="se-emp-${s.stock_id}" value="${s.emplacement || ''}"></div>
         <div class="form-group"><label>Seuil</label><input type="number" id="se-seuil-${s.stock_id}" step="0.01" value="${seuil}"></div>
         <button class="btn btn-primary btn-sm" onclick="saveStockEdit('${s.stock_id}')">OK</button>
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='none'">✕</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='none'"><i data-lucide="x"></i></button>
       </div>
       <button class="btn btn-outline btn-sm manager-only" style="margin-top:0.75rem;" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='flex'">Mettre à jour</button>
     </div>`;
@@ -7592,7 +7663,7 @@ function getStockAlerts() {
     if (seuil > 0 && qty <= seuil) {
       alerts.push({
         level: qty <= seuil * 0.5 ? 'critical' : 'warning',
-        icon: qty <= seuil * 0.5 ? '🔴' : '⚠️',
+        icon: qty <= seuil * 0.5 ? '<i data-lucide="octagon-alert"></i>' : '<i data-lucide="triangle-alert"></i>',
         bande: 'Stock',
         metric: 'Stock ' + s.type_produit + ' bas',
         value: fmt(qty, 1) + ' ' + s.unite + ' restants',
@@ -7613,7 +7684,7 @@ function getInspectionAlerts() {
       if (hours > 48) {
         alerts.push({
           level: 'warning',
-          icon: '⚠️',
+          icon: '<i data-lucide="triangle-alert"></i>',
           bande: 'Inspection',
           metric: 'Réception non inspectée',
           value: r.type_produit + ' du ' + fmtDate(r.date_reception),
@@ -7744,7 +7815,7 @@ function renderCommandes() {
   if (toDate) list = list.filter(c => c.date_commande <= toDate);
 
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Aucune commande enregistrée.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune commande enregistrée.</p></div>';
     return;
   }
 
@@ -7774,7 +7845,7 @@ function renderCommandes() {
       if (c.statut === 'confirmee') statusBtns += '<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'en_preparation\')">En préparation</button>';
       if (c.statut === 'en_preparation') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'livree\')">Marquer livrée</button>';
       if (c.statut !== 'livree' && c.statut !== 'annulee') statusBtns += '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'annulee\')">Annuler</button>';
-      statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateBonLivraison(\'' + c.commande_id + '\')">📄 Bon de livraison PDF</button>';
+      statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateBonLivraison(\'' + c.commande_id + '\')"><i data-lucide="file-text"></i> Bon de livraison PDF</button>';
       statusBtns += '</div>';
 
       html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
@@ -7849,7 +7920,7 @@ function addLigneRow() {
     '<div class="form-group wide"><label>Description</label><input type="text" id="lr-desc-' + i + '" placeholder="Ex: Cuisses 1kg"></div>' +
     '<div class="form-group"><label>Qté (kg)</label><input type="number" id="lr-qty-' + i + '" step="0.1" min="0" placeholder="0" oninput="updateCmdTotal()"></div>' +
     '<div class="form-group"><label>Prix/kg</label><input type="number" id="lr-prix-' + i + '" step="1" min="0" placeholder="0" oninput="updateCmdTotal()"></div>' +
-    '<div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button class="btn btn-danger btn-sm" onclick="removeLigneRow(' + i + ')">✕</button></div>';
+    '<div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button class="btn btn-danger btn-sm" onclick="removeLigneRow(' + i + ')"><i data-lucide="x"></i></button></div>';
   container.appendChild(div);
 }
 
@@ -8057,7 +8128,7 @@ function generateBonLivraison(cmdId) {
 function renderClientsList() {
   const container = document.getElementById('clients-list');
   if (STATE.clients.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>Aucun client enregistré.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun client enregistré.</p></div>';
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Ville</th><th>Téléphone</th><th>Statut</th><th>CA total</th><th class="manager-only">Actions</th></tr></thead><tbody>';
@@ -8217,6 +8288,7 @@ function renderCommercialDashboard() {
 
   // Destroy old charts
   Object.keys(commercialCharts).forEach(k => { if (commercialCharts[k]) commercialCharts[k].destroy(); });
+  const t = chartTokens();
 
   // Top 5 clients by CA
   const clientCA = {};
@@ -8233,9 +8305,9 @@ function renderCommercialDashboard() {
       type: 'bar',
       data: {
         labels: top5.map(e => e[0]),
-        datasets: [{ label: 'CA (FCFA)', data: top5.map(e => e[1]), backgroundColor: '#EA580C' }]
+        datasets: [{ label: 'CA (FCFA)', data: top5.map(e => e[1]), backgroundColor: t.observed }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } } }
     });
   }
 
@@ -8294,7 +8366,7 @@ function getCommandeAlerts() {
   if (todayDeliveries.length > 0) {
     alerts.push({
       level: 'warning',
-      icon: '📦',
+      icon: '<i data-lucide="truck"></i>',
       bande: 'Livraisons',
       metric: todayDeliveries.length + ' commande(s) à livrer aujourd\'hui',
       value: todayDeliveries.map(c => {
@@ -8343,7 +8415,7 @@ function renderAbattageSessions() {
   const container = document.getElementById('abattage-list');
   const list = [...STATE.abattages].sort((a, b) => (b.date_abattage || '').localeCompare(a.date_abattage || ''));
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">🔪</div><p>Aucune session d\'abattage enregistrée.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune session d\'abattage enregistrée.</p></div>';
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Bande</th><th>Nb abattus</th><th>Poids carcasse</th><th>Rendement</th><th>Coût journée</th><th>Statut</th><th></th></tr></thead><tbody>';
@@ -8448,7 +8520,7 @@ function renderAbattageDetail() {
     }
     html += '</div>';
   } else {
-    html += '<div style="font-size:0.85rem;color:#27AE60;font-weight:700;">✓ Session validée par ' + (a.valide_par || '—') + '</div>';
+    html += '<div style="font-size:0.85rem;color:#27AE60;font-weight:700;"><i data-lucide="check"></i> Session validée par ' + (a.valide_par || '—') + '</div>';
   }
   html += '</div>';
   container.innerHTML = html;
@@ -8523,6 +8595,7 @@ function renderAbattageStats() {
   // Charts
   if (abCharts.rendement) abCharts.rendement.destroy();
   if (abCharts.costs) abCharts.costs.destroy();
+  const t = chartTokens();
 
   const batchNames = validated.map(a => { const b = STATE.bandes.find(x => x.bande_id === a.bande_id); return b ? b.nom_bande : '?'; });
   const rendements = validated.map(a => Number(a.rendement_carcasse_pct) || 0);
@@ -8537,9 +8610,9 @@ function renderAbattageStats() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          annotation: { annotations: { target: { type: 'line', yMin: 58, yMax: 58, borderColor: '#E74C3C', borderDash: [6, 3], borderWidth: 2, label: { content: '58% cible', display: true, position: 'end', font: { size: 10 } } } } }
+          annotation: { annotations: { target: { type: 'line', yMin: 58, yMax: 58, borderColor: t.reference, borderDash: [4, 4], borderWidth: 1, label: { content: '58% cible', display: true, position: 'end', font: { size: 10 }, color: t.axis } } } }
         },
-        scales: { y: { min: 50, max: 65 } }
+        scales: { y: { min: 50, max: 65, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } }
       }
     });
   }
@@ -8563,7 +8636,7 @@ function renderAbattageStats() {
           { label: 'Autres', data: autr, backgroundColor: '#9E9E9E', borderRadius: 2 }
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: t.axis } } }, scales: { x: { stacked: true, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }, y: { stacked: true, beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } } } }
     });
   }
 }
@@ -8674,7 +8747,7 @@ async function submitAbattage(statut) {
     if (currentUser && currentUser.role === 'chef_bande') {
       const abBande = STATE.bandes.find(b => b.bande_id === bandeId);
       createNotification('abattage', 'Session abattage — ' + (abBande ? abBande.nom_bande : bandeId), bandeId, abBande ? abBande.nom_bande : '', payload);
-      toast('✅ Abattage envoyé pour validation — en attente d\'approbation');
+      toast('Abattage envoyé pour validation — en attente d\'approbation');
       closeAbattageModal();
     } else {
       await apiPost({ action: 'addAbattage', payload });
@@ -8755,17 +8828,17 @@ function initIoTPage() {
 
   // KPI cards
   const kpis = [
-    { icon: '&#127777;', label: 'Température', value: latest.temp.toFixed(1), unit: '°C', sensor: 'DHT22', status: (latest.temp >= norm.tempMin && latest.temp <= norm.tempMax) ? 'normal' : 'alerte' },
-    { icon: '&#128167;', label: 'Humidité', value: latest.hum.toFixed(0), unit: '%', sensor: 'DHT22', status: (latest.hum >= norm.humMin && latest.hum <= norm.humMax) ? 'normal' : 'alerte' },
-    { icon: '&#9888;', label: 'NH3', value: latest.nh3.toFixed(1), unit: 'ppm', sensor: 'MQ-135', status: latest.nh3 <= IOT_AIR_NORMS.nh3Max ? 'normal' : 'alerte' },
-    { icon: '&#127787;', label: 'CO2', value: Math.round(latest.co2).toLocaleString('fr-FR'), unit: 'ppm', sensor: 'MQ-135', status: latest.co2 <= IOT_AIR_NORMS.co2Max ? 'normal' : 'alerte' },
-    { icon: '&#128161;', label: 'Éclairage', value: latest.lux.toFixed(0), unit: 'lux', sensor: 'BH1750', status: 'normal' }
+    { icon: '<i data-lucide="thermometer"></i>', label: 'Température', value: latest.temp.toFixed(1), unit: '°C', sensor: 'DHT22', status: (latest.temp >= norm.tempMin && latest.temp <= norm.tempMax) ? 'normal' : 'alerte' },
+    { icon: '<i data-lucide="droplet"></i>', label: 'Humidité', value: latest.hum.toFixed(0), unit: '%', sensor: 'DHT22', status: (latest.hum >= norm.humMin && latest.hum <= norm.humMax) ? 'normal' : 'alerte' },
+    { icon: '<i data-lucide="wind"></i>', label: 'NH3', value: latest.nh3.toFixed(1), unit: 'ppm', sensor: 'MQ-135', status: latest.nh3 <= IOT_AIR_NORMS.nh3Max ? 'normal' : 'alerte' },
+    { icon: '<i data-lucide="cloud-fog"></i>', label: 'CO2', value: Math.round(latest.co2).toLocaleString('fr-FR'), unit: 'ppm', sensor: 'MQ-135', status: latest.co2 <= IOT_AIR_NORMS.co2Max ? 'normal' : 'alerte' },
+    { icon: '<i data-lucide="sun"></i>', label: 'Éclairage', value: latest.lux.toFixed(0), unit: 'lux', sensor: 'BH1750', status: 'normal' }
   ];
 
   document.getElementById('iot-kpis').innerHTML = kpis.map(k =>
     '<div class="iot-kpi-card card-stagger">' +
       '<div class="iot-kpi-icon">' + k.icon + '</div>' +
-      '<div class="iot-kpi-value" style="color:' + (k.status === 'normal' ? 'var(--c-forest-600)' : 'var(--c-red-600)') + ';">' + k.value + ' <span class="iot-kpi-unit">' + k.unit + '</span></div>' +
+      '<div class="iot-kpi-value">' + k.value + ' <span class="iot-kpi-unit">' + k.unit + '</span></div>' +
       '<div class="iot-kpi-label">' + k.label + '</div>' +
       '<div class="iot-kpi-sensor">Sonde ' + k.sensor + '</div>' +
       '<span class="iot-kpi-status ' + k.status + '">' +
@@ -8776,7 +8849,8 @@ function initIoTPage() {
   ).join('');
 
   const labels = data.map(d => d.time);
-  const chartFont = { family: "'DM Sans', system-ui, sans-serif", size: 11 };
+  const t = chartTokens();
+  const chartFont = { family: "'JetBrains Mono', 'SF Mono', monospace", size: 11 };
 
   // Destroy old charts
   Object.keys(iotCharts).forEach(k => { if (iotCharts[k]) { iotCharts[k].destroy(); iotCharts[k] = null; } });
@@ -8791,13 +8865,13 @@ function initIoTPage() {
         datasets: [{
           label: 'Température',
           data: data.map(d => d.temp.toFixed(1)),
-          borderColor: '#EA580C',
-          backgroundColor: 'rgba(234,88,12,0.08)',
+          borderColor: t.red,
+          backgroundColor: chartFill(t.red, 0.05),
           fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-          pointHoverRadius: 5,
-          borderWidth: 2
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          borderWidth: 1.5
         }]
       },
       options: {
@@ -8809,10 +8883,10 @@ function initIoTPage() {
         scales: {
           y: {
             min: 18, max: 40,
-            ticks: { font: chartFont, callback: v => v + '°C' },
-            grid: { color: 'rgba(0,0,0,0.04)' }
+            ticks: { font: chartFont, color: t.axis, callback: v => v + '°C' },
+            grid: { color: t.grid, drawTicks: false }, border: { display: false }
           },
-          x: { ticks: { font: chartFont, maxTicksLimit: 12 }, grid: { display: false } }
+          x: { ticks: { font: chartFont, color: t.axis, maxTicksLimit: 12 }, grid: { display: false }, border: { color: t.grid } }
         }
       },
       plugins: [{
@@ -8843,13 +8917,13 @@ function initIoTPage() {
         datasets: [{
           label: 'Humidité',
           data: data.map(d => d.hum.toFixed(0)),
-          borderColor: '#3B82F6',
-          backgroundColor: 'rgba(59,130,246,0.08)',
+          borderColor: t.blue,
+          backgroundColor: chartFill(t.blue, 0.05),
           fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-          pointHoverRadius: 5,
-          borderWidth: 2
+          tension: 0,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          borderWidth: 1.5
         }]
       },
       options: {
@@ -8858,10 +8932,10 @@ function initIoTPage() {
         scales: {
           y: {
             min: 30, max: 100,
-            ticks: { font: chartFont, callback: v => v + '%' },
-            grid: { color: 'rgba(0,0,0,0.04)' }
+            ticks: { font: chartFont, color: t.axis, callback: v => v + '%' },
+            grid: { color: t.grid, drawTicks: false }, border: { display: false }
           },
-          x: { ticks: { font: chartFont, maxTicksLimit: 12 }, grid: { display: false } }
+          x: { ticks: { font: chartFont, color: t.axis, maxTicksLimit: 12 }, grid: { display: false }, border: { color: t.grid } }
         }
       },
       plugins: [{
@@ -8893,23 +8967,25 @@ function initIoTPage() {
           {
             label: 'NH3 (ppm)',
             data: data.map(d => d.nh3.toFixed(1)),
-            borderColor: '#92400E',
-            backgroundColor: 'rgba(146,64,14,0.06)',
+            borderColor: t.amber,
+            backgroundColor: chartFill(t.amber, 0.05),
             fill: false,
-            tension: 0.4,
-            pointRadius: 2,
-            borderWidth: 2,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 1.5,
             yAxisID: 'y'
           },
           {
             label: 'CO2 (ppm)',
             data: data.map(d => Math.round(d.co2)),
-            borderColor: '#94A3B8',
-            backgroundColor: 'rgba(148,163,184,0.06)',
+            borderColor: t.reference,
+            backgroundColor: chartFill(t.reference, 0.05),
             fill: false,
-            tension: 0.4,
-            pointRadius: 2,
-            borderWidth: 2,
+            tension: 0,
+            pointRadius: 0,
+            pointHoverRadius: 3,
+            borderWidth: 1.5,
             yAxisID: 'y1'
           }
         ]
@@ -8919,19 +8995,19 @@ function initIoTPage() {
         plugins: {
           legend: {
             display: true, position: 'top',
-            labels: { font: chartFont, usePointStyle: true, padding: 16 }
+            labels: { font: chartFont, color: t.axis, usePointStyle: true, padding: 16 }
           }
         },
         scales: {
           y: {
-            position: 'left', title: { display: true, text: 'NH3 (ppm)', font: chartFont },
-            ticks: { font: chartFont }, grid: { color: 'rgba(0,0,0,0.04)' }
+            position: 'left', title: { display: true, text: 'NH3 (ppm)', font: chartFont, color: t.axis },
+            ticks: { font: chartFont, color: t.axis }, grid: { color: t.grid, drawTicks: false }, border: { display: false }
           },
           y1: {
-            position: 'right', title: { display: true, text: 'CO2 (ppm)', font: chartFont },
-            ticks: { font: chartFont }, grid: { drawOnChartArea: false }
+            position: 'right', title: { display: true, text: 'CO2 (ppm)', font: chartFont, color: t.axis },
+            ticks: { font: chartFont, color: t.axis }, grid: { drawOnChartArea: false }, border: { display: false }
           },
-          x: { ticks: { font: chartFont, maxTicksLimit: 12 }, grid: { display: false } }
+          x: { ticks: { font: chartFont, color: t.axis, maxTicksLimit: 12 }, grid: { display: false }, border: { color: t.grid } }
         }
       }
     });
@@ -8976,7 +9052,7 @@ function renderRHEmployes() {
   // Table
   const container = document.getElementById('rh-employes-list');
   if (STATE.employes.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">👤</div><p>Aucun employé enregistré.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun employé enregistré.</p></div>';
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Poste</th><th>Type</th><th>Salaire/Taux</th><th>CNPS</th><th>Charge totale</th><th>Statut</th></tr></thead><tbody>';
@@ -9199,7 +9275,7 @@ function renderDepensesRH() {
   const container = document.getElementById('rh-depenses-list');
   const list = [...STATE.depensesRH].sort((a,b) => (b.date_depense||'').localeCompare(a.date_depense||''));
   if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>Aucune dépense RH.</p></div>';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune dépense RH.</p></div>';
     return;
   }
   const typeLabels = { formation:'Formation', equipement_protection:'Équipement protection', transport:'Transport', repas:'Repas', autre:'Autre' };
@@ -9207,7 +9283,7 @@ function renderDepensesRH() {
   list.forEach(d => {
     const emp = d.employe_id ? STATE.employes.find(e => e.employe_id === d.employe_id) : null;
     html += '<tr><td>' + fmtDate(d.date_depense) + '</td><td>' + (typeLabels[d.type]||d.type) + '</td><td>' + (d.description||'—') + '</td><td>' + (emp ? (emp.prenom||'') + ' ' + emp.nom : '—') + '</td><td style="text-align:right;font-weight:700;">' + fmt(Number(d.montant_fcfa)) + ' FCFA</td>' +
-      '<td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteDepenseRH(\'' + d.depense_id + '\')">✕</button></td></tr>';
+      '<td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteDepenseRH(\'' + d.depense_id + '\')"><i data-lucide="x"></i></button></td></tr>';
   });
   html += '</tbody></table></div></div>';
   container.innerHTML = html;
