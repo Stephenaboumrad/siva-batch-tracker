@@ -1408,6 +1408,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="clients" onclick="navigate('clients',this)">
       <span class="icon"><i data-lucide="banknote"></i></span> <span class="nav-full">Commercial & Ventes</span><span class="nav-short">Ventes</span>
     </a>
+    <a href="#" data-page="tresorerie" onclick="navigate('tresorerie',this)">
+      <span class="icon"><i data-lucide="wallet"></i></span> <span class="nav-full">Trésorerie</span><span class="nav-short">Tréso.</span>
+    </a>
     <a href="#" data-page="iot" onclick="navigate('iot',this)">
       <span class="icon"><i data-lucide="activity"></i></span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
@@ -1461,6 +1464,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <a href="#" data-page="clients" onclick="navigate('clients',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes
   </a>
+  <a href="#" data-page="tresorerie" onclick="navigate('tresorerie',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="wallet"></i></span> Trésorerie
+  </a>
   <a href="#" data-page="iot" onclick="navigate('iot',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="activity"></i></span> Monitoring IoT
   </a>
@@ -1510,6 +1516,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
+    <a href="#" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
     <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
   </div>
 </div>
@@ -1726,6 +1733,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div id="fiche-content" style="display:none;">
       <div class="card" id="fiche-header"></div>
+      <!-- Clôture / registre de bande — export manuel à la demande -->
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('pdf')"><i data-lucide="file-text"></i> Registre de Bande (PDF)</button>
+        <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('excel')"><i data-lucide="sheet"></i> Export Excel</button>
+      </div>
       <!-- Encart Rentabilité (réservé managers SIVA-001 / SIVA-002) — rempli par renderFicheRentabilite() -->
       <div class="card" id="fiche-rentabilite" style="display:none;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
@@ -1997,6 +2009,51 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div style="position:relative;height:280px;"><canvas id="chart-statuts"></canvas></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PAGE: TRÉSORERIE ═══════════════ -->
+  <div id="page-tresorerie" class="page">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem;">
+      <div>
+        <h2 style="margin-bottom:4px;"><i data-lucide="wallet"></i> Trésorerie</h2>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Bilan financier — coûts engagés, marges et flux de trésorerie</p>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="exportBilanPDF()"><i data-lucide="file-text"></i> Bilan PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportBilanExcel()"><i data-lucide="sheet"></i> Bilan Excel</button>
+      </div>
+    </div>
+
+    <!-- Select caché : alimente exportPDF()/exportExcel() (Registre de Bande) -->
+    <select id="export-bande-select" style="display:none;"></select>
+
+    <!-- Zone 1: KPIs financiers -->
+    <div id="treso-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+
+    <!-- Zone 2: Rentabilité par bande -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rentabilité par bande</h3></div>
+      <div class="table-wrap" id="treso-table"></div>
+    </div>
+
+    <!-- Zone 3 & 4: graphiques coûts / CA -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;margin-bottom:1.5rem;">
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition des coûts</h3></div>
+        <div style="position:relative;height:280px;"><canvas id="chart-treso-costs"></canvas></div>
+        <div id="treso-costs-legend" style="margin-top:0.75rem;font-size:0.8rem;line-height:1.8;"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">CA réalisé vs Coûts par bande</h3></div>
+        <div style="position:relative;height:280px;"><canvas id="chart-treso-ca"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Zone 5: Flux de trésorerie mensuel -->
+    <div class="card">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Flux de trésorerie mensuel (6 derniers mois)</h3></div>
+      <div class="table-wrap" id="treso-flux"></div>
     </div>
   </div>
 
@@ -3181,6 +3238,7 @@ const PAGE_TITLES = {
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
+  tresorerie: 'Trésorerie',
   iot: 'Monitoring IoT',
   parametres: 'Paramètres'
 };
@@ -3460,6 +3518,7 @@ function navigate(page, el) {
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
+    case 'tresorerie': initTresoreriePage(); break;
     case 'iot': initIoTPage(); break;
     case 'parametres': initParametresPage(); break;
   }
@@ -3599,6 +3658,16 @@ function computeIndicators(bande) {
 }
 
 // ── Alerts system ──
+// Convertit une alerte "riche" {bande,metric,value,threshold} des générateurs dédiés
+// (getStockAlerts/getCommandeAlerts/getInspectionAlerts) vers le format {level,icon,text}
+// attendu par renderAlerts, pour que le rendu reste cohérent avec les alertes existantes.
+function richAlertToText(a) {
+  let t = a.metric || a.text || '';
+  if (a.value) t += ' — ' + a.value;
+  if (a.threshold && !String(t).includes(a.threshold)) t += ' (' + a.threshold + ')';
+  return { level: a.level, icon: a.icon, text: t };
+}
+
 function checkAlerts() {
   const alerts = [];
   const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
@@ -3660,28 +3729,25 @@ function checkAlerts() {
     }
   });
 
-  // Stock alerts
-  STATE.stocks.forEach(s => {
-    const qty = Number(s.quantite_actuelle) || 0;
-    const seuil = Number(s.seuil_alerte) || 0;
-    if (seuil > 0 && qty <= seuil) {
-      alerts.push({ level: qty <= seuil * 0.5 ? 'critical' : 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: 'Stock ' + s.type_produit + ' bas — ' + fmt(qty, 1) + ' ' + s.unite });
-    }
-  });
+  // Stock bas — générateur dédié (seuils d'alerte). Format riche → {level,icon,text}.
+  getStockAlerts().forEach(a => alerts.push(richAlertToText(a)));
 
-  // Commandes à livrer dans ≤ 3 jours
+  // Commandes à livrer dans 1 à 3 jours (les livraisons du jour sont couvertes par getCommandeAlerts).
   const today = new Date();
   STATE.commandes.forEach(c => {
     if (c.statut === 'livree' || c.statut === 'annulee' || !c.date_livraison_souhaitee) return;
     const livDate = new Date(c.date_livraison_souhaitee);
     const daysUntil = Math.ceil((livDate - today) / 86400000);
-    if (daysUntil <= 3 && daysUntil >= 0) {
+    if (daysUntil <= 3 && daysUntil >= 1) {
       const cl = STATE.clients.find(x => x.client_id === c.client_id);
       const clientName = cl ? cl.nom : '?';
-      const dLabel = daysUntil === 0 ? "aujourd'hui" : 'dans ' + daysUntil + ' jour(s)';
-      alerts.push({ level: 'warning', icon: '<i data-lucide="truck"></i>', text: clientName + ' — livraison ' + dLabel });
+      alerts.push({ level: 'warning', icon: '<i data-lucide="truck"></i>', text: clientName + ' — livraison dans ' + daysUntil + ' jour(s)' });
     }
   });
+
+  // Livraisons du jour + réceptions non inspectées (> 48h) — générateurs dédiés.
+  getCommandeAlerts().forEach(a => alerts.push(richAlertToText(a)));
+  getInspectionAlerts().forEach(a => alerts.push(richAlertToText(a)));
 
   // Update nav badge
   const badge = document.getElementById('alert-badge');
@@ -6269,6 +6335,25 @@ function exportExcel() {
 
   XLSX.writeFile(wb, `COQORICO_${bande.nom_bande}.xlsx`);
   toast('Excel généré');
+}
+
+// ── Registre de Bande depuis la fiche ──
+// Glue de câblage : exportPDF()/exportExcel() lisent la bande dans #export-bande-select.
+// On y reporte la bande actuellement affichée dans la fiche, puis on délègue (sans
+// modifier le contrat des fonctions d'export existantes).
+function exportFicheRegistre(format) {
+  const bandeId = document.getElementById('fiche-bande-select').value;
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+  const sel = document.getElementById('export-bande-select');
+  if (sel) {
+    if (!sel.querySelector('option[value="' + bandeId + '"]')) {
+      sel.innerHTML = STATE.bandes.map(b =>
+        '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
+      ).join('');
+    }
+    sel.value = bandeId;
+  }
+  if (format === 'excel') exportExcel(); else exportPDF();
 }
 
 // ── Paramètres ──
