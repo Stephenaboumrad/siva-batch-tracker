@@ -1569,7 +1569,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: DASHBOARD ═══════════════ -->
   <div id="page-dashboard" class="page active">
-    <h2><i data-lucide="layout-dashboard"></i> Dashboard</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+      <h2 style="margin:0;"><i data-lucide="layout-dashboard"></i> Dashboard</h2>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="exportDashboardPDF()"><i data-lucide="file-text"></i> Snapshot PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportDashboardExcel()"><i data-lucide="sheet"></i> Snapshot Excel</button>
+      </div>
+    </div>
     <!-- Zone 1: Alertes -->
     <div id="dash-alerts"></div>
     <!-- Zone 2: KPIs agrégés -->
@@ -1614,7 +1620,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: SAISIE DU JOUR ═══════════════ -->
   <div id="page-saisie" class="page">
-    <h2><i data-lucide="pencil-ruler"></i> Saisie Terrain</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+      <h2 style="margin:0;"><i data-lucide="pencil-ruler"></i> Saisie Terrain</h2>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <select id="saisie-report-bande" title="Bande du rapport" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);max-width:170px;"></select>
+        <input type="month" id="saisie-report-period" title="Période du rapport" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+        <button class="btn btn-outline btn-sm" onclick="exportDailiesPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportDailiesExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+      </div>
+    </div>
     <div class="card" style="max-width:700px;">
       <div class="form-group">
         <label>Bande</label>
@@ -1794,7 +1808,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Tab 1: Sessions -->
     <div id="ab-tab-sessions">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <span></span>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+          <label for="abattage-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
+          <input type="month" id="abattage-period" title="Période du rapport d'abattage" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+          <button class="btn btn-outline btn-sm" onclick="exportAbattagePDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="exportAbattageExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+        </div>
         <button class="btn btn-primary" onclick="showAbattageModal()">+ Nouvelle session</button>
       </div>
       <div id="abattage-list"></div>
@@ -1894,7 +1913,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="sc-tab-stocks" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <h3 style="font-size:1rem;color:var(--primary-dark);">État des stocks</h3>
-        <button class="btn btn-primary manager-only" onclick="showStockModal()">+ Ajouter au stock</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-outline btn-sm" onclick="exportStocksPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+          <button class="btn btn-outline btn-sm" onclick="exportStocksExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+          <button class="btn btn-primary manager-only" onclick="showStockModal()">+ Ajouter au stock</button>
+        </div>
       </div>
       <div id="stocks-grid" class="stock-grid"></div>
     </div>
@@ -5133,6 +5156,13 @@ function initSaisiePage() {
   select.innerHTML = active.length === 0
     ? '<option value="">Aucune bande active</option>'
     : active.map(b => `<option value="${b.bande_id}">${bandeLabel(b)}</option>`).join('');
+  // Sélecteur de bande du rapport quotidien (toutes les bandes, clôturées incluses).
+  const rsel = document.getElementById('saisie-report-bande');
+  if (rsel) {
+    rsel.innerHTML = STATE.bandes.length
+      ? STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('')
+      : '<option value="">Aucune bande</option>';
+  }
   document.getElementById('saisie-date').value = todayStr();
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
@@ -6317,6 +6347,38 @@ function reportSectionTitlePDF(doc, label, y) {
   doc.text(String(label), 13.5, y + 0.5);
   doc.setFont(undefined, 'normal');
   return y + 9;
+}
+
+// Tableau homogène (PDF) partagé par tous les rapports. headers/widths : arrays
+// alignés ; rows : array de array(valeurs). Gère l'en-tête grisé, l'état vide,
+// et la pagination (ré-imprime l'en-tête sur chaque nouvelle page). Retourne le Y.
+function reportTablePDF(doc, y, headers, widths, rows, opts) {
+  opts = opts || {};
+  const totalW = widths.reduce((a, b) => a + b, 0);
+  const drawHead = () => {
+    doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
+    doc.rect(10, y - 3.5, totalW, 5, 'F');
+    doc.setFontSize(7); doc.setFont(undefined, 'bold');
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    let x = 10; headers.forEach((h, i) => { doc.text(String(h), x + 1, y); x += widths[i]; });
+    doc.setFont(undefined, 'normal');
+    y += 5;
+  };
+  drawHead();
+  if (!rows || rows.length === 0) {
+    doc.setFontSize(8); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text(opts.emptyMsg || 'Aucune donnée.', 12, y); y += 6;
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    return y;
+  }
+  doc.setFontSize(7);
+  rows.forEach(row => {
+    if (y > 280) { doc.addPage(); y = 20; drawHead(); doc.setFontSize(7); }
+    let x = 10;
+    row.forEach((v, i) => { doc.text(String(v == null ? '' : v).substring(0, 30), x + 1, y); x += widths[i]; });
+    y += 4.2;
+  });
+  return y + 2;
 }
 
 // En-tête de marque pour une feuille Excel : lignes (AoA) à préfixer à la
@@ -8950,6 +9012,431 @@ function exportCommercialExcel() {
   XLSX.utils.book_append_sheet(wb, ws, 'Commercial');
   XLSX.writeFile(wb, 'rapport-commercial-' + period + '.xlsx');
   toast('Rapport commercial Excel généré');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Exports universels : rapports extractibles sur les onglets de pilotage ──
+// Tous réutilisent le gabarit de marque P1 (reportHeaderPDF / reportFooterPDF /
+// reportSectionTitlePDF / reportTablePDF pour le PDF ; reportSheetHeaderRows /
+// applyReportSheetBranding pour l'Excel) et les fonctions de calcul existantes
+// (computeIndicators, computeCoutAbattage, getStockAlerts…). Résilients sur 0/
+// données partielles : états vides, jamais d'exception.
+// ══════════════════════════════════════════════════════════════════════
+
+// ───────────────────────── 1) SAISIE / DAILIES ─────────────────────────
+function getDailiesPeriod() {
+  const el = document.getElementById('saisie-report-period');
+  const def = todayStr().slice(0, 7);
+  if (el) { if (!el.value) el.value = def; return el.value; }
+  return def;
+}
+
+// Renseigne le sélecteur de bande du rapport (toutes les bandes — clôturées
+// incluses) s'il est vide. Renvoie l'élément.
+function ensureDailiesBandeSelect() {
+  const sel = document.getElementById('saisie-report-bande');
+  if (sel && sel.options.length === 0 && STATE.bandes.length) {
+    sel.innerHTML = STATE.bandes.map(b =>
+      '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
+    ).join('');
+  }
+  return sel;
+}
+
+function computeDailiesReport(bandeId, period) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return null;
+  const ind = computeIndicators(bande);
+  const rows = ind.saisies.filter(s => (s.date_saisie || '').startsWith(period));
+  const mortP = rows.reduce((s, r) => s + (Number(r.mortalite_jour) || 0), 0);
+  const alimP = rows.reduce((s, r) => s + (Number(r.aliment_consomme_kg) || 0), 0);
+  const eauP  = rows.reduce((s, r) => s + (Number(r.eau_consommee_l) || 0), 0);
+  const eauAlimP = alimP > 0 ? eauP / alimP : null;
+  return { bande, ind, rows, mortP, alimP, eauP, eauAlimP };
+}
+
+function exportDailiesPDF() {
+  ensureDailiesBandeSelect();
+  const sel = document.getElementById('saisie-report-bande');
+  const bandeId = sel ? sel.value : '';
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+  const period = getDailiesPeriod();
+  const r = computeDailiesReport(bandeId, period);
+  if (!r) { toast('Bande introuvable', 'error'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let y = reportHeaderPDF(doc, { title: 'Rapport quotidien — Saisies', subtitle: r.bande.nom_bande || r.bande.bande_id, period: frMonthLabel(period) });
+
+  y = reportSectionTitlePDF(doc, 'Indicateurs (cumulés à date)', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('Effectif actuel : ' + fmt(r.ind.effectifActuel) + '  —  Mortalité cumulée : ' + fmt(r.ind.tauxMort, 1) + ' %', 12, y); y += 5;
+  doc.text('IC / FCR : ' + (r.ind.ic != null ? fmt(r.ind.ic, 2) : '—') + '  —  GMQ : ' + (r.ind.gmq != null ? fmt(r.ind.gmq, 1) + ' g/j' : '—'), 12, y); y += 5;
+  doc.text('Poids vif moyen : ' + fmt(r.ind.dernierPoids) + ' g' + (r.ind.lastTemp != null ? '  —  Dernière ambiance : ' + fmt(r.ind.lastTemp, 1) + ' °C / ' + fmt(r.ind.lastHumidite, 0) + ' %' : ''), 12, y); y += 9;
+
+  y = reportSectionTitlePDF(doc, 'Synthèse de la période (' + (frMonthLabel(period) || period) + ')', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('Mortalité : ' + fmt(r.mortP) + ' oiseaux   —   Aliment : ' + fmt(r.alimP, 1) + ' kg   —   Eau : ' + fmt(r.eauP, 1) + ' L' + (r.eauAlimP != null ? '   (eau/aliment : ' + fmt(r.eauAlimP, 2) + ')' : ''), 12, y); y += 9;
+
+  y = reportSectionTitlePDF(doc, 'Détail journalier — poids vif vs standard Cobb 500', y);
+  const headers = ['Date', 'J', 'Mort.', 'Effectif', 'Alim.kg', 'Eau L', 'IC', 'Poids', 'Cobb', 'T°/HR'];
+  const widths  = [22, 9, 13, 18, 18, 15, 13, 15, 15, 19];
+  const trows = r.rows.map(s => {
+    const cobb = getCobbStandardWeight(s.jour_bande);
+    const amb = (s.temperature_c != null ? fmt(s.temperature_c, 0) : '—') + '/' + (s.humidite_pct != null ? fmt(s.humidite_pct, 0) : '—');
+    return [
+      fmtDate(s.date_saisie), 'J' + s.jour_bande, fmt(Number(s.mortalite_jour) || 0), fmt(s.effectif),
+      fmt(Number(s.aliment_consomme_kg) || 0, 1), fmt(Number(s.eau_consommee_l) || 0, 1),
+      s.ic != null ? fmt(s.ic, 2) : '—', fmt(s.poids), fmt(cobb), amb
+    ];
+  });
+  y = reportTablePDF(doc, y, headers, widths, trows, { emptyMsg: 'Aucune saisie sur la période.' });
+
+  reportFooterPDF(doc);
+  doc.save('rapport-quotidien-' + (r.bande.nom_bande || bandeId) + '-' + period + '.pdf');
+  toast('Rapport quotidien PDF généré');
+}
+
+function exportDailiesExcel() {
+  ensureDailiesBandeSelect();
+  const sel = document.getElementById('saisie-report-bande');
+  const bandeId = sel ? sel.value : '';
+  if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+  const period = getDailiesPeriod();
+  const r = computeDailiesReport(bandeId, period);
+  if (!r) { toast('Bande introuvable', 'error'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const brand = reportSheetHeaderRows('Rapport quotidien — Saisies', { subtitle: r.bande.nom_bande || r.bande.bande_id, period: frMonthLabel(period) });
+  const synth = brand.concat([
+    ['Indicateurs (cumulés à date)'],
+    ['Effectif actuel', r.ind.effectifActuel],
+    ['Mortalité cumulée (%)', Math.round(r.ind.tauxMort * 10) / 10],
+    ['IC / FCR', r.ind.ic != null ? Math.round(r.ind.ic * 100) / 100 : '—'],
+    ['GMQ (g/j)', r.ind.gmq != null ? Math.round(r.ind.gmq * 10) / 10 : '—'],
+    ['Poids vif moyen (g)', Math.round(r.ind.dernierPoids)],
+    [],
+    ['Synthèse de la période'],
+    ['Mortalité (oiseaux)', r.mortP],
+    ['Aliment (kg)', Math.round(r.alimP * 10) / 10],
+    ['Eau (L)', Math.round(r.eauP * 10) / 10],
+    ['Ratio eau/aliment', r.eauAlimP != null ? Math.round(r.eauAlimP * 100) / 100 : '—']
+  ]);
+  const ws0 = XLSX.utils.aoa_to_sheet(synth);
+  applyReportSheetBranding(ws0, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
+
+  const head = ['Date', 'Jour', 'Mortalité', 'Effectif', 'Aliment (kg)', 'Eau (L)', 'IC', 'Poids vif (g)', 'Cobb 500 (g)', 'Écart Cobb (g)', 'T° (°C)', 'HR (%)'];
+  const data = r.rows.map(s => {
+    const cobb = getCobbStandardWeight(s.jour_bande);
+    return [s.date_saisie, 'J' + s.jour_bande, Number(s.mortalite_jour) || 0, s.effectif,
+      Number(s.aliment_consomme_kg) || 0, Number(s.eau_consommee_l) || 0,
+      s.ic != null ? Math.round(s.ic * 100) / 100 : '', s.poids, cobb, Math.round((s.poids || 0) - cobb),
+      s.temperature_c != null ? s.temperature_c : '', s.humidite_pct != null ? s.humidite_pct : ''];
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet([head, ...data]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Détail journalier');
+
+  XLSX.writeFile(wb, 'rapport-quotidien-' + (r.bande.nom_bande || bandeId) + '-' + period + '.xlsx');
+  toast('Rapport quotidien Excel généré');
+}
+
+// ───────────────────────── 2) ABATTAGE ─────────────────────────
+function getAbattagePeriod() {
+  const el = document.getElementById('abattage-period');
+  const def = todayStr().slice(0, 7);
+  if (el) { if (!el.value) el.value = def; return el.value; }
+  return def;
+}
+
+function computeAbattageReport(period) {
+  const sessions = STATE.abattages
+    .filter(a => (a.date_abattage || '').startsWith(period))
+    .sort((a, b) => new Date(a.date_abattage || 0) - new Date(b.date_abattage || 0));
+  const bandeName = id => { const b = STATE.bandes.find(x => x.bande_id === id); return b ? (b.nom_bande || b.bande_id) : (id || '—'); };
+  const sessCost = a => (Number(a.cout_workers_fcfa) || 0) + (Number(a.cout_transport_fcfa) || 0) + (Number(a.cout_emballage_fcfa) || 0) + (Number(a.cout_autres_fcfa) || 0);
+
+  const agg = sessions.reduce((s, a) => {
+    s.nbAbattus  += Number(a.nb_oiseaux_abattus) || 0;
+    s.nbSaisis   += Number(a.nb_oiseaux_saisis) || 0;
+    s.nbMorts    += Number(a.nb_oiseaux_morts_avant_abattage) || 0;
+    s.vifKg      += Number(a.poids_vif_total_kg) || 0;
+    s.carcKg     += Number(a.poids_carcasse_total_kg) || 0;
+    s.coutMO     += Number(a.cout_workers_fcfa) || 0;
+    s.coutTrans  += Number(a.cout_transport_fcfa) || 0;
+    s.coutEmb    += Number(a.cout_emballage_fcfa) || 0;
+    s.coutAutres += Number(a.cout_autres_fcfa) || 0;
+    return s;
+  }, { nbAbattus: 0, nbSaisis: 0, nbMorts: 0, vifKg: 0, carcKg: 0, coutMO: 0, coutTrans: 0, coutEmb: 0, coutAutres: 0 });
+  agg.coutTotal = agg.coutMO + agg.coutTrans + agg.coutEmb + agg.coutAutres;
+  agg.rendement = agg.vifKg > 0 ? (agg.carcKg / agg.vifKg * 100) : null;
+  agg.coutKgCarc = agg.carcKg > 0 ? (agg.coutTotal / agg.carcKg) : null;
+  return { sessions, agg, bandeName, sessCost };
+}
+
+function exportAbattagePDF() {
+  const period = getAbattagePeriod();
+  const r = computeAbattageReport(period);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let y = reportHeaderPDF(doc, { title: 'Rapport d\'abattage', subtitle: 'Transformation', period: frMonthLabel(period) });
+  const a = r.agg;
+
+  y = reportSectionTitlePDF(doc, 'Synthèse agrégée de la période', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('Sessions : ' + fmt(r.sessions.length) + '   —   Oiseaux abattus : ' + fmt(a.nbAbattus) + '   —   Saisies sanitaires : ' + fmt(a.nbSaisis), 12, y); y += 5;
+  doc.text('Poids vif : ' + fmt(a.vifKg, 1) + ' kg   —   Poids carcasse : ' + fmt(a.carcKg, 1) + ' kg   —   Rendement moyen : ' + (a.rendement != null ? fmt(a.rendement, 1) + ' %' : '—'), 12, y); y += 5;
+  doc.text('Coût total : ' + fmt(a.coutTotal) + ' FCFA   —   Coût / kg carcasse : ' + (a.coutKgCarc != null ? fmt(a.coutKgCarc) + ' FCFA/kg' : '—'), 12, y); y += 9;
+
+  y = reportSectionTitlePDF(doc, 'Décomposition des coûts', y);
+  y = reportTablePDF(doc, y, ['Poste', 'Montant (FCFA)'], [120, 50], [
+    ['Main-d\'œuvre', fmt(a.coutMO)],
+    ['Transport', fmt(a.coutTrans)],
+    ['Emballage', fmt(a.coutEmb)],
+    ['Autres', fmt(a.coutAutres)],
+    ['TOTAL', fmt(a.coutTotal)]
+  ], { emptyMsg: 'Aucun coût.' });
+  y += 2;
+
+  y = reportSectionTitlePDF(doc, 'Détail par session', y);
+  const rows = r.sessions.map(s => [
+    fmtDate(s.date_abattage), r.bandeName(s.bande_id), fmt(Number(s.nb_oiseaux_abattus) || 0),
+    fmt(Number(s.nb_oiseaux_saisis) || 0), fmt(Number(s.poids_vif_total_kg) || 0, 1),
+    fmt(Number(s.poids_carcasse_total_kg) || 0, 1),
+    (Number(s.rendement_carcasse_pct) ? fmt(s.rendement_carcasse_pct, 1) : '—'), fmt(r.sessCost(s))
+  ]);
+  y = reportTablePDF(doc, y, ['Date', 'Bande', 'Abattus', 'Saisis', 'Vif kg', 'Carc. kg', 'Rdt%', 'Coût'],
+    [22, 30, 18, 16, 20, 20, 15, 22], rows, { emptyMsg: 'Aucune session d\'abattage sur la période.' });
+
+  reportFooterPDF(doc);
+  doc.save('rapport-abattage-' + period + '.pdf');
+  toast('Rapport abattage PDF généré');
+}
+
+function exportAbattageExcel() {
+  const period = getAbattagePeriod();
+  const r = computeAbattageReport(period);
+  const a = r.agg;
+  const wb = XLSX.utils.book_new();
+  const brand = reportSheetHeaderRows('Rapport d\'abattage', { subtitle: 'Transformation', period: frMonthLabel(period) });
+  const synth = brand.concat([
+    ['Synthèse agrégée'],
+    ['Sessions', r.sessions.length],
+    ['Oiseaux abattus', a.nbAbattus],
+    ['Saisies sanitaires', a.nbSaisis],
+    ['Morts avant abattage', a.nbMorts],
+    ['Poids vif total (kg)', Math.round(a.vifKg * 10) / 10],
+    ['Poids carcasse total (kg)', Math.round(a.carcKg * 10) / 10],
+    ['Rendement moyen (%)', a.rendement != null ? Math.round(a.rendement * 10) / 10 : '—'],
+    ['Coût main-d\'œuvre (FCFA)', Math.round(a.coutMO)],
+    ['Coût transport (FCFA)', Math.round(a.coutTrans)],
+    ['Coût emballage (FCFA)', Math.round(a.coutEmb)],
+    ['Coût autres (FCFA)', Math.round(a.coutAutres)],
+    ['COÛT TOTAL (FCFA)', Math.round(a.coutTotal)],
+    ['Coût / kg carcasse (FCFA)', a.coutKgCarc != null ? Math.round(a.coutKgCarc) : '—']
+  ]);
+  const ws0 = XLSX.utils.aoa_to_sheet(synth);
+  applyReportSheetBranding(ws0, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
+
+  const head = ['Date', 'Bande', 'Responsable', 'Abattus', 'Saisis', 'Morts avant', 'Vif (kg)', 'Carcasse (kg)', 'Rendement (%)', 'Coût (FCFA)'];
+  const data = r.sessions.map(s => [s.date_abattage, r.bandeName(s.bande_id), s.responsable || '',
+    Number(s.nb_oiseaux_abattus) || 0, Number(s.nb_oiseaux_saisis) || 0, Number(s.nb_oiseaux_morts_avant_abattage) || 0,
+    Number(s.poids_vif_total_kg) || 0, Number(s.poids_carcasse_total_kg) || 0,
+    Number(s.rendement_carcasse_pct) || '', r.sessCost(s)]);
+  const ws1 = XLSX.utils.aoa_to_sheet([head, ...data]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Sessions');
+
+  XLSX.writeFile(wb, 'rapport-abattage-' + period + '.xlsx');
+  toast('Rapport abattage Excel généré');
+}
+
+// ───────────────────────── 3) SUPPLY CHAIN / STOCKS ─────────────────────────
+// Les stocks ne portent pas de prix : on valorise via la dernière réception
+// connue du même type_produit (prix_unitaire_fcfa). Sans réception → valeur nulle.
+function latestUnitPrice(typeProduit) {
+  const recs = STATE.receptions.filter(x => x.type_produit === typeProduit && Number(x.prix_unitaire_fcfa) > 0);
+  if (!recs.length) return null;
+  recs.sort((p, q) => new Date(q.date_reception || 0) - new Date(p.date_reception || 0));
+  return Number(recs[0].prix_unitaire_fcfa) || null;
+}
+
+function computeStocksReport() {
+  const cats = { mp: 'Matière première', medicament: 'Médicament', equipement: 'Équipement', poussin: 'Poussins', autre: 'Autre' };
+  const items = STATE.stocks.map(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    const prix = latestUnitPrice(s.type_produit);
+    const valeur = prix != null ? qty * prix : 0;
+    let etat = 'OK';
+    if (seuil > 0 && qty <= seuil) etat = qty <= seuil * 0.5 ? 'Critique' : 'Bas';
+    return { nom: s.type_produit || '—', cat: cats[s.categorie] || s.categorie || '—', qty, unite: s.unite || '', seuil, prix, valeur, etat };
+  });
+  const valorisation = items.reduce((s, i) => s + i.valeur, 0);
+  const nbAlerte = items.filter(i => i.etat !== 'OK').length;
+
+  const today = todayStr();
+  const perems = STATE.receptions.filter(x => x.date_peremption).map(x => {
+    const days = daysBetween(today, x.date_peremption);
+    let statut = 'OK';
+    if (days < 0) statut = 'Expiré'; else if (days <= 30) statut = 'Proche (' + days + ' j)';
+    return { lot: x.numero_lot || '—', produit: x.type_produit || '—', date: x.date_peremption, days, statut };
+  }).sort((p, q) => new Date(p.date) - new Date(q.date));
+  const nbPerem = perems.filter(p => p.statut !== 'OK').length;
+
+  return { items, valorisation, nbAlerte, perems, nbPerem };
+}
+
+function exportStocksPDF() {
+  const r = computeStocksReport();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let y = reportHeaderPDF(doc, { title: 'État des stocks', subtitle: 'Supply Chain' });
+
+  y = reportSectionTitlePDF(doc, 'Synthèse', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('Articles en stock : ' + fmt(r.items.length) + '   —   Articles en alerte : ' + fmt(r.nbAlerte), 12, y); y += 5;
+  doc.text('Valorisation totale : ' + fmt(r.valorisation) + ' FCFA   —   Péremptions à surveiller : ' + fmt(r.nbPerem), 12, y); y += 9;
+
+  y = reportSectionTitlePDF(doc, 'État des stocks', y);
+  const rows = r.items.map(i => [i.nom, i.cat, fmt(i.qty, 1) + ' ' + i.unite, i.seuil > 0 ? fmt(i.seuil, 1) : '—',
+    i.etat, i.prix != null ? fmt(i.prix) : '—', i.prix != null ? fmt(i.valeur) : '—']);
+  y = reportTablePDF(doc, y, ['Article', 'Catégorie', 'Quantité', 'Seuil', 'État', 'Prix u.', 'Valeur'],
+    [38, 26, 26, 18, 20, 20, 26], rows, { emptyMsg: 'Aucun article en stock.' });
+  y += 2;
+
+  y = reportSectionTitlePDF(doc, 'Péremptions (lots réceptionnés)', y);
+  const prows = r.perems.map(p => [p.lot, p.produit, fmtDate(p.date), p.statut]);
+  y = reportTablePDF(doc, y, ['Lot', 'Produit', 'Péremption', 'Statut'], [34, 46, 32, 34], prows,
+    { emptyMsg: 'Aucune date de péremption enregistrée.' });
+
+  reportFooterPDF(doc);
+  doc.save('etat-stocks-' + todayStr() + '.pdf');
+  toast('Rapport stocks PDF généré');
+}
+
+function exportStocksExcel() {
+  const r = computeStocksReport();
+  const wb = XLSX.utils.book_new();
+  const brand = reportSheetHeaderRows('État des stocks', { subtitle: 'Supply Chain' });
+  const synth = brand.concat([
+    ['Synthèse'],
+    ['Articles en stock', r.items.length],
+    ['Articles en alerte', r.nbAlerte],
+    ['Valorisation totale (FCFA)', Math.round(r.valorisation)],
+    ['Péremptions à surveiller', r.nbPerem]
+  ]);
+  const ws0 = XLSX.utils.aoa_to_sheet(synth);
+  applyReportSheetBranding(ws0, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
+
+  const head = ['Article', 'Catégorie', 'Quantité', 'Unité', 'Seuil', 'État', 'Prix unitaire (FCFA)', 'Valeur (FCFA)'];
+  const data = r.items.map(i => [i.nom, i.cat, i.qty, i.unite, i.seuil, i.etat, i.prix != null ? Math.round(i.prix) : '', i.prix != null ? Math.round(i.valeur) : '']);
+  const ws1 = XLSX.utils.aoa_to_sheet([head, ...data]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Stocks');
+
+  const phead = ['Lot', 'Produit', 'Date péremption', 'Jours restants', 'Statut'];
+  const pdata = r.perems.map(p => [p.lot, p.produit, p.date, p.days, p.statut]);
+  const ws2 = XLSX.utils.aoa_to_sheet([phead, ...pdata]);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Péremptions');
+
+  XLSX.writeFile(wb, 'etat-stocks-' + todayStr() + '.xlsx');
+  toast('Rapport stocks Excel généré');
+}
+
+// ───────────────────────── 4) DASHBOARD (snapshot) ─────────────────────────
+function computeDashboardReport() {
+  const active = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
+  const perBande = active.map(b => {
+    const ind = computeIndicators(b);
+    const jour = cycleDay(b);
+    return {
+      nom: b.nom_bande || b.bande_id, jour: jour != null ? jour : null,
+      effectif: ind.effectifActuel, tauxMort: ind.tauxMort, ic: ind.ic,
+      poids: ind.hasWeighing ? ind.poidsMesure : null, ip: ind.ip
+    };
+  });
+  const totalOiseaux = perBande.reduce((s, b) => s + (Number(b.effectif) || 0), 0);
+  const ips = perBande.map(b => b.ip).filter(v => v > 0);
+  const avgIP = ips.length ? Math.round(ips.reduce((x, y) => x + y, 0) / ips.length) : null;
+  const alerts = (typeof checkAlerts === 'function') ? (checkAlerts() || []) : [];
+
+  const today = todayStr();
+  const echeances = STATE.commandes
+    .filter(c => c.statut !== 'livree' && c.statut !== 'annulee' && c.date_livraison_souhaitee && c.date_livraison_souhaitee >= today)
+    .map(c => { const cl = STATE.clients.find(x => x.client_id === c.client_id); return { date: c.date_livraison_souhaitee, client: cl ? cl.nom : '—', montant: Number(c.montant_total_fcfa) || 0, statut: CMD_STATUTS[c.statut] || c.statut }; })
+    .sort((p, q) => new Date(p.date) - new Date(q.date));
+
+  return { active, perBande, totalOiseaux, avgIP, alerts, echeances };
+}
+
+function exportDashboardPDF() {
+  const r = computeDashboardReport();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let y = reportHeaderPDF(doc, { title: 'Synthèse — Tableau de bord', subtitle: 'Vue d\'ensemble' });
+
+  y = reportSectionTitlePDF(doc, 'Indicateurs clés (à la date de génération)', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('Oiseaux en production : ' + fmt(r.totalOiseaux) + '   —   Bandes actives : ' + fmt(r.active.length), 12, y); y += 5;
+  doc.text('Indice de performance moyen : ' + (r.avgIP != null ? fmt(r.avgIP) : '—') + '   —   Alertes actives : ' + fmt(r.alerts.length), 12, y); y += 9;
+
+  y = reportSectionTitlePDF(doc, 'Synthèse par bande', y);
+  const rows = r.perBande.map(b => [b.nom, b.jour != null ? 'J' + b.jour : '—', fmt(b.effectif),
+    fmt(b.tauxMort, 1) + ' %', b.ic != null ? fmt(b.ic, 2) : '—', b.poids != null ? fmt(b.poids) + ' g' : '—', 'En cours']);
+  y = reportTablePDF(doc, y, ['Bande', 'Jour', 'Effectif', 'Mort.%', 'IC', 'Poids', 'Statut'],
+    [34, 14, 22, 20, 16, 22, 28], rows, { emptyMsg: 'Aucune bande active.' });
+  y += 2;
+
+  y = reportSectionTitlePDF(doc, 'Échéances — livraisons à venir', y);
+  const erows = r.echeances.map(e => [fmtDate(e.date), e.client, e.statut, fmt(e.montant) + ' FCFA']);
+  y = reportTablePDF(doc, y, ['Date', 'Client', 'Statut', 'Montant'], [30, 60, 40, 40], erows,
+    { emptyMsg: 'Aucune livraison à venir.' });
+  y += 2;
+
+  y = reportSectionTitlePDF(doc, 'Alertes actives', y);
+  const arows = r.alerts.map(al => [(al.level === 'critical' ? 'CRITIQUE' : 'ALERTE'), String(al.text || al.metric || '')]);
+  y = reportTablePDF(doc, y, ['Niveau', 'Détail'], [28, 150], arows, { emptyMsg: 'Aucune alerte active.' });
+
+  reportFooterPDF(doc);
+  doc.save('synthese-dashboard-' + todayStr() + '.pdf');
+  toast('Snapshot dashboard PDF généré');
+}
+
+function exportDashboardExcel() {
+  const r = computeDashboardReport();
+  const wb = XLSX.utils.book_new();
+  const brand = reportSheetHeaderRows('Synthèse — Tableau de bord', { subtitle: 'Vue d\'ensemble' });
+  const synth = brand.concat([
+    ['Indicateurs clés'],
+    ['Oiseaux en production', r.totalOiseaux],
+    ['Bandes actives', r.active.length],
+    ['Indice de performance moyen', r.avgIP != null ? r.avgIP : '—'],
+    ['Alertes actives', r.alerts.length]
+  ]);
+  const ws0 = XLSX.utils.aoa_to_sheet(synth);
+  applyReportSheetBranding(ws0, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
+
+  const bhead = ['Bande', 'Jour', 'Effectif', 'Mortalité (%)', 'IC', 'Poids vif (g)', 'IP', 'Statut'];
+  const bdata = r.perBande.map(b => [b.nom, b.jour != null ? b.jour : '', b.effectif,
+    Math.round(b.tauxMort * 10) / 10, b.ic != null ? Math.round(b.ic * 100) / 100 : '', b.poids != null ? Math.round(b.poids) : '',
+    b.ip || '', 'En cours']);
+  const ws1 = XLSX.utils.aoa_to_sheet([bhead, ...bdata]);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Par bande');
+
+  const ehead = ['Date livraison', 'Client', 'Statut', 'Montant (FCFA)'];
+  const edata = r.echeances.map(e => [e.date, e.client, e.statut, Math.round(e.montant)]);
+  const ws2 = XLSX.utils.aoa_to_sheet([ehead, ...edata]);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Échéances');
+
+  const ahead = ['Niveau', 'Détail'];
+  const adata = r.alerts.map(al => [al.level === 'critical' ? 'CRITIQUE' : 'ALERTE', String(al.text || al.metric || '')]);
+  const ws3 = XLSX.utils.aoa_to_sheet([ahead, ...adata]);
+  XLSX.utils.book_append_sheet(wb, ws3, 'Alertes');
+
+  XLSX.writeFile(wb, 'synthese-dashboard-' + todayStr() + '.xlsx');
+  toast('Snapshot dashboard Excel généré');
 }
 
 // ── Commande alerts for dashboard ──
