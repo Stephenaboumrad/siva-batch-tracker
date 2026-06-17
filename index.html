@@ -6217,15 +6217,22 @@ function initTresoreriePage() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// ── Gabarit de rapport standardisé (identité SIVA / COQORICO) ──
-// UN seul en-tête / pied de page partagé par TOUS les exports (registre de
-// clôture, bilan trésorerie, commercial), en PDF comme en Excel. Aspect
-// « instrument de pilotage » : bandeau sombre, filet orange de marque,
-// typographie sobre. Aucune nouvelle direction esthétique : on consomme les
-// tokens existants (--color-accent #E2640F, --navbar-bg #11181F, etc.).
+// ── Gabarit de rapport standardisé (identité S.I.V.A) ──
+// UN seul en-tête / pied de page partagé par TOUS les exports (registre, bilan
+// trésorerie, commercial, quotidien, abattage, stocks, dashboard), en PDF comme
+// en Excel. En-tête en DEUX bandes empilées : (1) identité société sobre sur
+// fond clair ; (2) titre du rapport sur bandeau orange mat. Le band ID / période
+// / date de génération et le pied de page restent inchangés.
 // ══════════════════════════════════════════════════════════════════════
+
+// Accent des rapports : orange mat / terracotta du bandeau de titre. #C8632D.
+// Constante UNIQUE — la modifier ici se propage à tous les rapports.
+const REPORT_ACCENT = [200, 99, 45]; // #C8632D
+
 const REPORT_BRAND = {
   product: 'COQORICO',
+  acronym: 'S.I.V.A',
+  legalName: 'Société Ivoirienne de Volailles et Assimilés',
   entity:  'SIVA — Société Ivoirienne de Volailles et Assimilés',
   site:    'Les Terres du Sud · Azaguié, Côte d\'Ivoire',
   tagline: 'Plateforme de pilotage d\'élevage avicole',
@@ -6233,6 +6240,7 @@ const REPORT_BRAND = {
   navy:       [17, 24, 31],    // --navbar-bg #11181F
   accent:     [226, 100, 15],  // --color-accent #E2640F
   ink:        [15, 24, 34],    // --color-text #0F1822
+  subtle:     [74, 86, 99],    // --color-text-secondary #4A5663
   muted:      [138, 149, 161], // --color-text-muted #8A95A1
   line:       [212, 219, 226], // --color-border #D4DBE2
   surfaceAlt: [237, 241, 244]  // --color-surface-alt #EDF1F4
@@ -6270,42 +6278,46 @@ let LOGO_DATAURL = null;
 
 // En-tête PDF de marque. Retourne le Y où démarrer le contenu.
 // opts : { title, subtitle, period }
+// Deux bandes empilées : (1) identité société (fond clair, sobre — plus de
+// bandeau brun/sombre) ; (2) titre du rapport sur bandeau orange mat (#C8632D).
 function reportHeaderPDF(doc, opts) {
   opts = opts || {};
   const pw = doc.internal.pageSize.getWidth();
-  const H = 26;
-  // Bandeau sombre + filet de marque
-  doc.setFillColor.apply(doc, REPORT_BRAND.navy);   doc.rect(0, 0, pw, H, 'F');
-  doc.setFillColor.apply(doc, REPORT_BRAND.accent); doc.rect(0, H, pw, 1.2, 'F');
+  const B1 = 19;   // hauteur bande identité
+  const B2 = 10;   // hauteur bande titre (orange)
 
+  // ── Bande 1 : identité société (fond clair de la page, aucun aplat) ──
   let tx = 10;
   if (LOGO_DATAURL) {
-    try { doc.addImage(LOGO_DATAURL, 'PNG', 9, 5, 16, 16); tx = 29; } catch (e) { tx = 10; }
+    try { doc.addImage(LOGO_DATAURL, 'PNG', 10, 3, 14, 14); tx = 28; } catch (e) { tx = 10; }
   }
+  // Ligne 1 : acronyme proéminent
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.setFont(undefined, 'bold'); doc.setFontSize(19);
+  doc.text(REPORT_BRAND.acronym, tx, 11);
+  // Ligne 2 : raison sociale (plus petite, dessous)
+  doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+  doc.setTextColor.apply(doc, REPORT_BRAND.subtle);
+  doc.text(REPORT_BRAND.legalName, tx, 16);
+  // Site (aligné à droite, discret)
+  doc.setFontSize(7.5); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text(REPORT_BRAND.site, pw - 10, 11, { align: 'right' });
 
-  // Marque
-  doc.setTextColor.apply(doc, REPORT_BRAND.accent);
-  doc.setFont(undefined, 'bold'); doc.setFontSize(17);
-  doc.text(REPORT_BRAND.product, tx, 12);
+  // ── Bande 2 : titre du rapport sur bandeau orange mat (#C8632D) ──
+  doc.setFillColor.apply(doc, REPORT_ACCENT);
+  doc.rect(0, B1, pw, B2, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'normal'); doc.setFontSize(6.8);
-  doc.text(REPORT_BRAND.tagline, tx, 16.5);
-  // Titre du rapport
-  doc.setFont(undefined, 'bold'); doc.setFontSize(11);
-  doc.text(String(opts.title || 'Rapport'), tx, 23);
-
-  // Identité (aligné à droite)
-  doc.setFont(undefined, 'normal'); doc.setFontSize(7.2);
-  doc.setTextColor(205, 212, 219);
-  doc.text(REPORT_BRAND.entity, pw - 10, 9.5, { align: 'right' });
-  doc.text(REPORT_BRAND.site,  pw - 10, 13.5, { align: 'right' });
+  doc.setFont(undefined, 'bold'); doc.setFontSize(12.5);
+  doc.text(String(opts.title || 'Rapport'), 12, B1 + 6.7);
+  // Band ID / sous-titre (conservé) — aligné à droite sur le bandeau, quasi-blanc.
   if (opts.subtitle) {
-    doc.setFont(undefined, 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-    doc.text(String(opts.subtitle), pw - 10, 23, { align: 'right' });
+    doc.setFont(undefined, 'normal'); doc.setFontSize(9);
+    doc.setTextColor(255, 240, 232);
+    doc.text(String(opts.subtitle), pw - 10, B1 + 6.7, { align: 'right' });
   }
 
-  // Ligne méta (période / génération) sous le bandeau
-  let y = H + 6.5;
+  // ── Ligne méta (période / génération) — inchangée ──
+  let y = B1 + B2 + 6;
   doc.setFont(undefined, 'normal'); doc.setFontSize(8);
   doc.setTextColor.apply(doc, REPORT_BRAND.muted);
   if (opts.period) doc.text('Période : ' + opts.period, 10, y);
@@ -6382,12 +6394,16 @@ function reportTablePDF(doc, y, headers, widths, rows, opts) {
 }
 
 // En-tête de marque pour une feuille Excel : lignes (AoA) à préfixer à la
-// première feuille. Même structure que l'en-tête PDF.
+// première feuille. Reflète la MÊME structure que l'en-tête PDF : identité
+// société (acronyme + raison sociale) empilée au-dessus du titre du rapport.
+// NB : le build communautaire de SheetJS (xlsx 0.18.5) n'écrit pas les styles
+// de cellule (aplats de couleur) ; le bandeau orange du PDF est donc rendu ici
+// par la STRUCTURE (ligne de titre dédiée), pas par un fond coloré.
 function reportSheetHeaderRows(title, opts) {
   opts = opts || {};
   const rows = [
-    [REPORT_BRAND.product + ' — ' + REPORT_BRAND.entity],
-    [REPORT_BRAND.site],
+    [REPORT_BRAND.acronym],
+    [REPORT_BRAND.legalName],
     [String(title || 'Rapport')]
   ];
   if (opts.subtitle) rows.push([String(opts.subtitle)]);
