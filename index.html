@@ -2618,35 +2618,84 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 'use strict';
 
 // ── Auth ──
-const AUTH_USERS = [
-  { matricule: 'SIVA-001', password: 'stephen2026', name: 'Stephen Aboumrad', role: 'manager' },
-  { matricule: 'SIVA-002', password: 'abbas2026',   name: 'Zahreddine Abbas',  role: 'manager' },
-  { matricule: 'SIVA-003', password: 'mounir2026',  name: 'Démonstration',      role: 'manager' }
-];
-let currentUser = null; // { matricule, name, role }
+// ── Authentification — Supabase Auth (vérification côté serveur) ──
+// L'UX reste « matricule + mot de passe ». En interne, le matricule est
+// traduit en e-mail (siva-001@coqorico.internal) avant signInWithPassword ;
+// l'utilisateur ne voit jamais l'e-mail. L'identité (matricule / nom / rôle)
+// provient de l'utilisateur AUTHENTIFIÉ (app_metadata du JWT, repli sur la
+// table `profiles`) — plus aucun mot de passe en clair côté client.
+const AUTH_EMAIL_DOMAIN = '@coqorico.internal';
+function matriculeToEmail(matricule) {
+  return String(matricule || '').trim().toLowerCase() + AUTH_EMAIL_DOMAIN;
+}
+function emailToMatricule(email) {
+  return String(email || '').split('@')[0].toUpperCase();
+}
+
+let currentUser = null; // { matricule, name, role } — dérivé de la session authentifiée
 
 const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot', 'parametres'];
 const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
 
-function doLogin() {
+async function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
   const password = document.getElementById('login-password').value;
-  console.log('[auth] login button clicked', matricule);
-  // Matricule : comparaison insensible à la casse (identifiant, non secret).
-  // Mot de passe : comparaison stricte.
-  const matriculeUp = matricule.toUpperCase();
-  const user = AUTH_USERS.find(u => u.matricule.toUpperCase() === matriculeUp && u.password === password);
-  if (!user) {
-    document.getElementById('login-error').textContent = 'Matricule ou mot de passe incorrect';
-    return;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!matricule || !password) { errEl.textContent = 'Matricule et mot de passe requis'; return; }
+
+  const btn = document.querySelector('#login-screen button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Connexion…'; }
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: matriculeToEmail(matricule),
+      password
+    });
+    if (error || !data || !data.session) {
+      errEl.textContent = 'Matricule ou mot de passe incorrect';
+      return;
+    }
+    await enterSession(data.session);
+  } catch (e) {
+    errEl.textContent = 'Erreur de connexion. Réessayez.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Connexion'; }
   }
-  currentUser = { matricule: user.matricule, name: user.name, role: user.role };
-  document.getElementById('login-screen').style.display = 'none';
-  applyRoleAccess();
-  init();
 }
 
-function logout() {
+// Résout l'identité (matricule / nom / rôle) depuis la session authentifiée.
+// Priorité : app_metadata (claims du JWT) → table `profiles` → repli sûr
+// (chef_bande, le moins privilégié). Aucun rôle codé en dur côté client.
+async function resolveIdentity(session) {
+  const user = (session && session.user) || {};
+  const meta = user.app_metadata || {};
+  const matricule = meta.matricule ? String(meta.matricule).toUpperCase() : emailToMatricule(user.email);
+  let role = meta.role || null;
+  let name = meta.name || meta.full_name || null;
+  if (!role || !name) {
+    try {
+      const { data } = await sb.from('profiles').select('name, role').eq('matricule', matricule).maybeSingle();
+      if (data) { role = role || data.role; name = name || data.name; }
+    } catch (e) { /* profiles indisponible → repli ci-dessous */ }
+  }
+  return { matricule, name: name || matricule, role: role || 'chef_bande' };
+}
+
+// Entre dans l'app pour une session valide : identité + accès rôle + chargement.
+async function enterSession(session) {
+  currentUser = await resolveIdentity(session);
+  const errEl = document.getElementById('login-error');
+  if (errEl) errEl.textContent = '';
+  const pwd = document.getElementById('login-password');
+  if (pwd) pwd.value = '';
+  document.getElementById('login-screen').style.display = 'none';
+  applyRoleAccess();
+  await init();
+}
+
+async function logout() {
+  // Termine la session côté serveur (révoque/efface le JWT persisté).
+  try { await sb.auth.signOut(); } catch (e) { /* on poursuit le reset UI même si offline */ }
   currentUser = null;
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
   document.getElementById('notif-bell').style.display = 'none';
@@ -2658,6 +2707,9 @@ function logout() {
   document.getElementById('login-error').textContent = '';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('user-badge').style.display = 'none';
+  // Purge du cache local de session : évite que les données d'un utilisateur
+  // restent lisibles pour le suivant sur un appareil partagé.
+  try { localStorage.removeItem('coqorico_cache'); } catch (e) { /* ignore */ }
   // Reset to dashboard
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-dashboard').classList.add('active');
@@ -10436,7 +10488,28 @@ async function init() {
   if (mtbBell) mtbBell.style.display = '';
 }
 
-// Don't auto-init; wait for login
+// ── Restauration de session au chargement (Supabase Auth) ──
+// Si une session valide est persistée (supabase-js la stocke et la rafraîchit
+// automatiquement), on entre directement dans l'app ; sinon l'écran de login
+// reste affiché par défaut. Une expiration / déconnexion (autre onglet) ramène
+// au login. Aucune écriture en base ici — lecture de session uniquement.
+(async function bootAuth() {
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) await enterSession(data.session);
+  } catch (e) { /* pas de session → écran de login conservé */ }
+  try {
+    sb.auth.onAuthStateChange(function (event) {
+      if (event === 'SIGNED_OUT' && currentUser) {
+        currentUser = null;
+        const ls = document.getElementById('login-screen');
+        const ub = document.getElementById('user-badge');
+        if (ls) ls.style.display = 'flex';
+        if (ub) ub.style.display = 'none';
+      }
+    });
+  } catch (e) { /* onAuthStateChange indisponible → ignore */ }
+})();
 </script>
 </body>
 </html>
