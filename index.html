@@ -1994,6 +1994,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Tab 3: Tableau commercial -->
     <div id="cl-tab-commercial" style="display:none;">
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <label for="commercial-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
+        <input type="month" id="commercial-period" title="Période du rapport commercial" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+        <button class="btn btn-outline btn-sm" onclick="exportCommercialPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCommercialExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+      </div>
       <div id="commercial-comparison" class="card" style="margin-bottom:1rem;"></div>
       <div class="commercial-grid">
         <div class="card">
@@ -2019,7 +2025,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <h2 style="margin-bottom:4px;"><i data-lucide="wallet"></i> Trésorerie</h2>
         <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;">Bilan financier — coûts engagés, marges et flux de trésorerie</p>
       </div>
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <label for="treso-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
+        <input type="month" id="treso-period" onchange="initTresoreriePage()" title="Période du bilan" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
         <button class="btn btn-outline btn-sm" onclick="exportBilanPDF()"><i data-lucide="file-text"></i> Bilan PDF</button>
         <button class="btn btn-outline btn-sm" onclick="exportBilanExcel()"><i data-lucide="sheet"></i> Bilan Excel</button>
       </div>
@@ -4939,14 +4947,17 @@ function showCloseBandeModal(bandeId) {
       </div>
       <div class="modal-actions">
         <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
-        <button class="btn btn-gold" onclick="closeBande('${bandeId}')">Clôturer</button>
+        <button class="btn btn-gold" onclick="prepareCloseout('${bandeId}')">Aperçu & clôture</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
 
-async function closeBande(bandeId) {
-  const payload = {
+// Écrit la clôture en base. `payloadArg` fourni par le flux d'aperçu ; sinon
+// (compat) lecture directe du formulaire. Renvoie true si la bande a bien été
+// clôturée (en ligne OU mise en file hors-ligne), false sur erreur réelle.
+async function closeBande(bandeId, payloadArg) {
+  const payload = payloadArg || {
     bande_id: bandeId,
     statut: 'termine',
     date_sortie: document.getElementById('close-date').value,
@@ -4958,21 +4969,156 @@ async function closeBande(bandeId) {
   try {
     await apiPost({ action: 'updateBande', payload });
     const b = STATE.bandes.find(b => b.bande_id === bandeId);
-    Object.assign(b, payload);
+    if (b) Object.assign(b, payload);
     closeModal();
     renderBandes();
     toast('Bande clôturée');
+    return true;
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
       const b = STATE.bandes.find(b => b.bande_id === bandeId);
-      Object.assign(b, payload);
+      if (b) Object.assign(b, payload);
       closeModal();
       renderBandes();
       toast('Bande clôturée (hors ligne — sera synchronisée)', 'success');
+      return true;
     } else {
       toast('Erreur: ' + err.message, 'error');
+      return false;
     }
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Aperçu / confirmation de clôture (étape obligatoire avant écriture) ──
+// La clôture est destructive (fige effectif / poids / prix de sortie). On
+// présente d'abord un aperçu du registre de clôture ; l'utilisateur confirme
+// d'un clic, PUIS on écrit en base et on génère automatiquement le registre.
+// Aucune génération sans clic, jamais de crash sur données partielles.
+// ══════════════════════════════════════════════════════════════════════
+let pendingCloseout = null;
+
+// Point d'entrée UNIFIÉ de la clôture, quelle que soit l'origine (formulaire
+// manuel OU validation d'abattage). La bande n'est écrite qu'après confirmation
+// explicite dans le modal (confirmCloseBande) — jamais d'écriture sans clic.
+// `context.source` ∈ { 'form', 'abattage' } pilote l'affichage et le bouton retour.
+function startCloseoutPreview(bandeId, payload, context) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) { toast('Bande introuvable', 'error'); return; }
+  pendingCloseout = { bandeId, payload, context: context || { source: 'form' } };
+  showCloseoutPreviewModal(bandeId, payload, pendingCloseout.context);
+}
+
+// Origine « formulaire de clôture » : lit le formulaire puis délègue au flux unifié.
+function prepareCloseout(bandeId) {
+  const payload = {
+    bande_id: bandeId,
+    statut: 'termine',
+    date_sortie: document.getElementById('close-date').value || todayStr(),
+    nb_oiseaux_sortie: Number(document.getElementById('close-nb').value) || 0,
+    poids_vif_moyen_sortie_g: Number(document.getElementById('close-poids').value) || 0,
+    prix_vente_carcasse_kg: Number(document.getElementById('close-prix').value) || 0
+  };
+  startCloseoutPreview(bandeId, payload, { source: 'form' });
+}
+
+function showCloseoutPreviewModal(bandeId, payload, context) {
+  context = context || { source: 'form' };
+  const fromAbattage = context.source === 'abattage';
+  const m = buildCloseoutModel(bandeId, payload);
+  if (!m) { toast('Bande introuvable', 'error'); return; }
+  const { bande, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen } = m;
+
+  const row = (label, val) => '<div style="display:flex;justify-content:space-between;gap:1rem;padding:4px 0;border-bottom:1px solid var(--border-subtle);">' +
+    '<span style="color:var(--text-secondary);">' + label + '</span>' +
+    '<strong style="font-variant-numeric:tabular-nums;">' + val + '</strong></div>';
+
+  const margeHtml = eco.margeDisponible
+    ? '<strong style="color:' + ((eco.margeNetteTotale || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)') + ';">' + fmt(eco.margeNetteTotale) + ' FCFA</strong>'
+    : '<span class="badge badge-orange">projetée / non disponible</span>';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML =
+    '<div class="modal" style="max-width:560px;">' +
+      '<h3 style="display:flex;align-items:center;gap:0.4rem;"><i data-lucide="file-check-2"></i> Aperçu du registre de clôture</h3>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem;">' +
+        escHtml(bande.nom_bande || bande.bande_id) + ' — vérifiez les indicateurs avant de clôturer. ' +
+        'La clôture fige les valeurs de sortie ; le registre PDF sera généré automatiquement.' +
+      '</p>' +
+      (fromAbattage ? '<div style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:var(--accent-green);background:var(--color-success-bg);border-left:3px solid var(--accent-green);padding:0.4rem 0.6rem;border-radius:var(--radius-xs);margin-bottom:0.75rem;"><i data-lucide="clipboard-check"></i> Clôture déclenchée par la validation de la session d\'abattage.</div>' : '') +
+      '<div style="font-size:0.85rem;line-height:1.4;">' +
+        row('Effectif initial → final', fmt(effectifInitial) + ' → ' + fmt(effectifFinal)) +
+        row('Taux de mortalité', fmt(ind.tauxMort, 1) + ' %') +
+        row('IC / FCR', ind.ic != null ? fmt(ind.ic, 2) : '—') +
+        row('Poids vif moyen', fmt(poidsMoyen) + ' g') +
+        row('GMQ', ind.gmq != null ? fmt(ind.gmq, 1) + ' g/j' : '—') +
+        row('Rendement abattage', fmt(rend.affiche, 1) + ' % (' + rend.source + ')') +
+        row('Coût total de revient', fmt(eco.coutTotal) + ' FCFA') +
+        row('Coût de revient / kg', eco.coutRevientKg != null ? fmt(eco.coutRevientKg) + ' FCFA/kg' : '—') +
+        row('Marge nette', margeHtml) +
+      '</div>' +
+      (!eco.margeDisponible ? '<div class="alert-bar" style="margin-top:0.75rem;"><i data-lucide="info"></i> Abattage et/ou ventes livrées non enregistrés : la marge sera marquée « projetée » dans le registre.</div>' : '') +
+      '<div class="modal-actions">' +
+        '<button class="btn btn-outline" onclick="closeoutBack()">' + (fromAbattage ? 'Annuler' : 'Retour') + '</button>' +
+        '<button class="btn btn-primary" onclick="confirmCloseBande()"><i data-lucide="check"></i> Confirmer la clôture &amp; générer le registre</button>' +
+      '</div>' +
+    '</div>';
+  closeModal();
+  document.body.appendChild(overlay);
+  refreshIcons();
+}
+
+// Bouton retour du modal d'aperçu : pilote selon l'origine.
+//  • formulaire → rouvre le formulaire de clôture (valeurs restaurées) ;
+//  • abattage   → annule simplement (pas de formulaire à rouvrir, la bande reste ouverte).
+function closeoutBack() {
+  const pc = pendingCloseout;
+  if (pc && pc.context && pc.context.source === 'abattage') {
+    pendingCloseout = null;
+    closeModal();
+    return;
+  }
+  backToCloseForm();
+}
+
+function backToCloseForm() {
+  const pc = pendingCloseout;
+  closeModal();
+  if (!pc) return;
+  showCloseBandeModal(pc.bandeId);
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  set('close-date', pc.payload.date_sortie);
+  set('close-nb', pc.payload.nb_oiseaux_sortie);
+  set('close-poids', pc.payload.poids_vif_moyen_sortie_g);
+  set('close-prix', pc.payload.prix_vente_carcasse_kg);
+}
+
+async function confirmCloseBande() {
+  if (!pendingCloseout) { closeModal(); return; }
+  const { bandeId, payload } = pendingCloseout;
+  const ok = await closeBande(bandeId, payload);
+  pendingCloseout = null;
+  if (ok) {
+    // Génère le registre de clôture depuis l'état désormais persisté.
+    try { generateCloseoutReport(bandeId); } catch (e) { /* exportable manuellement depuis la fiche */ }
+  }
+}
+
+// Émet le « Registre de Bande » (PDF) via le générateur PARTAGÉ exportPDF().
+// Renseigne le select caché #export-bande-select puis délègue — aucune logique
+// de rapport dupliquée.
+function generateCloseoutReport(bandeId) {
+  const sel = document.getElementById('export-bande-select');
+  if (!sel) return;
+  if (!sel.querySelector('option[value="' + bandeId + '"]')) {
+    sel.innerHTML = STATE.bandes.map(b =>
+      '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
+    ).join('');
+  }
+  sel.value = bandeId;
+  exportPDF();
 }
 
 function closeModal() {
@@ -5864,6 +6010,39 @@ function computeBandeFinancials(bande) {
   return computeBandeEconomics(bande.bande_id);
 }
 
+// Rendement d'abattage : réel (Σ carcasse / Σ vif des sessions d'abattage)
+// si disponible, sinon le rendement paramétré sur la bande. Jamais d'exception
+// sur 0/partiel (renvoie {reel:null} et le rendement paramétré).
+function computeRendementAbattage(bandeId) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const abs = STATE.abattages.filter(a => a.bande_id === bandeId);
+  const vif  = abs.reduce((s, a) => s + (Number(a.poids_vif_total_kg) || 0), 0);
+  const carc = abs.reduce((s, a) => s + (Number(a.poids_carcasse_total_kg) || 0), 0);
+  const reel = vif > 0 ? (carc / vif * 100) : null;
+  const config = Number(bande && bande.rendement_carcasse_pct) || 58;
+  return { reel, affiche: reel != null ? reel : config, source: reel != null ? 'réel' : 'paramétré' };
+}
+
+// Modèle de clôture partagé par l'aperçu de clôture ET le registre PDF/Excel.
+// `overrides` (optionnel) superpose les valeurs de sortie saisies dans le modal
+// AVANT écriture en base, pour un aperçu fidèle sans muter l'état. computeIndicators
+// lit les champs de sortie sur l'objet passé → on lui donne une vue clonée.
+// computeBandeEconomics lit, lui, les ventes/abattages réels (indépendants des
+// champs de sortie saisis) → appelé directement par id.
+function buildCloseoutModel(bandeId, overrides) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return null;
+  const view = overrides ? Object.assign({}, bande, overrides) : bande;
+  const ind = computeIndicators(view);
+  const eco = computeBandeEconomics(bandeId);
+  const rend = computeRendementAbattage(bandeId);
+  const effectifInitial = Number(bande.nb_poussins_entree) || 0;
+  const isClosed = view.statut === 'termine';
+  const effectifFinal = isClosed ? (Number(view.nb_oiseaux_sortie) || ind.effectifActuel) : ind.effectifActuel;
+  const poidsMoyen = isClosed ? (Number(view.poids_vif_moyen_sortie_g) || ind.dernierPoids) : ind.dernierPoids;
+  return { bande, view, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen, isClosed };
+}
+
 function initTresoreriePage() {
   // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
@@ -5872,7 +6051,8 @@ function initTresoreriePage() {
   ).join('');
 
   const today = todayStr();
-  const thisMonth = today.slice(0, 7);
+  const thisMonth = getBilanPeriod();              // période sélectionnée (#treso-period), défaut mois courant
+  const periodLabel = frMonthLabel(thisMonth) || thisMonth;
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
 
   // ── Zone 1: KPIs ──
@@ -5888,7 +6068,7 @@ function initTresoreriePage() {
   const margeKgGlobal = totalCarcKg > 0 ? margeEstimee / totalCarcKg : 0;
 
   document.getElementById('treso-kpis').innerHTML =
-    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA encaissé ce mois</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA encaissé — ' + periodLabel + '</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi" style="border-left-color:#FF8C00;"><div class="dk-value" style="color:#FF8C00;">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
@@ -6006,64 +6186,227 @@ function initTresoreriePage() {
   document.getElementById('treso-flux').innerHTML = fluxHtml;
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// ── Gabarit de rapport standardisé (identité SIVA / COQORICO) ──
+// UN seul en-tête / pied de page partagé par TOUS les exports (registre de
+// clôture, bilan trésorerie, commercial), en PDF comme en Excel. Aspect
+// « instrument de pilotage » : bandeau sombre, filet orange de marque,
+// typographie sobre. Aucune nouvelle direction esthétique : on consomme les
+// tokens existants (--color-accent #E2640F, --navbar-bg #11181F, etc.).
+// ══════════════════════════════════════════════════════════════════════
+const REPORT_BRAND = {
+  product: 'COQORICO',
+  entity:  'SIVA — Société Ivoirienne de Volailles et Assimilés',
+  site:    'Les Terres du Sud · Azaguié, Côte d\'Ivoire',
+  tagline: 'Plateforme de pilotage d\'élevage avicole',
+  // RGB alignés sur les tokens CSS de la charte
+  navy:       [17, 24, 31],    // --navbar-bg #11181F
+  accent:     [226, 100, 15],  // --color-accent #E2640F
+  ink:        [15, 24, 34],    // --color-text #0F1822
+  muted:      [138, 149, 161], // --color-text-muted #8A95A1
+  line:       [212, 219, 226], // --color-border #D4DBE2
+  surfaceAlt: [237, 241, 244]  // --color-surface-alt #EDF1F4
+};
+
+const FR_MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+// "2026-06" → "Juin 2026". Tolère null (→ null) et tout autre format (→ tel quel).
+function frMonthLabel(period) {
+  if (!period) return null;
+  const m = /^(\d{4})-(\d{2})$/.exec(String(period));
+  if (!m) return String(period);
+  return FR_MONTHS[parseInt(m[2], 10) - 1] + ' ' + m[1];
+}
+
+// Logo de marque préchargé en dataURL (optionnel). Si l'image n'est pas
+// disponible (test hors-ligne, file://, CORS), l'en-tête se rend SANS logo —
+// jamais d'exception.
+let LOGO_DATAURL = null;
+(function preloadReportLogo(){
+  try {
+    const img = new Image();
+    img.onload = function(){
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth || 96; c.height = img.naturalHeight || 96;
+        c.getContext('2d').drawImage(img, 0, 0);
+        LOGO_DATAURL = c.toDataURL('image/png');
+      } catch (e) { LOGO_DATAURL = null; }
+    };
+    img.onerror = function(){ LOGO_DATAURL = null; };
+    img.src = './assets/siva-logo-mascotte.png';
+  } catch (e) { LOGO_DATAURL = null; }
+})();
+
+// En-tête PDF de marque. Retourne le Y où démarrer le contenu.
+// opts : { title, subtitle, period }
+function reportHeaderPDF(doc, opts) {
+  opts = opts || {};
+  const pw = doc.internal.pageSize.getWidth();
+  const H = 26;
+  // Bandeau sombre + filet de marque
+  doc.setFillColor.apply(doc, REPORT_BRAND.navy);   doc.rect(0, 0, pw, H, 'F');
+  doc.setFillColor.apply(doc, REPORT_BRAND.accent); doc.rect(0, H, pw, 1.2, 'F');
+
+  let tx = 10;
+  if (LOGO_DATAURL) {
+    try { doc.addImage(LOGO_DATAURL, 'PNG', 9, 5, 16, 16); tx = 29; } catch (e) { tx = 10; }
+  }
+
+  // Marque
+  doc.setTextColor.apply(doc, REPORT_BRAND.accent);
+  doc.setFont(undefined, 'bold'); doc.setFontSize(17);
+  doc.text(REPORT_BRAND.product, tx, 12);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'normal'); doc.setFontSize(6.8);
+  doc.text(REPORT_BRAND.tagline, tx, 16.5);
+  // Titre du rapport
+  doc.setFont(undefined, 'bold'); doc.setFontSize(11);
+  doc.text(String(opts.title || 'Rapport'), tx, 23);
+
+  // Identité (aligné à droite)
+  doc.setFont(undefined, 'normal'); doc.setFontSize(7.2);
+  doc.setTextColor(205, 212, 219);
+  doc.text(REPORT_BRAND.entity, pw - 10, 9.5, { align: 'right' });
+  doc.text(REPORT_BRAND.site,  pw - 10, 13.5, { align: 'right' });
+  if (opts.subtitle) {
+    doc.setFont(undefined, 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+    doc.text(String(opts.subtitle), pw - 10, 23, { align: 'right' });
+  }
+
+  // Ligne méta (période / génération) sous le bandeau
+  let y = H + 6.5;
+  doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+  doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  if (opts.period) doc.text('Période : ' + opts.period, 10, y);
+  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, y, { align: 'right' });
+
+  y += 2.5;
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.2);
+  doc.line(10, y, pw - 10, y);
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  return y + 7;
+}
+
+// Pied de page de marque, appliqué à TOUTES les pages. À appeler en dernier.
+function reportFooterPDF(doc) {
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  const total = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    const fy = ph - 9;
+    doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.2);
+    doc.line(10, fy - 3.5, pw - 10, fy - 3.5);
+    doc.setFont(undefined, 'normal'); doc.setFontSize(7);
+    doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text('Document confidentiel — SIVA / Les Terres du Sud · ' + REPORT_BRAND.product, 10, fy);
+    doc.text('Page ' + p + ' / ' + total, pw - 10, fy, { align: 'right' });
+  }
+}
+
+// Petite section titrée homogène (PDF). Retourne le nouveau Y.
+function reportSectionTitlePDF(doc, label, y) {
+  const pw = doc.internal.pageSize.getWidth();
+  doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
+  doc.rect(10, y - 4, pw - 20, 6.5, 'F');
+  doc.setFillColor.apply(doc, REPORT_BRAND.accent);
+  doc.rect(10, y - 4, 1.4, 6.5, 'F');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.setFont(undefined, 'bold'); doc.setFontSize(10.5);
+  doc.text(String(label), 13.5, y + 0.5);
+  doc.setFont(undefined, 'normal');
+  return y + 9;
+}
+
+// En-tête de marque pour une feuille Excel : lignes (AoA) à préfixer à la
+// première feuille. Même structure que l'en-tête PDF.
+function reportSheetHeaderRows(title, opts) {
+  opts = opts || {};
+  const rows = [
+    [REPORT_BRAND.product + ' — ' + REPORT_BRAND.entity],
+    [REPORT_BRAND.site],
+    [String(title || 'Rapport')]
+  ];
+  if (opts.subtitle) rows.push([String(opts.subtitle)]);
+  if (opts.period)   rows.push(['Période', String(opts.period)]);
+  rows.push(['Généré le', new Date().toLocaleString('fr-FR')]);
+  rows.push([]);
+  return rows;
+}
+
+// Largeurs de colonnes + fusions de l'en-tête de marque sur une feuille.
+function applyReportSheetBranding(ws, brandRowCount, ncols) {
+  ncols = Math.max(2, ncols || 2);
+  if (!ws['!cols']) ws['!cols'] = Array.from({ length: ncols }, () => ({ wch: 20 }));
+  ws['!merges'] = ws['!merges'] || [];
+  for (let r = 0; r < Math.min(3, brandRowCount); r++) {
+    ws['!merges'].push({ s: { r: r, c: 0 }, e: { r: r, c: ncols - 1 } });
+  }
+}
+
+// Période sélectionnée pour le bilan trésorerie (sélecteur #treso-period).
+// Par défaut : mois courant. Initialise l'input s'il est vide.
+function getBilanPeriod() {
+  const el = document.getElementById('treso-period');
+  const def = todayStr().slice(0, 7);
+  if (el) {
+    if (!el.value) el.value = def;
+    return el.value;
+  }
+  return def;
+}
+
 // ── Bilan PDF export ──
 function exportBilanPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pw = doc.internal.pageSize.getWidth();
-  const now = new Date();
-  const moisAnnee = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][now.getMonth()] + ' ' + now.getFullYear();
-  let y = 15;
+  const period = getBilanPeriod();
 
-  // Header
-  doc.setFillColor(255, 107, 0);
-  doc.rect(0, 0, pw, 28, 'F');
-  doc.setTextColor(255);
-  doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
-  doc.text('COQORICO', 10, 12);
-  doc.setFontSize(11);
-  doc.text('Bilan Financier — ' + moisAnnee, 10, 22);
-  doc.setFontSize(8);
-  doc.text('Les Terres du Sud — Azaguié', pw - 10, 22, { align: 'right' });
-  y = 35;
+  // En-tête de marque partagé
+  let y = reportHeaderPDF(doc, {
+    title: 'Bilan financier',
+    subtitle: 'Trésorerie',
+    period: frMonthLabel(period)
+  });
 
   // KPIs
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'bold');
-  doc.text('Indicateurs clés', 10, y); y += 6;
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
+  y = reportSectionTitlePDF(doc, 'Indicateurs clés', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
-  const today = todayStr();
-  const thisMonth = today.slice(0, 7);
-  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(period)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   const coutsT = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
 
-  doc.text('CA encaissé ce mois : ' + fmt(caEnc) + ' FCFA', 14, y); y += 5;
-  doc.text('Coûts engagés : ' + fmt(coutsT) + ' FCFA', 14, y); y += 5;
+  doc.text('CA encaissé (' + (frMonthLabel(period) || period) + ') : ' + fmt(caEnc) + ' FCFA', 14, y); y += 5;
+  doc.text('Coûts engagés (cumulés) : ' + fmt(coutsT) + ' FCFA', 14, y); y += 5;
   doc.text('Marge brute estimée : ' + fmt(caEnc - coutsT) + ' FCFA', 14, y); y += 10;
 
   // Table
-  doc.setFont(undefined, 'bold');
-  doc.setFontSize(10);
-  doc.text('Performance par bande', 10, y); y += 6;
-  doc.setFontSize(8);
-  doc.setFont(undefined, 'normal');
+  y = reportSectionTitlePDF(doc, 'Performance par bande', y);
+  doc.setFontSize(8); doc.setFont(undefined, 'normal');
 
   const cols = [10, 45, 75, 105, 135, 165];
-  doc.setFillColor(255, 243, 232);
+  doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
   doc.rect(10, y, pw - 20, 6, 'F');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.setFont(undefined, 'bold');
   ['Bande', 'Oiseaux', 'Coût total', 'CA réalisé', 'Marge', 'Marge/kg'].forEach((h, i) => doc.text(h, cols[i], y + 4));
+  doc.setFont(undefined, 'normal');
   y += 8;
 
+  if (allBF.length === 0) {
+    doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text('Aucune bande enregistrée.', 14, y); y += 5;
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  }
   allBF.forEach(bf => {
-    if (y > 270) { doc.addPage(); y = 15; }
+    if (y > 265) { doc.addPage(); y = 20; }
     const b = bf.bande, f = bf.fin;
     const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
-    doc.text(b.nom_bande, cols[0], y);
+    doc.text(String(b.nom_bande || '—'), cols[0], y);
     doc.text(fmt(nb), cols[1], y);
     doc.text(fmt(f.coutTotal), cols[2], y);
     doc.text(fmt(f.caRealise), cols[3], y);
@@ -6072,12 +6415,8 @@ function exportBilanPDF() {
     y += 5;
   });
 
-  // Footer
-  doc.setFontSize(7);
-  doc.setTextColor(150);
-  doc.text('Document confidentiel — SIVA / Les Terres du Sud — ' + now.toLocaleDateString('fr-FR'), 10, 285);
-
-  doc.save('bilan-financier-' + thisMonth + '.pdf');
+  reportFooterPDF(doc);
+  doc.save('bilan-financier-' + period + '.pdf');
   toast('Bilan PDF généré');
 }
 
@@ -6085,18 +6424,19 @@ function exportBilanPDF() {
 function exportBilanExcel() {
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
   const wb = XLSX.utils.book_new();
-  const today = todayStr();
-  const thisMonth = today.slice(0, 7);
+  const period = getBilanPeriod();
 
-  // Sheet 1: KPIs
-  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  // Sheet 1: KPIs (en-tête de marque partagé)
+  const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(period)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   const coutsT = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
-  const ws1 = XLSX.utils.aoa_to_sheet([
-    ['KPIs Financiers — ' + thisMonth],
-    [], ['CA encaissé ce mois', caEnc],
-    ['Coûts engagés', coutsT],
+  const brand1 = reportSheetHeaderRows('Bilan financier — Trésorerie', { period: frMonthLabel(period) });
+  const ws1 = XLSX.utils.aoa_to_sheet(brand1.concat([
+    ['Indicateurs clés'],
+    ['CA encaissé (' + (frMonthLabel(period) || period) + ')', caEnc],
+    ['Coûts engagés (cumulés)', coutsT],
     ['Marge brute estimée', caEnc - coutsT]
-  ]);
+  ]));
+  applyReportSheetBranding(ws1, brand1.length, 2);
   XLSX.utils.book_append_sheet(wb, ws1, 'KPIs');
 
   // Sheet 2: Par bande
@@ -6124,92 +6464,143 @@ function exportBilanExcel() {
   const ws3 = XLSX.utils.aoa_to_sheet(ws3Data);
   XLSX.utils.book_append_sheet(wb, ws3, 'Flux mensuel');
 
-  XLSX.writeFile(wb, 'bilan-financier-' + thisMonth + '.xlsx');
+  XLSX.writeFile(wb, 'bilan-financier-' + period + '.xlsx');
   toast('Excel exporté');
 }
 
-// ── PDF Export ──
+// ── PDF Export — Registre de Bande (sert aussi de rapport de clôture) ──
+// Générateur PARTAGÉ : export manuel depuis la fiche ET rapport automatique
+// émis à la clôture (voir generateCloseoutReport). Capture tout le cycle de
+// vie : identification, indicateurs (effectif initial/final, mortalité, IC,
+// poids, GMQ, rendement abattage), bilan économique (coût de revient/kg, P&L
+// depuis computeBandeEconomics), journalier, intrants. Résilient sur données
+// partielles : marge marquée « projetée / non disponible », jamais de crash.
 function exportPDF() {
   const bandeId = document.getElementById('export-bande-select').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
 
-  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
-  const ind = computeIndicators(bande);
+  const model = buildCloseoutModel(bandeId);
+  if (!model) { toast('Bande introuvable', 'error'); return; }
+  const { bande, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen, isClosed } = model;
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pw = doc.internal.pageSize.getWidth();
-  let y = 15;
 
   function checkPage(needed) {
-    if (y + needed > 280) { doc.addPage(); y = 15; }
+    if (y + needed > 275) { doc.addPage(); y = 20; }
   }
 
-  // Header
-  doc.setFillColor(230, 81, 0);
-  doc.rect(0, 0, pw, 28, 'F');
-  doc.setTextColor(255, 143, 0);
-  doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
-  doc.text('COQORICO', 10, 12);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
-  doc.text('Registre de Bande — ' + bande.nom_bande, 10, 22);
-  doc.setFontSize(8);
-  doc.text('Les Terres du Sud — Azaguié, Côte d\'Ivoire', pw - 10, 22, { align: 'right' });
-
-  y = 35;
-  doc.setTextColor(0, 0, 0);
+  const periodTxt = fmtDate(bande.date_entree) + ' → ' + (bande.date_sortie ? fmtDate(bande.date_sortie) : 'en cours');
+  let y = reportHeaderPDF(doc, {
+    title: 'Registre de Bande',
+    subtitle: bande.nom_bande || bande.bande_id,
+    period: periodTxt
+  });
 
   // Section 1: Identification
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text('1. Identification de la bande', 10, y);
-  y += 7;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
+  y = reportSectionTitlePDF(doc, '1. Identification de la bande', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
   const infoLines = [
-    `Nom: ${bande.nom_bande}`,
+    `Nom: ${bande.nom_bande || '—'}  ·  Bâtiment: ${bande.batiment || '—'}`,
     `Date d'entrée: ${fmtDate(bande.date_entree)}`,
     `Poussins: ${fmt(bande.nb_poussins_entree)} — Fournisseur: ${bande.fournisseur_poussins || '—'}`,
     `Prix poussin: ${fmt(bande.prix_poussin_unitaire)} FCFA — Poids initial: ${bande.poids_initial_moyen_g || 42} g`,
-    `Coût aliment: ${fmt(bande.cout_aliment_kg)} FCFA/kg — Rendement carcasse: ${bande.rendement_carcasse_pct || 58}%`,
-    `Statut: ${bande.statut === 'en_cours' ? 'En cours' : 'Terminée'}${bande.date_sortie ? ' — Sortie: ' + fmtDate(bande.date_sortie) : ''}`
+    `Coût aliment: ${fmt(bande.cout_aliment_kg)} FCFA/kg — Rendement carcasse paramétré: ${bande.rendement_carcasse_pct || 58}%`,
+    `Statut: ${isClosed ? 'Terminée' : 'En cours'}${bande.date_sortie ? ' — Sortie: ' + fmtDate(bande.date_sortie) : ''}`
   ];
   infoLines.forEach(l => { doc.text(l, 12, y); y += 5; });
 
-  // Section 2: Indicateurs
+  // Section 2: Indicateurs de cycle de vie
   y += 4;
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text('2. Résumé des indicateurs', 10, y);
-  y += 7;
-  doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
+  y = reportSectionTitlePDF(doc, '2. Résumé des indicateurs (cycle de vie)', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
   const indLines = [
-    `Effectif actuel: ${fmt(ind.effectifActuel)} — Mortalité: ${fmt(ind.mortCum)} (${fmt(ind.tauxMort,1)}%)`,
-    `Aliment total: ${fmt(ind.alimentTotal, 1)} kg — IC: ${ind.ic != null ? fmt(ind.ic, 2) : '—'}`,
-    `Poids vif moyen: ${fmt(ind.dernierPoids)} g — GMQ: ${fmt(ind.gmq, 1)} g/j`,
-    `Poids carcasse estimé: ${fmt(ind.poidsCarcasse)} g`,
-    `Marge brute: ${fmt(ind.margeBrute)} FCFA — Marge/kg: ${fmt(ind.margeParKg)} FCFA/kg`
+    `Effectif initial: ${fmt(effectifInitial)} — Effectif final: ${fmt(effectifFinal)}`,
+    `Taux de mortalité: ${fmt(ind.tauxMort, 1)}% (${fmt(ind.mortCum)} oiseaux)`,
+    `Aliment total: ${fmt(ind.alimentTotal, 1)} kg — IC / FCR: ${ind.ic != null ? fmt(ind.ic, 2) : '—'}`,
+    `Poids vif moyen: ${fmt(poidsMoyen)} g — GMQ: ${ind.gmq != null ? fmt(ind.gmq, 1) + ' g/j' : '—'}`,
+    `Rendement abattage: ${fmt(rend.affiche, 1)}% (${rend.source}) — Poids carcasse estimé: ${fmt(ind.poidsCarcasse)} g`
   ];
   indLines.forEach(l => { doc.text(l, 12, y); y += 5; });
 
-  // Section 3: Tableau journalier
+  // Section 3: Bilan économique de clôture (réutilise computeBandeEconomics)
+  y += 4;
+  checkPage(60);
+  y = reportSectionTitlePDF(doc, '3. Bilan économique de clôture', y);
+  doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
+  // Décomposition des coûts
+  const ec = [10, 110, 165];
+  doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
+  doc.rect(10, y - 3.5, pw - 20, 5.5, 'F');
+  doc.setFont(undefined, 'bold');
+  doc.text('Poste de coût', ec[0] + 1, y);
+  doc.text('Montant (FCFA)', ec[1], y);
+  doc.text('%', ec[2], y);
+  doc.setFont(undefined, 'normal');
+  y += 6;
+  (eco.breakdown || []).forEach(c => {
+    checkPage(6);
+    doc.text(String(c.label), ec[0] + 1, y);
+    doc.text(fmt(c.montant), ec[1], y);
+    doc.text(fmt(c.pct, 1) + ' %', ec[2], y);
+    y += 4.5;
+  });
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.2);
+  doc.line(10, y - 1, pw - 20, y - 1);
+  doc.setFont(undefined, 'bold');
+  doc.text('Coût total de revient', ec[0] + 1, y + 2.5);
+  doc.text(fmt(eco.coutTotal) + ' FCFA', ec[1], y + 2.5);
+  doc.setFont(undefined, 'normal');
+  y += 9;
+
+  // Ratios & P&L
+  const carcLabel = eco.carcasseReelle ? 'réelle (abattage)' : 'projetée (pesées × rendement)';
+  const ecoLines = [
+    `Carcasse produite: ${fmt(eco.carcasseKg, 1)} kg — ${carcLabel}`,
+    `Coût de revient / kg carcasse: ${eco.coutRevientKg != null ? fmt(eco.coutRevientKg) + ' FCFA/kg' : '— (carcasse non disponible)'}`,
+    `CA réalisé (ventes livrées): ${fmt(eco.caRealise)} FCFA — kg vendus: ${fmt(eco.kgVendus, 1)} kg`,
+    `Prix de cession / kg: ${eco.prixCessionKg != null ? fmt(eco.prixCessionKg) + ' FCFA/kg' : '—'}`
+  ];
+  ecoLines.forEach(l => { checkPage(5); doc.text(l, 12, y); y += 5; });
+
+  // Marge — réelle seulement si abattage ET ventes ; sinon "projetée / non disponible"
+  checkPage(8);
+  doc.setFont(undefined, 'bold');
+  if (eco.margeDisponible) {
+    const positif = (eco.margeNetteTotale || 0) >= 0;
+    if (positif) doc.setTextColor(14, 124, 74); else doc.setTextColor(200, 51, 43); // vert succès / rouge danger
+    doc.text(`Marge nette: ${fmt(eco.margeNetteTotale)} FCFA` +
+             (eco.margeNetteKg != null ? `  —  Marge nette / kg: ${fmt(eco.margeNetteKg)} FCFA/kg` : ''), 12, y);
+    y += 6;
+  } else {
+    doc.setTextColor(183, 121, 31);
+    doc.text('Marge nette: projetée / non disponible', 12, y); y += 5;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+    doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text('Abattage et/ou ventes livrées non encore enregistrés — seul le coût engagé (' + fmt(eco.coutEngage) + ' FCFA) est disponible.', 12, y);
+    y += 5;
+  }
+  doc.setFont(undefined, 'normal'); doc.setFontSize(9);
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
+  // Section 4: Tableau journalier
   y += 4;
   checkPage(20);
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text('3. Tableau journalier', 10, y);
-  y += 6;
+  y = reportSectionTitlePDF(doc, '4. Tableau journalier', y);
 
   if (ind.saisies.length > 0) {
     const cols = ['Date', 'Jour', 'Mort.', 'Cum.', 'Effectif', 'Alim.', 'IC', 'Poids', 'GMQ'];
     const colW = [22, 12, 12, 12, 18, 16, 14, 16, 14];
     let x = 10;
 
-    doc.setFillColor(240, 240, 240);
+    doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
     doc.rect(10, y - 3.5, colW.reduce((a, b) => a + b, 0), 5, 'F');
     doc.setFontSize(7);
     doc.setFont(undefined, 'bold');
@@ -6237,13 +6628,10 @@ function exportPDF() {
     y += 5;
   }
 
-  // Section 4: Intrants
+  // Section 5: Intrants
   y += 4;
   checkPage(15);
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text('4. Registre des intrants', 10, y);
-  y += 6;
+  y = reportSectionTitlePDF(doc, '5. Registre des intrants', y);
 
   if (ind.intrants.length > 0) {
     const typeLabels = { vaccin: 'Vaccin', medicament: 'Médic.', vitamine: 'Vit.', autre: 'Autre' };
@@ -6251,7 +6639,7 @@ function exportPDF() {
     const iColW = [25, 18, 50, 25, 25];
     let x = 10;
 
-    doc.setFillColor(240, 240, 240);
+    doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
     doc.rect(10, y - 3.5, iColW.reduce((a, b) => a + b, 0), 5, 'F');
     doc.setFontSize(7);
     doc.setFont(undefined, 'bold');
@@ -6278,22 +6666,8 @@ function exportPDF() {
     doc.text('Aucun intrant enregistré', 12, y);
   }
 
-  // Footer on each page
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setFontSize(7);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(120, 120, 120);
-    const footerY = doc.internal.pageSize.getHeight() - 8;
-    doc.text(
-      `Document généré le ${new Date().toLocaleDateString('fr-FR')} — COQORICO — Plateforme de Gestion d'Élevage Intensif`,
-      pw / 2, footerY, { align: 'center' }
-    );
-    doc.text(`Page ${p}/${totalPages}`, pw - 10, footerY, { align: 'right' });
-  }
-
-  doc.save(`Registre_${bande.nom_bande}.pdf`);
+  reportFooterPDF(doc);
+  doc.save(`Registre_${(bande.nom_bande || bande.bande_id || 'bande')}.pdf`);
   toast('PDF généré');
 }
 
@@ -6302,11 +6676,45 @@ function exportExcel() {
   const bandeId = document.getElementById('export-bande-select').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
 
-  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
-  const ind = computeIndicators(bande);
+  const model = buildCloseoutModel(bandeId);
+  if (!model) { toast('Bande introuvable', 'error'); return; }
+  const { bande, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen } = model;
   const wb = XLSX.utils.book_new();
+  const periodTxt = fmtDate(bande.date_entree) + ' → ' + (bande.date_sortie ? fmtDate(bande.date_sortie) : 'en cours');
 
-  // Sheet 1: Données journalières
+  // Sheet 1: Synthèse (en-tête de marque partagé + indicateurs de cycle de vie)
+  const brand = reportSheetHeaderRows('Registre de Bande', { subtitle: bande.nom_bande || bande.bande_id, period: periodTxt });
+  const synthData = brand.concat([
+    ['Indicateurs (cycle de vie)'],
+    ['Effectif initial', effectifInitial],
+    ['Effectif final', effectifFinal],
+    ['Taux de mortalité (%)', Math.round(ind.tauxMort * 10) / 10],
+    ['Aliment total (kg)', Math.round(ind.alimentTotal * 10) / 10],
+    ['IC / FCR', ind.ic != null ? Math.round(ind.ic * 100) / 100 : '—'],
+    ['Poids vif moyen (g)', Math.round(poidsMoyen)],
+    ['GMQ (g/j)', ind.gmq != null ? Math.round(ind.gmq * 10) / 10 : '—'],
+    ['Rendement abattage (%)', Math.round(rend.affiche * 10) / 10 + ' (' + rend.source + ')'],
+    ['Poids carcasse estimé (g)', Math.round(ind.poidsCarcasse)],
+    [],
+    ['Bilan économique de clôture'],
+    ['Coût poussins (FCFA)', Math.round(eco.coutPoussins)],
+    ['Coût aliment (FCFA)', Math.round(eco.coutAliment)],
+    ['Coût intrants / véto (FCFA)', Math.round(eco.coutIntrants)],
+    ['Coût abattage (FCFA)', Math.round(eco.coutAbattage)],
+    ['COÛT TOTAL DE REVIENT (FCFA)', Math.round(eco.coutTotal)],
+    ['Carcasse produite (kg)', Math.round(eco.carcasseKg * 10) / 10 + (eco.carcasseReelle ? ' (réelle)' : ' (projetée)')],
+    ['Coût de revient / kg (FCFA)', eco.coutRevientKg != null ? Math.round(eco.coutRevientKg) : '—'],
+    ['CA réalisé (FCFA)', Math.round(eco.caRealise)],
+    ['Kg vendus (kg)', Math.round(eco.kgVendus * 10) / 10],
+    ['Prix de cession / kg (FCFA)', eco.prixCessionKg != null ? Math.round(eco.prixCessionKg) : '—'],
+    ['Marge nette (FCFA)', eco.margeDisponible ? Math.round(eco.margeNetteTotale) : 'projetée / non disponible'],
+    ['Marge nette / kg (FCFA)', eco.margeNetteKg != null ? Math.round(eco.margeNetteKg) : '—']
+  ]);
+  const ws0 = XLSX.utils.aoa_to_sheet(synthData);
+  applyReportSheetBranding(ws0, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
+
+  // Sheet 2: Données journalières
   const dailyHeaders = [
     'Date', 'Jour', 'Mortalité jour', 'Mortalité cumulée', 'Taux mortalité %',
     'Effectif', 'Aliment jour (kg)', 'Aliment cumulé (kg)',
@@ -6324,28 +6732,7 @@ function exportExcel() {
   const ws1 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyData]);
   XLSX.utils.book_append_sheet(wb, ws1, 'Données journalières');
 
-  // Sheet 2: Résumé financier
-  const finData = [
-    ['RÉSUMÉ FINANCIER — ' + bande.nom_bande],
-    [],
-    ['Produit brut (FCFA)', ind.produitBrut],
-    ['Coût poussins (FCFA)', ind.coutPoussins],
-    ['Coût aliment (FCFA)', ind.coutAliment],
-    ['Coût intrants (FCFA)', ind.coutIntrants],
-    [],
-    ['MARGE BRUTE (FCFA)', ind.margeBrute],
-    ['Marge/kg carcasse (FCFA)', Math.round(ind.margeParKg)],
-    [],
-    ['Nb oiseaux vendus', ind.nbSortie],
-    ['Poids carcasse moyen (g)', Math.round(ind.poidsCarcasseSortie)],
-    ['Total carcasse (kg)', Math.round(ind.totalCarcasseKg * 10) / 10],
-    ['IC final', ind.ic != null ? Math.round(ind.ic * 100) / 100 : ''],
-    ['Taux mortalité (%)', Math.round(ind.tauxMort * 10) / 10]
-  ];
-  const ws2 = XLSX.utils.aoa_to_sheet(finData);
-  XLSX.utils.book_append_sheet(wb, ws2, 'Résumé financier');
-
-  XLSX.writeFile(wb, `COQORICO_${bande.nom_bande}.xlsx`);
+  XLSX.writeFile(wb, `COQORICO_${(bande.nom_bande || bande.bande_id || 'bande')}.xlsx`);
   toast('Excel généré');
 }
 
@@ -8453,6 +8840,118 @@ function renderCommercialDashboard() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// ── Rapport commercial (PDF / Excel) — gabarit de marque partagé ──
+// Réutilise reportHeaderPDF / reportFooterPDF / reportSheetHeaderRows.
+// Période sélectionnée via #commercial-period (défaut : mois courant).
+// ══════════════════════════════════════════════════════════════════════
+function getCommercialPeriod() {
+  const el = document.getElementById('commercial-period');
+  const def = todayStr().slice(0, 7);
+  if (el) { if (!el.value) el.value = def; return el.value; }
+  return def;
+}
+
+// Agrège les données commerciales d'une période (mois). Résilient sur 0 ligne.
+function computeCommercialReport(period) {
+  const cmds = STATE.commandes.filter(c => c.date_commande && c.date_commande.startsWith(period));
+  const livrees = cmds.filter(c => c.statut === 'livree');
+  const ca = livrees.reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const idsLivrees = new Set(livrees.map(c => c.commande_id));
+  const lignes = STATE.lignesCommande.filter(l => idsLivrees.has(l.commande_id));
+  const kg = lignes.reduce((s, l) => s + (Number(l.quantite_kg) || 0), 0);
+
+  const clientCA = {};
+  livrees.forEach(c => {
+    const cl = STATE.clients.find(x => x.client_id === c.client_id);
+    const name = cl ? cl.nom : '?';
+    clientCA[name] = (clientCA[name] || 0) + (Number(c.montant_total_fcfa) || 0);
+  });
+  const topClients = Object.entries(clientCA).sort((a, b) => b[1] - a[1]);
+
+  const prodLabels = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: 'Autre' };
+  const produitCA = {};
+  lignes.forEach(l => {
+    const k = l.produit || 'autre';
+    produitCA[k] = (produitCA[k] || 0) + (Number(l.montant_fcfa) || 0);
+  });
+  const produits = Object.entries(produitCA).sort((a, b) => b[1] - a[1]).map(([k, v]) => [prodLabels[k] || k, v]);
+
+  const statutCounts = {};
+  cmds.forEach(c => { statutCounts[c.statut] = (statutCounts[c.statut] || 0) + 1; });
+  const statuts = Object.entries(statutCounts).map(([k, v]) => [CMD_STATUTS[k] || k, v]);
+
+  return { ca, kg, nb: cmds.length, topClients, produits, statuts };
+}
+
+function exportCommercialPDF() {
+  const period = getCommercialPeriod();
+  const r = computeCommercialReport(period);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  let y = reportHeaderPDF(doc, { title: 'Rapport commercial', subtitle: 'Ventes & clients', period: frMonthLabel(period) });
+  function checkPage(n) { if (y + n > 275) { doc.addPage(); y = 20; } }
+
+  // Synthèse
+  y = reportSectionTitlePDF(doc, 'Synthèse de la période', y);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  doc.text('CA réalisé (commandes livrées) : ' + fmt(r.ca) + ' FCFA', 12, y); y += 5;
+  doc.text('Commandes : ' + fmt(r.nb) + '   —   Kg vendus : ' + fmt(r.kg, 1) + ' kg', 12, y); y += 9;
+
+  const listSection = (title, rows, fmtVal, emptyMsg) => {
+    checkPage(18);
+    y = reportSectionTitlePDF(doc, title, y);
+    doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
+    if (!rows || rows.length === 0) {
+      doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+      doc.text(emptyMsg, 12, y); y += 6;
+      doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+      return;
+    }
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    rows.forEach((row, i) => {
+      checkPage(6);
+      doc.text(String(row[0]).substring(0, 48), 12, y);
+      doc.text(fmtVal(row[1]), 150, y);
+      y += 4.5;
+    });
+    y += 4;
+  };
+
+  listSection('Top clients (CA livré)', r.topClients.slice(0, 10), v => fmt(v) + ' FCFA', 'Aucune vente livrée sur la période.');
+  listSection('Répartition par produit', r.produits, v => fmt(v) + ' FCFA', 'Aucune ligne de vente sur la période.');
+  listSection('Commandes par statut', r.statuts, v => fmt(v), 'Aucune commande sur la période.');
+
+  reportFooterPDF(doc);
+  doc.save('rapport-commercial-' + period + '.pdf');
+  toast('Rapport commercial PDF généré');
+}
+
+function exportCommercialExcel() {
+  const period = getCommercialPeriod();
+  const r = computeCommercialReport(period);
+  const wb = XLSX.utils.book_new();
+  const brand = reportSheetHeaderRows('Rapport commercial', { subtitle: 'Ventes & clients', period: frMonthLabel(period) });
+  const data = brand.concat([
+    ['Synthèse de la période'],
+    ['CA réalisé (livré, FCFA)', Math.round(r.ca)],
+    ['Commandes', r.nb],
+    ['Kg vendus', Math.round(r.kg * 10) / 10],
+    [],
+    ['Top clients (CA livré)'],
+    ['Client', 'CA (FCFA)']
+  ]).concat(r.topClients.map(([name, ca]) => [name, Math.round(ca)]))
+    .concat([[], ['Répartition par produit'], ['Produit', 'CA (FCFA)']])
+    .concat(r.produits.map(([name, ca]) => [name, Math.round(ca)]))
+    .concat([[], ['Commandes par statut'], ['Statut', 'Nombre']])
+    .concat(r.statuts.map(([name, n]) => [name, n]));
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  applyReportSheetBranding(ws, brand.length, 2);
+  XLSX.utils.book_append_sheet(wb, ws, 'Commercial');
+  XLSX.writeFile(wb, 'rapport-commercial-' + period + '.xlsx');
+  toast('Rapport commercial Excel généré');
+}
+
 // ── Commande alerts for dashboard ──
 function getCommandeAlerts() {
   const alerts = [];
@@ -8632,9 +9131,11 @@ async function validateAbattage(id) {
     Object.assign(a, payload);
     renderAbattageDetail();
     toast('Session validée');
-    // Prompt batch closure
+    // Proposition de clôture — via le MÊME flux unifié que le formulaire :
+    // aperçu + confirmation explicite ; l'écriture en base et le registre sont
+    // gérés par confirmCloseBande (aucune écriture sans clic).
     const bande = STATE.bandes.find(b => b.bande_id === a.bande_id && b.statut === 'en_cours');
-    if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
+    if (bande) {
       const closurePayload = {
         bande_id: bande.bande_id,
         statut: 'termine',
@@ -8642,11 +9143,7 @@ async function validateAbattage(id) {
         nb_oiseaux_sortie: a.nb_oiseaux_abattus,
         poids_vif_moyen_sortie_g: Math.round((Number(a.poids_vif_moyen_kg) || 0) * 1000)
       };
-      try {
-        await apiPost({ action: 'updateBande', payload: closurePayload });
-        Object.assign(bande, closurePayload);
-        toast('Bande clôturée');
-      } catch (e) { Object.assign(bande, closurePayload); toast('Clôturé (hors ligne)'); }
+      startCloseoutPreview(bande.bande_id, closurePayload, { source: 'abattage' });
     }
   } catch (err) {
     Object.assign(a, payload);
@@ -8854,11 +9351,11 @@ async function submitAbattage(statut) {
       toast('Session enregistrée');
       if (statut === 'valide') {
         const bande = STATE.bandes.find(b => b.bande_id === bandeId && b.statut === 'en_cours');
-        if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
-          const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round(payload.poids_vif_moyen_kg * 1000) };
-          try { await apiPost({ action: 'updateBande', payload: cp }); } catch(e) {}
-          Object.assign(bande, cp);
-          toast('Bande clôturée');
+        if (bande) {
+          // Clôture via le flux unifié (aperçu + confirmation explicite) — pas
+          // d'écriture ni de registre avant le clic de confirmation.
+          const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round((Number(payload.poids_vif_moyen_kg) || 0) * 1000) };
+          startCloseoutPreview(bande.bande_id, cp, { source: 'abattage' });
         }
       }
     }
