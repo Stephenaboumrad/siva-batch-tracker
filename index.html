@@ -8588,26 +8588,19 @@ function generateBonLivraison(cmdId) {
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  const pw = doc.internal.pageSize.getWidth();
 
-  // Header
-  doc.setFontSize(20);
-  doc.setTextColor(230, 81, 0);
-  doc.text('COQORICO', 14, 20);
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text('COQORICO — Plateforme de Gestion d\'Elevage Intensif', 14, 26);
-  doc.text('Les Terres du Sud — Azaguié', 14, 30);
-
-  doc.setFontSize(14);
-  doc.setTextColor(0);
-  doc.text('BON DE LIVRAISON', 120, 20);
-
-  doc.setFontSize(9);
-  doc.text('N° : ' + cmdId.slice(-8).toUpperCase(), 120, 28);
-  doc.text('Date : ' + fmtDate(cmd.date_livraison_souhaitee || cmd.date_commande), 120, 33);
+  // En-tête de marque PARTAGÉ (identité S.I.V.A + bandeau de titre orange #C8632D).
+  let y = reportHeaderPDF(doc, {
+    title: 'Bon de livraison',
+    subtitle: 'N° ' + cmdId.slice(-8).toUpperCase()
+  });
+  doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('Date : ' + fmtDate(cmd.date_livraison_souhaitee || cmd.date_commande), pw - 14, y, { align: 'right' });
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
   // Client info
-  let y = 45;
+  y += 4;
   doc.setFontSize(10);
   doc.setTextColor(0);
   doc.text('Client :', 14, y);
@@ -8674,10 +8667,8 @@ function generateBonLivraison(cmdId) {
   doc.line(14, y + 20, 80, y + 20);
   doc.line(120, y + 20, 196, y + 20);
 
-  // Footer
-  doc.setFontSize(7);
-  doc.setTextColor(150);
-  doc.text('COQORICO — Document généré le ' + new Date().toLocaleDateString('fr-FR'), 14, 285);
+  // Pied de page de marque partagé.
+  reportFooterPDF(doc);
 
   doc.save('bon-livraison-' + cmdId.slice(-8) + '.pdf');
   toast('PDF généré');
@@ -10323,12 +10314,12 @@ function exportBulletinsPDF() {
   paiesMois.forEach((p, idx) => {
     if (idx > 0) doc.addPage();
     const e = STATE.employes.find(x => x.employe_id === p.employe_id);
-    doc.setFillColor(255,107,0); doc.rect(0,0,pw,22,'F');
-    doc.setTextColor(255); doc.setFontSize(16); doc.setFont(undefined,'bold');
-    doc.text('COQORICO — SIVA', 10, 14);
-    doc.setFontSize(9); doc.text('Bulletin de paie — ' + moisLabel, pw-10, 14, {align:'right'});
-
-    let y = 32;
+    // En-tête de marque PARTAGÉ (identité S.I.V.A + bandeau de titre orange #C8632D).
+    let y = reportHeaderPDF(doc, {
+      title: 'Bulletin de paie',
+      subtitle: e ? ((e.prenom || '') + ' ' + (e.nom || '')).trim() : '',
+      period: frMonthLabel(moisLabel)
+    });
     doc.setTextColor(0); doc.setFontSize(10); doc.setFont(undefined,'bold');
     doc.text('Employé : ' + (e ? (e.prenom||'') + ' ' + e.nom : '?'), 10, y); y += 6;
     doc.setFont(undefined,'normal'); doc.setFontSize(9);
@@ -10352,11 +10343,13 @@ function exportBulletinsPDF() {
     });
 
     y += 15;
+    doc.setTextColor(0); doc.setFontSize(9); doc.setFont(undefined, 'normal');
     doc.text('Signature : Lu et approuvé', 14, y);
     doc.line(14, y+15, 80, y+15);
-    doc.setFontSize(7); doc.setTextColor(150);
-    doc.text('COQORICO — Document confidentiel', 10, 285);
   });
+
+  // Pied de page de marque partagé (toutes les pages).
+  reportFooterPDF(doc);
 
   doc.save('bulletins-paie-' + mois + '.pdf');
   toast('Bulletins PDF générés');
