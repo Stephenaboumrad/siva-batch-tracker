@@ -4998,9 +4998,19 @@ async function closeBande(bandeId, payloadArg) {
 // ══════════════════════════════════════════════════════════════════════
 let pendingCloseout = null;
 
-function prepareCloseout(bandeId) {
+// Point d'entrée UNIFIÉ de la clôture, quelle que soit l'origine (formulaire
+// manuel OU validation d'abattage). La bande n'est écrite qu'après confirmation
+// explicite dans le modal (confirmCloseBande) — jamais d'écriture sans clic.
+// `context.source` ∈ { 'form', 'abattage' } pilote l'affichage et le bouton retour.
+function startCloseoutPreview(bandeId, payload, context) {
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   if (!bande) { toast('Bande introuvable', 'error'); return; }
+  pendingCloseout = { bandeId, payload, context: context || { source: 'form' } };
+  showCloseoutPreviewModal(bandeId, payload, pendingCloseout.context);
+}
+
+// Origine « formulaire de clôture » : lit le formulaire puis délègue au flux unifié.
+function prepareCloseout(bandeId) {
   const payload = {
     bande_id: bandeId,
     statut: 'termine',
@@ -5009,11 +5019,12 @@ function prepareCloseout(bandeId) {
     poids_vif_moyen_sortie_g: Number(document.getElementById('close-poids').value) || 0,
     prix_vente_carcasse_kg: Number(document.getElementById('close-prix').value) || 0
   };
-  pendingCloseout = { bandeId, payload };
-  showCloseoutPreviewModal(bandeId, payload);
+  startCloseoutPreview(bandeId, payload, { source: 'form' });
 }
 
-function showCloseoutPreviewModal(bandeId, payload) {
+function showCloseoutPreviewModal(bandeId, payload, context) {
+  context = context || { source: 'form' };
+  const fromAbattage = context.source === 'abattage';
   const m = buildCloseoutModel(bandeId, payload);
   if (!m) { toast('Bande introuvable', 'error'); return; }
   const { bande, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen } = m;
@@ -5036,6 +5047,7 @@ function showCloseoutPreviewModal(bandeId, payload) {
         escHtml(bande.nom_bande || bande.bande_id) + ' — vérifiez les indicateurs avant de clôturer. ' +
         'La clôture fige les valeurs de sortie ; le registre PDF sera généré automatiquement.' +
       '</p>' +
+      (fromAbattage ? '<div style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:var(--accent-green);background:var(--color-success-bg);border-left:3px solid var(--accent-green);padding:0.4rem 0.6rem;border-radius:var(--radius-xs);margin-bottom:0.75rem;"><i data-lucide="clipboard-check"></i> Clôture déclenchée par la validation de la session d\'abattage.</div>' : '') +
       '<div style="font-size:0.85rem;line-height:1.4;">' +
         row('Effectif initial → final', fmt(effectifInitial) + ' → ' + fmt(effectifFinal)) +
         row('Taux de mortalité', fmt(ind.tauxMort, 1) + ' %') +
@@ -5049,13 +5061,26 @@ function showCloseoutPreviewModal(bandeId, payload) {
       '</div>' +
       (!eco.margeDisponible ? '<div class="alert-bar" style="margin-top:0.75rem;"><i data-lucide="info"></i> Abattage et/ou ventes livrées non enregistrés : la marge sera marquée « projetée » dans le registre.</div>' : '') +
       '<div class="modal-actions">' +
-        '<button class="btn btn-outline" onclick="backToCloseForm()">Retour</button>' +
+        '<button class="btn btn-outline" onclick="closeoutBack()">' + (fromAbattage ? 'Annuler' : 'Retour') + '</button>' +
         '<button class="btn btn-primary" onclick="confirmCloseBande()"><i data-lucide="check"></i> Confirmer la clôture &amp; générer le registre</button>' +
       '</div>' +
     '</div>';
   closeModal();
   document.body.appendChild(overlay);
   refreshIcons();
+}
+
+// Bouton retour du modal d'aperçu : pilote selon l'origine.
+//  • formulaire → rouvre le formulaire de clôture (valeurs restaurées) ;
+//  • abattage   → annule simplement (pas de formulaire à rouvrir, la bande reste ouverte).
+function closeoutBack() {
+  const pc = pendingCloseout;
+  if (pc && pc.context && pc.context.source === 'abattage') {
+    pendingCloseout = null;
+    closeModal();
+    return;
+  }
+  backToCloseForm();
 }
 
 function backToCloseForm() {
@@ -9106,9 +9131,11 @@ async function validateAbattage(id) {
     Object.assign(a, payload);
     renderAbattageDetail();
     toast('Session validée');
-    // Prompt batch closure
+    // Proposition de clôture — via le MÊME flux unifié que le formulaire :
+    // aperçu + confirmation explicite ; l'écriture en base et le registre sont
+    // gérés par confirmCloseBande (aucune écriture sans clic).
     const bande = STATE.bandes.find(b => b.bande_id === a.bande_id && b.statut === 'en_cours');
-    if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
+    if (bande) {
       const closurePayload = {
         bande_id: bande.bande_id,
         statut: 'termine',
@@ -9116,13 +9143,7 @@ async function validateAbattage(id) {
         nb_oiseaux_sortie: a.nb_oiseaux_abattus,
         poids_vif_moyen_sortie_g: Math.round((Number(a.poids_vif_moyen_kg) || 0) * 1000)
       };
-      try {
-        await apiPost({ action: 'updateBande', payload: closurePayload });
-        Object.assign(bande, closurePayload);
-        toast('Bande clôturée');
-      } catch (e) { Object.assign(bande, closurePayload); toast('Clôturé (hors ligne)'); }
-      // Émet automatiquement le registre de clôture (même générateur partagé).
-      try { generateCloseoutReport(bande.bande_id); } catch (e) { /* exportable depuis la fiche */ }
+      startCloseoutPreview(bande.bande_id, closurePayload, { source: 'abattage' });
     }
   } catch (err) {
     Object.assign(a, payload);
@@ -9330,13 +9351,11 @@ async function submitAbattage(statut) {
       toast('Session enregistrée');
       if (statut === 'valide') {
         const bande = STATE.bandes.find(b => b.bande_id === bandeId && b.statut === 'en_cours');
-        if (bande && confirm('Clôturer la bande ' + bande.nom_bande + ' maintenant ?')) {
-          const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round(payload.poids_vif_moyen_kg * 1000) };
-          try { await apiPost({ action: 'updateBande', payload: cp }); } catch(e) {}
-          Object.assign(bande, cp);
-          toast('Bande clôturée');
-          // Émet automatiquement le registre de clôture (même générateur partagé).
-          try { generateCloseoutReport(bande.bande_id); } catch (e) { /* exportable depuis la fiche */ }
+        if (bande) {
+          // Clôture via le flux unifié (aperçu + confirmation explicite) — pas
+          // d'écriture ni de registre avant le clic de confirmation.
+          const cp = { bande_id: bande.bande_id, statut: 'termine', date_sortie: payload.date_abattage, nb_oiseaux_sortie: payload.nb_oiseaux_abattus, poids_vif_moyen_sortie_g: Math.round((Number(payload.poids_vif_moyen_kg) || 0) * 1000) };
+          startCloseoutPreview(bande.bande_id, cp, { source: 'abattage' });
         }
       }
     }
