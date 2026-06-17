@@ -2730,6 +2730,18 @@ const ACTION_MAP = {
 let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
+// ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
+// Clé métier de la ligne `sites` seedée par la migration (« Les Terres du Sud
+// — Azaguié »). Les colonnes site_id ajoutées aux tables existantes sont
+// NULLABLE et portent ce DEFAULT côté base ; aucune nouvelle table n'est
+// chargée et aucune nouvelle colonne n'est écrite par l'app → l'app reste
+// fonctionnelle AVANT comme APRÈS l'exécution de la migration.
+const DEFAULT_SITE_ID = 'site-azaguie';
+// Tolérance en lecture pour le futur code multi-sites : renvoie le site d'une
+// ligne, avec repli sur le site par défaut si la colonne est absente (migration
+// non encore jouée) ou nulle (ligne héritée non encore backfillée).
+function siteOf(row) { return (row && row.site_id) || DEFAULT_SITE_ID; }
+
 // ── Cycle & performance constants ──
 const TARGET_CARCASS_WEIGHT_G = 1200;  // Poids carcasse cible : 1,2 kg
 const TARGET_CARCASS_YIELD_PCT = 58;
