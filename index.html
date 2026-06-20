@@ -303,7 +303,7 @@ body::before {
 /* ── Status semantic colors ── */
 .status-nominal { color: var(--c-forest-600); }
 .status-watch { color: var(--c-amber-600); }
-.status-alert { color: var(--c-orange-600); }
+.status-alert { color: var(--c-orange-700); } /* a11y: darker orange for AA on white (small text) */
 .status-critical { color: var(--c-red-600); }
 .pip-nominal { background: var(--c-forest-500); }
 .pip-watch { background: var(--c-amber-500); }
@@ -623,10 +623,13 @@ body::before {
 .btn:hover { transform:translateY(-1px); }
 .btn:active { transform:translateY(0) scale(0.97); transition-duration:.06s; }
 .btn-primary {
-  background:linear-gradient(135deg, var(--c-orange-500) 0%, var(--c-orange-600) 100%);
+  /* a11y: darkened to --c-orange-700→800 so white text reaches WCAG AA (≥4.5:1) on white surfaces */
+  background:linear-gradient(135deg, var(--c-orange-700) 0%, var(--c-orange-800) 100%);
   color:#fff; box-shadow:0 2px 8px rgba(234,88,12,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 .btn-primary:hover { box-shadow:0 4px 20px rgba(234,88,12,0.35), inset 0 1px 0 rgba(255,255,255,0.1); }
+/* Dark theme (SCADA console): keep the existing mid-orange button — the darkening above is for AA on white only */
+[data-theme="dark"] .btn-primary { background:linear-gradient(135deg, var(--c-orange-500) 0%, var(--c-orange-600) 100%); }
 .btn-gold {
   background:linear-gradient(135deg, var(--c-amber-500), var(--c-amber-600));
   color:#fff; box-shadow:0 2px 8px rgba(180,83,9,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
@@ -643,6 +646,9 @@ body::before {
 }
 .btn-danger:hover { box-shadow:0 4px 16px rgba(220,38,38,0.3); }
 .btn-sm { padding:5px 12px; font-size:11px; min-height:28px; border-radius:var(--radius-xs); }
+
+/* Saisie Terrain save wrapper — inline on desktop, becomes a sticky full-width bar on mobile (see ≤768px block) */
+.saisie-save-bar { margin-top:1.25rem; display:flex; gap:0.5rem; }
 
 /* ══════════════ TABLES ══════════════ */
 .table-wrap { overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--border-subtle); background:var(--card-bg); box-shadow:var(--shadow-sm); }
@@ -682,7 +688,8 @@ tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--s
   border:1px solid rgba(255,255,255,0.05);
 }
 #toast.show { transform:translateY(0) scale(1); opacity:1; }
-#toast.success { background:linear-gradient(135deg, var(--c-orange-500), var(--c-orange-700)); }
+#toast.success { background:linear-gradient(135deg, var(--c-orange-700), var(--c-orange-800)); } /* a11y: AA white-on-orange */
+[data-theme="dark"] #toast.success { background:linear-gradient(135deg, var(--c-orange-500), var(--c-orange-700)); } /* keep existing dark-theme toast */
 #toast.error { background:linear-gradient(135deg, #EF4444, #991B1B); }
 
 /* ── Spinner ── */
@@ -1098,7 +1105,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 #mobile-top-bar .mtb-logo {
   font-family:var(--sans); font-size:14px; font-weight:700;
-  letter-spacing:0.12em; color:var(--c-orange-600);
+  letter-spacing:0.12em; color:var(--c-orange-700); /* a11y: darker orange for AA at 14px bold */
 }
 #mobile-top-bar .mtb-actions { display:flex; align-items:center; gap:8px; }
 #mobile-top-bar .mtb-btn {
@@ -1191,6 +1198,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   }
   #main h2 { font-size:18px; margin-bottom:var(--space-3); }
 
+  /* a11y: enlarge persistent micro-text for arm's-length phone reading (mobile only; desktop sizes unchanged) */
+  #bottom-tab-bar .tab-item { font-size:12px; }                 /* was 10px */
+  .dash-kpi .dk-label, .kpi-card .kpi-label { font-size:12px; } /* KPI captions, were 9px */
+  .sidebar-badge, .hdr-alert-badge, .status-badge { font-size:11px; } /* alert/status badges, were 9–10px */
+  .sla-title { font-size:11px; }                                /* micro section header, was 8px */
+
   /* Grid layouts → mobile */
   .form-row { grid-template-columns:1fr; }
   .dash-grid { grid-template-columns:1fr; }
@@ -1228,7 +1241,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   /* Tables — touch-friendly */
   th, td { padding:10px 10px; font-size:12px; }
-  th { font-size:9px; }
+  th { font-size:11px; } /* a11y: readable header on phone (was 9px) */
 
   /* Touch targets ≥ 44px */
   .btn { min-height:48px; padding:12px 18px; font-size:14px; border-radius:var(--radius-sm); }
@@ -1277,18 +1290,20 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   /* Chart containers full width */
   .chart-container { height:220px; }
 
-  /* Sticky FAB for saisie */
-  .saisie-fab {
-    position:fixed; bottom:calc(var(--bottom-bar-h) + 16px + env(safe-area-inset-bottom));
-    right:16px; z-index:90;
-    width:56px; height:56px; border-radius:50%;
-    background:linear-gradient(135deg, var(--c-orange-500), var(--c-orange-600));
-    color:#fff; border:none; font-size:24px; cursor:pointer;
-    box-shadow:0 4px 20px rgba(234,88,12,0.35);
-    display:flex; align-items:center; justify-content:center;
-    transition:all .15s var(--ease);
+  /* Saisie Terrain — sticky full-width "Enregistrer" save bar, pinned above the bottom tab bar */
+  .saisie-save-bar {
+    position:fixed; left:0; right:0;
+    bottom:calc(var(--bottom-bar-h) + env(safe-area-inset-bottom));
+    z-index:90; margin:0; padding:8px var(--space-4);
+    background:var(--card-bg); border-top:1px solid var(--border-subtle);
+    box-shadow:0 -4px 20px rgba(11,17,22,0.08);
   }
-  .saisie-fab:active { transform:scale(0.9); }
+  .saisie-save-bar .btn-primary { width:100%; min-height:56px; font-size:16px; }
+  /* Reserve space so the last fields/recent list clear the fixed save bar */
+  #page-saisie { padding-bottom:88px; }
+  /* Saisie tap targets ≥48px: inline header report controls + small action buttons */
+  #saisie-report-bande, #saisie-report-period { min-height:48px; }
+  #page-saisie .btn-sm { min-height:48px; }
 }
 
 /* ── Tablet breakpoint ── */
@@ -1731,7 +1746,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         </div>
       </div>
 
-      <div style="margin-top:1.25rem;display:flex;gap:0.5rem;">
+      <div class="saisie-save-bar">
         <button class="btn btn-primary" onclick="submitSaisie()" id="btn-submit-saisie">Enregistrer</button>
       </div>
     </div>
