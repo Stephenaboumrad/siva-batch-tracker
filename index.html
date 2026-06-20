@@ -17,11 +17,11 @@
 <title>COQORICO — Gestion Avicole SIVA</title>
 
 <!-- CDN Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@1.21.0"></script>
+<!-- jsPDF (2.5.1) + xlsx (0.18.5) are lazy-loaded on first export, not on page load — see loadScript / ensureJsPDF / ensureXLSX -->
+
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -1864,7 +1864,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Flow indicator -->
     <div class="sc-flow" id="sc-flow">
-      <span class="sc-flow-chip" onclick="switchSupplyTab('fournisseurs')"><i data-lucide="factory"></i> Fournisseur</span>
+      <span class="sc-flow-chip active" onclick="switchSupplyTab('fournisseurs')"><i data-lucide="factory"></i> Fournisseur</span>
       <span class="sc-flow-arrow">→</span>
       <span class="sc-flow-chip" onclick="switchSupplyTab('receptions')"><i data-lucide="package"></i> Réception</span>
       <span class="sc-flow-arrow">→</span>
@@ -1873,15 +1873,6 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="sc-flow-chip" onclick="switchSupplyTab('stocks')"><i data-lucide="boxes"></i> Stock</span>
       <span class="sc-flow-arrow">→</span>
       <span class="sc-flow-chip" onclick="switchSupplyTab('formulations')"><i data-lucide="wheat"></i> Formulation</span>
-    </div>
-
-    <!-- Tabs bar -->
-    <div id="supply-tabs" class="tabs" style="margin-bottom:1.25rem;">
-      <button class="tab-btn active" onclick="switchSupplyTab('fournisseurs',this)">Fournisseurs</button>
-      <button class="tab-btn" onclick="switchSupplyTab('receptions',this)">Réceptions</button>
-      <button class="tab-btn" onclick="switchSupplyTab('inspections',this)">Inspections</button>
-      <button class="tab-btn" onclick="switchSupplyTab('stocks',this)">Stocks</button>
-      <button class="tab-btn" onclick="switchSupplyTab('formulations',this)">Formulations</button>
     </div>
 
     <!-- Tab 1: Fournisseurs -->
@@ -2631,6 +2622,27 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- ═══════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
+
+// ── Lazy loader for heavy export libs (jsPDF / xlsx) ──
+// These ~hundreds-of-KB libs are only needed when a user triggers a PDF/Excel export,
+// so they are injected on demand and cached (fetched at most once per page session).
+const _scriptPromises = {};
+function loadScript(url) {
+  if (_scriptPromises[url]) return _scriptPromises[url];
+  _scriptPromises[url] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { delete _scriptPromises[url]; reject(new Error('Échec du chargement de ' + url)); };
+    document.head.appendChild(s);
+  });
+  return _scriptPromises[url];
+}
+const JSPDF_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const XLSX_CDN  = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+function ensureJsPDF() { return loadScript(JSPDF_CDN); }
+function ensureXLSX()  { return loadScript(XLSX_CDN); }
 
 // ── Auth ──
 // ── Authentification — Supabase Auth (vérification côté serveur) ──
@@ -6505,7 +6517,8 @@ function getBilanPeriod() {
 }
 
 // ── Bilan PDF export ──
-function exportBilanPDF() {
+async function exportBilanPDF() {
+  await ensureJsPDF();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
   const pw = doc.internal.pageSize.getWidth();
@@ -6568,7 +6581,8 @@ function exportBilanPDF() {
 }
 
 // ── Bilan Excel export ──
-function exportBilanExcel() {
+async function exportBilanExcel() {
+  await ensureXLSX();
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
   const wb = XLSX.utils.book_new();
   const period = getBilanPeriod();
@@ -6622,7 +6636,8 @@ function exportBilanExcel() {
 // poids, GMQ, rendement abattage), bilan économique (coût de revient/kg, P&L
 // depuis computeBandeEconomics), journalier, intrants. Résilient sur données
 // partielles : marge marquée « projetée / non disponible », jamais de crash.
-function exportPDF() {
+async function exportPDF() {
+  await ensureJsPDF();
   const bandeId = document.getElementById('export-bande-select').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
 
@@ -6819,7 +6834,8 @@ function exportPDF() {
 }
 
 // ── Excel Export ──
-function exportExcel() {
+async function exportExcel() {
+  await ensureXLSX();
   const bandeId = document.getElementById('export-bande-select').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
 
@@ -7776,18 +7792,14 @@ function initSupplyPage() {
   switchSupplyTab('fournisseurs');
 }
 
-function switchSupplyTab(tab, btn) {
+function switchSupplyTab(tab) {
   currentSupplyTab = tab;
   const tabs = ['fournisseurs','receptions','inspections','stocks','formulations'];
   tabs.forEach(t => {
     const el = document.getElementById('sc-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
-  // Update tab buttons
-  document.querySelectorAll('#supply-tabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', tabs[i] === tab);
-  });
-  // Update flow chips
+  // Update flow chips (the single Supply nav affordance)
   document.querySelectorAll('#sc-flow .sc-flow-chip').forEach((c, i) => {
     c.classList.toggle('active', tabs[i] === tab);
   });
@@ -8649,7 +8661,8 @@ async function submitCommande() {
 }
 
 // ── Bon de livraison PDF ──
-function generateBonLivraison(cmdId) {
+async function generateBonLivraison(cmdId) {
+  await ensureJsPDF();
   const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
   if (!cmd) return;
   const client = STATE.clients.find(c => c.client_id === cmd.client_id);
@@ -9022,7 +9035,8 @@ function computeCommercialReport(period) {
   return { ca, kg, nb: cmds.length, topClients, produits, statuts };
 }
 
-function exportCommercialPDF() {
+async function exportCommercialPDF() {
+  await ensureJsPDF();
   const period = getCommercialPeriod();
   const r = computeCommercialReport(period);
   const { jsPDF } = window.jspdf;
@@ -9065,7 +9079,8 @@ function exportCommercialPDF() {
   toast('Rapport commercial PDF généré');
 }
 
-function exportCommercialExcel() {
+async function exportCommercialExcel() {
+  await ensureXLSX();
   const period = getCommercialPeriod();
   const r = computeCommercialReport(period);
   const wb = XLSX.utils.book_new();
@@ -9131,7 +9146,8 @@ function computeDailiesReport(bandeId, period) {
   return { bande, ind, rows, mortP, alimP, eauP, eauAlimP };
 }
 
-function exportDailiesPDF() {
+async function exportDailiesPDF() {
+  await ensureJsPDF();
   ensureDailiesBandeSelect();
   const sel = document.getElementById('saisie-report-bande');
   const bandeId = sel ? sel.value : '';
@@ -9173,7 +9189,8 @@ function exportDailiesPDF() {
   toast('Rapport quotidien PDF généré');
 }
 
-function exportDailiesExcel() {
+async function exportDailiesExcel() {
+  await ensureXLSX();
   ensureDailiesBandeSelect();
   const sel = document.getElementById('saisie-report-bande');
   const bandeId = sel ? sel.value : '';
@@ -9250,7 +9267,8 @@ function computeAbattageReport(period) {
   return { sessions, agg, bandeName, sessCost };
 }
 
-function exportAbattagePDF() {
+async function exportAbattagePDF() {
+  await ensureJsPDF();
   const period = getAbattagePeriod();
   const r = computeAbattageReport(period);
   const { jsPDF } = window.jspdf;
@@ -9289,7 +9307,8 @@ function exportAbattagePDF() {
   toast('Rapport abattage PDF généré');
 }
 
-function exportAbattageExcel() {
+async function exportAbattageExcel() {
+  await ensureXLSX();
   const period = getAbattagePeriod();
   const r = computeAbattageReport(period);
   const a = r.agg;
@@ -9363,7 +9382,8 @@ function computeStocksReport() {
   return { items, valorisation, nbAlerte, perems, nbPerem };
 }
 
-function exportStocksPDF() {
+async function exportStocksPDF() {
+  await ensureJsPDF();
   const r = computeStocksReport();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -9391,7 +9411,8 @@ function exportStocksPDF() {
   toast('Rapport stocks PDF généré');
 }
 
-function exportStocksExcel() {
+async function exportStocksExcel() {
+  await ensureXLSX();
   const r = computeStocksReport();
   const wb = XLSX.utils.book_new();
   const brand = reportSheetHeaderRows('État des stocks', { subtitle: 'Supply Chain' });
@@ -9446,7 +9467,8 @@ function computeDashboardReport() {
   return { active, perBande, totalOiseaux, avgIP, alerts, echeances };
 }
 
-function exportDashboardPDF() {
+async function exportDashboardPDF() {
+  await ensureJsPDF();
   const r = computeDashboardReport();
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -9479,7 +9501,8 @@ function exportDashboardPDF() {
   toast('Snapshot dashboard PDF généré');
 }
 
-function exportDashboardExcel() {
+async function exportDashboardExcel() {
+  await ensureXLSX();
   const r = computeDashboardReport();
   const wb = XLSX.utils.book_new();
   const brand = reportSheetHeaderRows('Synthèse — Tableau de bord', { subtitle: 'Vue d\'ensemble' });
@@ -10371,7 +10394,8 @@ async function markPaiePaye(paieId) {
   Object.assign(p, payload); renderPaies(); toast('Paie marquée payée');
 }
 
-function exportBulletinsPDF() {
+async function exportBulletinsPDF() {
+  await ensureJsPDF();
   const mois = document.getElementById('rh-paie-mois').value; if (!mois) return;
   const paiesMois = STATE.paies.filter(p => p.mois === mois);
   if (paiesMois.length === 0) { toast('Aucune fiche pour ce mois', 'error'); return; }
