@@ -1993,6 +1993,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="tab-btn active" onclick="switchClientsTab('commandes',this)">Commandes</button>
       <button class="tab-btn" onclick="switchClientsTab('clients',this)">Clients</button>
       <button class="tab-btn" onclick="switchClientsTab('commercial',this)">Tableau commercial</button>
+      <button class="tab-btn manager-only" onclick="switchClientsTab('catalogue',this)">Catalogue</button>
     </div>
 
     <!-- Tab 1: Commandes -->
@@ -2050,6 +2051,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div style="position:relative;height:280px;"><canvas id="chart-statuts"></canvas></div>
         </div>
       </div>
+    </div>
+
+    <!-- Tab 4: Catalogue (manager-only) -->
+    <div id="cl-tab-catalogue" class="manager-only" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <h3 style="font-size:1rem;color:var(--primary-dark);">Catalogue produits</h3>
+        <button class="btn btn-primary manager-only" onclick="showProduitModal()">+ Nouveau produit</button>
+      </div>
+      <div id="catalogue-list"></div>
     </div>
   </div>
 
@@ -2454,6 +2464,42 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: Produit (catalogue) -->
+<div id="produit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3><i data-lucide="package"></i> <span id="produit-modal-title">Nouveau produit</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom</label><input type="text" id="prd-nom" placeholder="Ex. Cuisse de poulet"></div>
+      <div class="form-group"><label>Catégorie</label>
+        <select id="prd-categorie">
+          <option value="poulet_entier">Poulet entier</option>
+          <option value="decoupe">Découpe</option>
+          <option value="abats">Abats</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Calibre (optionnel)</label><input type="text" id="prd-calibre" placeholder="Ex. 1100-1300 g"></div>
+      <div class="form-group"><label>Prix / kg (FCFA)</label><input type="number" id="prd-prix" min="0" step="1" placeholder="Ex. 2000" inputmode="numeric"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Ordre d'affichage</label><input type="number" id="prd-ordre" min="0" step="1" value="0" inputmode="numeric"></div>
+      <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-top:1.6rem;">
+        <input type="checkbox" id="prd-disponible" style="width:auto;">
+        <label for="prd-disponible" style="margin:0;">Disponible (visible au catalogue client)</label>
+      </div>
+    </div>
+    <div class="form-group"><label>Description (optionnel)</label><textarea id="prd-description" rows="2" placeholder="Remarques…" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div class="form-group"><label>URL image (optionnel)</label><input type="text" id="prd-image" placeholder="https://…"></div>
+    <div id="prd-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeProduitModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitProduit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -2850,11 +2896,15 @@ const ACTION_MAP = {
   deleteDepenseRH:    { table: 'depenses_rh',     op: 'delete', idField: 'depense_id' },
   // Notifications
   addNotification:    { table: 'notifications',   op: 'insert' },
-  updateNotification: { table: 'notifications',   op: 'update', idField: 'notif_id' }
+  updateNotification: { table: 'notifications',   op: 'update', idField: 'notif_id' },
+  // Catalogue produits
+  addProduit:         { table: 'produits',        op: 'insert' },
+  updateProduit:      { table: 'produits',        op: 'update', idField: 'produit_id' },
+  deleteProduit:      { table: 'produits',        op: 'delete', idField: 'produit_id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -3071,7 +3121,8 @@ const ALL_TABLES = [
   ['employes',        'employes'],
   ['paies',           'paies'],
   ['depenses_rh',     'depensesRH'],
-  ['notifications',   'notifications']
+  ['notifications',   'notifications'],
+  ['produits',        'produits']
 ];
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
@@ -3314,6 +3365,7 @@ async function loadAllData() {
     STATE.paies = data.paies || [];
     STATE.depensesRH = data.depensesRH || [];
     STATE.notifications = data.notifications || [];
+    STATE.produits = data.produits || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières si la table est vide (rarement utilisé : déjà seedé en SQL)
@@ -3328,7 +3380,7 @@ async function loadAllData() {
         stocks: STATE.stocks, clients: STATE.clients, commandes: STATE.commandes,
         lignesCommande: STATE.lignesCommande, abattages: STATE.abattages,
         employes: STATE.employes, paies: STATE.paies, depensesRH: STATE.depensesRH,
-        notifications: STATE.notifications, cachedAt: new Date().toISOString()
+        notifications: STATE.notifications, produits: STATE.produits, cachedAt: new Date().toISOString()
       }));
     } catch (e) { /* localStorage full */ }
     hideOfflineBanner();
@@ -3355,6 +3407,7 @@ async function loadAllData() {
       STATE.paies = cached.paies || [];
       STATE.depensesRH = cached.depensesRH || [];
       STATE.notifications = cached.notifications || [];
+      STATE.produits = cached.produits || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -8408,17 +8461,18 @@ function initClientsPage() {
 
 function switchClientsTab(tab, btn) {
   currentClientsTab = tab;
-  ['commandes','clients','commercial'].forEach(t => {
+  ['commandes','clients','commercial','catalogue'].forEach(t => {
     const el = document.getElementById('cl-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#clients-tabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['commandes','clients','commercial'][i] === tab);
+    b.classList.toggle('active', ['commandes','clients','commercial','catalogue'][i] === tab);
   });
   switch (tab) {
     case 'commandes': renderCommandes(); break;
     case 'clients': renderClientsList(); break;
     case 'commercial': renderCommercialDashboard(); break;
+    case 'catalogue': renderCatalogue(); break;
   }
 }
 
@@ -8907,6 +8961,162 @@ async function toggleClientStatut(id) {
     c.statut = newStatut;
     renderClientsList();
     toast('Mis à jour (hors ligne)');
+  }
+}
+
+// ══════════════════════════════
+// ── Catalogue produits (manager-only) ──
+// ══════════════════════════════
+
+const PRODUIT_CATEGORIES = { poulet_entier: 'Poulet entier', decoupe: 'Découpe', abats: 'Abats', autre: 'Autre' };
+let editingProduitId = null;
+function produitCategorieLabel(c) { return PRODUIT_CATEGORIES[c] || c || '—'; }
+
+function renderCatalogue() {
+  const container = document.getElementById('catalogue-list');
+  if (!container) return;
+  const produits = STATE.produits.slice().sort((a, b) =>
+    ((a.ordre_affichage || 0) - (b.ordre_affichage || 0)) || (a.nom || '').localeCompare(b.nom || ''));
+  if (produits.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="package"></i></div><p>Aucun produit au catalogue. Cliquez « + Nouveau produit ».</p></div>';
+    return;
+  }
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
+    '<th>Nom</th><th>Catégorie</th><th>Calibre</th><th>Prix/kg (FCFA)</th><th>Disponible</th><th>Ordre</th><th>Actions</th>' +
+    '</tr></thead><tbody>';
+  produits.forEach(p => {
+    const dispo = p.disponible === true;
+    html += '<tr class="' + (dispo ? '' : 'row-inactive') + '">' +
+      '<td><strong>' + (p.nom || '—') + '</strong></td>' +
+      '<td>' + produitCategorieLabel(p.categorie) + '</td>' +
+      '<td>' + (p.calibre || '—') + '</td>' +
+      '<td><strong>' + fmt(Number(p.prix_base_kg_fcfa) || 0) + '</strong></td>' +
+      '<td><button class="btn btn-sm ' + (dispo ? 'btn-primary' : 'btn-outline') + '" onclick="toggleProduitDisponible(\'' + p.produit_id + '\')">' + (dispo ? 'Disponible' : 'Masqué') + '</button></td>' +
+      '<td>' + (p.ordre_affichage || 0) + '</td>' +
+      '<td>' +
+        '<button class="btn btn-outline btn-sm" onclick="editProduit(\'' + p.produit_id + '\')">Modifier</button> ' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteProduit(\'' + p.produit_id + '\')">Suppr.</button>' +
+      '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function showProduitModal() {
+  editingProduitId = null;
+  document.getElementById('produit-modal-title').textContent = 'Nouveau produit';
+  document.getElementById('prd-nom').value = '';
+  document.getElementById('prd-categorie').value = 'decoupe';
+  document.getElementById('prd-calibre').value = '';
+  document.getElementById('prd-prix').value = '';
+  document.getElementById('prd-disponible').checked = false;
+  document.getElementById('prd-ordre').value = '0';
+  document.getElementById('prd-description').value = '';
+  document.getElementById('prd-image').value = '';
+  const m = document.getElementById('prd-msg'); if (m) m.textContent = '';
+  document.getElementById('produit-modal').style.display = 'flex';
+}
+
+function editProduit(id) {
+  const p = STATE.produits.find(x => x.produit_id === id);
+  if (!p) return;
+  editingProduitId = id;
+  document.getElementById('produit-modal-title').textContent = 'Modifier le produit';
+  document.getElementById('prd-nom').value = p.nom || '';
+  document.getElementById('prd-categorie').value = p.categorie || 'decoupe';
+  document.getElementById('prd-calibre').value = p.calibre || '';
+  document.getElementById('prd-prix').value = (p.prix_base_kg_fcfa != null ? p.prix_base_kg_fcfa : '');
+  document.getElementById('prd-disponible').checked = p.disponible === true;
+  document.getElementById('prd-ordre').value = (p.ordre_affichage != null ? p.ordre_affichage : 0);
+  document.getElementById('prd-description').value = p.description || '';
+  document.getElementById('prd-image').value = p.image_url || '';
+  const m = document.getElementById('prd-msg'); if (m) m.textContent = '';
+  document.getElementById('produit-modal').style.display = 'flex';
+}
+
+function closeProduitModal() { document.getElementById('produit-modal').style.display = 'none'; }
+
+async function submitProduit() {
+  const nom = document.getElementById('prd-nom').value.trim();
+  const prix = Number(document.getElementById('prd-prix').value) || 0;
+  const disponible = document.getElementById('prd-disponible').checked;
+  const msg = document.getElementById('prd-msg');
+  if (msg) msg.textContent = '';
+  if (!nom) { if (msg) msg.textContent = 'Le nom est requis.'; return; }
+  // Règle UI (aucune contrainte DB) : pas de publication sans prix/kg > 0.
+  if (disponible && !(prix > 0)) {
+    if (msg) msg.textContent = 'Renseignez un prix/kg > 0 avant de rendre le produit disponible.';
+    return;
+  }
+  const fields = {
+    nom: nom,
+    categorie: document.getElementById('prd-categorie').value,
+    calibre: document.getElementById('prd-calibre').value.trim() || null,
+    prix_base_kg_fcfa: prix,
+    disponible: disponible,
+    ordre_affichage: Number(document.getElementById('prd-ordre').value) || 0,
+    description: document.getElementById('prd-description').value.trim() || null,
+    image_url: document.getElementById('prd-image').value.trim() || null
+  };
+  const isEdit = !!editingProduitId;
+  const action = isEdit ? 'updateProduit' : 'addProduit';
+  const payload = isEdit ? Object.assign({ produit_id: editingProduitId }, fields)
+                         : Object.assign({ produit_id: 'prd-' + uuid() }, fields);
+  const applyLocal = () => {
+    if (isEdit) { const p = STATE.produits.find(x => x.produit_id === editingProduitId); if (p) Object.assign(p, fields); }
+    else { STATE.produits.push(payload); }
+  };
+  const btn = document.querySelector('#produit-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await apiPost({ action: action, payload: payload });
+    applyLocal();
+    closeProduitModal();
+    if (currentClientsTab === 'catalogue') renderCatalogue();
+    toast(isEdit ? 'Produit mis à jour' : 'Produit ajouté');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      applyLocal();
+      closeProduitModal();
+      if (currentClientsTab === 'catalogue') renderCatalogue();
+      toast('Enregistré (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+}
+
+async function toggleProduitDisponible(id) {
+  const p = STATE.produits.find(x => x.produit_id === id);
+  if (!p) return;
+  const next = !(p.disponible === true);
+  // Règle UI : interdire la publication sans prix/kg > 0.
+  if (next && !(Number(p.prix_base_kg_fcfa) > 0)) {
+    toast('Renseignez un prix/kg > 0 avant de publier ce produit', 'error');
+    return;
+  }
+  try {
+    await apiPost({ action: 'updateProduit', payload: { produit_id: id, disponible: next } });
+    p.disponible = next;
+    renderCatalogue();
+    toast(next ? 'Produit publié (disponible)' : 'Produit masqué');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      p.disponible = next; renderCatalogue(); toast('Mis à jour (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
+  }
+}
+
+async function deleteProduit(id) {
+  if (!confirm('Supprimer ce produit du catalogue ?')) return;
+  try {
+    await apiPost({ action: 'deleteProduit', payload: { produit_id: id } });
+    STATE.produits = STATE.produits.filter(p => p.produit_id !== id);
+    renderCatalogue();
+    toast('Produit supprimé');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) {
+      STATE.produits = STATE.produits.filter(p => p.produit_id !== id); renderCatalogue(); toast('Supprimé (hors ligne)');
+    } else { toast('Erreur : ' + err.message, 'error'); }
   }
 }
 
