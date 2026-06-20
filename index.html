@@ -1531,12 +1531,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="plus-sheet-overlay" onclick="closePlusSheet()">
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <a href="#" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
-    <a href="#" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
-    <a href="#" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
-    <a href="#" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
-    <a href="#" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
-    <a href="#" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
+    <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
+    <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
+    <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
+    <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
+    <a href="#" data-page="tresorerie" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
+    <a href="#" data-page="parametres" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
   </div>
 </div>
 
@@ -2665,8 +2665,17 @@ function emailToMatricule(email) {
 
 let currentUser = null; // { matricule, name, role } — dérivé de la session authentifiée
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'iot', 'parametres'];
+// 'tresorerie' réservé aux managers (chef_bande ne doit JAMAIS voir la trésorerie).
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
 const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
+
+// Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
+function rolePages() {
+  return (currentUser && currentUser.role === 'manager') ? MANAGER_PAGES : CHEF_BANDE_PAGES;
+}
+function roleAllowsPage(page) {
+  return rolePages().includes(page);
+}
 
 async function doLogin() {
   const matricule = document.getElementById('login-matricule').value.trim();
@@ -2748,14 +2757,16 @@ async function logout() {
 
 function applyRoleAccess() {
   if (!currentUser) return;
-  const allowedPages = currentUser.role === 'manager' ? MANAGER_PAGES : CHEF_BANDE_PAGES;
+  const allowedPages = rolePages();
 
   // Set body class for CSS-based role hiding
   document.body.className = 'role-' + currentUser.role;
 
-  // Show/hide nav items in header + mobile menu
-  document.querySelectorAll('#header-nav a, #mobile-menu a').forEach(a => {
+  // Show/hide nav items in header + mobile menu + bottom "Plus" sheet.
+  // (Le plus-sheet exposait la Trésorerie à tous → désormais gaté par rôle.)
+  document.querySelectorAll('#header-nav a, #mobile-menu a, #plus-sheet a').forEach(a => {
     const page = a.getAttribute('data-page');
+    if (!page) return; // liens sans data-page (ex. actions) : ne pas toucher
     a.style.display = allowedPages.includes(page) ? '' : 'none';
   });
 
@@ -3063,6 +3074,15 @@ const ALL_TABLES = [
   ['notifications',   'notifications']
 ];
 
+// Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
+// colonnes financières) ; les managers lisent les tables complètes.
+// (Les tables manager-only — paies/employes/depenses_rh — renvoient déjà [] pour
+//  chef_bande via la RLS, donc pas besoin de les détourner ici.)
+function dataSourceFor(table) {
+  if (currentUser && currentUser.role !== 'manager' && table === 'bandes') return 'bandes_ops';
+  return table;
+}
+
 async function sbSelect(table, filters) {
   let q = sb.from(table).select('*');
   if (filters) {
@@ -3082,7 +3102,14 @@ async function apiGet(params) {
   }
   if (action === 'getAll') {
     const out = {};
-    const results = await Promise.all(ALL_TABLES.map(([t]) => sbSelect(t)));
+    const results = await Promise.all(ALL_TABLES.map(([t]) => {
+      const src = dataSourceFor(t);
+      // Vue assainie (chef_bande) : repli silencieux sur [] si la vue n'existe
+      // pas encore (migration 0008 non exécutée) — n'interrompt pas le reste du
+      // chargement. Les tables réelles gardent leur erreur (→ repli cache offline).
+      if (src !== t) return sbSelect(src).catch(() => []);
+      return sbSelect(t);
+    }));
     ALL_TABLES.forEach(([, key], i) => { out[key] = results[i]; });
     return out;
   }
@@ -3618,6 +3645,11 @@ function updateIoTSyncTime() {
 
 // ── Navigation ──
 function navigate(page, el) {
+  // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
+  // un rôle qui tente une page non autorisée (ex. chef_bande → 'tresorerie',
+  // 'bandes', 'iot') est redirigé vers le dashboard. Couvre TOUTES les voies
+  // (nav, menu mobile, plus-sheet, appel direct).
+  if (currentUser && !roleAllowsPage(page)) { page = 'dashboard'; el = null; }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   // Update active state in header nav
