@@ -8642,7 +8642,18 @@ function addLigneRow() {
   const div = document.createElement('div');
   div.className = 'ligne-row';
   div.id = 'ligne-row-' + i;
+  // Picker catalogue (optionnel) : tous les produits — disponible est le drapeau
+  // de PUBLICATION client, pas un verrou de vente interne ; le staff peut donc
+  // commander un produit non encore publié (suffixé « (masqué) »).
+  const catOpts = '<option value="">— Libre / hors catalogue —</option>' +
+    STATE.produits.slice()
+      .sort((a, b) => ((a.ordre_affichage || 0) - (b.ordre_affichage || 0)) || (a.nom || '').localeCompare(b.nom || ''))
+      .map(p => '<option value="' + p.produit_id + '">' + (p.nom || '') + (p.disponible ? '' : ' (masqué)') + '</option>')
+      .join('');
   div.innerHTML =
+    '<div class="form-group wide"><label>Catalogue</label>' +
+    '<select id="lr-cat-' + i + '" onchange="pickLrProduit(' + i + ')">' + catOpts + '</select></div>' +
+    '<input type="hidden" id="lr-pid-' + i + '">' +
     '<div class="form-group"><label>Produit</label>' +
     '<select id="lr-produit-' + i + '" onchange="updateLrDesc(' + i + ')">' +
     '<option value="poulet_entier">Poulet entier</option>' +
@@ -8664,6 +8675,29 @@ function updateLrDesc(i) {
     const map = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: '' };
     desc.value = map[sel.value] || '';
   }
+}
+
+// Sélection d'un produit du catalogue sur une ligne de commande (additif).
+// Renseigne produit_id (référence durable), snapshot le nom dans description,
+// préremplit le prix (qui reste ÉDITABLE), et mappe la catégorie vers l'enum
+// produit existant pour conserver le regroupement du rapport commercial.
+// Choisir « Libre » laisse intacte la saisie texte libre (produit_id = null).
+function pickLrProduit(i) {
+  const sel = document.getElementById('lr-cat-' + i);
+  const pid = sel ? sel.value : '';
+  const hidden = document.getElementById('lr-pid-' + i);
+  if (hidden) hidden.value = pid;
+  if (!pid) return;
+  const p = STATE.produits.find(x => x.produit_id === pid);
+  if (!p) return;
+  const desc = document.getElementById('lr-desc-' + i);
+  if (desc) desc.value = p.nom || '';
+  const prix = document.getElementById('lr-prix-' + i);
+  if (prix) prix.value = (Number(p.prix_base_kg_fcfa) || 0);
+  const catToEnum = { poulet_entier: 'poulet_entier', decoupe: 'decoupes', abats: 'abats', autre: 'autre' };
+  const enumSel = document.getElementById('lr-produit-' + i);
+  if (enumSel) enumSel.value = catToEnum[p.categorie] || 'autre';
+  updateCmdTotal();
 }
 
 function removeLigneRow(i) {
@@ -8707,6 +8741,7 @@ async function submitCommande() {
       ligne_id: 'lig-' + uuid(),
       commande_id: commandeId,
       produit: document.getElementById('lr-produit-' + id)?.value || 'autre',
+      produit_id: emptyToNull(document.getElementById('lr-pid-' + id)?.value || ''),
       description: document.getElementById('lr-desc-' + id)?.value?.trim() || '',
       quantite_kg: qty,
       prix_kg_fcfa: prix,
