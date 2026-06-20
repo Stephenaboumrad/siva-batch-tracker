@@ -649,6 +649,8 @@ body::before {
 
 /* Saisie Terrain save wrapper — inline on desktop, becomes a sticky full-width bar on mobile (see ≤768px block) */
 .saisie-save-bar { margin-top:1.25rem; display:flex; gap:0.5rem; }
+/* Wraps the Saisie card in a <form> for native validation without altering layout (generates no box). */
+#saisie-form { display: contents; }
 
 /* ══════════════ TABLES ══════════════ */
 .table-wrap { overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--border-subtle); background:var(--card-bg); box-shadow:var(--shadow-sm); }
@@ -1646,6 +1648,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="btn btn-outline btn-sm" onclick="exportDailiesExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
       </div>
     </div>
+    <form id="saisie-form" onsubmit="event.preventDefault(); submitSaisie();">
     <div class="card" style="max-width:700px;">
       <div class="form-group">
         <label>Bande</label>
@@ -1655,11 +1658,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-row">
         <div class="form-group">
           <label>Date</label>
-          <input type="date" id="saisie-date">
+          <input type="date" id="saisie-date" required>
         </div>
         <div class="form-group">
           <label>Mortalité du jour</label>
-          <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric">
+          <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric" required>
           <div class="field-msg" id="saisie-msg-mortalite"></div>
         </div>
       </div>
@@ -1705,7 +1708,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
       <!-- Intrant sub-form -->
       <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
-        <button class="btn btn-outline btn-sm" id="toggle-intrant-btn" onclick="toggleIntrantForm()">+ Ajouter un intrant</button>
+        <button type="button" class="btn btn-outline btn-sm" id="toggle-intrant-btn" onclick="toggleIntrantForm()">+ Ajouter un intrant</button>
         <div id="intrant-subform" style="display:none;margin-top:1rem;">
           <div class="form-row">
             <div class="form-group">
@@ -1747,9 +1750,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
 
       <div class="saisie-save-bar">
-        <button class="btn btn-primary" onclick="submitSaisie()" id="btn-submit-saisie">Enregistrer</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-saisie">Enregistrer</button>
       </div>
     </div>
+    </form>
 
     <!-- Last 3 days -->
     <div id="saisie-recent" style="margin-top:1.5rem;max-width:700px;"></div>
