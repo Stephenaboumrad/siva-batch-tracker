@@ -8842,7 +8842,7 @@ async function generateBonLivraison(cmdId) {
   doc.setTextColor(0);
   let totalQty = 0;
   lignes.forEach(l => {
-    doc.text(l.description || l.produit, 16, y + 4);
+    doc.text(ligneProduitNom(l), 16, y + 4);
     doc.text(fmt(Number(l.quantite_kg), 1), 90, y + 4);
     doc.text(fmt(Number(l.prix_kg_fcfa)), 120, y + 4);
     doc.text(fmt(Number(l.montant_fcfa)), 160, y + 4);
@@ -9011,6 +9011,30 @@ async function toggleClientStatut(id) {
 const PRODUIT_CATEGORIES = { poulet_entier: 'Poulet entier', decoupe: 'Découpe', abats: 'Abats', autre: 'Autre' };
 let editingProduitId = null;
 function produitCategorieLabel(c) { return PRODUIT_CATEGORIES[c] || c || '—'; }
+
+// Libellés de l'enum `produit` des lignes de commande (source unique, réutilisée
+// par le rapport commercial et par la résolution du nom de produit ci-dessous).
+const LIGNE_PRODUIT_LABELS = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: 'Autre' };
+
+// Nom affichable d'une ligne de commande, par ordre de fiabilité :
+//   1) ligne reliée au catalogue (produit_id) -> vrai nom du produit ;
+//   2) enum produit connu hors 'autre' -> libellé partagé ;
+//   3) description libre saisie (cas 'autre' / lignes hors catalogue) ;
+//   4) dernier recours -> libellé d'enum ('Autre') ou valeur brute.
+// Refinement vs spec stricte : pour 'autre', une description non vide passe AVANT
+// le libellé « Autre » afin de préserver un produit libre nommé à la main.
+function ligneProduitNom(l) {
+  if (!l) return '—';
+  if (l.produit_id) {
+    const p = STATE.produits.find(x => x.produit_id === l.produit_id);
+    if (p && p.nom) return p.nom;
+  }
+  if (l.produit && l.produit !== 'autre' && LIGNE_PRODUIT_LABELS[l.produit]) {
+    return LIGNE_PRODUIT_LABELS[l.produit];
+  }
+  if (l.description && String(l.description).trim()) return String(l.description).trim();
+  return LIGNE_PRODUIT_LABELS[l.produit] || l.produit || '—';
+}
 
 function renderCatalogue() {
   const container = document.getElementById('catalogue-list');
@@ -9240,7 +9264,7 @@ function renderCommercialDashboard() {
     const key = l.produit || 'autre';
     produitCA[key] = (produitCA[key] || 0) + (Number(l.montant_fcfa) || 0);
   });
-  const prodLabels = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: 'Autre' };
+  const prodLabels = LIGNE_PRODUIT_LABELS;
   const prodEntries = Object.entries(produitCA);
   const prodColors = ['#EA580C', '#F97316', '#FB923C', '#9E9E9E'];
 
@@ -9306,7 +9330,7 @@ function computeCommercialReport(period) {
   });
   const topClients = Object.entries(clientCA).sort((a, b) => b[1] - a[1]);
 
-  const prodLabels = { poulet_entier: 'Poulet entier', decoupes: 'Découpes', abats: 'Abats', autre: 'Autre' };
+  const prodLabels = LIGNE_PRODUIT_LABELS;
   const produitCA = {};
   lignes.forEach(l => {
     const k = l.produit || 'autre';
