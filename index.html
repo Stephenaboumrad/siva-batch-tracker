@@ -2694,6 +2694,53 @@ const XLSX_CDN  = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.
 function ensureJsPDF() { return loadScript(JSPDF_CDN); }
 function ensureXLSX()  { return loadScript(XLSX_CDN); }
 
+// ── Police Inter embarquée pour les PDF ──
+// Chargée À LA DEMANDE lors d'un export (comme jsPDF), JAMAIS au chargement de
+// la page → zéro impact sur le temps de chargement initial. Version ÉPINGLÉE
+// (pas de @latest). Repli gracieux : si le CDN échoue, les PDF se génèrent
+// quand même en Helvetica (jamais d'export cassé pour cause de police).
+const INTER_FONT_REGULAR_URL = 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/inter@0.2.3/Inter_400Regular.ttf';
+const INTER_FONT_BOLD_URL    = 'https://cdn.jsdelivr.net/npm/@expo-google-fonts/inter@0.2.3/Inter_700Bold.ttf';
+let _interFontPromise = null;
+function _arrayBufferToBase64(buf) {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 0x8000; // 32 Ko : sûr pour Function.prototype.apply
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+async function _fetchFontBase64(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Police HTTP ' + res.status + ' : ' + url);
+  return _arrayBufferToBase64(await res.arrayBuffer());
+}
+// Renvoie { regular, bold } en base64, ou null si le chargement échoue.
+// Mémoïsé (un seul fetch par session) ; réinitialisé en cas d'échec pour permettre un réessai au prochain export.
+function ensureInterFontData() {
+  if (_interFontPromise) return _interFontPromise;
+  _interFontPromise = Promise.all([
+    _fetchFontBase64(INTER_FONT_REGULAR_URL),
+    _fetchFontBase64(INTER_FONT_BOLD_URL)
+  ]).then(([regular, bold]) => ({ regular, bold }))
+    .catch(err => { _interFontPromise = null; console.warn('Police Inter indisponible → repli Helvetica.', err); return null; });
+  return _interFontPromise;
+}
+// Enregistre Inter (normal + bold) sur un doc jsPDF. Renvoie 'Inter' si OK,
+// sinon 'helvetica' (repli). À utiliser comme famille de police du document.
+function registerInterFont(doc, fontData) {
+  if (!fontData) return 'helvetica';
+  try {
+    doc.addFileToVFS('Inter-Regular.ttf', fontData.regular);
+    doc.addFont('Inter-Regular.ttf', 'Inter', 'normal');
+    doc.addFileToVFS('Inter-Bold.ttf', fontData.bold);
+    doc.addFont('Inter-Bold.ttf', 'Inter', 'bold');
+    doc.setFont('Inter', 'normal');
+    return 'Inter';
+  } catch (e) { console.warn('Enregistrement Inter échoué → repli Helvetica.', e); return 'helvetica'; }
+}
+
 // ── Auth ──
 // ── Authentification — Supabase Auth (vérification côté serveur) ──
 // L'UX reste « matricule + mot de passe ». En interne, le matricule est
@@ -8791,6 +8838,14 @@ async function submitCommande() {
 }
 
 // ── Bon de livraison PDF ──
+// Format de date spécifique à CE PDF : JJ.MM.AAAA (points au lieu de slashs).
+// Réutilise fmtDate partagé puis remplace les séparateurs — n'affecte ni
+// l'affichage à l'écran ni les autres rapports.
+function fmtDateDots(d) {
+  if (!d) return '—';
+  return fmtDate(d).replace(/\//g, '.');
+}
+
 async function generateBonLivraison(cmdId) {
   await ensureJsPDF();
   const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
@@ -8802,23 +8857,31 @@ async function generateBonLivraison(cmdId) {
   const doc = new jsPDF();
   const pw = doc.internal.pageSize.getWidth();
 
+  // Police Inter embarquée — chargée À LA DEMANDE (jamais au startup). Repli
+  // Helvetica si le CDN est indisponible. FONT = 'Inter' ou 'helvetica'.
+  const interData = await ensureInterFontData();
+  const FONT = registerInterFont(doc, interData);
+  // Teinte orange AA (--c-orange-700 #B84E0A) pour le texte/aplats orange de ce
+  // PDF — cohérent avec les correctifs de contraste antérieurs.
+  const ORANGE_700 = [184, 78, 10];
+
   // En-tête de marque PARTAGÉ (identité S.I.V.A + bandeau de titre orange #C8632D).
   let y = reportHeaderPDF(doc, {
     title: 'Bon de livraison',
     subtitle: 'N° ' + cmdId.slice(-8).toUpperCase()
   });
-  doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
-  doc.text('Date : ' + fmtDate(cmd.date_livraison_souhaitee || cmd.date_commande), pw - 14, y, { align: 'right' });
+  doc.setFont(FONT, 'normal'); doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('Livraison estimée : ' + fmtDateDots(cmd.date_livraison_souhaitee || cmd.date_commande), pw - 14, y, { align: 'right' });
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
   // Client info
   y += 4;
-  doc.setFontSize(10);
+  doc.setFont(FONT, 'normal'); doc.setFontSize(10);
   doc.setTextColor(0);
   doc.text('Client :', 14, y);
-  doc.setFontSize(12);
+  doc.setFont(FONT, 'bold'); doc.setFontSize(12);
   doc.text(client ? client.nom : '—', 14, y + 6);
-  doc.setFontSize(9);
+  doc.setFont(FONT, 'normal'); doc.setFontSize(9);
   doc.setTextColor(100);
   if (client) {
     if (client.adresse) doc.text(client.adresse, 14, y + 12);
@@ -8826,11 +8889,11 @@ async function generateBonLivraison(cmdId) {
     if (client.telephone) doc.text('Tél : ' + client.telephone, 14, y + 22);
   }
 
-  // Table header
+  // Table header — bande orange AA (#B84E0A), texte blanc, Inter bold.
   y = 80;
-  doc.setFillColor(230, 81, 0);
+  doc.setFillColor.apply(doc, ORANGE_700);
   doc.rect(14, y, 182, 8, 'F');
-  doc.setFontSize(9);
+  doc.setFont(FONT, 'bold'); doc.setFontSize(9);
   doc.setTextColor(255);
   doc.text('Produit', 16, y + 5.5);
   doc.text('Qté (kg)', 90, y + 5.5);
@@ -8839,7 +8902,7 @@ async function generateBonLivraison(cmdId) {
 
   // Table rows
   y += 10;
-  doc.setTextColor(0);
+  doc.setFont(FONT, 'normal'); doc.setTextColor(0);
   let totalQty = 0;
   lignes.forEach(l => {
     doc.text(ligneProduitNom(l), 16, y + 4);
@@ -8852,28 +8915,33 @@ async function generateBonLivraison(cmdId) {
     y += 8;
   });
 
-  // Total
+  // Total — texte orange AA (#B84E0A), Inter bold.
   y += 3;
   doc.setFillColor(255, 243, 224);
   doc.rect(14, y, 182, 10, 'F');
-  doc.setFontSize(10);
-  doc.setTextColor(230, 81, 0);
+  doc.setFont(FONT, 'bold'); doc.setFontSize(10);
+  doc.setTextColor.apply(doc, ORANGE_700);
   doc.text('TOTAL', 16, y + 7);
   doc.text(fmt(totalQty, 1) + ' kg', 90, y + 7);
   doc.text(fmt(Number(cmd.montant_total_fcfa)) + ' FCFA', 160, y + 7);
 
+  // Footnote discrète (équivalence de poids) — sous le tableau, Inter regular, mutée.
+  y += 16;
+  doc.setFont(FONT, 'normal'); doc.setFontSize(7.5);
+  doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('NB : un petit poulet équivaut à environ 1100 g.', 14, y);
+
   // Note
   if (cmd.note) {
     y += 18;
-    doc.setFontSize(9);
+    doc.setFont(FONT, 'normal'); doc.setFontSize(9);
     doc.setTextColor(100);
     doc.text('Note : ' + cmd.note, 14, y);
   }
 
   // Signature block
   y += 25;
-  doc.setTextColor(0);
-  doc.setFontSize(9);
+  doc.setFont(FONT, 'normal'); doc.setTextColor(0); doc.setFontSize(9);
   doc.text('Signature expéditeur :', 14, y);
   doc.text('Signature destinataire :', 120, y);
   doc.line(14, y + 20, 80, y + 20);
