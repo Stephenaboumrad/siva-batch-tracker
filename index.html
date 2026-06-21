@@ -3053,7 +3053,12 @@ function uuid() {
 
 function fmt(n, decimals = 0) {
   if (n == null || isNaN(n)) return '—';
-  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // toLocaleString('fr-FR') groups thousands with U+202F (narrow no-break space;
+  // older ICU used U+00A0), which jsPDF's standard font cannot render -> shows as
+  // '/' in generated PDFs. Replace it with a plain ASCII space. Decimal comma
+  // (ASCII) and on-screen HTML output are unaffected.
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    .replace(/[\u202f\u00a0]/g, ' ');
 }
 
 function fmtDate(d) {
