@@ -4672,7 +4672,7 @@ function renderDashboard() {
     upcomingCmds.forEach(c => {
       const cl = STATE.clients.find(x => x.client_id === c.client_id);
       const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
-      const prodDesc = lignes.map(l => fmt(Number(l.quantite_kg), 0) + 'kg ' + (l.description || l.produit)).join(', ') || '—';
+      const prodDesc = lignes.map(l => fmt(Number(l.quantite_kg), 0) + 'kg ' + ligneProduitNom(l)).join(', ') || '—';
       const daysUntil = Math.ceil((new Date(c.date_livraison_souhaitee) - today) / 86400000);
       let dateCls = '';
       if (daysUntil <= 1) dateCls = ' urgent';
@@ -8561,7 +8561,7 @@ function renderCommandes() {
   list.forEach(c => {
     const client = STATE.clients.find(cl => cl.client_id === c.client_id);
     const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
-    const produits = lignes.map(l => l.description || l.produit).join(', ') || '—';
+    const produits = lignes.map(l => ligneProduitNom(l)).join(', ') || '—';
     html += '<tr style="cursor:pointer;" onclick="toggleCommandeExpand(\'' + c.commande_id + '\')">' +
       '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
       '<td>' + (client ? client.nom : '—') + '</td>' +
@@ -8576,7 +8576,7 @@ function renderCommandes() {
     if (expandedCommandeId === c.commande_id) {
       let ligneRows = lignes.length === 0
         ? '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">Aucune ligne</td></tr>'
-        : lignes.map(l => '<tr><td>' + (l.description || l.produit) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td><td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td></tr>').join('');
+        : lignes.map(l => '<tr><td>' + ligneProduitNom(l) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td><td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td></tr>').join('');
 
       let statusBtns = '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;" class="manager-only">';
       if (c.statut === 'en_attente') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'confirmee\')">Confirmer</button>';
