@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  COQORICO — Portail Client B2B (revendeurs / points de vente) ║
+  ║  Surface SÉPARÉE de index.html. Servie statiquement par       ║
+  ║  Railway à /portail.html. Même projet Supabase, même auth.    ║
+  ╚══════════════════════════════════════════════════════════════╝
+
+  RÈGLE D'ARCHITECTURE (sécurité) — ce fichier ne touche QUE :
+    • v_catalogue_client            (lecture catalogue : produits publiés, prix de vente, AUCUNE colonne de coût)
+    • RPC place_order               (création de commande : prix + client_id imposés côté serveur)
+    • commandes / lignes_commande   (SELECT : l'historique du client, RLS restreint déjà à ses lignes)
+    • clients                       (SELECT : sa propre fiche, pour affichage)
+  Il n'utilise JAMAIS le chemin de données staff getAll / ALL_TABLES, ni aucune
+  table interne (employes, paies, bandes, abattages, etc.). L'isolation est
+  garantie par les overlays RLS (rls_client_*) + la RPC ; l'UI ne tente même
+  pas de lire quoi que ce soit d'interne.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#11181F">
+<title>Coqorico — Portail Client</title>
+
+<!-- CDN (versions épinglées, jamais @latest) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2"></script>
+<script src="https://unpkg.com/lucide@1.21.0"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Tokens de marque (repris d'index.html pour cohérence) ── */
+:root {
+  --c-orange-50: #FBEADD; --c-orange-200: #F6BD96; --c-orange-400: #EC8340;
+  --c-orange-500: #F0701A; --c-orange-600: #E2640F; --c-orange-700: #B84E0A; /* AA sur blanc (petit texte) → boutons */
+  --c-forest-50: #E7F4EE; --c-forest-200: #9BD3B6; --c-forest-600: #0E7C4A; --c-forest-700: #0B663C;
+  --c-sand-50: #F4F6F8; --c-sand-100: #EDF1F4; --c-sand-200: #E6EBEF; --c-sand-300: #D4DBE2;
+  --c-sand-400: #8A95A1; --c-sand-500: #6B7884; --c-sand-600: #4A5663; --c-sand-700: #2E3A46;
+  --c-sand-800: #1A2531; --c-sand-900: #0F1822;
+  --c-red-500: #C8332B; --c-red-600: #B22A23; --c-amber-600: #95621A;
+
+  --color-bg: #F4F6F8; --color-surface: #FFFFFF; --color-border: #D4DBE2; --color-border-subtle: #E6EBEF;
+  --color-text: #0F1822; --color-text-secondary: #4A5663; --color-text-muted: #8A95A1;
+  --color-accent: #E2640F; --color-accent-hover: #B84E0A; --color-accent-soft: #FBEADD;
+  --color-success: #0E7C4A; --color-danger: #C8332B;
+  --navbar-bg: #11181F; --navbar-deep: #0B1116; --navbar-text: #AEB9C4; --navbar-text-active: #FFFFFF;
+
+  --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 8px; --radius-full: 9999px;
+  --space-1: 4px; --space-2: 6px; --space-3: 10px; --space-4: 14px; --space-5: 18px; --space-6: 22px; --space-8: 30px;
+  --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --shadow-sm: 0 1px 2px rgba(15,24,34,0.06); --shadow-md: 0 4px 14px rgba(15,24,34,0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  font-size: 15px; line-height: 1.45;
+  color: var(--color-text); background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+[data-lucide], svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; stroke-width: 2; flex: none; }
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évite le zoom auto iOS */
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.hidden { display: none !important; }
+.muted { color: var(--color-text-muted); }
+.mono-num { font-variant-numeric: tabular-nums; }
+
+/* ── Boutons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 18px;
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  font-size: 15px; font-weight: 600; line-height: 1;
+  transition: background .15s, opacity .15s;
+}
+.btn-primary { background: var(--c-orange-700); color: #fff; } /* orange foncé AA, pas l'orange clair */
+.btn-primary:hover:not(:disabled) { background: #9d420a; }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+.btn-block { display: flex; width: 100%; }
+.btn-ghost { background: transparent; color: var(--color-text-secondary); border-color: var(--color-border); min-height: 40px; }
+.btn-ghost:hover { background: var(--c-sand-100); }
+.btn-icon { min-height: 44px; min-width: 44px; padding: 0; background: transparent; color: var(--color-text-muted); border-radius: var(--radius-md); }
+.btn-icon:hover { background: var(--c-sand-100); color: var(--color-danger); }
+
+/* ════════ LOGIN ════════ */
+#screen-login {
+  min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--space-6); background:
+    radial-gradient(1200px 600px at 50% -10%, #18222C 0%, var(--navbar-bg) 55%, var(--navbar-deep) 100%);
+}
+.login-card {
+  width: 100%; max-width: 380px; background: var(--color-surface);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-md);
+  padding: var(--space-8) var(--space-6);
+}
+.brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: var(--space-3); }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--c-orange-500), var(--c-orange-700));
+  display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px;
+}
+.brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.brand-name span { color: var(--c-orange-600); }
+.login-sub { text-align: center; color: var(--color-text-secondary); font-size: 14px; margin-bottom: var(--space-6); }
+.field { margin-bottom: var(--space-4); }
+.field label { display: block; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px; }
+.field input {
+  width: 100%; min-height: 48px; padding: 0 14px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text);
+}
+.field input:focus { border-color: var(--color-accent); outline: none; }
+.login-error {
+  background: #F8E9E8; color: var(--c-red-600); border: 1px solid #EBC3C0;
+  border-radius: var(--radius-md); padding: 10px 12px; font-size: 14px; margin-bottom: var(--space-4);
+}
+.login-foot { text-align: center; font-size: 12px; color: var(--color-text-muted); margin-top: var(--space-5); }
+
+/* ════════ APP SHELL ════════ */
+#screen-app { min-height: 100%; display: flex; flex-direction: column; }
+.app-header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--navbar-bg); color: var(--navbar-text-active);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px var(--space-4); padding-top: max(12px, env(safe-area-inset-top));
+}
+.app-header .brand-name { font-size: 17px; color: #fff; }
+.app-header .brand-mark { width: 28px; height: 28px; font-size: 15px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.client-name { font-size: 13px; color: var(--navbar-text); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signout-btn { background: transparent; border: none; color: var(--navbar-text); min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: var(--radius-md); }
+.signout-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+.app-main { flex: 1; padding: var(--space-4); padding-bottom: 96px; max-width: 760px; width: 100%; margin: 0 auto; }
+.view-title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: var(--space-4); }
+
+/* ── Bottom tab bar ── */
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  background: var(--color-surface); border-top: 1px solid var(--color-border);
+  display: flex; padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 10px rgba(15,24,34,0.05);
+}
+.tab {
+  flex: 1; background: transparent; border: none;
+  min-height: 58px; padding: 8px 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--color-text-muted); font-size: 11px; font-weight: 600; position: relative;
+}
+.tab svg.lucide, .tab [data-lucide] { width: 22px; height: 22px; }
+.tab.active { color: var(--c-orange-700); }
+.tab-badge {
+  position: absolute; top: 6px; left: 50%; margin-left: 4px;
+  background: var(--c-orange-600); color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 17px; height: 17px; padding: 0 4px; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+
+/* ── Cartes catalogue ── */
+.cat-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-4); }
+@media (min-width: 560px) { .cat-grid { grid-template-columns: 1fr 1fr; } }
+.prod-card {
+  background: var(--color-surface); border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.prod-img { width: 100%; aspect-ratio: 16/10; object-fit: cover; background: var(--c-sand-100); }
+.prod-img-ph { width: 100%; aspect-ratio: 16/10; background: linear-gradient(135deg, var(--c-sand-100), var(--c-sand-200)); display: flex; align-items: center; justify-content: center; color: var(--c-sand-400); font-size: 34px; }
+.prod-body { padding: var(--space-3) var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.prod-nom { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-full); background: var(--c-sand-100); color: var(--color-text-secondary); }
+.chip-cat { background: var(--c-forest-50); color: var(--c-forest-700); }
+.prod-price { font-size: 18px; font-weight: 700; color: var(--color-text); margin-top: 2px; }
+.prod-price small { font-size: 12px; font-weight: 600; color: var(--color-text-muted); }
+.prod-add { display: flex; gap: 8px; align-items: stretch; margin-top: auto; }
+.qty-input { width: 84px; min-height: 48px; text-align: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0 8px; }
+.prod-add .btn { flex: 1; }
+
+/* ── Panier ── */
+.cart-line {
+  background: var(--color-surface); border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3);
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center;
+}
+.cl-nom { font-size: 15px; font-weight: 700; }
+.cl-meta { font-size: 13px; color: var(--color-text-secondary); }
+.cl-qty { display: flex; align-items: center; gap: 8px; }
+.cl-qty .qty-input { width: 74px; min-height: 44px; }
+.cl-qty label { font-size: 12px; color: var(--color-text-muted); }
+.cl-sub { font-size: 15px; font-weight: 700; text-align: right; white-space: nowrap; }
+.cart-meta-fields { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: var(--space-4); margin: var(--space-4) 0; }
+.cart-meta-fields .field:last-child { margin-bottom: 0; }
+.cart-meta-fields textarea { width: 100%; min-height: 70px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); resize: vertical; }
+.cart-meta-fields input[type=date] { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.cart-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: var(--space-4); background: var(--c-sand-800); color: #fff;
+  border-radius: var(--radius-lg); margin-bottom: var(--space-4);
+}
+.cart-total .ct-label { font-size: 14px; color: #cdd6df; }
+.cart-total .ct-value { font-size: 24px; font-weight: 700; }
+.cart-note-price { font-size: 12px; color: var(--color-text-muted); text-align: center; margin-top: 8px; }
+
+/* ── Confirmation ── */
+.confirm-card {
+  background: var(--color-surface); border: 1px solid var(--c-forest-200);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-sm);
+  padding: var(--space-8) var(--space-6); text-align: center;
+}
+.confirm-icon { width: 64px; height: 64px; border-radius: var(--radius-full); background: var(--c-forest-50); color: var(--color-success); display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto var(--space-4); }
+.confirm-card h2 { font-size: 20px; margin-bottom: var(--space-2); }
+.confirm-id { font-family: ui-monospace, "SF Mono", monospace; font-size: 14px; background: var(--c-sand-100); padding: 6px 12px; border-radius: var(--radius-md); display: inline-block; margin: var(--space-3) 0; }
+.confirm-summary { text-align: left; margin: var(--space-5) 0; border-top: 1px solid var(--color-border-subtle); }
+.confirm-summary .cs-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); font-size: 14px; }
+
+/* ── Historique ── */
+.order-card {
+  background: var(--color-surface); border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg); margin-bottom: var(--space-3); overflow: hidden;
+}
+.order-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: var(--space-3) var(--space-4); width: 100%; background: transparent; border: none; text-align: left; }
+.order-head:hover { background: var(--c-sand-50); }
+.oh-left { display: flex; flex-direction: column; gap: 2px; }
+.oh-date { font-size: 14px; font-weight: 700; }
+.oh-id { font-size: 12px; color: var(--color-text-muted); font-family: ui-monospace, monospace; }
+.oh-right { display: flex; align-items: center; gap: 10px; }
+.oh-total { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.statut-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--radius-full); text-transform: capitalize; }
+.statut-soumise { background: var(--color-accent-soft); color: var(--c-orange-700); }
+.statut-default { background: var(--c-sand-100); color: var(--color-text-secondary); }
+.order-lines { padding: 0 var(--space-4) var(--space-3); }
+.order-lines table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.order-lines th { text-align: left; color: var(--color-text-muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--color-border-subtle); font-size: 12px; }
+.order-lines td { padding: 7px 4px; border-bottom: 1px solid var(--color-border-subtle); }
+.order-lines td.num, .order-lines th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── États vides / chargement ── */
+.empty, .loading { text-align: center; color: var(--color-text-muted); padding: var(--space-8) var(--space-4); }
+.empty .ic { font-size: 40px; display: block; margin-bottom: var(--space-3); color: var(--c-sand-300); }
+.spinner { width: 22px; height: 22px; border: 2px solid var(--c-sand-200); border-top-color: var(--c-orange-600); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -4px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%) translateY(20px);
+  background: var(--c-sand-900); color: #fff; padding: 12px 18px; border-radius: var(--radius-md);
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s; z-index: 50; max-width: 90vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.error { background: var(--c-red-600); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ LOGIN ════════════════ -->
+<section id="screen-login">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-mark"><i data-lucide="egg"></i></div>
+      <div class="brand-name">Coqo<span>rico</span></div>
+    </div>
+    <p class="login-sub">Portail commandes — espace client</p>
+
+    <div id="login-error" class="login-error hidden"></div>
+
+    <form id="login-form" autocomplete="on">
+      <div class="field">
+        <label for="login-email">Adresse e-mail</label>
+        <input id="login-email" type="email" inputmode="email" autocomplete="username" required placeholder="vous@exemple.com">
+      </div>
+      <div class="field">
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" type="password" autocomplete="current-password" required placeholder="••••••••">
+      </div>
+      <button id="login-submit" type="submit" class="btn btn-primary btn-block">Se connecter</button>
+    </form>
+
+    <p class="login-foot">Accès réservé aux clients Coqorico.<br>Votre compte est créé par votre contact commercial.</p>
+  </div>
+</section>
+
+<!-- ════════════════ APP ════════════════ -->
+<section id="screen-app" class="hidden">
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark"><i data-lucide="egg"></i></div>
+      <div class="brand-name">Coqo<span style="color:var(--c-orange-400)">rico</span></div>
+    </div>
+    <div class="header-right">
+      <span id="client-name" class="client-name"></span>
+      <button id="signout-btn" class="signout-btn" title="Se déconnecter" aria-label="Se déconnecter"><i data-lucide="log-out"></i></button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- Catalogue -->
+    <div id="view-catalogue" class="view">
+      <h1 class="view-title">Catalogue</h1>
+      <div id="catalogue-content"><div class="loading"><span class="spinner"></span> Chargement du catalogue…</div></div>
+    </div>
+
+    <!-- Panier -->
+    <div id="view-panier" class="view hidden">
+      <h1 class="view-title">Mon panier</h1>
+      <div id="panier-content"></div>
+    </div>
+
+    <!-- Confirmation -->
+    <div id="view-confirm" class="view hidden">
+      <div id="confirm-content"></div>
+    </div>
+
+    <!-- Historique -->
+    <div id="view-historique" class="view hidden">
+      <h1 class="view-title">Mes commandes</h1>
+      <div id="historique-content"><div class="loading"><span class="spinner"></span> Chargement…</div></div>
+    </div>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-view="catalogue"><i data-lucide="store"></i><span>Catalogue</span></button>
+    <button class="tab" data-view="panier"><i data-lucide="shopping-cart"></i><span>Panier</span><span id="cart-badge" class="tab-badge hidden">0</span></button>
+    <button class="tab" data-view="historique"><i data-lucide="receipt-text"></i><span>Commandes</span></button>
+  </nav>
+</section>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════
+   CONFIG — identifiants PUBLICS (navigateur). Identiques à index.html.
+   La clé ANON / publishable est conçue pour vivre dans le navigateur.
+   ⚠️ La clé service_role NE DOIT JAMAIS apparaître ici ni dans aucun
+   code livré au navigateur — elle reste exclusivement côté serveur.
+   ════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL      = 'https://wlcvapssgxqptmeulqdc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_PXMCqNteVUPUBALVjnSxYQ_rogyUk_K';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ── État ── */
+let cart = [];            // [{ produit_id, nom, prix_kg_fcfa, quantite_kg }]
+let catalogue = [];       // depuis v_catalogue_client
+let clientFiche = null;   // depuis clients (sa propre fiche)
+let submitting = false;   // garde anti double-soumission
+let lastOrder = null;     // snapshot pour l'écran de confirmation
+
+const CART_KEY = 'coqorico_portail_cart_v1';
+
+/* ── Helpers ── */
+// fmt() repris d'index.html : toLocaleString('fr-FR') groupe les milliers avec
+// U+202F / U+00A0 -> remplacés par une espace ASCII (rend "12 500" proprement,
+// évite le bug du slash U+202F). Décimales: 0 pour le FCFA.
+function fmt(n, decimals = 0) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    .replace(/[  ]/g, ' ');
+}
+function fcfa(n) { return fmt(n) + ' FCFA'; }
+function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('fr-FR'); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function $(id) { return document.getElementById(id); }
+function icons() { try { window.lucide.createIcons(); } catch (e) {} }
+function toast(msg, type) {
+  const t = $('toast'); t.textContent = msg; t.className = (type === 'error' ? 'error ' : '') + 'show';
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+/* ════════════════ AUTH ════════════════ */
+async function init() {
+  icons();
+  wireEvents();
+  let session = null;
+  try { const { data } = await sb.auth.getSession(); session = data.session; } catch (e) {}
+  if (session && isClient(session)) {
+    await enterApp();
+  } else {
+    if (session) { try { await sb.auth.signOut(); } catch (e) {} } // session non-client → on sort
+    showLogin();
+  }
+}
+
+// Le rôle est lu dans app_metadata (infalsifiable, posé par service_role),
+// JAMAIS user_metadata. Cohérent avec la RPC place_order et les overlays RLS.
+function isClient(session) {
+  const role = session && session.user && session.user.app_metadata && session.user.app_metadata.role;
+  return role === 'client';
+}
+
+function showLogin() {
+  $('screen-app').classList.add('hidden');
+  $('screen-login').classList.remove('hidden');
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = $('login-submit'), errBox = $('login-error');
+  errBox.classList.add('hidden');
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  if (!email || !password) return;
+
+  btn.disabled = true; btn.textContent = 'Connexion…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Se connecter';
+
+  if (error) {
+    errBox.textContent = 'E-mail ou mot de passe incorrect.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+  if (!isClient(data.session)) {
+    await sb.auth.signOut();
+    errBox.textContent = "Ce portail est réservé aux comptes client.";
+    errBox.classList.remove('hidden');
+    return;
+  }
+  $('login-password').value = '';
+  await enterApp();
+}
+
+async function handleSignout() {
+  try { await sb.auth.signOut(); } catch (e) {}
+  cart = []; saveCart(); catalogue = []; clientFiche = null; lastOrder = null;
+  showLogin();
+}
+
+async function enterApp() {
+  $('screen-login').classList.add('hidden');
+  $('screen-app').classList.remove('hidden');
+  loadCart();
+  updateCartBadge();
+  switchView('catalogue');
+  await Promise.all([loadClientFiche(), loadCatalogue()]);
+  icons();
+}
+
+/* ════════════════ DONNÉES ════════════════ */
+// SELECT sa propre fiche (RLS rls_client_clients_select restreint au client_id du claim).
+async function loadClientFiche() {
+  const { data, error } = await sb.from('clients').select('client_id, nom, ville').limit(1);
+  if (!error && data && data.length) {
+    clientFiche = data[0];
+    $('client-name').textContent = clientFiche.nom || '';
+  }
+}
+
+// Lecture du catalogue via la vue v_catalogue_client (produits publiés, prix de
+// vente public uniquement — aucune colonne de coût). Jamais la table produits brute.
+async function loadCatalogue() {
+  const box = $('catalogue-content');
+  const { data, error } = await sb
+    .from('v_catalogue_client')
+    .select('produit_id, nom, categorie, calibre, unite, prix_kg_fcfa, description, image_url, ordre_affichage')
+    .order('ordre_affichage', { ascending: true });
+  if (error) {
+    box.innerHTML = '<div class="empty"><span class="ic">⚠️</span>Catalogue indisponible pour le moment.</div>';
+    return;
+  }
+  catalogue = data || [];
+  renderCatalogue();
+}
+
+/* ════════════════ CATALOGUE ════════════════ */
+function renderCatalogue() {
+  const box = $('catalogue-content');
+  if (!catalogue.length) {
+    box.innerHTML = '<div class="empty"><span class="ic">🐔</span>Aucun produit disponible pour le moment.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="cat-grid">' + catalogue.map(p => {
+    const img = p.image_url
+      ? '<img class="prod-img" src="' + esc(p.image_url) + '" alt="' + esc(p.nom) + '" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;prod-img-ph&quot;>🐔</div>\'">'
+      : '<div class="prod-img-ph">🐔</div>';
+    const unite = p.unite === 'unite' ? 'unité' : 'kg';
+    const chips =
+      (p.categorie ? '<span class="chip chip-cat">' + esc(p.categorie) + '</span>' : '') +
+      (p.calibre ? '<span class="chip">' + esc(p.calibre) + '</span>' : '');
+    return '' +
+      '<div class="prod-card">' + img +
+        '<div class="prod-body">' +
+          '<div class="prod-nom">' + esc(p.nom) + '</div>' +
+          (chips ? '<div class="chips">' + chips + '</div>' : '') +
+          (p.description ? '<div class="cl-meta">' + esc(p.description) + '</div>' : '') +
+          '<div class="prod-price mono-num">' + fcfa(p.prix_kg_fcfa) + ' <small>/ ' + unite + '</small></div>' +
+          '<div class="prod-add">' +
+            '<input class="qty-input mono-num" type="number" inputmode="decimal" min="0.5" step="0.5" value="1" ' +
+                   'aria-label="Quantité en kg" id="qty-' + esc(p.produit_id) + '">' +
+            '<button class="btn btn-primary" data-add="' + esc(p.produit_id) + '"><i data-lucide="plus"></i> Ajouter</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('') + '</div>';
+  icons();
+}
+
+/* ════════════════ PANIER ════════════════ */
+function addToCart(produit_id) {
+  const p = catalogue.find(x => x.produit_id === produit_id);
+  if (!p) return;
+  const input = $('qty-' + produit_id);
+  let qte = input ? parseFloat(input.value) : 1;
+  if (!(qte > 0)) { toast('Quantité invalide', 'error'); return; }
+  qte = Math.round(qte * 100) / 100;
+  const existing = cart.find(l => l.produit_id === produit_id);
+  if (existing) existing.quantite_kg = Math.round((existing.quantite_kg + qte) * 100) / 100;
+  else cart.push({ produit_id, nom: p.nom, prix_kg_fcfa: Number(p.prix_kg_fcfa), quantite_kg: qte });
+  saveCart(); updateCartBadge();
+  toast(p.nom + ' ajouté au panier');
+}
+
+function cartTotal() { return cart.reduce((s, l) => s + Math.round(l.quantite_kg * l.prix_kg_fcfa), 0); }
+function cartCount() { return cart.length; }
+
+function updateCartBadge() {
+  const b = $('cart-badge'); const n = cartCount();
+  b.textContent = n;
+  b.classList.toggle('hidden', n === 0);
+}
+
+function renderPanier() {
+  const box = $('panier-content');
+  if (!cart.length) {
+    box.innerHTML = '<div class="empty"><span class="ic">🛒</span>Votre panier est vide.<br><br>' +
+      '<button class="btn btn-ghost" data-view="catalogue">Parcourir le catalogue</button></div>';
+    return;
+  }
+  const lines = cart.map((l, i) => {
+    const sub = Math.round(l.quantite_kg * l.prix_kg_fcfa);
+    return '' +
+      '<div class="cart-line">' +
+        '<div><div class="cl-nom">' + esc(l.nom) + '</div>' +
+             '<div class="cl-meta mono-num">' + fcfa(l.prix_kg_fcfa) + ' / kg</div></div>' +
+        '<button class="btn-icon" data-remove="' + i + '" aria-label="Retirer"><i data-lucide="trash-2"></i></button>' +
+        '<div class="cl-qty"><label>Qté (kg)</label>' +
+          '<input class="qty-input mono-num" type="number" inputmode="decimal" min="0.5" step="0.5" ' +
+                 'value="' + l.quantite_kg + '" data-qty="' + i + '"></div>' +
+        '<div class="cl-sub mono-num">' + fcfa(sub) + '</div>' +
+      '</div>';
+  }).join('');
+
+  box.innerHTML =
+    lines +
+    '<div class="cart-meta-fields">' +
+      '<div class="field"><label for="cart-date">Date de livraison souhaitée</label>' +
+        '<input id="cart-date" type="date" min="' + new Date().toISOString().slice(0,10) + '"></div>' +
+      '<div class="field"><label for="cart-note">Note (optionnel)</label>' +
+        '<textarea id="cart-note" placeholder="Précisions sur la commande, la livraison…"></textarea></div>' +
+    '</div>' +
+    '<div class="cart-total"><span class="ct-label">Total</span>' +
+      '<span class="ct-value mono-num">' + fcfa(cartTotal()) + '</span></div>' +
+    '<button id="submit-order" class="btn btn-primary btn-block"><i data-lucide="check-circle-2"></i> Valider la commande</button>' +
+    '<p class="cart-note-price">Le prix final est confirmé par Coqorico au moment de la validation.</p>';
+  icons();
+}
+
+function updateLineQty(i, val) {
+  let q = parseFloat(val);
+  if (!(q > 0)) return;
+  cart[i].quantite_kg = Math.round(q * 100) / 100;
+  saveCart(); updateCartBadge(); renderPanier();
+}
+function removeLine(i) {
+  cart.splice(i, 1);
+  saveCart(); updateCartBadge(); renderPanier();
+}
+
+/* ── Soumission : garde anti double-clic STRICTE ── */
+async function submitOrder() {
+  if (submitting) return;          // garde 1 : ré-entrance
+  if (!cart.length) return;
+  submitting = true;
+
+  const btn = $('submit-order');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Envoi en cours…'; } // garde 2 : UI désactivée
+
+  const dateEl = $('cart-date'), noteEl = $('cart-note');
+  const p_date = dateEl && dateEl.value ? dateEl.value : null;
+  const p_note = noteEl && noteEl.value.trim() ? noteEl.value.trim() : null;
+
+  // p_items : produit_id + quantite_kg UNIQUEMENT. JAMAIS de prix —
+  // le serveur (place_order, SECURITY DEFINER) lit le prix depuis produits.
+  const p_items = cart.map(l => ({ produit_id: l.produit_id, quantite_kg: l.quantite_kg }));
+  const snapshot = { items: cart.slice(), total: cartTotal(), date: p_date, note: p_note };
+
+  const { data, error } = await sb.rpc('place_order', {
+    p_items,
+    p_date_livraison_souhaitee: p_date,
+    p_note
+  });
+
+  if (error) {
+    submitting = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="check-circle-2"></i> Valider la commande'; icons(); }
+    toast('Échec de la commande : ' + (error.message || 'erreur serveur'), 'error');
+    return;
+  }
+
+  // Succès : on vide le panier et on affiche la confirmation
+  lastOrder = { commande_id: data, snapshot };
+  cart = []; saveCart(); updateCartBadge();
+  submitting = false;
+  renderConfirm();
+  switchView('confirm');
+}
+
+/* ════════════════ CONFIRMATION ════════════════ */
+function renderConfirm() {
+  const box = $('confirm-content');
+  if (!lastOrder) { box.innerHTML = ''; return; }
+  const s = lastOrder.snapshot;
+  const rows = s.items.map(l =>
+    '<div class="cs-row"><span>' + esc(l.nom) + ' — ' + fmt(l.quantite_kg) + ' kg</span>' +
+    '<span class="mono-num">' + fcfa(Math.round(l.quantite_kg * l.prix_kg_fcfa)) + '</span></div>'
+  ).join('');
+  box.innerHTML =
+    '<div class="confirm-card">' +
+      '<div class="confirm-icon"><i data-lucide="check"></i></div>' +
+      '<h2>Commande enregistrée</h2>' +
+      '<p class="muted">Statut : <strong style="color:var(--c-orange-700)">soumise</strong></p>' +
+      '<div class="confirm-id">' + esc(lastOrder.commande_id) + '</div>' +
+      (s.date ? '<p class="muted">Livraison souhaitée : ' + fmtDate(s.date) + '</p>' : '') +
+      '<div class="confirm-summary">' + rows +
+        '<div class="cs-row" style="border-bottom:none;font-weight:700;font-size:16px;"><span>Total</span>' +
+          '<span class="mono-num">' + fcfa(s.total) + '</span></div>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-block" data-view="historique"><i data-lucide="receipt-text"></i> Voir mes commandes</button>' +
+      '<button class="btn btn-ghost btn-block" style="margin-top:10px;" data-view="catalogue">Retour au catalogue</button>' +
+    '</div>';
+  icons();
+}
+
+/* ════════════════ HISTORIQUE ════════════════ */
+// SELECT des commandes du client (RLS rls_client_commandes_select → ses lignes
+// seulement). Les lignes sont chargées à la demande (rls_client_lignes_select).
+async function loadHistorique() {
+  const box = $('historique-content');
+  box.innerHTML = '<div class="loading"><span class="spinner"></span> Chargement…</div>';
+  const { data, error } = await sb
+    .from('commandes')
+    .select('commande_id, date_commande, date_livraison_souhaitee, statut, montant_total_fcfa')
+    .order('date_commande', { ascending: false });
+  if (error) {
+    box.innerHTML = '<div class="empty"><span class="ic">⚠️</span>Impossible de charger vos commandes.</div>';
+    return;
+  }
+  if (!data.length) {
+    box.innerHTML = '<div class="empty"><span class="ic">📦</span>Aucune commande pour le moment.</div>';
+    return;
+  }
+  box.innerHTML = data.map(c => {
+    const statutClass = c.statut === 'soumise' ? 'statut-soumise' : 'statut-default';
+    return '' +
+      '<div class="order-card">' +
+        '<button class="order-head" data-order="' + esc(c.commande_id) + '">' +
+          '<span class="oh-left"><span class="oh-date">' + fmtDate(c.date_commande) + '</span>' +
+            '<span class="oh-id">' + esc(c.commande_id) + '</span></span>' +
+          '<span class="oh-right">' +
+            '<span class="statut-badge ' + statutClass + '">' + esc(c.statut || '—') + '</span>' +
+            '<span class="oh-total mono-num">' + fcfa(c.montant_total_fcfa) + '</span>' +
+            '<i data-lucide="chevron-down"></i>' +
+          '</span>' +
+        '</button>' +
+        '<div class="order-lines hidden" id="lines-' + esc(c.commande_id) + '"></div>' +
+      '</div>';
+  }).join('');
+  icons();
+}
+
+async function toggleOrderLines(commande_id) {
+  const box = $('lines-' + commande_id);
+  if (!box) return;
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  if (box.dataset.loaded) return;
+  box.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
+  const { data, error } = await sb
+    .from('lignes_commande')
+    .select('description, produit, quantite_kg, prix_kg_fcfa, montant_fcfa')
+    .eq('commande_id', commande_id);
+  if (error) { box.innerHTML = '<p class="muted" style="padding:8px 4px">Détail indisponible.</p>'; return; }
+  box.dataset.loaded = '1';
+  box.innerHTML =
+    '<table><thead><tr><th>Produit</th><th class="num">Qté (kg)</th><th class="num">PU</th><th class="num">Montant</th></tr></thead><tbody>' +
+    (data || []).map(l =>
+      '<tr><td>' + esc(l.description || l.produit || '—') + '</td>' +
+        '<td class="num mono-num">' + fmt(l.quantite_kg) + '</td>' +
+        '<td class="num mono-num">' + fmt(l.prix_kg_fcfa) + '</td>' +
+        '<td class="num mono-num">' + fcfa(l.montant_fcfa) + '</td></tr>'
+    ).join('') +
+    '</tbody></table>';
+  icons();
+}
+
+/* ════════════════ NAVIGATION ════════════════ */
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const target = $('view-' + view);
+  if (target) target.classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  if (view === 'panier') renderPanier();
+  if (view === 'historique') loadHistorique();
+  window.scrollTo(0, 0);
+}
+
+/* ── Persistance panier (localStorage : survit à un refresh) ── */
+function saveCart() { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
+function loadCart() {
+  try { const raw = localStorage.getItem(CART_KEY); if (raw) cart = JSON.parse(raw) || []; } catch (e) { cart = []; }
+}
+
+/* ════════════════ ÉVÉNEMENTS ════════════════ */
+function wireEvents() {
+  $('login-form').addEventListener('submit', handleLogin);
+  $('signout-btn').addEventListener('click', handleSignout);
+
+  document.querySelectorAll('.tab').forEach(t =>
+    t.addEventListener('click', () => switchView(t.dataset.view)));
+
+  // Délégation : clics (ajout panier, retrait, soumission, navigation interne)
+  document.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-add]');
+    if (add) { addToCart(add.dataset.add); return; }
+    const rm = e.target.closest('[data-remove]');
+    if (rm) { removeLine(parseInt(rm.dataset.remove, 10)); return; }
+    const order = e.target.closest('[data-order]');
+    if (order) { toggleOrderLines(order.dataset.order); return; }
+    const submit = e.target.closest('#submit-order');
+    if (submit) { submitOrder(); return; }
+    const nav = e.target.closest('[data-view]');
+    if (nav && !nav.classList.contains('tab')) { switchView(nav.dataset.view); return; }
+  });
+
+  // Délégation : changement de quantité dans le panier
+  document.addEventListener('change', (e) => {
+    const q = e.target.closest('[data-qty]');
+    if (q) updateLineQty(parseInt(q.dataset.qty, 10), q.value);
+  });
+}
+
+/* ── Démarrage ── */
+init();
+</script>
+</body>
+</html>
