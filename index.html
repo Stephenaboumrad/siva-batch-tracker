@@ -864,11 +864,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
 /* ── Status badges ── */
 .status-badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:var(--radius-full); font-family:var(--sans); font-size:10px; font-weight:700; white-space:nowrap; text-transform:uppercase; letter-spacing:0.04em; }
+.status-soumise { background:var(--c-orange-50); color:var(--c-orange-700); } /* entrée du cycle — commande portail reçue, à accepter */
 .status-en_attente { background:var(--c-sand-100); color:var(--c-sand-700); }
 .status-confirmee { background:#DBEAFE; color:#1E40AF; }
 .status-en_preparation { background:#FEF3C7; color:#92400E; }
 .status-livree { background:var(--c-forest-50); color:var(--c-forest-600); }
 .status-annulee { background:#FEE2E2; color:var(--c-red-600); }
+
+/* ── Badge source (portail client vs interne) ── */
+.src-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:var(--radius-full); font-family:var(--sans); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-left:6px; vertical-align:middle; }
+.src-portail { background:var(--c-orange-50); color:var(--c-orange-700); border:1px solid var(--c-orange-200); }
 
 /* ── Ligne commande ── */
 .ligne-row { display:flex; gap:var(--space-2); align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; padding:var(--space-3) var(--space-3); background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border-subtle); }
@@ -2002,6 +2007,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="filter-bar">
           <select id="filter-cmd-statut" onchange="renderCommandes()">
             <option value="">Tous statuts</option>
+            <option value="soumise">Soumise (portail)</option>
             <option value="en_attente">En attente</option>
             <option value="confirmee">Confirmée</option>
             <option value="en_preparation">En préparation</option>
@@ -8530,6 +8536,7 @@ function switchClientsTab(tab, btn) {
 
 // ── Status helpers ──
 const CMD_STATUTS = {
+  soumise: 'Soumise',          // entrée du cycle : commande reçue via le portail client, en attente d'acceptation
   en_attente: 'En attente',
   confirmee: 'Confirmée',
   en_preparation: 'En préparation',
@@ -8559,9 +8566,13 @@ function renderClientsKPI() {
   const cmdToday = STATE.commandes.filter(c => c.date_livraison_souhaitee === today && c.statut !== 'annulee' && c.statut !== 'livree').length;
   const cmdWeek = STATE.commandes.filter(c => c.date_livraison_souhaitee >= weekStart && c.date_livraison_souhaitee <= weekEnd && c.statut !== 'annulee' && c.statut !== 'livree').length;
   const caMois = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande >= monthStart).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
-  const enAttente = STATE.commandes.filter(c => c.statut === 'en_attente').length;
+  // "À traiter" = en attente d'action : internes 'en_attente' + commandes portail 'soumise'.
+  const enAttente = STATE.commandes.filter(c => c.statut === 'en_attente' || c.statut === 'soumise').length;
+  // Commandes portail reçues, pas encore acceptées — mises en avant pour ne pas passer inaperçues.
+  const cmdPortail = STATE.commandes.filter(c => c.statut === 'soumise' && c.source === 'portail_client').length;
 
   document.getElementById('clients-kpi').innerHTML =
+    '<div class="kpi-card ' + (cmdPortail > 0 ? 'kpi-warn' : '') + '"><div class="kpi-value">' + cmdPortail + '</div><div class="kpi-label">Portail — à accepter</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdToday + '</div><div class="kpi-label">Commandes aujourd\'hui</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdWeek + '</div><div class="kpi-label">À livrer cette semaine</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>' +
@@ -8610,7 +8621,8 @@ function renderCommandes() {
     const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
     const produits = lignes.map(l => ligneProduitNom(l)).join(', ') || '—';
     html += '<tr style="cursor:pointer;" onclick="toggleCommandeExpand(\'' + c.commande_id + '\')">' +
-      '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
+      '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong>' +
+        (c.source === 'portail_client' ? '<span class="src-badge src-portail" title="Commande passée via le portail client">Portail</span>' : '') + '</td>' +
       '<td>' + (client ? client.nom : '—') + '</td>' +
       '<td>' + fmtDate(c.date_commande) + '</td>' +
       '<td>' + fmtDate(c.date_livraison_souhaitee) + '</td>' +
@@ -8626,6 +8638,7 @@ function renderCommandes() {
         : lignes.map(l => '<tr><td>' + ligneProduitNom(l) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td><td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td></tr>').join('');
 
       let statusBtns = '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;" class="manager-only">';
+      if (c.statut === 'soumise') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'confirmee\')">Accepter</button>';
       if (c.statut === 'en_attente') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'confirmee\')">Confirmer</button>';
       if (c.statut === 'confirmee') statusBtns += '<button class="btn btn-gold btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'en_preparation\')">En préparation</button>';
       if (c.statut === 'en_preparation') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'livree\')">Marquer livrée</button>';
