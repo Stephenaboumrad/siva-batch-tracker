@@ -419,8 +419,16 @@ body::before {
 #top-header .hdr-logo-img {
   height:44px; width:auto; display:block; margin:0 auto 6px;
 }
+/* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
+   blanc baké dans le PNG serait invisible (blanc sur blanc) sur la carte ; le fond
+   orange le révèle. box-sizing:border-box → height = mascotte 140px + padding 18px ×2.
+   Même traitement que portail.html (.brand-login .brand-logo, PR #41). */
 .siva-login-logo {
-  height:140px; width:auto; display:block; margin:0 auto 12px;
+  height:176px; width:auto; display:block; margin:0 auto 12px;
+  padding:18px;
+  background:var(--c-orange-700);  /* #B84E0A — orange des boutons ; contraste AA avec le wordmark blanc */
+  border-radius:28px;              /* squircle généreux, l'orange respire autour de la mascotte */
+  box-shadow:var(--shadow-md);
 }
 #mobile-top-bar .mtb-logo-img {
   height:32px; width:auto; display:block;
@@ -1191,7 +1199,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 @media (max-width:768px) {
   :root { --sidebar-w: 0px; --bottom-bar-h: 56px; }
   body::before { background-size:20px 20px; }
-  .siva-login-logo { height:100px; }
+  .siva-login-logo { height:132px; padding:16px; border-radius:24px; } /* mascotte 100px + pastille réduite (écho portail) */
 
   /* Hide desktop sidebar, show mobile nav */
   #top-header { display:none; }
