@@ -431,7 +431,14 @@ body::before {
   box-shadow:var(--shadow-md);
 }
 #mobile-top-bar .mtb-logo-img {
-  height:32px; width:auto; display:block;
+  /* La barre mobile est claire en thème clair (--card-bg = #FFFFFF) → le wordmark
+     blanc baké dans le PNG y est invisible. Pastille orange compacte — même
+     traitement que l'écran login, en réduit. box-sizing:border-box → 32px + 5px ×2. */
+  height:42px; width:auto; display:block;
+  padding:5px;
+  background:var(--c-orange-700);  /* #B84E0A — même orange que la pastille login */
+  border-radius:10px;
+  box-shadow:var(--shadow-md);
 }
 
 /* ── Sidebar Nav ── */
@@ -6525,7 +6532,15 @@ function reportHeaderPDF(doc, opts) {
   // ── Bande 1 : identité société (fond clair de la page, aucun aplat) ──
   let tx = 10;
   if (LOGO_DATAURL) {
-    try { doc.addImage(LOGO_DATAURL, 'PNG', 10, 3, 14, 14); tx = 28; } catch (e) { tx = 10; }
+    try {
+      // Pastille orange derrière la mascotte : le wordmark blanc baké dans le PNG
+      // est invisible sur la page blanche du PDF. Même orange que l'écran login
+      // (#B84E0A / --c-orange-700), squircle, ~1.5 mm de marge autour des 14 mm.
+      // Dessinée AVANT le logo. Repli intact : si addImage échoue, tx reste à 10.
+      doc.setFillColor(184, 78, 10);
+      doc.roundedRect(8.5, 1.5, 17, 17, 2.5, 2.5, 'F');
+      doc.addImage(LOGO_DATAURL, 'PNG', 10, 3, 14, 14); tx = 28;
+    } catch (e) { tx = 10; }
   }
   // Ligne 1 : acronyme proéminent
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
