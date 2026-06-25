@@ -104,9 +104,18 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 .brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
 .brand-login { flex-direction: column; gap: 12px; margin-bottom: var(--space-4); }
-.brand-login .brand-logo { height: 140px; }
+/* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
+   blanc baké dans le PNG serait invisible (blanc sur blanc) sur la carte ; le fond
+   orange le révèle. box-sizing:border-box → height = mascotte + padding ×2. */
+.brand-login .brand-logo {
+  height: 176px;                    /* 140px de mascotte + 18px de padding ×2 */
+  padding: 18px;
+  background: var(--c-orange-700);  /* #B84E0A — orange des boutons ; contraste AA avec le wordmark blanc */
+  border-radius: 28px;              /* squircle généreux, l'orange respire autour de la mascotte */
+  box-shadow: var(--shadow-md);
+}
 .brand-login .brand-name { letter-spacing: 0.04em; }
-@media (max-width: 480px) { .brand-login .brand-logo { height: 104px; } }
+@media (max-width: 480px) { .brand-login .brand-logo { height: 140px; padding: 16px; border-radius: 24px; } }
 .login-sub { text-align: center; color: var(--color-text-secondary); font-size: 14px; margin-bottom: var(--space-6); }
 .field { margin-bottom: var(--space-4); }
 .field label { display: block; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px; }
