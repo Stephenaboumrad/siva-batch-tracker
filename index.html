@@ -6535,11 +6535,13 @@ function reportHeaderPDF(doc, opts) {
     try {
       // Pastille orange derrière la mascotte : le wordmark blanc baké dans le PNG
       // est invisible sur la page blanche du PDF. Même orange que l'écran login
-      // (#B84E0A / --c-orange-700), squircle, ~1.5 mm de marge autour des 14 mm.
+      // (#B84E0A / --c-orange-700). Badge arrondi compact, à la hauteur du bloc
+      // raison sociale (S.I.V.A + nom) plutôt que dominant : 14 mm avec ~1,5 mm
+      // de marge autour du logo de 11 mm, centré verticalement dans la bande.
       // Dessinée AVANT le logo. Repli intact : si addImage échoue, tx reste à 10.
       doc.setFillColor(184, 78, 10);
-      doc.roundedRect(8.5, 1.5, 17, 17, 2.5, 2.5, 'F');
-      doc.addImage(LOGO_DATAURL, 'PNG', 10, 3, 14, 14); tx = 28;
+      doc.roundedRect(8.5, 3.5, 14, 14, 1.8, 1.8, 'F');
+      doc.addImage(LOGO_DATAURL, 'PNG', 10, 5, 11, 11); tx = 25;
     } catch (e) { tx = 10; }
   }
   // Ligne 1 : acronyme proéminent
