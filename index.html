@@ -3361,6 +3361,32 @@ async function apiPost(body) {
   }
 }
 
+// ── Wrapper d'écriture : gestion d'erreur COHÉRENTE des sites d'appel ──────────
+// apiPost LÈVE toujours (succès → {success:true} ; sinon throw). On NE TOUCHE PAS
+// apiPost (les ~15 sites déjà corrects et processSyncQueue dépendent du throw) :
+// saveRemote traduit le throw en résultat exploitable et centralise le toast.
+//   - succès serveur                 → { ok:true,  queued:false }
+//   - hors ligne (mis en file)       → { ok:true,  queued:true  }  (appliquer en optimiste)
+//   - REJET serveur (RLS/contrainte) → { ok:false } + toast d'erreur ICI
+// Convention site d'appel : `const r = await saveRemote(...); if (!r.ok) return;`
+// puis muter STATE / re-render ; toast succès (ou « hors ligne » si r.queued).
+// opts.silent : supprime le toast d'erreur (sync de fond en masse — pas de spam).
+async function saveRemote(body, opts) {
+  try {
+    await apiPost(body);
+    return { ok: true, queued: false };
+  } catch (err) {
+    if (err && err.message && err.message.includes("file d'attente")) {
+      return { ok: true, queued: true };
+    }
+    console.error('Échec écriture (' + (body && body.action) + ') :', err);
+    if (!(opts && opts.silent)) {
+      toast("Échec de l'enregistrement : " + ((err && err.message) ? err.message : 'erreur serveur'), 'error');
+    }
+    return { ok: false, error: err };
+  }
+}
+
 // ── File d'attente hors ligne (rejouée vers Supabase) ──
 function getSyncQueue() {
   try {
@@ -4342,21 +4368,19 @@ async function validateNotif(notifId) {
   const apiAction = actionMap[notif.type];
 
   if (apiAction) {
-    try {
-      await apiPost({ action: apiAction, payload: payload });
-      // Push to local state
-      if (notif.type === 'intrant') STATE.intrants.push(payload);
-      else if (notif.type === 'reception') STATE.receptions.push(payload);
-      else if (notif.type === 'abattage') STATE.abattages.push(payload);
-    } catch(err) {
-      toast('Erreur lors de l\'exécution : ' + err.message, 'error');
-      // Revert notification
+    const r = await saveRemote({ action: apiAction, payload: payload });
+    if (!r.ok) {
+      // Rejet serveur (déjà signalé par saveRemote) : on annule la validation.
       notif.statut = 'en_attente';
       notif.valide_par = '';
       notif.date_validation = '';
       renderNotifPanel('pending');
       return;
     }
+    // Succès OU hors ligne (mis en file) : on applique en local.
+    if (notif.type === 'intrant') STATE.intrants.push(payload);
+    else if (notif.type === 'reception') STATE.receptions.push(payload);
+    else if (notif.type === 'abattage') STATE.abattages.push(payload);
   }
 
   // Persist notification update
@@ -6177,14 +6201,11 @@ function renderFicheSaisiesTable(ind, bande) {
 
 async function deleteSaisie(saisieId) {
   if (!confirm('Supprimer cette saisie ?')) return;
-  try {
-    await apiPost({ action: 'deleteSaisie', payload: { saisie_id: saisieId } });
-    STATE.saisies = STATE.saisies.filter(s => s.saisie_id !== saisieId);
-    loadFicheBande();
-    toast('Saisie supprimée');
-  } catch (err) {
-    toast('Erreur: ' + err.message, 'error');
-  }
+  const r = await saveRemote({ action: 'deleteSaisie', payload: { saisie_id: saisieId } });
+  if (!r.ok) return;
+  STATE.saisies = STATE.saisies.filter(s => s.saisie_id !== saisieId);
+  loadFicheBande();
+  toast(r.queued ? 'Saisie supprimée (hors ligne — sera synchronisée)' : 'Saisie supprimée');
 }
 
 function renderFicheIntrantsTable(ind) {
@@ -6214,14 +6235,11 @@ function renderFicheIntrantsTable(ind) {
 
 async function deleteIntrant(intrantId) {
   if (!confirm('Supprimer cet intrant ?')) return;
-  try {
-    await apiPost({ action: 'deleteIntrant', payload: { intrant_id: intrantId } });
-    STATE.intrants = STATE.intrants.filter(i => i.intrant_id !== intrantId);
-    loadFicheBande();
-    toast('Intrant supprimé');
-  } catch (err) {
-    toast('Erreur: ' + err.message, 'error');
-  }
+  const r = await saveRemote({ action: 'deleteIntrant', payload: { intrant_id: intrantId } });
+  if (!r.ok) return;
+  STATE.intrants = STATE.intrants.filter(i => i.intrant_id !== intrantId);
+  loadFicheBande();
+  toast(r.queued ? 'Intrant supprimé (hors ligne — sera synchronisé)' : 'Intrant supprimé');
 }
 
 // ── Exports ──
@@ -7187,11 +7205,12 @@ async function addMP() {
   list.push(newMp);
   saveMPList(list);
 
-  // Also persist to Google Sheets
-  try {
-    await apiPost({ action: 'addMatiere', payload: { matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true } });
-    STATE.matieres.push({ matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true });
-  } catch (e) { /* offline — queued */ }
+  // Sync secondaire vers la table matieres. La liste MP locale (saveMPList) reste
+  // la SOURCE DE VÉRITÉ : on ne bloque donc PAS le rendu/toast local. Mais un rejet
+  // serveur n'est plus avalé — saveRemote le signale (dérive local/Supabase visible)
+  // et STATE.matieres n'est muté que si l'écriture passe (succès ou file d'attente).
+  const r = await saveRemote({ action: 'addMatiere', payload: { matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true } });
+  if (r.ok) STATE.matieres.push({ matiere_id: newMp.mp_id, nom, unite: 'kg', actif: true });
 
   if (input) input.value = '';
   renderMPAlimTable();
@@ -7204,12 +7223,13 @@ async function toggleMPActif(mpId, actif) {
   if (mp) {
     mp.actif = actif;
     saveMPList(list);
-    // Sync to Google Sheets
-    try {
-      await apiPost({ action: 'updateMatiere', payload: { matiere_id: mpId, actif } });
+    // Sync secondaire vers matieres (liste MP locale = source de vérité, déjà
+    // sauvegardée ci-dessus). Rejet serveur signalé par saveRemote, plus avalé.
+    const r = await saveRemote({ action: 'updateMatiere', payload: { matiere_id: mpId, actif } });
+    if (r.ok) {
       const sm = STATE.matieres.find(m => m.matiere_id === mpId);
       if (sm) sm.actif = actif;
-    } catch (e) { /* offline */ }
+    }
     renderMPAlimTable();
   }
 }
@@ -7641,10 +7661,11 @@ async function seedDefaultMatieres() {
       unite: m.unite || 'kg',
       actif: m.actif !== false
     };
-    try {
-      await apiPost({ action: 'addMatiere', payload });
-      STATE.matieres.push(payload);
-    } catch (e) { /* silent — offline will retry */ }
+    // Réamorçage automatique en arrière-plan (matieres déjà seedées en SQL) :
+    // pas de toast par ligne (silent) pour éviter le spam ; STATE muté seulement
+    // si l'écriture passe ; les rejets sont logués (saveRemote), plus avalés.
+    const r = await saveRemote({ action: 'addMatiere', payload }, { silent: true });
+    if (r.ok) STATE.matieres.push(payload);
   }
 }
 
@@ -7997,14 +8018,11 @@ async function submitAlimEntry() {
 
 async function deleteAlimentPhase(apId) {
   if (!confirm('Supprimer cette entrée ?')) return;
-  try {
-    await apiPost({ action: 'deleteAlimentPhase', payload: { ap_id: apId } });
-    STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.ap_id !== apId);
-    renderAllAlimPhases();
-    toast('Entrée supprimée');
-  } catch (err) {
-    toast('Erreur : ' + err.message, 'error');
-  }
+  const r = await saveRemote({ action: 'deleteAlimentPhase', payload: { ap_id: apId } });
+  if (!r.ok) return;
+  STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.ap_id !== apId);
+  renderAllAlimPhases();
+  toast(r.queued ? 'Entrée supprimée (hors ligne — sera synchronisée)' : 'Entrée supprimée');
 }
 
 // ══════════════════════════════════════════
@@ -8153,16 +8171,11 @@ async function toggleFournisseurStatut(id) {
   const f = STATE.fournisseurs.find(x => x.fournisseur_id === id);
   if (!f) return;
   const newStatut = f.statut === 'actif' ? 'inactif' : 'actif';
-  try {
-    await apiPost({ action: 'updateFournisseur', payload: { fournisseur_id: id, statut: newStatut } });
-    f.statut = newStatut;
-    renderFournisseurs();
-    toast('Fournisseur ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
-  } catch (err) {
-    f.statut = newStatut; // optimistic
-    renderFournisseurs();
-    toast('Mis à jour (hors ligne)');
-  }
+  const r = await saveRemote({ action: 'updateFournisseur', payload: { fournisseur_id: id, statut: newStatut } });
+  if (!r.ok) return;
+  f.statut = newStatut;
+  renderFournisseurs();
+  toast(r.queued ? 'Mis à jour (hors ligne — sera synchronisé)' : 'Fournisseur ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
 }
 
 // ══════════════════════════════
@@ -8319,12 +8332,11 @@ function promptInspectionForLastReception() {
 
 async function deleteReception(id) {
   if (!confirm('Supprimer cette réception ?')) return;
-  try {
-    await apiPost({ action: 'deleteReception', payload: { reception_id: id } });
-    STATE.receptions = STATE.receptions.filter(r => r.reception_id !== id);
-    renderReceptions();
-    toast('Réception supprimée');
-  } catch (err) { toast('Erreur : ' + err.message, 'error'); }
+  const res = await saveRemote({ action: 'deleteReception', payload: { reception_id: id } });
+  if (!res.ok) return;
+  STATE.receptions = STATE.receptions.filter(r => r.reception_id !== id);
+  renderReceptions();
+  toast(res.queued ? 'Réception supprimée (hors ligne — sera synchronisée)' : 'Réception supprimée');
 }
 
 // ══════════════════════════════
@@ -8513,16 +8525,11 @@ async function saveStockEdit(stockId) {
     seuil_alerte: newSeuil,
     derniere_mise_a_jour: todayStr()
   };
-  try {
-    await apiPost({ action: 'updateStock', payload });
-    Object.assign(s, payload);
-    renderStocks();
-    toast('Stock mis à jour');
-  } catch (err) {
-    Object.assign(s, payload);
-    renderStocks();
-    toast('Mis à jour (hors ligne)');
-  }
+  const r = await saveRemote({ action: 'updateStock', payload });
+  if (!r.ok) return;
+  Object.assign(s, payload);
+  renderStocks();
+  toast(r.queued ? 'Stock mis à jour (hors ligne — sera synchronisé)' : 'Stock mis à jour');
 }
 
 // ── Stock alerts for dashboard ──
@@ -8746,16 +8753,11 @@ function toggleCommandeExpand(id) {
 async function updateCommandeStatut(cmdId, newStatut) {
   const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
   if (!cmd) return;
-  try {
-    await apiPost({ action: 'updateCommande', payload: { commande_id: cmdId, statut: newStatut } });
-    cmd.statut = newStatut;
-    renderCommandes();
-    toast('Commande ' + CMD_STATUTS[newStatut].toLowerCase());
-  } catch (err) {
-    cmd.statut = newStatut;
-    renderCommandes();
-    toast('Mis à jour (hors ligne)');
-  }
+  const r = await saveRemote({ action: 'updateCommande', payload: { commande_id: cmdId, statut: newStatut } });
+  if (!r.ok) return;
+  cmd.statut = newStatut;
+  renderCommandes();
+  toast(r.queued ? 'Mis à jour (hors ligne — sera synchronisé)' : 'Commande ' + CMD_STATUTS[newStatut].toLowerCase());
 }
 
 // ── Commande modal ──
@@ -8914,8 +8916,11 @@ async function submitCommande() {
     await apiPost({ action: 'addCommande', payload: cmdPayload });
     STATE.commandes.push(cmdPayload);
     for (const l of lignes) {
-      try { await apiPost({ action: 'addLigneCommande', payload: l }); } catch(e) { /* queued */ }
-      STATE.lignesCommande.push(l);
+      // En-tête déjà persisté ; on n'ajoute la ligne à STATE que si elle est
+      // écrite (succès) ou mise en file (hors ligne). Un rejet serveur d'une ligne
+      // est signalé par saveRemote et la ligne n'est PAS poussée (cohérence montant).
+      const rl = await saveRemote({ action: 'addLigneCommande', payload: l });
+      if (rl.ok) STATE.lignesCommande.push(l);
     }
     closeCommandeModal();
     renderCommandes();
@@ -9170,16 +9175,11 @@ async function toggleClientStatut(id) {
   const c = STATE.clients.find(x => x.client_id === id);
   if (!c) return;
   const newStatut = c.statut === 'actif' ? 'inactif' : 'actif';
-  try {
-    await apiPost({ action: 'updateClient', payload: { client_id: id, statut: newStatut } });
-    c.statut = newStatut;
-    renderClientsList();
-    toast('Client ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
-  } catch (err) {
-    c.statut = newStatut;
-    renderClientsList();
-    toast('Mis à jour (hors ligne)');
-  }
+  const r = await saveRemote({ action: 'updateClient', payload: { client_id: id, statut: newStatut } });
+  if (!r.ok) return;
+  c.statut = newStatut;
+  renderClientsList();
+  toast(r.queued ? 'Mis à jour (hors ligne — sera synchronisé)' : 'Client ' + (newStatut === 'actif' ? 'activé' : 'désactivé'));
 }
 
 // ══════════════════════════════
@@ -10200,29 +10200,24 @@ async function validateAbattage(id) {
   const a = STATE.abattages.find(x => x.abattage_id === id);
   if (!a) return;
   const payload = { abattage_id: id, statut: 'valide', valide_par: currentUser ? currentUser.name : '' };
-  try {
-    await apiPost({ action: 'updateAbattage', payload });
-    Object.assign(a, payload);
-    renderAbattageDetail();
-    toast('Session validée');
-    // Proposition de clôture — via le MÊME flux unifié que le formulaire :
-    // aperçu + confirmation explicite ; l'écriture en base et le registre sont
-    // gérés par confirmCloseBande (aucune écriture sans clic).
-    const bande = STATE.bandes.find(b => b.bande_id === a.bande_id && b.statut === 'en_cours');
-    if (bande) {
-      const closurePayload = {
-        bande_id: bande.bande_id,
-        statut: 'termine',
-        date_sortie: a.date_abattage,
-        nb_oiseaux_sortie: a.nb_oiseaux_abattus,
-        poids_vif_moyen_sortie_g: Math.round((Number(a.poids_vif_moyen_kg) || 0) * 1000)
-      };
-      startCloseoutPreview(bande.bande_id, closurePayload, { source: 'abattage' });
-    }
-  } catch (err) {
-    Object.assign(a, payload);
-    renderAbattageDetail();
-    toast('Validé (hors ligne)');
+  const r = await saveRemote({ action: 'updateAbattage', payload });
+  if (!r.ok) return;
+  Object.assign(a, payload);
+  renderAbattageDetail();
+  toast(r.queued ? 'Session validée (hors ligne — sera synchronisée)' : 'Session validée');
+  // Proposition de clôture — via le MÊME flux unifié que le formulaire :
+  // aperçu + confirmation explicite ; l'écriture en base et le registre sont
+  // gérés par confirmCloseBande (aucune écriture sans clic).
+  const bande = STATE.bandes.find(b => b.bande_id === a.bande_id && b.statut === 'en_cours');
+  if (bande) {
+    const closurePayload = {
+      bande_id: bande.bande_id,
+      statut: 'termine',
+      date_sortie: a.date_abattage,
+      nb_oiseaux_sortie: a.nb_oiseaux_abattus,
+      poids_vif_moyen_sortie_g: Math.round((Number(a.poids_vif_moyen_kg) || 0) * 1000)
+    };
+    startCloseoutPreview(bande.bande_id, closurePayload, { source: 'abattage' });
   }
 }
 
@@ -10807,8 +10802,10 @@ async function submitEmploye() {
 async function toggleEmployeStatut(id) {
   const e = STATE.employes.find(x => x.employe_id === id); if (!e) return;
   const ns = e.statut === 'actif' ? 'inactif' : 'actif';
-  try { await apiPost({ action: 'updateEmploye', payload: { employe_id: id, statut: ns } }); } catch(err) {}
-  e.statut = ns; renderRHEmployes(); toast('Employé ' + (ns === 'actif' ? 'activé' : 'désactivé'));
+  const r = await saveRemote({ action: 'updateEmploye', payload: { employe_id: id, statut: ns } });
+  if (!r.ok) return;
+  e.statut = ns; renderRHEmployes();
+  toast(r.queued ? 'Employé mis à jour (hors ligne — sera synchronisé)' : 'Employé ' + (ns === 'actif' ? 'activé' : 'désactivé'));
 }
 
 // ── Paies ──
@@ -10858,8 +10855,10 @@ async function generatePaieFor(empId, mois) {
     montant_net_fcfa: sal, montant_total_charge_fcfa: sal + cnps,
     statut: 'en_attente', date_paiement: null, note: ''
   };
-  try { await apiPost({ action: 'addPaie', payload }); } catch(err) {}
-  STATE.paies.push(payload); renderPaies(); toast('Fiche générée');
+  const r = await saveRemote({ action: 'addPaie', payload });
+  if (!r.ok) return;
+  STATE.paies.push(payload); renderPaies();
+  toast(r.queued ? 'Fiche générée (hors ligne — sera synchronisée)' : 'Fiche générée');
 }
 
 async function generateAllPaies() {
@@ -10878,8 +10877,10 @@ async function generateAllPaies() {
 async function markPaiePaye(paieId) {
   const p = STATE.paies.find(x => x.paie_id === paieId); if (!p) return;
   const payload = { paie_id: paieId, statut: 'paye', date_paiement: todayStr() };
-  try { await apiPost({ action: 'updatePaie', payload }); } catch(err) {}
-  Object.assign(p, payload); renderPaies(); toast('Paie marquée payée');
+  const r = await saveRemote({ action: 'updatePaie', payload });
+  if (!r.ok) return;
+  Object.assign(p, payload); renderPaies();
+  toast(r.queued ? 'Paie marquée payée (hors ligne — sera synchronisée)' : 'Paie marquée payée');
 }
 
 async function exportBulletinsPDF() {
@@ -10995,9 +10996,11 @@ async function submitDepenseRH() {
 
 async function deleteDepenseRH(id) {
   if (!confirm('Supprimer cette dépense ?')) return;
-  try { await apiPost({ action: 'deleteDepenseRH', payload: { depense_id: id } }); } catch(err) {}
+  const r = await saveRemote({ action: 'deleteDepenseRH', payload: { depense_id: id } });
+  if (!r.ok) return;
   STATE.depensesRH = STATE.depensesRH.filter(d => d.depense_id !== id);
-  renderDepensesRH(); toast('Dépense supprimée');
+  renderDepensesRH();
+  toast(r.queued ? 'Dépense supprimée (hors ligne — sera synchronisée)' : 'Dépense supprimée');
 }
 
 // ── Init ──
