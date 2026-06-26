@@ -6526,7 +6526,7 @@ let LOGO_DATAURL = null;
 function reportHeaderPDF(doc, opts) {
   opts = opts || {};
   const pw = doc.internal.pageSize.getWidth();
-  const BANNER = 30;   // hauteur du bandeau de marque unifié (orange continu)
+  const BANNER = 33;   // hauteur du bandeau de marque unifié (orange continu)
 
   // ── Bandeau de marque UNIFIÉ : logo + identité société + titre du rapport sur
   // une seule barre orange continue en haut de page. Orange de marque #B84E0A
@@ -6542,34 +6542,34 @@ function reportHeaderPDF(doc, opts) {
   let tx = 12;
   if (LOGO_DATAURL) {
     try {
-      doc.addImage(LOGO_DATAURL, 'PNG', 10, 5, 20, 20); tx = 35;
+      doc.addImage(LOGO_DATAURL, 'PNG', 10, 4, 25, 25); tx = 40;
     } catch (e) { tx = 12; }
   }
 
   // Colonne gauche : identité société (blanc sur orange).
   doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'bold'); doc.setFontSize(18);
-  doc.text(REPORT_BRAND.acronym, tx, 13);             // « S.I.V.A »
-  doc.setFont(undefined, 'normal'); doc.setFontSize(8.5);
+  doc.setFont(undefined, 'bold'); doc.setFontSize(20);
+  doc.text(REPORT_BRAND.acronym, tx, 13.5);           // « S.I.V.A »
+  doc.setFont(undefined, 'normal'); doc.setFontSize(9);
   doc.setTextColor(255, 238, 230);
-  doc.text(REPORT_BRAND.legalName, tx, 19);           // raison sociale
+  doc.text(REPORT_BRAND.legalName, tx, 20);           // raison sociale
 
   // Colonne droite : titre du rapport + sous-titre, alignés à droite, mêmes
   // lignes de base que l'identité — l'ensemble forme un seul bloc d'en-tête.
   doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'bold'); doc.setFontSize(13.5);
-  doc.text(String(opts.title || 'Rapport'), pw - 10, 13, { align: 'right' });
+  doc.setFont(undefined, 'bold'); doc.setFontSize(14);
+  doc.text(String(opts.title || 'Rapport'), pw - 10, 13.5, { align: 'right' });
   if (opts.subtitle) {
-    doc.setFont(undefined, 'normal'); doc.setFontSize(9.5);
+    doc.setFont(undefined, 'normal'); doc.setFontSize(10);
     doc.setTextColor(255, 238, 230);
-    doc.text(String(opts.subtitle), pw - 10, 19, { align: 'right' });
+    doc.text(String(opts.subtitle), pw - 10, 20, { align: 'right' });
   }
 
   // Ligne méta sur le bandeau : période (gauche) / date de génération (droite).
   doc.setFont(undefined, 'normal'); doc.setFontSize(8);
   doc.setTextColor(255, 238, 230);
-  if (opts.period) doc.text('Période : ' + opts.period, tx, 26);
-  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, 26, { align: 'right' });
+  if (opts.period) doc.text('Période : ' + opts.period, tx, 26.5);
+  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, 26.5, { align: 'right' });
 
   // Filet de séparation discret sous le bandeau, puis début du corps du rapport.
   let y = BANNER + 4;
