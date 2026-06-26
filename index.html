@@ -3228,15 +3228,37 @@ function checkTruncation(table, received, total) {
   } catch (e) { /* toast indispo très tôt au chargement → le console.warn suffit */ }
 }
 
+// Lecture COMPLÈTE et paginée — le VRAI correctif de la troncature à 1000 lignes.
+// PostgREST plafonne un select sans borne à db.maxRows (défaut 1000) ; on boucle
+// sur .range() par pages de 1000 jusqu'à recevoir une page incomplète, donc on
+// récupère TOUTES les lignes quelle que soit la taille de la table. Les petites
+// tables tiennent en une seule page (aucun surcoût, la boucle sort tout de suite).
+// Tri stable par created_at (présent sur les 19 tables + la vue bandes_ops) pour
+// une pagination cohérente. checkTruncation (#49) reste en FILET DE SÉCURITÉ : avec
+// la pagination il ne doit PLUS JAMAIS se déclencher — s'il le fait, la boucle est
+// incomplète et il faut corriger ici. Aucun total/économie modifié : on ne change
+// QUE la façon de lire ; la forme des données rendues est identique (un tableau).
+const SB_PAGE = 1000;
 async function sbSelect(table, filters) {
-  let q = sb.from(table).select('*', { count: 'exact' });
-  if (filters) {
-    for (const k of Object.keys(filters)) q = q.eq(k, filters[k]);
+  let all = [];
+  let total = null;
+  for (let from = 0; ; from += SB_PAGE) {
+    let q = sb.from(table).select('*', { count: 'exact' })
+              .order('created_at', { ascending: true })
+              .range(from, from + SB_PAGE - 1);
+    if (filters) {
+      for (const k of Object.keys(filters)) q = q.eq(k, filters[k]);
+    }
+    const { data, error, count } = await q;
+    if (error) throw new Error(error.message);
+    if (count != null) total = count;
+    const batch = data || [];
+    all = all.concat(batch);
+    if (batch.length < SB_PAGE) break;                // dernière page atteinte
+    if (total != null && all.length >= total) break;  // sécurité : count couvert
   }
-  const { data, error, count } = await q;
-  if (error) throw new Error(error.message);
-  checkTruncation(table, (data || []).length, count);
-  return data || [];
+  checkTruncation(table, all.length, total);
+  return all;
 }
 
 async function apiGet(params) {
@@ -3466,9 +3488,17 @@ async function loadAllData() {
     isOnline = true;
     // Seed matières premières si la table est vide (rarement utilisé : déjà seedé en SQL)
     if (STATE.matieres.length === 0) seedDefaultMatieres();
-    // Cache local pour reprise hors ligne
+    // Cache local pour reprise hors ligne.
+    // (i) On EXCLUT les grosses tables transactionnelles à croissance non bornée :
+    //     en ligne, STATE est TOUJOURS complet via la pagination ; le cache ne sert
+    //     qu'au repli hors ligne et, désormais qu'on charge tout l'historique, il
+    //     dépasserait sinon le plafond ~5 Mo de localStorage. Conséquence assumée :
+    //     hors ligne, ces tables repartent vides (le repli fait déjà `|| []`).
+    // (ii) Le dépassement de quota n'est PLUS avalé en silence : on le SIGNALE.
+    const CACHE_EXCLUDED = ['saisies', 'intrants', 'notifications', 'lignesCommande',
+      'commandes', 'abattages', 'receptions', 'inspections', 'paies', 'depensesRH'];
     try {
-      localStorage.setItem('coqorico_cache', JSON.stringify({
+      const snapshot = {
         bandes: STATE.bandes, saisies: STATE.saisies, intrants: STATE.intrants,
         alimentsPhases: STATE.alimentsPhases, matieres: STATE.matieres,
         formulationsMP: STATE.formulationsMP, fournisseurs: STATE.fournisseurs,
@@ -3477,8 +3507,15 @@ async function loadAllData() {
         lignesCommande: STATE.lignesCommande, abattages: STATE.abattages,
         employes: STATE.employes, paies: STATE.paies, depensesRH: STATE.depensesRH,
         notifications: STATE.notifications, produits: STATE.produits, cachedAt: new Date().toISOString()
-      }));
-    } catch (e) { /* localStorage full */ }
+      };
+      for (const k of CACHE_EXCLUDED) delete snapshot[k];
+      localStorage.setItem('coqorico_cache', JSON.stringify(snapshot));
+    } catch (e) {
+      // Quota dépassé (ou stockage indispo) : le setItem échoue de façon atomique,
+      // l'ancien cache (s'il existe) reste intact comme repli — on ne le supprime pas.
+      console.warn('Cache hors-ligne non écrit (quota localStorage dépassé ?) :', e);
+      try { toast('⚠️ Cache hors-ligne saturé — le mode hors ligne peut être incomplet.', 'error'); } catch (_) {}
+    }
     hideOfflineBanner();
     updateSyncStatus();
   } catch (err) {
