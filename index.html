@@ -3207,13 +3207,35 @@ function dataSourceFor(table) {
   return table;
 }
 
+// ── Garde anti-troncature silencieuse ──────────────────────────────────────
+// PostgREST plafonne un select sans borne (db.maxRows, défaut 1000) et renvoie
+// SILENCIEUSEMENT la 1re page comme si c'était tout le jeu. Trésorerie / CA /
+// éco dérivent de ces lectures → au-delà du plafond, les totaux deviennent faux
+// sans aucun signal. On demande le count exact et on compare aux lignes reçues :
+// si on en reçoit moins que le total, on le SIGNALE (console + toast). STOPGAP
+// de DÉTECTION uniquement — aucune pagination ajoutée, aucun usage des données
+// modifié. Réarmé à chaque getAll (1 alerte par table et par chargement).
+const _truncationWarned = new Set();
+function checkTruncation(table, received, total) {
+  if (total == null || received >= total) return;   // jeu complet → rien à signaler
+  if (_truncationWarned.has(table)) return;          // déjà signalé ce chargement
+  _truncationWarned.add(table);
+  console.warn('⚠️ TRONCATURE: table «' + table + '» a renvoyé ' + received +
+    ' lignes sur ' + total + ' — les totaux (trésorerie / CA / éco) sont désormais INCOMPLETS.');
+  try {
+    toast('⚠️ Données tronquées : « ' + table + ' » ' + received + '/' + total +
+      ' lignes. Les totaux sont incomplets.', 'error');
+  } catch (e) { /* toast indispo très tôt au chargement → le console.warn suffit */ }
+}
+
 async function sbSelect(table, filters) {
-  let q = sb.from(table).select('*');
+  let q = sb.from(table).select('*', { count: 'exact' });
   if (filters) {
     for (const k of Object.keys(filters)) q = q.eq(k, filters[k]);
   }
-  const { data, error } = await q;
+  const { data, error, count } = await q;
   if (error) throw new Error(error.message);
+  checkTruncation(table, (data || []).length, count);
   return data || [];
 }
 
@@ -3225,6 +3247,7 @@ async function apiGet(params) {
     return { status: 'ok' };
   }
   if (action === 'getAll') {
+    _truncationWarned.clear();   // réarme la détection : 1 alerte / table / chargement
     const out = {};
     const results = await Promise.all(ALL_TABLES.map(([t]) => {
       const src = dataSourceFor(t);
