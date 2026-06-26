@@ -8923,8 +8923,17 @@ async function generateBonLivraison(cmdId) {
     if (client.telephone) doc.text('Tél : ' + client.telephone, 14, y + 22);
   }
 
+  // Cadre destinataire : « Livraison estimée » + bloc client (nom/ville/tél)
+  // encadrés dans un rectangle arrondi gris clair (--color-border #D4DBE2),
+  // trait fin 0,35 mm, SANS remplissage — structure discrète, contenu inchangé.
+  // Haut = 4 mm au-dessus de « Livraison estimée » (y-4) ; bas = 4 mm sous Tél (y+22).
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.35);
+  doc.roundedRect(11, y - 8, 188, 34, 2.5, 2.5, 'S');
+  doc.setLineWidth(0.2);   // restaure l'épaisseur pour les filets de lignes (inchangés)
+
   // Table header — bande orange AA (#B84E0A), texte blanc, Inter bold.
   y = 80;
+  const tableTop = y - 3;   // haut du cadre tableau (3 mm au-dessus de l'en-tête orange)
   doc.setFillColor.apply(doc, ORANGE_700);
   doc.rect(14, y, 182, 8, 'F');
   doc.setFont(FONT, 'bold'); doc.setFontSize(9);
@@ -8964,6 +8973,13 @@ async function generateBonLivraison(cmdId) {
   doc.setFont(FONT, 'normal'); doc.setFontSize(7.5);
   doc.setTextColor.apply(doc, REPORT_BRAND.muted);
   doc.text('NB : un petit poulet équivaut à environ 1100 g.', 14, y);
+
+  // Cadre tableau : en-tête orange + lignes + ligne TOTAL + note NB encadrés
+  // dans un rectangle arrondi gris clair (--color-border), trait fin 0,35 mm,
+  // SANS remplissage. Hauteur dynamique : du haut de l'en-tête au bas de la NB.
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.35);
+  doc.roundedRect(11, tableTop, 188, (y + 4) - tableTop, 2.5, 2.5, 'S');
+  doc.setDrawColor(224); doc.setLineWidth(0.2);   // restaure l'état pour la signature (inchangée)
 
   // Note
   if (cmd.note) {
