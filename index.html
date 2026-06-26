@@ -6526,57 +6526,53 @@ let LOGO_DATAURL = null;
 function reportHeaderPDF(doc, opts) {
   opts = opts || {};
   const pw = doc.internal.pageSize.getWidth();
-  const B1 = 19;   // hauteur bande identité
-  const B2 = 10;   // hauteur bande titre (orange)
+  const BANNER = 30;   // hauteur du bandeau de marque unifié (orange continu)
 
-  // ── Bande 1 : identité société (fond clair de la page, aucun aplat) ──
-  let tx = 10;
+  // ── Bandeau de marque UNIFIÉ : logo + identité société + titre du rapport sur
+  // une seule barre orange continue en haut de page. Orange de marque #B84E0A
+  // (--c-orange-700) — celui de l'écran login, sur lequel le wordmark blanc
+  // « COQORICO » et la mascotte (contours noirs) lisent proprement. Plus de
+  // pastille arrondie : la barre étant orange, le logo s'y pose directement.
+  // Tout le texte du bandeau est blanc.
+  doc.setFillColor(184, 78, 10);
+  doc.rect(0, 0, pw, BANNER, 'F');
+
+  // Mascotte à gauche, centrée verticalement, sans pastille. Repli intact :
+  // si addImage échoue, le texte démarre simplement plus à gauche.
+  let tx = 12;
   if (LOGO_DATAURL) {
     try {
-      // Pastille orange derrière la mascotte : le wordmark blanc baké dans le PNG
-      // est invisible sur la page blanche du PDF. Même orange que l'écran login
-      // (#B84E0A / --c-orange-700). Badge arrondi compact, à la hauteur du bloc
-      // raison sociale (S.I.V.A + nom) plutôt que dominant : 14 mm avec ~1,5 mm
-      // de marge autour du logo de 11 mm, centré verticalement dans la bande.
-      // Dessinée AVANT le logo. Repli intact : si addImage échoue, tx reste à 10.
-      doc.setFillColor(184, 78, 10);
-      doc.roundedRect(8.5, 3.5, 14, 14, 1.8, 1.8, 'F');
-      doc.addImage(LOGO_DATAURL, 'PNG', 10, 5, 11, 11); tx = 25;
-    } catch (e) { tx = 10; }
+      doc.addImage(LOGO_DATAURL, 'PNG', 10, 5, 20, 20); tx = 35;
+    } catch (e) { tx = 12; }
   }
-  // Ligne 1 : acronyme proéminent
-  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
-  doc.setFont(undefined, 'bold'); doc.setFontSize(19);
-  doc.text(REPORT_BRAND.acronym, tx, 11);
-  // Ligne 2 : raison sociale (plus petite, dessous)
-  doc.setFont(undefined, 'normal'); doc.setFontSize(8);
-  doc.setTextColor.apply(doc, REPORT_BRAND.subtle);
-  doc.text(REPORT_BRAND.legalName, tx, 16);
-  // Site (aligné à droite, discret)
-  doc.setFontSize(7.5); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
-  doc.text(REPORT_BRAND.site, pw - 10, 11, { align: 'right' });
 
-  // ── Bande 2 : titre du rapport sur bandeau orange mat (#C8632D) ──
-  doc.setFillColor.apply(doc, REPORT_ACCENT);
-  doc.rect(0, B1, pw, B2, 'F');
+  // Colonne gauche : identité société (blanc sur orange).
   doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'bold'); doc.setFontSize(12.5);
-  doc.text(String(opts.title || 'Rapport'), 12, B1 + 6.7);
-  // Band ID / sous-titre (conservé) — aligné à droite sur le bandeau, quasi-blanc.
+  doc.setFont(undefined, 'bold'); doc.setFontSize(18);
+  doc.text(REPORT_BRAND.acronym, tx, 13);             // « S.I.V.A »
+  doc.setFont(undefined, 'normal'); doc.setFontSize(8.5);
+  doc.setTextColor(255, 238, 230);
+  doc.text(REPORT_BRAND.legalName, tx, 19);           // raison sociale
+
+  // Colonne droite : titre du rapport + sous-titre, alignés à droite, mêmes
+  // lignes de base que l'identité — l'ensemble forme un seul bloc d'en-tête.
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined, 'bold'); doc.setFontSize(13.5);
+  doc.text(String(opts.title || 'Rapport'), pw - 10, 13, { align: 'right' });
   if (opts.subtitle) {
-    doc.setFont(undefined, 'normal'); doc.setFontSize(9);
-    doc.setTextColor(255, 240, 232);
-    doc.text(String(opts.subtitle), pw - 10, B1 + 6.7, { align: 'right' });
+    doc.setFont(undefined, 'normal'); doc.setFontSize(9.5);
+    doc.setTextColor(255, 238, 230);
+    doc.text(String(opts.subtitle), pw - 10, 19, { align: 'right' });
   }
 
-  // ── Ligne méta (période / génération) — inchangée ──
-  let y = B1 + B2 + 6;
+  // Ligne méta sur le bandeau : période (gauche) / date de génération (droite).
   doc.setFont(undefined, 'normal'); doc.setFontSize(8);
-  doc.setTextColor.apply(doc, REPORT_BRAND.muted);
-  if (opts.period) doc.text('Période : ' + opts.period, 10, y);
-  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, y, { align: 'right' });
+  doc.setTextColor(255, 238, 230);
+  if (opts.period) doc.text('Période : ' + opts.period, tx, 26);
+  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, 26, { align: 'right' });
 
-  y += 2.5;
+  // Filet de séparation discret sous le bandeau, puis début du corps du rapport.
+  let y = BANNER + 4;
   doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.2);
   doc.line(10, y, pw - 10, y);
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
