@@ -522,6 +522,43 @@
 #page-clients .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
 #page-clients .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE — Supply Chain & Stocks (scopé #page-supply). Tous onglets (step rail
+   Fournisseur→…→Formulation + sous-onglets Formulations/Matières/Résumé) +
+   tables formulation par phase. Présentation seule ; aucun calcul/écriture.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Step rail (sc-flow) : neutre fin, étape active accent subtil */
+#page-supply .sc-flow-chip { background: none; color: var(--color-text-muted); border: var(--border-hairline); }
+#page-supply .sc-flow-chip:hover { background: var(--color-surface-alt); color: var(--color-text); }
+#page-supply .sc-flow-chip.active { background: var(--color-accent-soft); color: var(--color-accent); border-color: var(--color-accent); }
+#page-supply .sc-flow-arrow { color: var(--color-border); }
+/* Onglets (alim-top-tabs) : soulignement fin, actif accent */
+#page-supply .tabs { border-bottom: var(--border-hairline); }
+#page-supply .tab-btn.active { color: var(--color-accent); border-bottom: 2px solid var(--color-accent); }
+/* Sélecteur de bande / inputs : bordure 1px nette, focus accent */
+#page-supply select, #page-supply input { border-width: 1px; }
+#page-supply select:focus, #page-supply input:focus { border-color: var(--color-accent); box-shadow: var(--accent-ring); }
+/* Cartes allégées */
+#page-supply .card { border: var(--border-hairline); box-shadow: none; }
+#page-supply .card::before { display: none; }
+#page-supply .card:hover { box-shadow: none; border-color: var(--color-border); }
+/* Tables (toutes) : filets fins, en-têtes plats micro-capitales, survol neutre, sous-totaux fins */
+#page-supply .table-wrap { border: var(--border-hairline); box-shadow: none; }
+#page-supply th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-supply td { border-bottom: var(--border-hairline); }
+#page-supply tbody tr:nth-child(even) td { background: transparent; }
+#page-supply tbody tr:hover td { background: var(--color-surface-alt); }
+#page-supply tfoot td { background: var(--color-surface); border-top: var(--border-hairline); }
+/* Tables formulation par phase : colonnes Qté/Prix/Coût (2→4) mono à droite */
+#page-supply #alim-phases-all td:nth-child(n+2):nth-child(-n+4), #page-supply #alim-phases-all th:nth-child(n+2):nth-child(-n+4) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+/* Boutons : primaire plat ; "+ Ajouter une entrée" (btn-primary.btn-sm en-tête de carte) → outline accent ; danger ghost */
+#page-supply .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-supply .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
+#page-supply .card-header .btn-primary.btn-sm { background: none; color: var(--color-accent); border: 1px solid var(--color-accent); box-shadow: none; }
+#page-supply .card-header .btn-primary.btn-sm:hover { background: var(--color-accent-soft); box-shadow: none; }
+#page-supply .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
+#page-supply .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -2329,10 +2366,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         </div>
         <div id="alim-content" style="display:none;">
           <div id="alim-phases-all"></div>
-          <div class="card" style="margin-top:1rem;background:#FFF7ED;border-left:4px solid var(--primary);">
+          <div class="card" style="margin-top:1rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
               <strong style="font-size:1rem;">Total bande :</strong>
-              <div id="alim-batch-total" style="font-size:1.1rem;font-weight:700;color:var(--primary-dark);"></div>
+              <div id="alim-batch-total" style="font-family:var(--font-mono);font-size:1.1rem;font-weight:700;color:var(--color-accent);"></div>
             </div>
           </div>
         </div>
@@ -8192,6 +8229,34 @@ function loadAlimBande() {
   renderAllAlimPhases();
 }
 
+// ── Démo VISUELLE Supply (formulations) — AFFICHAGE SEUL ──────────────────────
+// SUPPLY_DEMO=true injecte des lignes maquette UNIQUEMENT dans la variable LOCALE
+// `entries` de renderAllAlimPhases (ci-dessous). Ces lignes ne sont JAMAIS :
+//   • écrites dans STATE.alimentsPhases (donc invisibles pour computeCoutAlimentaire
+//     / computeBandeEconomics / trésorerie — les vrais totaux restent intacts),
+//   • passées à saveRemote / apiPost (aucun chemin d'écriture en base),
+//   • rendues avec un bouton supprimer (gardé derrière !SUPPLY_DEMO ci-dessous).
+// Défaut false → production strictement inchangée. SEULE LIGNE À BASCULER (local) :
+const SUPPLY_DEMO = false;
+const SUPPLY_DEMO_ROWS = {
+  pre_demarrage: [
+    { nom_mp: 'Maïs',                      quantite_kg: 320, prix_unitaire: 245,  cout_total: 78400,  date_livraison: '2026-06-02' },
+    { nom_mp: 'Tourteau de soja',          quantite_kg: 180, prix_unitaire: 410,  cout_total: 73800,  date_livraison: '2026-06-02' },
+    { nom_mp: 'Prémix vitamines-minéraux', quantite_kg: 12,  prix_unitaire: 1850, cout_total: 22200,  date_livraison: '2026-06-03' }
+  ],
+  demarrage: [
+    { nom_mp: 'Maïs',              quantite_kg: 540, prix_unitaire: 245, cout_total: 132300, date_livraison: '2026-06-12' },
+    { nom_mp: 'Tourteau de soja',  quantite_kg: 300, prix_unitaire: 410, cout_total: 123000, date_livraison: '2026-06-12' },
+    { nom_mp: 'Farine de poisson', quantite_kg: 40,  prix_unitaire: 950, cout_total: 38000,  date_livraison: '2026-06-13' },
+    { nom_mp: 'Huile de palme',    quantite_kg: 25,  prix_unitaire: 720, cout_total: 18000,  date_livraison: '2026-06-13' }
+  ],
+  croissance: [
+    { nom_mp: 'Maïs',                 quantite_kg: 880, prix_unitaire: 245, cout_total: 215600, date_livraison: '2026-06-22' },
+    { nom_mp: 'Tourteau de soja',     quantite_kg: 460, prix_unitaire: 410, cout_total: 188600, date_livraison: '2026-06-22' },
+    { nom_mp: 'Carbonate de calcium', quantite_kg: 30,  prix_unitaire: 120, cout_total: 3600,   date_livraison: '2026-06-23' }
+  ]
+};
+
 // ── Render all 3 phases at once (Formulations tab) ──
 function renderAllAlimPhases() {
   const bandeId = document.getElementById('alim-bande-select').value;
@@ -8200,7 +8265,10 @@ function renderAllAlimPhases() {
   let grandTotalKg = 0, grandTotalCout = 0;
 
   PHASES.forEach(phase => {
-    const entries = STATE.alimentsPhases.filter(a => a.bande_id === bandeId && a.phase === phase.id);
+    // SUPPLY_DEMO : lignes maquette LOCALES (jamais STATE, jamais écrites) ; sinon vraies données.
+    const entries = SUPPLY_DEMO
+      ? (SUPPLY_DEMO_ROWS[phase.id] || [])
+      : STATE.alimentsPhases.filter(a => a.bande_id === bandeId && a.phase === phase.id);
     let totalKg = 0, totalCout = 0;
     entries.forEach(e => {
       totalKg  += Number(e.quantite_kg)  || 0;
@@ -8220,7 +8288,7 @@ function renderAllAlimPhases() {
           <td>${fmt(Number(e.prix_unitaire))}</td>
           <td>${fmt(Number(e.cout_total))}</td>
           <td>${fmtDate(e.date_livraison)}</td>
-          <td>${canEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
+          <td>${(!SUPPLY_DEMO && canEdit) ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
         </tr>`;
       });
     }
