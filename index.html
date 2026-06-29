@@ -256,6 +256,50 @@
 #page-tresorerie .cr-row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; padding: 3px 0 3px var(--space-3); font-size: 12.5px; color: var(--color-text-secondary); }
 #page-tresorerie .cr-row .num { color: var(--color-text); }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 4 — Refonte structurelle DASHBOARD (TOUT scopé #page-dashboard →
+   aucune autre page touchée). Présentation seule ; aucun calcul. Mêmes recettes
+   que Trésorerie (panneau KPI, cartes filaires, survols neutres, boutons plats).
+   NB : on garde volontairement les couleurs de STATUT sémantiques des cartes
+   bandes (mortalité/IC/GMQ/ambiance/progression cycle) — signaux opérationnels.
+   ══════════════════════════════════════════════════════════════════════ */
+/* KPIs — panneau unifié « instruments » à filets 0.5px (4 KPI) */
+#page-dashboard #dash-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: var(--bw-hairline); background: var(--color-border-subtle);
+  border: var(--border-hairline); border-radius: var(--radius-lg);
+  overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 1.25rem;
+}
+#page-dashboard #dash-kpis .dash-kpi {
+  background: var(--color-surface); border: none; border-radius: 0;
+  box-shadow: none; margin: 0; padding: var(--space-4) var(--space-5);
+}
+#page-dashboard #dash-kpis .dash-kpi::before { display: none; }
+#page-dashboard #dash-kpis .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-dashboard #dash-kpis .dk-value { font-size: 23px; color: var(--color-text); }
+#page-dashboard #dash-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+#page-dashboard #dash-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
+@media (max-width: 900px) { #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { #page-dashboard #dash-kpis { grid-template-columns: 1fr; } }
+
+/* Cartes allégées : filet fin, pas d'ombre, plus de barre orange au survol */
+#page-dashboard .card { border: var(--border-hairline); box-shadow: none; border-radius: var(--radius-lg); }
+#page-dashboard .card::before { display: none; }
+#page-dashboard .card:hover { box-shadow: none; border-color: var(--color-border); }
+#page-dashboard .stat-item { box-shadow: none; }
+#page-dashboard .stat-item:hover { transform: none; box-shadow: none; border-color: var(--color-border); }
+
+/* Listes commandes/stocks + tables : survol/zébrure neutres, filets 0.5px (fini la teinte orange) */
+#page-dashboard .dash-cmd-row, #page-dashboard .dash-stock-row { border-bottom: var(--border-hairline); }
+#page-dashboard .dash-cmd-row:hover, #page-dashboard .dash-stock-row:hover { background: var(--color-surface-alt); }
+#page-dashboard td { border-bottom: var(--border-hairline); }
+#page-dashboard tbody tr:nth-child(even) td { background: transparent; }
+#page-dashboard tbody tr:hover td { background: var(--color-surface-alt); }
+
+/* Bouton primaire (cartes bandes : « Saisie terrain ») : plat, sans dégradé ni glow */
+#page-dashboard .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-dashboard .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -4793,7 +4837,7 @@ function renderDashboard() {
   const ipCls = avgIP >= 300 ? ' dk-success' : avgIP >= 250 ? '' : ' dk-danger';
 
   document.getElementById('dash-kpis').innerHTML =
-    '<div class="dash-kpi card-stagger"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
+    '<div class="dash-kpi card-stagger dk-headline"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
     '<div class="dash-kpi card-stagger' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
     '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi card-stagger' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
