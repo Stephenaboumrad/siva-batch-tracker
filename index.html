@@ -373,6 +373,34 @@
 #page-dashboard .dash-grid { gap: var(--space-3); }
 #page-dashboard .stat-item { padding: var(--space-2) var(--space-3); }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 6 — Saisie Terrain (scopé #page-saisie). Formulaire de TERRAIN :
+   propre + filaire MAIS saisie facile/tappable (clarté > densité ; champs
+   gardés à taille tactile). Présentation seule ; AUCUN changement de logique
+   du formulaire (ids, onsubmit, handlers intacts). Aucune autre page touchée.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Carte de formulaire allégée (padding confortable conservé) */
+#page-saisie .card { border: var(--border-hairline); box-shadow: none; }
+#page-saisie .card::before { display: none; }
+#page-saisie .card:hover { box-shadow: none; border-color: var(--color-border); }
+/* Champs : bordure 1px nette, focus accent, numériques en mono — TAILLE TACTILE conservée (min-height 44px du global) */
+#page-saisie input, #page-saisie select, #page-saisie textarea { border-width: 1px; }
+#page-saisie input[type="number"] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+#page-saisie input:focus, #page-saisie select:focus, #page-saisie textarea:focus { border-color: var(--color-accent); box-shadow: var(--accent-ring); }
+/* Bandeau résumé : valeurs chiffrées en mono */
+#page-saisie #saisie-info strong { font-family: var(--font-mono); }
+/* Bouton Enregistrer : accent PLAT (sans dégradé ni glow) mais gardé proéminent */
+#page-saisie .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-saisie .btn-primary:hover { background: var(--color-accent-hover); box-shadow: var(--shadow-md); transform: none; }
+/* Tableau « Dernière saisie » : filets fins, en-têtes plats, colonnes numériques (2→8) mono à droite */
+#page-saisie .table-wrap { border: var(--border-hairline); box-shadow: none; }
+#page-saisie th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-saisie td { border-bottom: var(--border-hairline); }
+#page-saisie tbody tr:nth-child(even) td { background: transparent; }
+#page-saisie tbody tr:hover td { background: var(--color-surface-alt); }
+#page-saisie #saisie-recent td:nth-child(n+2), #page-saisie #saisie-recent th:nth-child(n+2) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+#page-saisie #saisie-recent h3 { font-size: 11px !important; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -1920,7 +1948,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
 
       <!-- Ambiance bâtiment -->
-      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
+      <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Ambiance bâtiment</div>
         <div class="form-row">
           <div class="form-group">
@@ -1938,7 +1966,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
 
       <!-- Intrant sub-form -->
-      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;">
+      <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
         <button type="button" class="btn btn-outline btn-sm" id="toggle-intrant-btn" onclick="toggleIntrantForm()">+ Ajouter un intrant</button>
         <div id="intrant-subform" style="display:none;margin-top:1rem;">
           <div class="form-row">
@@ -5771,9 +5799,9 @@ function updateSaisieInfo() {
   const pctCible = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
 
   infoDiv.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;padding:0.75rem 1rem;font-size:0.85rem;">
+    <div style="background:none;border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.9rem;font-size:0.85rem;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>
+        <span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>
         <strong style="font-family:var(--mono);">J${jour}</strong>
         <span style="color:var(--text-muted);font-size:12px;">/ J${CYCLE_DURATION_DAYS}</span>
       </div>
