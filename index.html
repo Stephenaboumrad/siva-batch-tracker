@@ -475,6 +475,53 @@
 #page-abattage .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
 #page-abattage .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 5 — Commercial & Ventes (scopé #page-clients), 4 ONGLETS
+   (Commandes / Clients / Tableau commercial / Catalogue). Présentation seule ;
+   aucun calcul. Aucune autre page touchée. Soumise GARDE l'orange (signal).
+   ══════════════════════════════════════════════════════════════════════ */
+/* KPI : panneau unifié à filets ; valeurs encre ; orange = vedette (.kpi-headline=CA du mois) ; warn = ambre (En attente) ; bordures gauche orange retirées */
+#page-clients .kpi-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+#page-clients .kpi-card { background: var(--color-surface); border: none; border-left: none; border-radius: 0; box-shadow: none; padding: var(--space-4) var(--space-5); }
+#page-clients .kpi-card:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-clients .kpi-card .kpi-value { color: var(--color-text); font-size: 23px; }
+#page-clients .kpi-card.kpi-warn .kpi-value { color: var(--color-warning); }
+#page-clients .kpi-card.kpi-headline .kpi-value { color: var(--color-accent); }
+#page-clients .kpi-card .kpi-label { font-size: 10.5px; letter-spacing: 0.08em; }
+@media (max-width: 1000px) { #page-clients .kpi-bar { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { #page-clients .kpi-bar { grid-template-columns: 1fr; } }
+/* Onglets : soulignement fin, actif accent */
+#page-clients .tabs { border-bottom: var(--border-hairline); }
+#page-clients .tab-btn.active { color: var(--color-accent); border-bottom: 2px solid var(--color-accent); }
+/* Cartes allégées */
+#page-clients .card { border: var(--border-hairline); box-shadow: none; }
+#page-clients .card::before { display: none; }
+#page-clients .card:hover { box-shadow: none; border-color: var(--color-border); }
+/* Tables : filets fins, en-têtes plats, survol neutre (wrapper garde overflow-x:auto → scroll horizontal sur mobile) */
+#page-clients .table-wrap { border: var(--border-hairline); box-shadow: none; }
+#page-clients th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-clients td { border-bottom: var(--border-hairline); }
+#page-clients tbody tr:nth-child(even) td { background: transparent; }
+#page-clients tbody tr:hover td { background: var(--color-surface-alt); }
+/* Colonnes numériques mono à droite : Montant (commandes col 6), CA total (clients col 6) ; N° en mono */
+#page-clients #commandes-list td:nth-child(6), #page-clients #commandes-list th:nth-child(6) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+#page-clients #commandes-list td:nth-child(1) { font-family: var(--font-mono); }
+#page-clients #clients-list td:nth-child(6), #page-clients #clients-list th:nth-child(6) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+/* Badges statut → triplets scopés (Soumise NON surchargée = garde orange ; Portail source → neutre) */
+#page-clients .status-livree { background: var(--status-success-bg); color: var(--status-success-fg); }
+#page-clients .status-annulee { background: var(--status-danger-bg); color: var(--status-danger-fg); }
+#page-clients .status-en_attente { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
+#page-clients .status-en_preparation { background: var(--status-warning-bg); color: var(--status-warning-fg); }
+#page-clients .status-confirmee { background: var(--status-info-bg); color: var(--status-info-fg); }
+#page-clients .src-portail { background: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: var(--status-neutral-bd); }
+/* Boutons : primaire/gold plats, danger ghost ; outline + filtres déjà plats */
+#page-clients .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-clients .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
+#page-clients .btn-gold { background: var(--color-warning); box-shadow: var(--shadow-sm); }
+#page-clients .btn-gold:hover { box-shadow: var(--shadow-md); transform: none; }
+#page-clients .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
+#page-clients .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -9069,7 +9116,7 @@ function isPaiementEnRetard(c) {
 function paiementBadge(c) {
   if (c.statut_paiement === 'paye') return '<span class="status-badge" style="background:#E8F5E9;color:#2E7D32;">Payé</span>';
   if (isPaiementEnRetard(c)) return '<span class="status-badge" style="background:#FEF2F2;color:#C0392B;">⚠ En retard</span>';
-  return '<span class="status-badge" style="background:#FFF3E8;color:#B84E0A;">Impayé</span>';
+  return '<span class="status-badge" style="background:var(--status-warning-bg);color:var(--status-warning-fg);">Impayé</span>';
 }
 
 // Écriture du paiement via la RPC manager-only mark_commande_paiement.
@@ -9121,10 +9168,10 @@ function renderClientsKPI() {
   const cmdPortail = STATE.commandes.filter(c => c.statut === 'soumise' && c.source === 'portail_client').length;
 
   document.getElementById('clients-kpi').innerHTML =
-    '<div class="kpi-card ' + (cmdPortail > 0 ? 'kpi-warn' : '') + '"><div class="kpi-value">' + cmdPortail + '</div><div class="kpi-label">Portail — à accepter</div></div>' +
+    '<div class="kpi-card"><div class="kpi-value">' + cmdPortail + '</div><div class="kpi-label">Portail — à accepter</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdToday + '</div><div class="kpi-label">Commandes aujourd\'hui</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdWeek + '</div><div class="kpi-label">À livrer cette semaine</div></div>' +
-    '<div class="kpi-card"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>' +
+    '<div class="kpi-card kpi-headline"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>' +
     '<div class="kpi-card ' + (enAttente > 0 ? 'kpi-warn' : '') + '"><div class="kpi-value">' + enAttente + '</div><div class="kpi-label">Commandes en attente</div></div>';
 }
 
@@ -10045,7 +10092,7 @@ function renderCommercialDashboard() {
   });
   const prodLabels = LIGNE_PRODUIT_LABELS;
   const prodEntries = Object.entries(produitCA);
-  const prodColors = ['#EA580C', '#F97316', '#FB923C', '#9E9E9E'];
+  const prodColors = ['#2563EB', '#0E9488', '#B7791F', '#8A95A1']; // palette sobre (bleu/teal/ambre/ardoise), plus d'orange vif
 
   const ctx2 = document.getElementById('chart-produits');
   if (ctx2) {
@@ -10064,7 +10111,7 @@ function renderCommercialDashboard() {
   STATE.commandes.forEach(c => {
     statutCounts[c.statut] = (statutCounts[c.statut] || 0) + 1;
   });
-  const statutColors = { en_attente: '#9E9E9E', confirmee: '#1565C0', en_preparation: '#EA580C', livree: '#2E7D32', annulee: '#C62828' };
+  const statutColors = { soumise: '#E2640F', en_attente: '#8A95A1', confirmee: '#1565C0', en_preparation: '#B7791F', livree: '#2E7D32', annulee: '#C62828' }; // Soumise=orange (signal), en_preparation ambre (était orange vif)
   const statutEntries = Object.entries(statutCounts);
 
   const ctx3 = document.getElementById('chart-statuts');
