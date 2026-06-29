@@ -401,6 +401,40 @@
 #page-saisie #saisie-recent td:nth-child(n+2), #page-saisie #saisie-recent th:nth-child(n+2) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
 #page-saisie #saisie-recent h3 { font-size: 11px !important; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 7 — Fiche Bande (« Bandes », scopé #page-fiche). Page la plus dense
+   (8 métriques + rentabilité + 5 charts + table saisies). Présentation seule ;
+   AUCUN calcul (computeBandeEconomics + exports registre/clôture intacts).
+   ══════════════════════════════════════════════════════════════════════ */
+#page-fiche .card { border: var(--border-hairline); box-shadow: none; }
+#page-fiche .card::before { display: none; }
+#page-fiche .card:hover { box-shadow: none; border-color: var(--color-border); }
+/* Panneaux d'instruments : stat-grid (header 8 métriques + rentabilité 5 métriques) → grille à filets 0.5px */
+#page-fiche .stat-grid { gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-md); overflow: hidden; }
+#page-fiche .stat-item { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; text-align: left; padding: var(--space-3); }
+#page-fiche .stat-item:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+/* Forecast chip → note fine neutre */
+#page-fiche .forecast-chip { background: none; border: var(--border-hairline); border-left: 2px solid var(--color-accent); color: var(--color-text-secondary); border-radius: var(--radius-sm); padding: 8px 12px; font-weight: 600; }
+/* Décomposition des coûts : montants en mono */
+#page-fiche #fiche-rentabilite strong { font-family: var(--font-mono); }
+/* Tables : filets fins, en-têtes plats */
+#page-fiche .table-wrap { border: var(--border-hairline); box-shadow: none; }
+#page-fiche th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-fiche td { border-bottom: var(--border-hairline); }
+#page-fiche tbody tr:nth-child(even) td { background: transparent; }
+#page-fiche tbody tr:hover td { background: var(--color-surface-alt); }
+/* Table saisies : colonnes numériques mono à droite (Date / Phase / × restent texte) */
+#page-fiche #fiche-saisies-table th, #page-fiche #fiche-saisies-table td { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+#page-fiche #fiche-saisies-table th:nth-child(1), #page-fiche #fiche-saisies-table td:nth-child(1),
+#page-fiche #fiche-saisies-table th:nth-child(3), #page-fiche #fiche-saisies-table td:nth-child(3),
+#page-fiche #fiche-saisies-table th:last-child, #page-fiche #fiche-saisies-table td:last-child { font-family: var(--font-sans); text-align: left; }
+/* Bouton supprimer (×) : neutre-danger (ghost), fini le bloc rouge plein */
+#page-fiche .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
+#page-fiche .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
+/* Bouton primaire éventuel → plat (les boutons Registre/Excel sont déjà outline plats) */
+#page-fiche .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-fiche .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -6012,7 +6046,7 @@ function loadFicheBande() {
       <h3>${bande.nom_bande}</h3>
       <div style="display:flex;gap:6px;align-items:center;">
         ${ipVal > 0 ? `<span style="padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:${ipColor}12;color:${ipColor};">IP ${fmt(ipVal, 0)}</span>` : ''}
-        <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>
+        <span style="padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>
         <span class="badge badge-${bande.statut === 'en_cours' ? 'green' : 'grey'}">${bande.statut === 'en_cours' ? 'J' + jour + '/' + CYCLE_DURATION_DAYS : 'Terminée'}</span>
       </div>
     </div>
@@ -6023,7 +6057,7 @@ function loadFicheBande() {
     </div>
     <div class="stat-grid">
       <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
-      <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:${mortClass === 'green' ? '#EA580C' : mortClass === 'orange' ? '#F59E0B' : '#EF4444'}">${fmt(ind.viabilite,1)}%</div></div>
+      <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:${mortClass === 'green' ? 'var(--color-success)' : mortClass === 'orange' ? 'var(--color-warning)' : 'var(--color-danger)'}">${fmt(ind.viabilite,1)}%</div></div>
       <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic,2) : '—'}</div></div>
       <div class="stat-item"><div class="label">GMQ</div><div class="value">${ind.gmq != null ? fmt(ind.gmq,1) + ' g/j' : '—'}</div></div>
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
@@ -6068,21 +6102,21 @@ function renderFicheRentabilite(bande) {
     : '<span class="badge badge-green">En cours</span>';
   const margeChip = e.margeDisponible
     ? '<span class="badge badge-green">Marge réelle</span>'
-    : '<span class="badge badge-orange">Marge projetée — non disponible</span>';
+    : '<span class="badge badge-grey">Marge projetée — non disponible</span>';
 
   // Astérisque si le coût de revient/kg s'appuie sur une projection (aucun abattage saisi).
   const projete = e.coutRevientKg != null && !e.carcasseReelle;
   const fcfa   = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA');
   const fcfaKg = v => (v == null ? '—' : fmt(Math.round(v)) + ' FCFA/kg');
-  const margeColor = v => (v == null ? 'var(--text-secondary)' : (v >= 0 ? '#16A34A' : '#EF4444'));
+  const margeColor = v => (v == null ? 'var(--text-secondary)' : (v >= 0 ? 'var(--color-success)' : 'var(--color-danger)'));
   const stat = (label, value, color) =>
     '<div class="stat-item"><div class="label">' + label + '</div>' +
     '<div class="value" style="' + (color ? 'color:' + color + ';' : '') + '">' + value + '</div></div>';
 
   const kpis = '<div class="stat-grid" style="margin-bottom:1rem;">' +
-    stat('Coût engagé à ce jour', fcfa(e.coutTotal), '#EA580C') +
-    stat('Coût de revient / kg' + (projete ? ' *' : ''), fcfaKg(e.coutRevientKg), '#1565C0') +
-    stat('Prix de cession moyen / kg', fcfaKg(e.prixCessionKg), '#3B82F6') +
+    stat('Coût engagé à ce jour', fcfa(e.coutTotal), 'var(--color-accent)') +
+    stat('Coût de revient / kg' + (projete ? ' *' : ''), fcfaKg(e.coutRevientKg), 'var(--color-text)') +
+    stat('Prix de cession moyen / kg', fcfaKg(e.prixCessionKg), 'var(--color-text)') +
     stat('Marge nette / kg', fcfaKg(e.margeNetteKg), margeColor(e.margeNetteKg)) +
     stat('Marge nette totale', fcfa(e.margeNetteTotale), margeColor(e.margeNetteTotale)) +
     '</div>';
@@ -6093,14 +6127,18 @@ function renderFicheRentabilite(bande) {
     ' · CA réalisé : ' + (e.caRealise > 0 ? fmt(e.caRealise) + ' FCFA' : '—') +
     '</div>';
 
-  // Décomposition du coût en % (camembert + légende).
+  // Décomposition du coût en % (camembert + légende). Palette sobre (présentation
+  // SEULE) : Poussins = accent, le reste neutre/ardoise. NE touche PAS
+  // e.breakdown.color (lu par les exports registre/clôture) — remap LOCAL.
   const hasCost = e.coutTotal > 0;
+  const costCol = { poussins: '#E2640F', aliment: '#6B7884', intrants: '#8A95A1', abattage: '#B0BAC4' };
+  const col = c => costCol[c.key] || '#8A95A1';
   const legend = e.breakdown.map(c =>
     '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">' +
-    '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + c.color + ';flex:none;"></span>' +
+    '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + col(c) + ';flex:none;"></span>' +
     '<span style="flex:1;">' + c.label + (c.key === 'aliment' ? ' (' + (e.alimentSource === 'formulation' ? 'formulation' : 'forfait') + ')' : '') + '</span>' +
     '<strong>' + fmt(Math.round(c.montant)) + ' FCFA</strong>' +
-    '<span style="color:var(--text-secondary);min-width:42px;text-align:right;">' + (hasCost ? Math.round(c.pct) : 0) + '%</span>' +
+    '<span style="font-family:var(--font-mono);color:var(--text-secondary);min-width:42px;text-align:right;">' + (hasCost ? Math.round(c.pct) : 0) + '%</span>' +
     '</div>'
   ).join('');
   const breakdownBlock = hasCost
@@ -6111,13 +6149,13 @@ function renderFicheRentabilite(bande) {
 
   let note = '';
   if (!e.margeDisponible) {
-    note = '<div style="font-size:0.75rem;color:#C2410C;background:#FFF3E8;border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.75rem;">' +
+    note = '<div style="font-size:0.75rem;color:var(--text-secondary);border-left:2px solid var(--color-warning);background:none;border-radius:var(--radius-sm);padding:0.4rem 0.75rem;margin-top:0.75rem;">' +
       '<i data-lucide="hourglass"></i> Marge non disponible : elle ne sera calculée qu\'après abattage (kg produits) et ventes livrées. ' +
       'Seul le <strong>coût engagé à ce jour</strong> est affiché.' +
       (projete ? ' Le coût de revient/kg marqué « * » est une <strong>estimation projetée</strong> (pesées × rendement), pas un coût réel.' : '') +
       '</div>';
   } else if (projete) {
-    note = '<div style="font-size:0.75rem;color:#C2410C;margin-top:0.75rem;">* coût de revient/kg estimé sur projection (aucun abattage saisi).</div>';
+    note = '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.75rem;">* coût de revient/kg estimé sur projection (aucun abattage saisi).</div>';
   }
 
   box.innerHTML =
@@ -6133,7 +6171,7 @@ function renderFicheRentabilite(bande) {
         type: 'doughnut',
         data: {
           labels: e.breakdown.map(c => c.label),
-          datasets: [{ data: e.breakdown.map(c => Math.round(c.montant)), backgroundColor: e.breakdown.map(c => c.color), borderWidth: 0 }]
+          datasets: [{ data: e.breakdown.map(c => Math.round(c.montant)), backgroundColor: e.breakdown.map(c => col(c)), borderWidth: 0 }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
