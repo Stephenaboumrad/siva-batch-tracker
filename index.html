@@ -2111,6 +2111,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="table-wrap" id="treso-table"></div>
     </div>
 
+    <!-- Zone 2b: Créances clients (livré non payé) — manager-only (page déjà manager-only) -->
+    <div id="treso-creances" class="manager-only" style="margin-bottom:1.5rem;"></div>
+
     <!-- Zone 3 & 4: graphiques coûts / CA -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;margin-bottom:1.5rem;">
       <div class="card">
@@ -6485,6 +6488,9 @@ function initTresoreriePage() {
     '<td style="text-align:right;">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
+  // ── Zone 2b: Créances clients (livré non payé) — cumulatif, indépendant du mois ──
+  renderCreances();
+
   // ── Zone 3: Donut chart — cost breakdown ──
   if (tresoCharts.costs) tresoCharts.costs.destroy();
   if (tresoCharts.ca) tresoCharts.ca.destroy();
@@ -6567,6 +6573,83 @@ function initTresoreriePage() {
   });
   fluxHtml += '</tbody></table>';
   document.getElementById('treso-flux').innerHTML = fluxHtml;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Créances clients (audit #4 / PR-B) — manager-only, LECTURE SEULE ──
+// « Qui me doit de l'argent » : commandes LIVRÉES mais NON PAYÉES, groupées par
+// client, avec sous-total dû et TOTAL des créances. Choix volontaires :
+//  • non payé = statut_paiement !== 'paye' (et NON === 'impaye') : ne jamais
+//    laisser tomber une commande livrée dont le statut paiement serait null/
+//    indéfini (cache hors-ligne, ligne legacy) — cohérent avec le badge PR-A.
+//  • CUMULATIF, indépendant du sélecteur de mois : une créance reste due quel
+//    que soit le mois (≠ du bilan mensuel #52).
+//  • montant_total_fcfa est HT → libellé « HT » ; pas de TVA ici (TVA = affichage
+//    facture seulement, PR-C).
+//  • « En retard » DÉRIVÉ via isPaiementEnRetard (même règle que PR-A).
+//  • clients portail / hors-bande inclus ; commande sans client résolu → bucket
+//    « Client inconnu / Portail » (jamais omise silencieusement).
+// Ne touche NI #52 (caLivreMois/caEncaisse) NI place_order NI montant_total_fcfa.
+// ══════════════════════════════════════════════════════════════════════
+function renderCreances() {
+  const el = document.getElementById('treso-creances');
+  if (!el) return;
+
+  const impayees = STATE.commandes.filter(c => c.statut === 'livree' && c.statut_paiement !== 'paye');
+
+  if (impayees.length === 0) {
+    el.innerHTML = '<div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Créances clients</h3></div>' +
+      '<div style="padding:1rem;color:var(--text-muted);font-size:0.88rem;">Aucune créance — toutes les commandes livrées sont payées. ✅</div></div>';
+    return;
+  }
+
+  // Groupement par client (client inconnu / portail si non résolu).
+  const groups = {};
+  impayees.forEach(c => {
+    const client = STATE.clients.find(cl => cl.client_id === c.client_id);
+    const key = client ? client.client_id : '__inconnu__';
+    if (!groups[key]) groups[key] = { nom: client ? client.nom : 'Client inconnu / Portail', cmds: [], total: 0, retard: 0 };
+    const montant = Number(c.montant_total_fcfa) || 0;
+    const enRetard = isPaiementEnRetard(c);
+    groups[key].cmds.push({ c, montant, enRetard });
+    groups[key].total += montant;
+    if (enRetard) groups[key].retard += montant;
+  });
+
+  // Plus gros débiteurs d'abord ; commandes d'un client par échéance (la plus ancienne en haut).
+  const ordered = Object.values(groups).sort((a, b) => b.total - a.total);
+  ordered.forEach(g => g.cmds.sort((x, y) =>
+    String(x.c.date_livraison_souhaitee || x.c.date_commande || '').localeCompare(String(y.c.date_livraison_souhaitee || y.c.date_commande || ''))));
+  const grandTotal = ordered.reduce((s, g) => s + g.total, 0);
+  const grandRetard = ordered.reduce((s, g) => s + g.retard, 0);
+
+  let html = '<div class="card">' +
+    '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">' +
+      '<h3 style="font-size:1rem;text-transform:none;letter-spacing:0;margin:0;">Créances clients <span style="color:var(--text-muted);font-weight:400;">(livré non payé · HT)</span></h3>' +
+      '<span style="font-size:0.85rem;">Total dû : <strong style="color:#B84E0A;">' + fmt(grandTotal) + ' FCFA HT</strong>' +
+        (grandRetard > 0 ? ' · <span style="color:#C0392B;">dont en retard ' + fmt(grandRetard) + ' FCFA</span>' : '') + '</span>' +
+    '</div>';
+
+  ordered.forEach(g => {
+    html += '<div style="padding:0.5rem 0.75rem;border-top:1px solid var(--border);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;font-weight:700;">' +
+        '<span>' + escHtml(g.nom) + ' <span style="color:var(--text-muted);font-weight:400;font-size:0.82rem;">(' + g.cmds.length + ' commande' + (g.cmds.length > 1 ? 's' : '') + ')</span></span>' +
+        '<span style="color:#B84E0A;">' + fmt(g.total) + ' FCFA HT' + (g.retard > 0 ? ' <span style="color:#C0392B;font-weight:400;font-size:0.8rem;">(⚠ ' + fmt(g.retard) + ')</span>' : '') + '</span>' +
+      '</div>' +
+      '<div class="table-wrap"><table style="margin-top:0.4rem;"><thead><tr><th>N°</th><th>Livraison souh.</th><th style="text-align:right;">Montant HT</th><th></th></tr></thead><tbody>';
+    g.cmds.forEach(({ c, montant, enRetard }) => {
+      html += '<tr>' +
+        '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
+        '<td>' + fmtDate(c.date_livraison_souhaitee || c.date_commande) + '</td>' +
+        '<td style="text-align:right;">' + fmt(montant) + '</td>' +
+        '<td>' + (enRetard ? '<span class="status-badge" style="background:#FEF2F2;color:#C0392B;">⚠ En retard</span>' : '') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════════════
