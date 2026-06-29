@@ -300,6 +300,57 @@
 #page-dashboard .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
 #page-dashboard .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 4b — Dashboard CORPS restructuré (toujours scopé #page-dashboard).
+   Échéances, tuiles stat des cartes bandes, badge phase, forecast, alerte.
+   Présentation seule ; aucun calcul ; mêmes recettes que Trésorerie.
+   ══════════════════════════════════════════════════════════════════════ */
+/* 1. Échéances — panneau unifié à filets 0.5px (fini les cartes flottantes bordées) */
+#page-dashboard .deadlines-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: var(--bw-hairline); background: var(--color-border-subtle);
+  border: var(--border-hairline); border-radius: var(--radius-lg);
+  overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 1.25rem;
+}
+#page-dashboard .deadline-card {
+  flex: none; width: auto; background: var(--color-surface);
+  border: none; border-radius: 0; box-shadow: none; text-align: left;
+  padding: var(--space-3) var(--space-4);
+}
+#page-dashboard .deadline-card:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-dashboard .deadline-card .dl-icon { display: none; }
+#page-dashboard .deadline-card .dl-count { font-size: 24px; margin-bottom: 2px; }
+#page-dashboard .deadline-card .dl-label { font-size: 11.5px; margin-bottom: 4px; }
+
+/* 2. Cartes bandes — tuiles stat → grille d'instruments à filets ; barres fines à remplissage accent plat */
+#page-dashboard .stat-grid {
+  gap: var(--bw-hairline); background: var(--color-border-subtle);
+  border: var(--border-hairline); border-radius: var(--radius-md); overflow: hidden;
+}
+#page-dashboard .stat-item {
+  background: var(--color-surface); border: none; border-radius: 0;
+  box-shadow: none; text-align: left; padding: var(--space-3);
+}
+#page-dashboard .stat-item:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-dashboard .mini-bar { height: 4px; background: var(--color-border-subtle); }
+#page-dashboard .mini-bar-fill { background: var(--color-accent) !important; }   /* remplissage accent plat */
+
+/* 4. Forecast chip → note fine neutre à accent gauche (fini la boîte orange) */
+#page-dashboard .forecast-chip {
+  background: none; border: var(--border-hairline); border-left: 2px solid var(--color-accent);
+  color: var(--color-text-secondary); border-radius: var(--radius-sm); padding: 8px 12px; font-weight: 600;
+}
+
+/* 5. Alerte → barre fine à accent gauche (fini le gros bloc rempli) */
+#page-dashboard .alert-item { background: none; border: var(--border-hairline); padding: var(--space-2) var(--space-3); }
+#page-dashboard .alert-item:hover { transform: none; }
+#page-dashboard .alert-item.warning { border-left: 3px solid var(--color-warning); color: var(--color-text); }
+#page-dashboard .alert-item.critical { border-left: 3px solid var(--color-danger); color: var(--color-text); }
+
+/* 6. Hero card — filet fin, pas d'ombre ni de glow orange */
+#page-dashboard .hero-batch-card { box-shadow: none; border: var(--border-hairline); border-left: 3px solid var(--color-accent); }
+#page-dashboard .hero-batch-card::after { display: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -4700,16 +4751,16 @@ function renderDeadlines(batchData) {
 
   let html = '<div class="deadlines-section-title">ÉCHÉANCES À VENIR</div><div class="deadlines-row">';
   deadlines.forEach(dl => {
+    // Orange UNIQUEMENT sur l'échéance imminente (J-7 ou moins) ; les plus lointaines en encre ; retard/aujourd'hui en danger.
     let countText, countColor;
-    if (dl.daysLeft < 0) { countText = 'EN RETARD'; countColor = '#C62828'; }
-    else if (dl.daysLeft === 0) { countText = "AUJOURD'HUI"; countColor = '#C62828'; }
-    else { countText = 'J-' + dl.daysLeft; countColor = dl.color; }
+    if (dl.daysLeft < 0) { countText = 'EN RETARD'; countColor = 'var(--status-danger-fg)'; }
+    else if (dl.daysLeft === 0) { countText = "AUJOURD'HUI"; countColor = 'var(--status-danger-fg)'; }
+    else { countText = 'J-' + dl.daysLeft; countColor = dl.daysLeft <= 7 ? 'var(--color-accent)' : 'var(--color-text)'; }
 
     const dateStr = dl.date.toLocaleDateString('fr-FR');
-    html += '<div class="deadline-card" style="border-top:3px solid ' + dl.color + ';">';
-    html += '<div class="dl-icon">' + dl.icon + '</div>';
-    html += '<div class="dl-label">' + escHtml(dl.label) + '</div>';
+    html += '<div class="deadline-card">';
     html += '<div class="dl-count" style="color:' + countColor + ';">' + countText + '</div>';
+    html += '<div class="dl-label">' + escHtml(dl.label) + '</div>';
     html += '<div class="dl-sub">' + escHtml(dl.sub) + '</div>';
     html += '<div class="dl-date">' + dateStr + '</div>';
     html += '</div>';
@@ -4797,7 +4848,7 @@ function renderDashboard() {
           <div class="hero-batch-info">
             <h3>${escHtml(pb.nom_bande)}</h3>
             <div class="hero-sub">
-              <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>
+              <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>
               ${pi.lastSaisieDate ? '<span style="font-family:var(--mono);font-size:11px;">Dernière saisie : ' + fmtDate(pi.lastSaisieDate) + '</span>' : ''}
             </div>
             <div class="hero-batch-metrics" style="margin-top:var(--space-3);">
@@ -4869,7 +4920,7 @@ function renderDashboard() {
 
     // Phase pill with dynamic colors
     const phase = getCurrentPhase(jour);
-    const phasePill = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:${phase.color}15;color:${phase.color};border:1px solid ${phase.color}30;">${phase.label}</span>`;
+    const phasePill = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>`;
 
     // Progress bar — cycle J42
     const pctJour = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
