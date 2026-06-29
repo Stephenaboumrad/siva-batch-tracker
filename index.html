@@ -3143,6 +3143,12 @@ function emailToMatricule(email) {
 let currentUser = null; // { matricule, name, role } — dérivé de la session authentifiée
 
 // 'tresorerie' réservé aux managers (chef_bande ne doit JAMAIS voir la trésorerie).
+// ── Feature flag : Monitoring IoT ────────────────────────────────────────────
+// IoT masqué pour l'instant (non utilisé). Le code/la page/la logique IoT restent
+// EN PLACE (dormants). UNIQUE point à modifier pour réactiver : passer à true.
+// (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
+const IOT_ENABLED = false;
+
 const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
 const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
 
@@ -3246,6 +3252,13 @@ function applyRoleAccess() {
     if (!page) return; // liens sans data-page (ex. actions) : ne pas toucher
     a.style.display = allowedPages.includes(page) ? '' : 'none';
   });
+
+  // Feature flag IOT_ENABLED=false : masque TOUTES les entrées nav IoT (sidebar,
+  // menu mobile ET barre d'onglets — non couverte par la boucle ci-dessus).
+  // Repasser IOT_ENABLED à true réaffiche l'onglet (manager) comme avant.
+  if (!IOT_ENABLED) {
+    document.querySelectorAll('[data-page="iot"]').forEach(el => { el.style.display = 'none'; });
+  }
 
   // Show user badge
   const badge = document.getElementById('user-badge');
@@ -4230,6 +4243,9 @@ function navigate(page, el) {
   // 'bandes', 'iot') est redirigé vers le dashboard. Couvre TOUTES les voies
   // (nav, menu mobile, plus-sheet, appel direct).
   if (currentUser && !roleAllowsPage(page)) { page = 'dashboard'; el = null; }
+  // Onglet IoT masqué (feature flag IOT_ENABLED) : toute tentative d'y aller
+  // (clic onglet, page restaurée, appel direct) est redirigée vers le dashboard.
+  if (page === 'iot' && !IOT_ENABLED) { page = 'dashboard'; el = null; }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   // Update active state in header nav
