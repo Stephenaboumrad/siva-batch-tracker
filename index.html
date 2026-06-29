@@ -6917,12 +6917,12 @@ async function exportBilanPDF() {
   const caEnc = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(period)).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   const coutsT = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
 
-  doc.text('CA encaissé (' + (frMonthLabel(period) || period) + ') : ' + fmt(caEnc) + ' FCFA', 14, y); y += 5;
+  doc.text('CA livré (' + (frMonthLabel(period) || period) + ') : ' + fmt(caEnc) + ' FCFA', 14, y); y += 5;
   doc.text('Coûts engagés (cumulés) : ' + fmt(coutsT) + ' FCFA', 14, y); y += 5;
   doc.text('Marge brute estimée : ' + fmt(caEnc - coutsT) + ' FCFA', 14, y); y += 10;
 
   // Table — CA encaissé du mois par bande (vue cash ; coûts/marges = registre clôture)
-  y = reportSectionTitlePDF(doc, 'CA encaissé par bande — ' + (frMonthLabel(period) || period), y);
+  y = reportSectionTitlePDF(doc, 'CA livré par bande — ' + (frMonthLabel(period) || period), y);
   doc.setFontSize(8); doc.setFont(undefined, 'normal');
 
   const cols = [10, 90, 160];
@@ -6962,7 +6962,7 @@ async function exportBilanPDF() {
   }
   if (y > 265) { doc.addPage(); y = 20; }
   doc.setFont(undefined, 'bold');
-  doc.text('TOTAL CA encaissé', cols[0], y);
+  doc.text('TOTAL CA livré', cols[0], y);
   doc.text(fmt(pdfTotCA), cols[2], y);
   doc.setFont(undefined, 'normal');
   y += 5;
@@ -6985,7 +6985,7 @@ async function exportBilanExcel() {
   const brand1 = reportSheetHeaderRows('Bilan financier — Trésorerie', { period: frMonthLabel(period) });
   const ws1 = XLSX.utils.aoa_to_sheet(brand1.concat([
     ['Indicateurs clés'],
-    ['CA encaissé (' + (frMonthLabel(period) || period) + ')', caEnc],
+    ['CA livré (' + (frMonthLabel(period) || period) + ')', caEnc],
     ['Coûts engagés (cumulés)', coutsT],
     ['Marge brute estimée', caEnc - coutsT]
   ]));
@@ -7007,7 +7007,7 @@ async function exportBilanExcel() {
     ws2Data.push(['Portail / Hors-bande', 'portail', '—', xlsHors]);
     xlsTotCA += xlsHors;
   }
-  ws2Data.push(['TOTAL CA encaissé', '', '', xlsTotCA]);
+  ws2Data.push(['TOTAL CA livré', '', '', xlsTotCA]);
   const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
   XLSX.utils.book_append_sheet(wb, ws2, 'Par bande');
 
