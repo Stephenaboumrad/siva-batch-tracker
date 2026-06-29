@@ -347,9 +347,31 @@
 #page-dashboard .alert-item.warning { border-left: 3px solid var(--color-warning); color: var(--color-text); }
 #page-dashboard .alert-item.critical { border-left: 3px solid var(--color-danger); color: var(--color-text); }
 
-/* 6. Hero card — filet fin, pas d'ombre ni de glow orange */
+/* 6. Hero card — filet fin, pas d'ombre ni de glow orange (hero retiré, règles inertes mais sans effet) */
 #page-dashboard .hero-batch-card { box-shadow: none; border: var(--border-hairline); border-left: 3px solid var(--color-accent); }
 #page-dashboard .hero-batch-card::after { display: none; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 4c — Dashboard : DENSITÉ (rapproche du mock / barre Trésorerie).
+   Toujours scopé #page-dashboard ; présentation seule ; aucun calcul.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Échéances : cellules compactes EN LIGNE (compteur mono à gauche, label/date à droite) */
+#page-dashboard .deadlines-row { grid-template-columns: repeat(auto-fit, minmax(152px, 1fr)); }
+#page-dashboard .deadline-card { display: flex; align-items: baseline; gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+#page-dashboard .deadline-card .dl-count { font-size: 21px; flex: none; margin: 0; }
+#page-dashboard .deadline-card .dl-meta { flex: 1; min-width: 0; }
+#page-dashboard .deadline-card .dl-label { font-size: 11px; margin: 0; }
+#page-dashboard .deadline-card .dl-date { font-size: 10px; color: var(--color-text-muted); margin-top: 1px; }
+
+/* « Ce qui demande de l'attention » : barre fine à accent gauche (fini le gros bloc rempli rose) */
+#page-dashboard .attention-panel { background: none; border: var(--border-hairline); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); }
+#page-dashboard .attention-panel h4 { color: var(--color-text-secondary); margin-bottom: var(--space-2); }
+#page-dashboard .attention-item { border-bottom: var(--border-hairline); padding: 4px 0; }
+
+/* Densité générale : cartes resserrées, grille bandes resserrée, tuiles stat resserrées */
+#page-dashboard .card { padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); }
+#page-dashboard .dash-grid { gap: var(--space-3); }
+#page-dashboard .stat-item { padding: var(--space-2) var(--space-3); }
 
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
@@ -4760,9 +4782,8 @@ function renderDeadlines(batchData) {
     const dateStr = dl.date.toLocaleDateString('fr-FR');
     html += '<div class="deadline-card">';
     html += '<div class="dl-count" style="color:' + countColor + ';">' + countText + '</div>';
-    html += '<div class="dl-label">' + escHtml(dl.label) + '</div>';
-    html += '<div class="dl-sub">' + escHtml(dl.sub) + '</div>';
-    html += '<div class="dl-date">' + dateStr + '</div>';
+    html += '<div class="dl-meta"><div class="dl-label">' + escHtml(dl.label) + '</div>' +
+      '<div class="dl-date">' + escHtml(dl.sub) + ' · ' + dateStr + '</div></div>';
     html += '</div>';
   });
   html += '</div>';
@@ -4810,60 +4831,8 @@ function renderDashboard() {
     bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
   });
 
-  // ── Hero batch card (primary active batch) ──
-  const primaryBatch = batchData[0];
-  if (primaryBatch) {
-    const pb = primaryBatch.bande;
-    const pi = primaryBatch.ind;
-    const pj = primaryBatch.jour;
-    const pf = primaryBatch.forecast;
-    const pctArc = Math.min(100, Math.round((pj / CYCLE_DURATION_DAYS) * 100));
-    const circumference = 2 * Math.PI * 48;
-    const dashoffset = circumference - (pctArc / 100) * circumference;
-    const arcColor = pctArc < 60 ? '#F97316' : pctArc < 85 ? '#F59E0B' : '#DC2626';
-    const phase = getCurrentPhase(pj);
-
-    // Status semantics for metrics
-    const mortStatus = pi.tauxMort < 3 ? 'nominal' : pi.tauxMort <= 5 ? 'watch' : 'critical';
-    const icStatus = pi.ic && pi.ic < 1.8 ? 'nominal' : pi.ic && pi.ic < 2.2 ? 'watch' : 'alert';
-    const gmqNorm = pj <= 10 ? 50 : pj <= 21 ? 70 : 80;
-    const gmqStatus = pi.gmq == null ? 'watch' : pi.gmq >= gmqNorm * 0.95 ? 'nominal' : pi.gmq >= gmqNorm * 0.8 ? 'watch' : 'critical';
-
-    const heroHtml = `
-      <div class="hero-batch-card card-stagger">
-        <div class="hero-batch-inner">
-          <div class="progress-arc-wrap">
-            <svg viewBox="0 0 120 120">
-              <circle class="progress-arc-bg" cx="60" cy="60" r="48"/>
-              <circle class="progress-arc-fill" cx="60" cy="60" r="48"
-                stroke="${arcColor}"
-                stroke-dasharray="${circumference}"
-                stroke-dashoffset="${dashoffset}"/>
-            </svg>
-            <div class="progress-arc-text">
-              <span class="arc-day">J${pj}</span>
-              <span class="arc-total">/ J${CYCLE_DURATION_DAYS}</span>
-            </div>
-          </div>
-          <div class="hero-batch-info">
-            <h3>${escHtml(pb.nom_bande)}</h3>
-            <div class="hero-sub">
-              <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>
-              ${pi.lastSaisieDate ? '<span style="font-family:var(--mono);font-size:11px;">Dernière saisie : ' + fmtDate(pi.lastSaisieDate) + '</span>' : ''}
-            </div>
-            <div class="hero-batch-metrics" style="margin-top:var(--space-3);">
-              <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${mortStatus} status-live"></span>${fmt(pi.tauxMort,1)}%</div><div class="hm-label">Mortalité cum.</div></div>
-              <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${icStatus}"></span>${pi.ic != null ? fmt(pi.ic, 2) : '—'}</div><div class="hm-label">IC cumulatif</div></div>
-              <div class="hero-metric"><div class="hm-value"><span class="hm-status pip-${gmqStatus}"></span>${fmt(pi.gmq,1)}</div><div class="hm-label">GMQ (g/j)</div></div>
-              <div class="hero-metric"><div class="hm-value">${pi.hasWeighing ? fmt(pi.poidsMesure) : '—'}</div><div class="hm-label">Poids vif (g)${pi.hasWeighing ? '' : '<br><span style="font-size:9px;">non pesé</span>'}</div></div>
-            </div>
-            ${pf ? '<div class="forecast-chip" style="margin-top:var(--space-3);">' + pf.text + '</div>' : ''}
-          </div>
-        </div>
-      </div>`;
-    // Insert hero before the KPI bar
-    document.getElementById('dash-kpis').insertAdjacentHTML('beforebegin', heroHtml);
-  }
+  // ── Carte « hero » retirée (dédup — issue 1) : la bande primaire est désormais
+  //    affichée UNE seule fois, via la grille de cartes détaillées ci-dessous. ──
 
   // ── Zone 2: KPIs agrégés ──
   const totalOiseaux = batchData.reduce((s, bd) => s + bd.ind.effectifActuel, 0);
