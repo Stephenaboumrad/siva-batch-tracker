@@ -162,6 +162,35 @@
   --stagger-delay: 60ms;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 1 — Design tokens (audit refonte). DÉFINIS À CÔTÉ des tokens
+   existants, RÉFÉRENCÉS PAR AUCUN sélecteur pour l'instant → changement
+   visuel NUL. La Phase 2 (page Trésorerie d'abord) consommera ces tokens
+   (KPI orange-par-défaut → encre, boutons aplatis, sweep hex→token).
+   On N'ÉCRASE rien : pure addition, conforme « extend/consolidate ».
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Bordures filaires 0.5px (règle tertiaire fine) */
+  --bw-hairline: 0.5px;
+  --border-hairline: var(--bw-hairline) solid var(--color-border-subtle); /* #E6EBEF */
+
+  /* Graisse bold (utilisée ad-hoc partout, jamais tokenisée) */
+  --fw-bold: 700;
+
+  /* Triplets d'état consolidés : texte / fond / bordure (remplacent les hex épars en Phase 2) */
+  --status-neutral-fg: #2E3A46;  --status-neutral-bg: #EDF1F4;  --status-neutral-bd: #D4DBE2;
+  --status-info-fg:    #1D4FD7;  --status-info-bg:    #EAF0FE;  --status-info-bd:    #C7D7FB;
+  --status-success-fg: #0E7C4A;  --status-success-bg: #E7F4EE;  --status-success-bd: #9BD3B6;
+  --status-warning-fg: #B7791F;  --status-warning-bg: #F8F1E2;  --status-warning-bd: #FDE68A;
+  --status-danger-fg:  #C8332B;  --status-danger-bg:  #F8E9E8;  --status-danger-bd:  #FECACA;
+
+  /* Politique d'accent : orange = anneau de focus uniquement (pas de glow coloré) */
+  --accent-ring: 0 0 0 3px rgba(226,100,15,0.14); /* #E2640F @ 14% */
+}
+
+/* Nombres financiers tabulaires — APPLIQUÉ en Phase 2 (inutilisé pour l'instant) */
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; letter-spacing: -0.01em; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
