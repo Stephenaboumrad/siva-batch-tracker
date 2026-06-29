@@ -8918,6 +8918,7 @@ function renderCommandes() {
       if (c.statut === 'en_preparation') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'livree\')">Marquer livrée</button>';
       if (c.statut !== 'livree' && c.statut !== 'annulee') statusBtns += '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'annulee\')">Annuler</button>';
       statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateBonLivraison(\'' + c.commande_id + '\')"><i data-lucide="file-text"></i> Bon de livraison PDF</button>';
+      statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateFacture(\'' + c.commande_id + '\')"><i data-lucide="receipt"></i> Facture PDF</button>';
       // ── Paiement (manager-only) : badge + marquer payé/impayé via la RPC ──
       statusBtns += '<div style="flex-basis:100%;height:0;"></div>';
       statusBtns += '<span style="display:inline-flex;align-items:center;gap:0.4rem;">Paiement : ' + paiementBadge(c)
@@ -9267,6 +9268,131 @@ async function generateBonLivraison(cmdId) {
 
   doc.save('bon-livraison-' + cmdId.slice(-8) + '.pdf');
   toast('PDF généré');
+}
+
+// ── Facture PDF (audit #4 / PR-C) ──
+// Facture À LA DEMANDE (comme le bon de livraison), PAS un registre légal numéroté
+// (numéro = 8 derniers car. du commande_id, comme le bon de livraison). HT / TVA /
+// TTC pilotés par UNE seule constante TVA_RATE ci-dessous (modifiable, peut être 0
+// si la volaille est exonérée). montant_total_fcfa est HT et N'EST PAS modifié :
+// la TVA est un calcul d'AFFICHAGE uniquement (stockage et trésorerie restent HT,
+// #52 intact). Clone du gabarit bon de livraison (en-tête/cadre/tableau partagés).
+const TVA_RATE = 0.18; // TVA Cote d'Ivoire par defaut. Mettre 0 si exonere. SEULE source du taux.
+
+async function generateFacture(cmdId) {
+  await ensureJsPDF();
+  const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
+  if (!cmd) return;
+  const client = STATE.clients.find(c => c.client_id === cmd.client_id);
+  const lignes = STATE.lignesCommande.filter(l => l.commande_id === cmdId);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pw = doc.internal.pageSize.getWidth();
+
+  const interData = await ensureInterFontData();
+  const FONT = registerInterFont(doc, interData);
+  const ORANGE_700 = [184, 78, 10];
+
+  // En-tête de marque PARTAGÉ (identique au bon de livraison).
+  let y = reportHeaderPDF(doc, {
+    title: 'Facture',
+    subtitle: 'N° ' + cmdId.slice(-8).toUpperCase()
+  });
+  doc.setFont(FONT, 'normal'); doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('Date : ' + fmtDateDots(cmd.date_commande), pw - 14, y, { align: 'right' });
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
+  // Bloc client (identique au bon de livraison)
+  y += 4;
+  doc.setFont(FONT, 'normal'); doc.setFontSize(10); doc.setTextColor(0);
+  doc.text('Client :', 14, y);
+  doc.setFont(FONT, 'bold'); doc.setFontSize(12);
+  doc.text(client ? client.nom : '—', 14, y + 6);
+  doc.setFont(FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(100);
+  if (client) {
+    if (client.adresse) doc.text(client.adresse, 14, y + 12);
+    if (client.ville) doc.text(client.ville, 14, y + 17);
+    if (client.telephone) doc.text('Tél : ' + client.telephone, 14, y + 22);
+  }
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.35);
+  doc.roundedRect(11, y - 8, 188, 34, 2.5, 2.5, 'S');
+  doc.setLineWidth(0.2);
+
+  // En-tête de tableau (bande orange, texte blanc)
+  y = 80;
+  const tableTop = y - 3;
+  doc.setFillColor.apply(doc, ORANGE_700);
+  doc.rect(14, y, 182, 8, 'F');
+  doc.setFont(FONT, 'bold'); doc.setFontSize(9); doc.setTextColor(255);
+  doc.text('Produit', 16, y + 5.5);
+  doc.text('Qté (kg)', 90, y + 5.5);
+  doc.text('Prix/kg (FCFA)', 120, y + 5.5);
+  doc.text('Montant (FCFA)', 160, y + 5.5);
+
+  // Lignes
+  y += 10;
+  doc.setFont(FONT, 'normal'); doc.setTextColor(0);
+  lignes.forEach(l => {
+    doc.text(ligneProduitNom(l), 16, y + 4);
+    doc.text(fmt(Number(l.quantite_kg), 1), 90, y + 4);
+    doc.text(fmt(Number(l.prix_kg_fcfa)), 120, y + 4);
+    doc.text(fmt(Number(l.montant_fcfa)), 160, y + 4);
+    doc.setDrawColor(224);
+    doc.line(14, y + 7, 196, y + 7);
+    y += 8;
+  });
+
+  // ── Totaux HT / TVA / TTC — TVA = AFFICHAGE seulement, pilotée par TVA_RATE ──
+  const ht  = Number(cmd.montant_total_fcfa) || 0;
+  const tva = Math.round(ht * TVA_RATE);
+  const ttc = ht + tva;
+  const tvaPct = +(TVA_RATE * 100).toFixed(2);
+
+  y += 5;
+  doc.setFont(FONT, 'normal'); doc.setFontSize(10); doc.setTextColor(0);
+  doc.text('Total HT', 120, y);
+  doc.text(fmt(ht) + ' FCFA', 196, y, { align: 'right' });
+  y += 6;
+  doc.text('TVA (' + tvaPct + '%)', 120, y);
+  doc.text(fmt(tva) + ' FCFA', 196, y, { align: 'right' });
+  y += 8;
+  doc.setFillColor(255, 243, 224);
+  doc.rect(118, y - 5, 78, 10, 'F');
+  doc.setFont(FONT, 'bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, ORANGE_700);
+  doc.text('Total TTC', 120, y + 2);
+  doc.text(fmt(ttc) + ' FCFA', 196, y + 2, { align: 'right' });
+
+  // Cadre du tableau (du haut de l'en-tête au bas du bloc totaux)
+  doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.35);
+  doc.roundedRect(11, tableTop, 188, (y + 6) - tableTop, 2.5, 2.5, 'S');
+  doc.setDrawColor(224); doc.setLineWidth(0.2);
+
+  // ── Statut de paiement (lecture du statut PR-A ; affichage seulement) ──
+  y += 16;
+  doc.setFont(FONT, 'bold'); doc.setFontSize(10);
+  if (cmd.statut_paiement === 'paye') {
+    doc.setTextColor(46, 125, 50);
+    let t = 'RÉGLÉE';
+    if (cmd.date_paiement) t += ' le ' + fmtDateDots(cmd.date_paiement);
+    if (cmd.mode_paiement) t += ' · ' + modeLabel(cmd.mode_paiement);
+    doc.text(t, 14, y);
+  } else {
+    doc.setTextColor(192, 57, 43);
+    doc.text('À RÉGLER — ' + fmt(ttc) + ' FCFA TTC', 14, y);
+  }
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
+  // Note
+  if (cmd.note) {
+    y += 10;
+    doc.setFont(FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(100);
+    doc.text('Note : ' + cmd.note, 14, y);
+  }
+
+  reportFooterPDF(doc);
+  doc.save('facture-' + cmdId.slice(-8) + '.pdf');
+  toast('Facture PDF générée');
 }
 
 // ══════════════════════════════
