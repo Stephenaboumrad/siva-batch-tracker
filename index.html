@@ -4673,8 +4673,6 @@ function renderDashboard() {
   const nearestForecast = batchData
     .filter(bd => bd.forecast && bd.forecast.status === 'projected')
     .sort((a, b) => a.forecast.daysLeft - b.forecast.daysLeft)[0];
-  const confirmedCmds = STATE.commandes.filter(c => c.statut === 'confirmee' && activeBandes.some(b => b.bande_id === c.bande_id));
-  const confirmedTotal = confirmedCmds.reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
 
   let forecastHtml = '—';
   let forecastSub = '';
@@ -6394,6 +6392,25 @@ function buildCloseoutModel(bandeId, overrides) {
   return { bande, view, ind, eco, rend, effectifInitial, effectifFinal, poidsMoyen, isClosed };
 }
 
+// ── CA encaissé du mois, par bande — vue Trésorerie (bilan mensuel) ──
+// Calcul month-scoped DÉDIÉ à la table trésorerie. N'utilise PAS
+// computeBandeEconomics (qui reste le P&L cycle-de-vie du registre/clôture).
+// Filtre IDENTIQUE au KPI "CA encaissé" → garantit la réconciliation :
+//   Σ caLivreMois(bande) + caLivreHorsBande(mois) === caEncaisse(mois).
+function caLivreMois(bandeId, mois) {
+  return STATE.commandes
+    .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(mois) && c.bande_id === bandeId)
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+}
+// Commandes livrées du mois SANS bande connue (bande_id NULL ou id orphelin) :
+// complément exact des CA par bande pour boucler sur le KPI "CA encaissé".
+function caLivreHorsBande(mois) {
+  const ids = new Set(STATE.bandes.map(b => b.bande_id));
+  return STATE.commandes
+    .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(mois) && !ids.has(c.bande_id))
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+}
+
 function initTresoreriePage() {
   // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
@@ -6424,12 +6441,18 @@ function initTresoreriePage() {
     '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
 
-  // ── Zone 2: Table par bande ──
-  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th>Oiseaux</th><th style="text-align:right;">Coût total</th><th style="text-align:right;">CA réalisé</th><th style="text-align:right;">Marge brute</th><th style="text-align:right;">Marge/kg</th><th style="text-align:right;">Coût revient/kg</th></tr></thead><tbody>';
-  let totCout = 0, totCA = 0, totMarge = 0;
+  // ── Zone 2: Table par bande — VUE TRÉSORERIE = CASH ENCAISSÉ DU MOIS ──
+  // Colonnes limitées au cash du mois. Coût total + marges (Marge brute, Marge/kg,
+  // Coût revient/kg) RETIRÉS : les coûts ne sont pas attribuables proprement au mois
+  // (poussins = somme à l'entrée, aliment forfait/formulation = cumulés). Le P&L
+  // cycle-de-vie complet (avec marges) reste dans le registre / rapport de clôture.
+  // Test de réconciliation : Σ CA réalisé (bandes) + CA hors-bande === KPI "CA encaissé".
+  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th>Oiseaux</th><th style="text-align:right;">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
+  let totCA = 0;
   allBF.forEach(bf => {
     const b = bf.bande, f = bf.fin;
-    const borderColor = b.statut === 'en_cours' ? '#F59E0B' : f.margeBrute >= 0 ? '#F97316' : '#E74C3C';
+    const caMois = caLivreMois(b.bande_id, thisMonth);
+    const borderColor = b.statut === 'en_cours' ? '#F59E0B' : '#F97316';
     const statutBadge = b.statut === 'en_cours'
       ? '<span class="badge badge-green">En cours</span> <span class="badge badge-orange" style="font-size:0.65rem;">Projection</span>'
       : '<span class="badge badge-grey">Terminée</span>';
@@ -6438,19 +6461,23 @@ function initTresoreriePage() {
       '<td><strong>' + b.nom_bande + '</strong></td>' +
       '<td>' + statutBadge + '</td>' +
       '<td>' + fmt(nb) + '</td>' +
-      '<td style="text-align:right;">' + fmt(f.coutTotal) + '</td>' +
-      '<td style="text-align:right;">' + fmt(f.caRealise) + '</td>' +
-      '<td style="text-align:right;color:' + (f.margeBrute >= 0 ? '#F97316' : '#E74C3C') + ';font-weight:700;">' + fmt(f.margeBrute) + '</td>' +
-      '<td style="text-align:right;">' + fmt(f.margeKg) + '</td>' +
-      '<td style="text-align:right;">' + fmt(f.coutRevientKg) + '</td></tr>';
-    totCout += f.coutTotal; totCA += f.caRealise; totMarge += f.margeBrute;
+      '<td style="text-align:right;">' + fmt(caMois) + '</td></tr>';
+    totCA += caMois;
   });
+  // Ligne Portail / Hors-bande : livrées du mois sans bande (NULL) ou bande inconnue.
+  // Complément exact pour que totCA boucle sur le KPI "CA encaissé".
+  const caHorsBande = caLivreHorsBande(thisMonth);
+  if (caHorsBande > 0) {
+    tblHtml += '<tr style="border-left:4px solid #1565C0;">' +
+      '<td><strong>Portail / Hors-bande</strong></td>' +
+      '<td><span class="badge badge-grey" style="font-size:0.65rem;">Portail</span></td>' +
+      '<td>—</td>' +
+      '<td style="text-align:right;">' + fmt(caHorsBande) + '</td></tr>';
+    totCA += caHorsBande;
+  }
   tblHtml += '</tbody><tfoot><tr style="font-weight:700;background:#FFF3E8;">' +
-    '<td colspan="3">TOTAL</td>' +
-    '<td style="text-align:right;">' + fmt(totCout) + '</td>' +
-    '<td style="text-align:right;">' + fmt(totCA) + '</td>' +
-    '<td style="text-align:right;color:' + (totMarge >= 0 ? '#F97316' : '#E74C3C') + ';">' + fmt(totMarge) + '</td>' +
-    '<td colspan="2"></td></tr></tfoot></table>';
+    '<td colspan="3">TOTAL CA encaissé</td>' +
+    '<td style="text-align:right;">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
   // ── Zone 3: Donut chart — cost breakdown ──
@@ -6790,16 +6817,16 @@ async function exportBilanPDF() {
   doc.text('Coûts engagés (cumulés) : ' + fmt(coutsT) + ' FCFA', 14, y); y += 5;
   doc.text('Marge brute estimée : ' + fmt(caEnc - coutsT) + ' FCFA', 14, y); y += 10;
 
-  // Table
-  y = reportSectionTitlePDF(doc, 'Performance par bande', y);
+  // Table — CA encaissé du mois par bande (vue cash ; coûts/marges = registre clôture)
+  y = reportSectionTitlePDF(doc, 'CA encaissé par bande — ' + (frMonthLabel(period) || period), y);
   doc.setFontSize(8); doc.setFont(undefined, 'normal');
 
-  const cols = [10, 45, 75, 105, 135, 165];
+  const cols = [10, 90, 160];
   doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
   doc.rect(10, y, pw - 20, 6, 'F');
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
   doc.setFont(undefined, 'bold');
-  ['Bande', 'Oiseaux', 'Coût total', 'CA réalisé', 'Marge', 'Marge/kg'].forEach((h, i) => doc.text(h, cols[i], y + 4));
+  ['Bande', 'Oiseaux', 'CA réalisé'].forEach((h, i) => doc.text(h, cols[i], y + 4));
   doc.setFont(undefined, 'normal');
   y += 8;
 
@@ -6808,18 +6835,33 @@ async function exportBilanPDF() {
     doc.text('Aucune bande enregistrée.', 14, y); y += 5;
     doc.setTextColor.apply(doc, REPORT_BRAND.ink);
   }
+  let pdfTotCA = 0;
   allBF.forEach(bf => {
     if (y > 265) { doc.addPage(); y = 20; }
     const b = bf.bande, f = bf.fin;
     const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
+    const caMois = caLivreMois(b.bande_id, period);
     doc.text(String(b.nom_bande || '—'), cols[0], y);
     doc.text(fmt(nb), cols[1], y);
-    doc.text(fmt(f.coutTotal), cols[2], y);
-    doc.text(fmt(f.caRealise), cols[3], y);
-    doc.text(fmt(f.margeBrute), cols[4], y);
-    doc.text(fmt(f.margeKg) + ' FCFA', cols[5], y);
+    doc.text(fmt(caMois), cols[2], y);
+    pdfTotCA += caMois;
     y += 5;
   });
+  const pdfHors = caLivreHorsBande(period);
+  if (pdfHors > 0) {
+    if (y > 265) { doc.addPage(); y = 20; }
+    doc.text('Portail / Hors-bande', cols[0], y);
+    doc.text('—', cols[1], y);
+    doc.text(fmt(pdfHors), cols[2], y);
+    pdfTotCA += pdfHors;
+    y += 5;
+  }
+  if (y > 265) { doc.addPage(); y = 20; }
+  doc.setFont(undefined, 'bold');
+  doc.text('TOTAL CA encaissé', cols[0], y);
+  doc.text(fmt(pdfTotCA), cols[2], y);
+  doc.setFont(undefined, 'normal');
+  y += 5;
 
   reportFooterPDF(doc);
   doc.save('bilan-financier-' + period + '.pdf');
@@ -6846,13 +6888,22 @@ async function exportBilanExcel() {
   applyReportSheetBranding(ws1, brand1.length, 2);
   XLSX.utils.book_append_sheet(wb, ws1, 'KPIs');
 
-  // Sheet 2: Par bande
-  const ws2Data = [['Bande', 'Statut', 'Oiseaux', 'Coût total', 'CA réalisé', 'Marge brute', 'Marge/kg', 'Coût revient/kg']];
+  // Sheet 2: Par bande — CA encaissé du mois (vue cash ; coûts/marges = registre clôture)
+  const ws2Data = [['Bande', 'Statut', 'Oiseaux', 'CA réalisé (' + (frMonthLabel(period) || period) + ')']];
+  let xlsTotCA = 0;
   allBF.forEach(bf => {
     const b = bf.bande, f = bf.fin;
     const nb = b.statut === 'termine' ? (Number(b.nb_oiseaux_sortie) || f.ind.effectifActuel) : f.ind.effectifActuel;
-    ws2Data.push([b.nom_bande, b.statut, nb, f.coutTotal, f.caRealise, f.margeBrute, f.margeKg == null ? '—' : Math.round(f.margeKg), f.coutRevientKg == null ? '—' : Math.round(f.coutRevientKg)]);
+    const caMois = caLivreMois(b.bande_id, period);
+    ws2Data.push([b.nom_bande, b.statut, nb, caMois]);
+    xlsTotCA += caMois;
   });
+  const xlsHors = caLivreHorsBande(period);
+  if (xlsHors > 0) {
+    ws2Data.push(['Portail / Hors-bande', 'portail', '—', xlsHors]);
+    xlsTotCA += xlsHors;
+  }
+  ws2Data.push(['TOTAL CA encaissé', '', '', xlsTotCA]);
   const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
   XLSX.utils.book_append_sheet(wb, ws2, 'Par bande');
 
