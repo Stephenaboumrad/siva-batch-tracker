@@ -212,6 +212,50 @@
 #page-tresorerie .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
 #page-tresorerie .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 3 — Refonte STRUCTURELLE Trésorerie (TOUT scopé #page-tresorerie →
+   aucune autre page touchée). Présentation seule ; aucun calcul. Le !important
+   sur les titres surcharge les styles inline PARTAGÉS uniquement sur cette page,
+   sans éditer le markup partagé.
+   ══════════════════════════════════════════════════════════════════════ */
+/* KPIs — grille unifiée « panneau d'instruments » : 1 conteneur arrondi, cellules à filets 0.5px */
+#page-tresorerie #treso-kpis {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: var(--bw-hairline); background: var(--color-border-subtle);
+  border: var(--border-hairline); border-radius: var(--radius-lg);
+  overflow: hidden; box-shadow: var(--shadow-sm);
+}
+#page-tresorerie #treso-kpis .dash-kpi {
+  background: var(--color-surface); border: none; border-radius: 0;
+  box-shadow: none; margin: 0; padding: var(--space-4) var(--space-5);
+}
+#page-tresorerie #treso-kpis .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-tresorerie #treso-kpis .dk-value { font-size: 23px; color: var(--color-text); }
+#page-tresorerie #treso-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+#page-tresorerie #treso-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
+@media (max-width: 900px) { #page-tresorerie #treso-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { #page-tresorerie #treso-kpis { grid-template-columns: 1fr; } }
+
+/* Cartes allégées : filet fin, pas d'ombre, rythme resserré */
+#page-tresorerie .card { border: var(--border-hairline); box-shadow: none; border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: 1.25rem; }
+#page-tresorerie .card:hover { box-shadow: none; border-color: var(--color-border); }
+#page-tresorerie .table-wrap { border: var(--border-hairline); box-shadow: none; }
+/* Titres de section discrets (micro-capitales sourdes) — !important scopé pour surcharger le style inline partagé */
+#page-tresorerie .card-header { margin-bottom: var(--space-3); }
+#page-tresorerie .card-header h3 { font-size: 11px !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: 0.1em !important; color: var(--color-text-muted) !important; }
+
+/* Tables denses : padding resserré, filets 0.5px, en-têtes plats */
+#page-tresorerie th, #page-tresorerie td { padding: 7px 12px; }
+#page-tresorerie th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-tresorerie tfoot td { background: var(--color-surface); border-top: var(--border-hairline); font-weight: var(--fw-bold); }
+#page-tresorerie tfoot td.num { color: var(--color-accent); }   /* accent sur le SEUL chiffre clé (TOTAL CA livré) */
+
+/* Créances — lignes compactes (fini la sous-table encadrée) */
+#page-tresorerie .cr-client-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; padding: var(--space-3) 0 var(--space-1); margin-top: var(--space-2); border-top: var(--border-hairline); font-weight: var(--fw-bold); font-size: 12.5px; }
+#page-tresorerie .creances-card .cr-client-head:first-of-type { margin-top: 0; border-top: none; }
+#page-tresorerie .cr-row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; padding: 3px 0 3px var(--space-3); font-size: 12.5px; color: var(--color-text-secondary); }
+#page-tresorerie .cr-row .num { color: var(--color-text); }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -6568,7 +6612,7 @@ function initTresoreriePage() {
   const totRH = computeRHMoisTotal(thisMonth);
   const costData = [totPoussins, totAliment, totIntrants, totAbattage, totRH];
   const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Abattage', 'Charges RH'];
-  const costColors = ['#F59E0B', '#3B82F6', '#1565C0', '#9C27B0', '#E91E63'];
+  const costColors = ['#2563EB', '#0E9488', '#168A53', '#B7791F', '#8A95A1']; // palette sobre : bleu / teal / forêt / ambre / ardoise (plus d'orange vif)
 
   const ctx1 = document.getElementById('chart-treso-costs');
   if (ctx1) {
@@ -6599,7 +6643,7 @@ function initTresoreriePage() {
         labels: batchNames,
         datasets: [
           { label: 'CA réalisé', data: batchCA, backgroundColor: t.observed, borderRadius: 4 },
-          { label: 'Coût total', data: batchCosts, backgroundColor: t.blue, borderRadius: 4 },
+          { label: 'Coût total', data: batchCosts, backgroundColor: '#8A95A1', borderRadius: 4 },
           { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: t.red, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
         ]
       },
@@ -6688,29 +6732,25 @@ function renderCreances() {
   const grandTotal = ordered.reduce((s, g) => s + g.total, 0);
   const grandRetard = ordered.reduce((s, g) => s + g.retard, 0);
 
-  let html = '<div class="card">' +
-    '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">' +
-      '<h3 style="font-size:1rem;text-transform:none;letter-spacing:0;margin:0;">Créances clients <span style="color:var(--text-muted);font-weight:400;">(livré non payé · HT)</span></h3>' +
-      '<span style="font-size:0.85rem;">Total dû : <strong style="color:var(--color-text);">' + fmt(grandTotal) + ' FCFA HT</strong>' +
-        (grandRetard > 0 ? ' · <span style="color:var(--status-danger-fg);">dont en retard ' + fmt(grandRetard) + ' FCFA</span>' : '') + '</span>' +
+  let html = '<div class="card creances-card">' +
+    '<div class="card-header" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0.5rem;">' +
+      '<h3>Créances clients</h3>' +
+      '<span style="font-size:0.82rem;color:var(--text-secondary);">Total dû : <strong class="num" style="color:var(--color-text);">' + fmt(grandTotal) + '</strong> FCFA HT' +
+        (grandRetard > 0 ? ' · <span style="color:var(--status-danger-fg);">dont en retard ' + fmt(grandRetard) + '</span>' : '') + '</span>' +
     '</div>';
 
   ordered.forEach(g => {
-    html += '<div style="padding:0.5rem 0.75rem;border-top:var(--border-hairline);">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;font-weight:700;">' +
-        '<span>' + escHtml(g.nom) + ' <span style="color:var(--text-muted);font-weight:400;font-size:0.82rem;">(' + g.cmds.length + ' commande' + (g.cmds.length > 1 ? 's' : '') + ')</span></span>' +
-        '<span style="color:var(--color-text);">' + fmt(g.total) + ' FCFA HT' + (g.retard > 0 ? ' <span style="color:var(--status-danger-fg);font-weight:400;font-size:0.8rem;">(⚠ ' + fmt(g.retard) + ')</span>' : '') + '</span>' +
-      '</div>' +
-      '<div class="table-wrap"><table style="margin-top:0.4rem;"><thead><tr><th>N°</th><th>Livraison souh.</th><th class="num">Montant HT</th><th></th></tr></thead><tbody>';
+    html += '<div class="cr-client-head">' +
+        '<span>' + escHtml(g.nom) + ' <span style="color:var(--text-muted);font-weight:400;font-size:0.78rem;">· ' + g.cmds.length + ' cmd</span></span>' +
+        '<span class="num">' + fmt(g.total) + ' FCFA HT' + (g.retard > 0 ? ' <span style="color:var(--status-danger-fg);font-weight:400;font-size:0.78rem;">⚠ ' + fmt(g.retard) + '</span>' : '') + '</span>' +
+      '</div>';
     g.cmds.forEach(({ c, montant, enRetard }) => {
-      html += '<tr>' +
-        '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
-        '<td>' + fmtDate(c.date_livraison_souhaitee || c.date_commande) + '</td>' +
-        '<td class="num">' + fmt(montant) + '</td>' +
-        '<td>' + (enRetard ? '<span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);">⚠ En retard</span>' : '') + '</td>' +
-      '</tr>';
+      html += '<div class="cr-row">' +
+        '<span>' + c.commande_id.slice(-6).toUpperCase() + ' · ' + fmtDate(c.date_livraison_souhaitee || c.date_commande) +
+          (enRetard ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:8.5px;padding:1px 6px;">⚠ retard</span>' : '') + '</span>' +
+        '<span class="num">' + fmt(montant) + '</span>' +
+      '</div>';
     });
-    html += '</tbody></table></div></div>';
   });
 
   html += '</div>';
