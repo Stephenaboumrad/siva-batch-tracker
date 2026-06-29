@@ -558,6 +558,10 @@
 #page-supply .card-header .btn-primary.btn-sm:hover { background: var(--color-accent-soft); box-shadow: none; }
 #page-supply .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
 #page-supply .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
+/* Articles connus non encore suivis (affichage seul, quantité 0) — rendus en sourdine. */
+#page-supply .stock-card.placeholder { border-style: dashed; box-shadow: none; }
+#page-supply .stock-card.placeholder .stock-qty { color: var(--color-text-muted); }
+#page-supply tr.alim-placeholder td { color: var(--color-text-muted); }
 
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
@@ -8141,6 +8145,17 @@ const DEFAULT_MP = [
   { mp_id: 'mp-010', nom: 'Autre',                      actif: true }
 ];
 
+// Référence médicaments / véto pour l'affichage « toujours visible » du Stock (display-only).
+// Sert UNIQUEMENT à générer des lignes placeholder à 0 dans renderStocks ; rien n'entre dans
+// STATE.stocks ni n'est envoyé à saveRemote tant que l'utilisateur n'enregistre pas (submitStock).
+const DEFAULT_MEDS = [
+  { nom: 'Vaccin Newcastle H120',        unite: 'dose' },
+  { nom: 'Vaccin Gumboro',               unite: 'dose' },
+  { nom: 'Vaccin Bronchite infectieuse', unite: 'dose' },
+  { nom: 'Enrofloxacine',                unite: 'L' },
+  { nom: 'Vitamines C',                  unite: 'kg' }
+];
+
 let currentAlimPhase = 'pre_demarrage';
 let currentAlimTopTab = 'formulations';
 
@@ -8229,48 +8244,27 @@ function loadAlimBande() {
   renderAllAlimPhases();
 }
 
-// ── Démo VISUELLE Supply (formulations) — AFFICHAGE SEUL ──────────────────────
-// SUPPLY_DEMO=true injecte des lignes maquette UNIQUEMENT dans la variable LOCALE
-// `entries` de renderAllAlimPhases (ci-dessous). Ces lignes ne sont JAMAIS :
-//   • écrites dans STATE.alimentsPhases (donc invisibles pour computeCoutAlimentaire
-//     / computeBandeEconomics / trésorerie — les vrais totaux restent intacts),
-//   • passées à saveRemote / apiPost (aucun chemin d'écriture en base),
-//   • rendues avec un bouton supprimer (gardé derrière !SUPPLY_DEMO ci-dessous).
-// Défaut false → production strictement inchangée. SEULE LIGNE À BASCULER (local) :
-const SUPPLY_DEMO = false;
-const SUPPLY_DEMO_ROWS = {
-  pre_demarrage: [
-    { nom_mp: 'Maïs',                      quantite_kg: 320, prix_unitaire: 245,  cout_total: 78400,  date_livraison: '2026-06-02' },
-    { nom_mp: 'Tourteau de soja',          quantite_kg: 180, prix_unitaire: 410,  cout_total: 73800,  date_livraison: '2026-06-02' },
-    { nom_mp: 'Prémix vitamines-minéraux', quantite_kg: 12,  prix_unitaire: 1850, cout_total: 22200,  date_livraison: '2026-06-03' }
-  ],
-  demarrage: [
-    { nom_mp: 'Maïs',              quantite_kg: 540, prix_unitaire: 245, cout_total: 132300, date_livraison: '2026-06-12' },
-    { nom_mp: 'Tourteau de soja',  quantite_kg: 300, prix_unitaire: 410, cout_total: 123000, date_livraison: '2026-06-12' },
-    { nom_mp: 'Farine de poisson', quantite_kg: 40,  prix_unitaire: 950, cout_total: 38000,  date_livraison: '2026-06-13' },
-    { nom_mp: 'Huile de palme',    quantite_kg: 25,  prix_unitaire: 720, cout_total: 18000,  date_livraison: '2026-06-13' }
-  ],
-  croissance: [
-    { nom_mp: 'Maïs',                 quantite_kg: 880, prix_unitaire: 245, cout_total: 215600, date_livraison: '2026-06-22' },
-    { nom_mp: 'Tourteau de soja',     quantite_kg: 460, prix_unitaire: 410, cout_total: 188600, date_livraison: '2026-06-22' },
-    { nom_mp: 'Carbonate de calcium', quantite_kg: 30,  prix_unitaire: 120, cout_total: 3600,   date_livraison: '2026-06-23' }
-  ]
-};
-
 // ── Render all 3 phases at once (Formulations tab) ──
 function renderAllAlimPhases() {
   const bandeId = document.getElementById('alim-bande-select').value;
   const canEdit = isManager();
   let html = '';
   let grandTotalKg = 0, grandTotalCout = 0;
+  const mpList = getMPList();
 
   PHASES.forEach(phase => {
-    // SUPPLY_DEMO : lignes maquette LOCALES (jamais STATE, jamais écrites) ; sinon vraies données.
-    const entries = SUPPLY_DEMO
-      ? (SUPPLY_DEMO_ROWS[phase.id] || [])
-      : STATE.alimentsPhases.filter(a => a.bande_id === bandeId && a.phase === phase.id);
+    // Vraies entrées de la bande/phase — SEULE source des totaux (inchangé).
+    const realEntries = STATE.alimentsPhases.filter(a => a.bande_id === bandeId && a.phase === phase.id);
+    // Placeholders AFFICHAGE SEUL : matières actives sans aucune entrée → ligne à 0.
+    // Jamais dans STATE, jamais envoyées à saveRemote ; qté/coût = 0 → n'affectent aucun total.
+    const presentNames = new Set(realEntries.map(e => (e.nom_mp || '').toLowerCase()));
+    const placeholders = mpList
+      .filter(m => m.actif && !presentNames.has((m.nom || '').toLowerCase()))
+      .map(m => ({ nom_mp: m.nom, quantite_kg: 0, prix_unitaire: 0, cout_total: 0, date_livraison: null, _ph: true }));
+    const display = realEntries.concat(placeholders);
+
     let totalKg = 0, totalCout = 0;
-    entries.forEach(e => {
+    realEntries.forEach(e => {
       totalKg  += Number(e.quantite_kg)  || 0;
       totalCout += Number(e.cout_total)  || 0;
     });
@@ -8278,22 +8272,23 @@ function renderAllAlimPhases() {
     grandTotalCout += totalCout;
 
     let rows = '';
-    if (entries.length === 0) {
+    if (display.length === 0) {
       rows = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-secondary);">Aucune entrée pour cette phase.</td></tr>`;
     } else {
-      entries.forEach(e => {
-        rows += `<tr>
+      display.forEach(e => {
+        const ph = e._ph === true;
+        rows += `<tr${ph ? ' class="alim-placeholder"' : ''}>
           <td>${e.nom_mp || '—'}</td>
           <td>${fmt(Number(e.quantite_kg), 2)}</td>
-          <td>${fmt(Number(e.prix_unitaire))}</td>
+          <td>${ph ? '—' : fmt(Number(e.prix_unitaire))}</td>
           <td>${fmt(Number(e.cout_total))}</td>
-          <td>${fmtDate(e.date_livraison)}</td>
-          <td>${(!SUPPLY_DEMO && canEdit) ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
+          <td>${ph ? '—' : fmtDate(e.date_livraison)}</td>
+          <td>${(!ph && canEdit) ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
         </tr>`;
       });
     }
 
-    const tfoot = entries.length > 0 ? `<tfoot><tr>
+    const tfoot = realEntries.length > 0 ? `<tfoot><tr>
       <td><strong>Sous-total</strong></td>
       <td><strong>${fmt(totalKg, 2)} kg</strong></td>
       <td></td>
@@ -8983,16 +8978,45 @@ async function submitInspection() {
 
 function renderStocks() {
   const container = document.getElementById('stocks-grid');
-  if (STATE.stocks.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun stock enregistré.</p></div>';
-    return;
-  }
-  let html = '';
-  STATE.stocks.forEach(s => {
+
+  // Liste de référence (AFFICHAGE SEUL) : matières actives + médicaments/véto connus.
+  // But : toujours montrer les articles connus, même à 0. Aucun placeholder n'entre dans
+  // STATE.stocks ni n'est envoyé à saveRemote ; une ligne réelle n'est créée que si
+  // l'utilisateur ouvre « Mettre à jour » et enregistre (submitStock).
+  const refItems = [];
+  getMPList().filter(m => m.actif).forEach(m =>
+    refItems.push({ nom: m.nom, categorie: 'mp', unite: m.unite || 'kg' }));
+  DEFAULT_MEDS.forEach(m =>
+    refItems.push({ nom: m.nom, categorie: 'medicament', unite: m.unite || 'dose' }));
+
+  const usedIds = new Set();
+  const cards = [];
+
+  // 1) Une carte par article de référence : stock réel s'il existe, sinon placeholder à 0.
+  refItems.forEach(ref => {
+    const match = STATE.stocks.find(s =>
+      !usedIds.has(s.stock_id) &&
+      s.categorie === ref.categorie &&
+      s.type_produit && s.type_produit.toLowerCase() === ref.nom.toLowerCase()
+    );
+    if (match) { usedIds.add(match.stock_id); cards.push(stockCardReal(match)); }
+    else { cards.push(stockCardPlaceholder(ref)); }
+  });
+
+  // 2) Stocks réels hors liste de référence (équipement, autre, articles personnalisés…).
+  STATE.stocks.forEach(s => { if (!usedIds.has(s.stock_id)) cards.push(stockCardReal(s)); });
+
+  container.innerHTML = cards.length
+    ? cards.join('')
+    : '<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun stock enregistré.</p></div>';
+}
+
+// Carte d'un stock RÉEL (markup historique inchangé — flux « Mettre à jour »/saveStockEdit intact).
+function stockCardReal(s) {
     const qty = Number(s.quantite_actuelle) || 0;
     const seuil = Number(s.seuil_alerte) || 0;
     const isAlert = qty <= seuil && seuil > 0;
-    html += `<div class="stock-card ${isAlert ? 'alert' : ''}" id="stock-card-${s.stock_id}">
+  return `<div class="stock-card ${isAlert ? 'alert' : ''}" id="stock-card-${s.stock_id}">
       <div class="stock-icon">${catEmoji(s.categorie)}</div>
       <div class="stock-name">${s.type_produit}</div>
       <div class="stock-cat">${catLabel(s.categorie)}</div>
@@ -9009,8 +9033,31 @@ function renderStocks() {
       </div>
       <button class="btn btn-outline btn-sm manager-only" style="margin-top:0.75rem;" onclick="document.getElementById('stock-edit-${s.stock_id}').style.display='flex'">Mettre à jour</button>
     </div>`;
-  });
-  container.innerHTML = html;
+}
+
+// Carte PLACEHOLDER (article connu non encore suivi) — AFFICHAGE SEUL : quantité 0, aucune
+// donnée écrite. « Mettre à jour » ouvre le modal d'ajout pré-rempli → submitStock crée la
+// ligne réelle SEULEMENT à l'enregistrement.
+function stockCardPlaceholder(ref) {
+  const safeNom = String(ref.nom).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const safeUnite = String(ref.unite || '').replace(/'/g, "\\'");
+  return `<div class="stock-card placeholder">
+      <div class="stock-icon">${catEmoji(ref.categorie)}</div>
+      <div class="stock-name">${ref.nom}</div>
+      <div class="stock-cat">${catLabel(ref.categorie)}</div>
+      <div class="stock-qty">${fmt(0, 1)} ${ref.unite}</div>
+      <div class="stock-meta">Non suivi</div>
+      <button class="btn btn-outline btn-sm manager-only" style="margin-top:0.75rem;" onclick="showStockModalFor('${safeNom}','${ref.categorie}','${safeUnite}')">Mettre à jour</button>
+    </div>`;
+}
+
+// Ouvre le modal d'ajout de stock pré-rempli pour un article de référence (placeholder).
+// N'écrit RIEN : la création réelle passe par submitStock à l'enregistrement.
+function showStockModalFor(produit, categorie, unite) {
+  showStockModal();
+  document.getElementById('stock-produit').value = produit || '';
+  if (categorie) document.getElementById('stock-categorie').value = categorie;
+  if (unite) document.getElementById('stock-unite').value = unite;
 }
 
 function showStockModal() {
