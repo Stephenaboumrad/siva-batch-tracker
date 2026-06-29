@@ -188,8 +188,29 @@
   --accent-ring: 0 0 0 3px rgba(226,100,15,0.14); /* #E2640F @ 14% */
 }
 
-/* Nombres financiers tabulaires — APPLIQUÉ en Phase 2 (inutilisé pour l'instant) */
+/* Nombres financiers tabulaires — APPLIQUÉ en Phase 2 */
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; letter-spacing: -0.01em; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 2 — Restyle TRÉSORERIE UNIQUEMENT (scopé #page-tresorerie).
+   Présentation seulement ; AUCUNE autre page touchée ; AUCUN calcul modifié.
+   Consomme les tokens Phase 1.
+   ══════════════════════════════════════════════════════════════════════ */
+/* KPIs : valeurs en encre, bordures neutres, pas de glow ; orange réservé au KPI vedette (.dk-headline) */
+#page-tresorerie .dash-kpi { border-left-color: var(--color-border); }
+#page-tresorerie .dash-kpi::before { display: none; }
+#page-tresorerie .dash-kpi .dk-value { color: var(--color-text); }
+#page-tresorerie .dash-kpi.dk-headline { border-left-color: var(--color-accent); }
+#page-tresorerie .dash-kpi.dk-headline .dk-value { color: var(--color-accent); }
+/* Cartes : plus de barre orange au survol */
+#page-tresorerie .card::before { display: none; }
+/* Tables : filets fins 0.5px, zébrure/survol neutres (fini la teinte orange) */
+#page-tresorerie td { border-bottom: var(--border-hairline); }
+#page-tresorerie tbody tr:nth-child(even) td { background: transparent; }
+#page-tresorerie tbody tr:hover td { background: var(--color-surface-alt); }
+/* Bouton primaire (défensif — la page n'en a pas) : plat, sans dégradé ni glow coloré */
+#page-tresorerie .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-tresorerie .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
@@ -6487,10 +6508,10 @@ function initTresoreriePage() {
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
 
   document.getElementById('treso-kpis').innerHTML =
-    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA livré — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · facturé (livré)</div></div>' +
-    '<div class="dash-kpi" style="border-left-color:#1565C0;"><div class="dk-value" style="color:#1565C0;">' + fmt(caPaye) + '</div><div class="dk-label">CA encaissé (payé) — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · réglé ce mois</div></div>' +
-    '<div class="dash-kpi" style="border-left-color:#B84E0A;"><div class="dk-value" style="color:#B84E0A;">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · total dû</div></div>' +
-    '<div class="dash-kpi" style="border-left-color:#FF8C00;"><div class="dk-value" style="color:#FF8C00;">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi dk-headline"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA livré — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · facturé (livré)</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(caPaye) + '</div><div class="dk-label">CA encaissé (payé) — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · réglé ce mois</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · total dû</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
 
@@ -6500,37 +6521,36 @@ function initTresoreriePage() {
   // (poussins = somme à l'entrée, aliment forfait/formulation = cumulés). Le P&L
   // cycle-de-vie complet (avec marges) reste dans le registre / rapport de clôture.
   // Test de réconciliation : Σ CA réalisé (bandes) + CA hors-bande === KPI "CA encaissé".
-  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th>Oiseaux</th><th style="text-align:right;">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
+  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th class="num">Oiseaux</th><th class="num">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
   let totCA = 0;
   allBF.forEach(bf => {
     const b = bf.bande, f = bf.fin;
     const caMois = caLivreMois(b.bande_id, thisMonth);
-    const borderColor = b.statut === 'en_cours' ? '#F59E0B' : '#F97316';
     const statutBadge = b.statut === 'en_cours'
       ? '<span class="badge badge-green">En cours</span> <span class="badge badge-orange" style="font-size:0.65rem;">Projection</span>'
       : '<span class="badge badge-grey">Terminée</span>';
     const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
-    tblHtml += '<tr style="border-left:4px solid ' + borderColor + ';">' +
+    tblHtml += '<tr>' +
       '<td><strong>' + b.nom_bande + '</strong></td>' +
       '<td>' + statutBadge + '</td>' +
-      '<td>' + fmt(nb) + '</td>' +
-      '<td style="text-align:right;">' + fmt(caMois) + '</td></tr>';
+      '<td class="num">' + fmt(nb) + '</td>' +
+      '<td class="num">' + fmt(caMois) + '</td></tr>';
     totCA += caMois;
   });
   // Ligne Portail / Hors-bande : livrées du mois sans bande (NULL) ou bande inconnue.
   // Complément exact pour que totCA boucle sur le KPI "CA encaissé".
   const caHorsBande = caLivreHorsBande(thisMonth);
   if (caHorsBande > 0) {
-    tblHtml += '<tr style="border-left:4px solid #1565C0;">' +
+    tblHtml += '<tr>' +
       '<td><strong>Portail / Hors-bande</strong></td>' +
       '<td><span class="badge badge-grey" style="font-size:0.65rem;">Portail</span></td>' +
-      '<td>—</td>' +
-      '<td style="text-align:right;">' + fmt(caHorsBande) + '</td></tr>';
+      '<td class="num">—</td>' +
+      '<td class="num">' + fmt(caHorsBande) + '</td></tr>';
     totCA += caHorsBande;
   }
-  tblHtml += '</tbody><tfoot><tr style="font-weight:700;background:#FFF3E8;">' +
+  tblHtml += '</tbody><tfoot><tr>' +
     '<td colspan="3">TOTAL CA livré</td>' +
-    '<td style="text-align:right;">' + fmt(totCA) + '</td></tr></tfoot></table>';
+    '<td class="num">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
   // ── Zone 2b: Créances clients (livré non payé) — cumulatif, indépendant du mois ──
@@ -6598,7 +6618,7 @@ function initTresoreriePage() {
     return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'][parseInt(mo) - 1] + ' ' + y;
   });
 
-  let fluxHtml = '<table><thead><tr><th>Mois</th><th style="text-align:right;">Entrées (CA livré)</th><th style="text-align:right;">Sorties (coûts)</th><th style="text-align:right;">Solde</th><th style="text-align:right;">Cumulé</th></tr></thead><tbody>';
+  let fluxHtml = '<table><thead><tr><th>Mois</th><th class="num">Entrées (CA livré)</th><th class="num">Sorties (coûts)</th><th class="num">Solde</th><th class="num">Cumulé</th></tr></thead><tbody>';
   let cumule = 0;
   months.forEach((m, idx) => {
     const entrees = STATE.commandes
@@ -6611,10 +6631,10 @@ function initTresoreriePage() {
     const solde = entrees - sorties;
     cumule += solde;
     fluxHtml += '<tr><td><strong>' + monthNames[idx] + '</strong></td>' +
-      '<td style="text-align:right;color:#27AE60;">' + (entrees > 0 ? '+' + fmt(entrees) : '—') + '</td>' +
-      '<td style="text-align:right;color:#E74C3C;">' + (sorties > 0 ? '-' + fmt(sorties) : '—') + '</td>' +
-      '<td style="text-align:right;font-weight:700;color:' + (solde >= 0 ? '#F97316' : '#E74C3C') + ';">' + fmt(solde) + '</td>' +
-      '<td style="text-align:right;color:' + (cumule >= 0 ? '#F97316' : '#E74C3C') + ';">' + fmt(cumule) + '</td></tr>';
+      '<td class="num" style="color:var(--color-success);">' + (entrees > 0 ? '+' + fmt(entrees) : '—') + '</td>' +
+      '<td class="num" style="color:var(--color-danger);">' + (sorties > 0 ? '-' + fmt(sorties) : '—') + '</td>' +
+      '<td class="num" style="font-weight:700;color:' + (solde >= 0 ? 'var(--color-success)' : 'var(--color-danger)') + ';">' + fmt(solde) + '</td>' +
+      '<td class="num" style="color:' + (cumule >= 0 ? 'var(--color-success)' : 'var(--color-danger)') + ';">' + fmt(cumule) + '</td></tr>';
   });
   fluxHtml += '</tbody></table>';
   document.getElementById('treso-flux').innerHTML = fluxHtml;
@@ -6671,23 +6691,23 @@ function renderCreances() {
   let html = '<div class="card">' +
     '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">' +
       '<h3 style="font-size:1rem;text-transform:none;letter-spacing:0;margin:0;">Créances clients <span style="color:var(--text-muted);font-weight:400;">(livré non payé · HT)</span></h3>' +
-      '<span style="font-size:0.85rem;">Total dû : <strong style="color:#B84E0A;">' + fmt(grandTotal) + ' FCFA HT</strong>' +
-        (grandRetard > 0 ? ' · <span style="color:#C0392B;">dont en retard ' + fmt(grandRetard) + ' FCFA</span>' : '') + '</span>' +
+      '<span style="font-size:0.85rem;">Total dû : <strong style="color:var(--color-text);">' + fmt(grandTotal) + ' FCFA HT</strong>' +
+        (grandRetard > 0 ? ' · <span style="color:var(--status-danger-fg);">dont en retard ' + fmt(grandRetard) + ' FCFA</span>' : '') + '</span>' +
     '</div>';
 
   ordered.forEach(g => {
-    html += '<div style="padding:0.5rem 0.75rem;border-top:1px solid var(--border);">' +
+    html += '<div style="padding:0.5rem 0.75rem;border-top:var(--border-hairline);">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;font-weight:700;">' +
         '<span>' + escHtml(g.nom) + ' <span style="color:var(--text-muted);font-weight:400;font-size:0.82rem;">(' + g.cmds.length + ' commande' + (g.cmds.length > 1 ? 's' : '') + ')</span></span>' +
-        '<span style="color:#B84E0A;">' + fmt(g.total) + ' FCFA HT' + (g.retard > 0 ? ' <span style="color:#C0392B;font-weight:400;font-size:0.8rem;">(⚠ ' + fmt(g.retard) + ')</span>' : '') + '</span>' +
+        '<span style="color:var(--color-text);">' + fmt(g.total) + ' FCFA HT' + (g.retard > 0 ? ' <span style="color:var(--status-danger-fg);font-weight:400;font-size:0.8rem;">(⚠ ' + fmt(g.retard) + ')</span>' : '') + '</span>' +
       '</div>' +
-      '<div class="table-wrap"><table style="margin-top:0.4rem;"><thead><tr><th>N°</th><th>Livraison souh.</th><th style="text-align:right;">Montant HT</th><th></th></tr></thead><tbody>';
+      '<div class="table-wrap"><table style="margin-top:0.4rem;"><thead><tr><th>N°</th><th>Livraison souh.</th><th class="num">Montant HT</th><th></th></tr></thead><tbody>';
     g.cmds.forEach(({ c, montant, enRetard }) => {
       html += '<tr>' +
         '<td><strong>' + c.commande_id.slice(-6).toUpperCase() + '</strong></td>' +
         '<td>' + fmtDate(c.date_livraison_souhaitee || c.date_commande) + '</td>' +
-        '<td style="text-align:right;">' + fmt(montant) + '</td>' +
-        '<td>' + (enRetard ? '<span class="status-badge" style="background:#FEF2F2;color:#C0392B;">⚠ En retard</span>' : '') + '</td>' +
+        '<td class="num">' + fmt(montant) + '</td>' +
+        '<td>' + (enRetard ? '<span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);">⚠ En retard</span>' : '') + '</td>' +
       '</tr>';
     });
     html += '</tbody></table></div></div>';
