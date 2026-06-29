@@ -379,6 +379,14 @@ function fmt(n, decimals = 0) {
 function fcfa(n) { return fmt(n) + ' FCFA'; }
 function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('fr-FR'); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+// Badge de paiement read-only côté client (audit #4 / PR-E). « Payé » dès que
+// réglé ; « À régler » seulement une fois livrée (la facture n'est due qu'à la
+// livraison). Sinon rien (le paiement n'est pas encore pertinent).
+function paiementBadgePortail(c) {
+  if (c.statut_paiement === 'paye') return '<span class="statut-badge" style="background:#E8F5E9;color:#2E7D32;">Payé</span>';
+  if (c.statut === 'livree') return '<span class="statut-badge" style="background:#FFF3E8;color:#B84E0A;">À régler</span>';
+  return '';
+}
 function $(id) { return document.getElementById(id); }
 function icons() { try { window.lucide.createIcons(); } catch (e) {} }
 function toast(msg, type) {
@@ -658,7 +666,7 @@ async function loadHistorique() {
   box.innerHTML = '<div class="loading"><span class="spinner"></span> Chargement…</div>';
   const { data, error } = await sb
     .from('commandes')
-    .select('commande_id, date_commande, date_livraison_souhaitee, statut, montant_total_fcfa')
+    .select('commande_id, date_commande, date_livraison_souhaitee, statut, montant_total_fcfa, statut_paiement')
     .order('date_commande', { ascending: false });
   if (error) {
     box.innerHTML = '<div class="empty"><span class="ic">⚠️</span>Impossible de charger vos commandes.</div>';
@@ -677,6 +685,7 @@ async function loadHistorique() {
             '<span class="oh-id">' + esc(c.commande_id) + '</span></span>' +
           '<span class="oh-right">' +
             '<span class="statut-badge ' + statutClass + '">' + esc(c.statut || '—') + '</span>' +
+            paiementBadgePortail(c) +
             '<span class="oh-total mono-num">' + fcfa(c.montant_total_fcfa) + '</span>' +
             '<i data-lucide="chevron-down"></i>' +
           '</span>' +
