@@ -2950,6 +2950,7 @@ const ACTION_MAP = {
   // Commandes
   addCommande:        { table: 'commandes',       op: 'insert' },
   updateCommande:     { table: 'commandes',       op: 'update', idField: 'commande_id' },
+  markPaiement:       { op: 'rpc', fn: 'mark_commande_paiement' },
   addLigneCommande:   { table: 'lignes_commande', op: 'insert' },
   deleteLigneCommande:{ table: 'lignes_commande', op: 'delete', idField: 'ligne_id' },
   // Abattages
@@ -3341,6 +3342,8 @@ async function apiPost(body) {
       const idValue = payload[cfg.idField];
       if (idValue == null) throw new Error('ID manquant pour delete: ' + cfg.idField);
       resp = await sb.from(cfg.table).delete().eq(cfg.idField, idValue);
+    } else if (cfg.op === 'rpc') {
+      resp = await sb.rpc(cfg.fn, payload);
     } else {
       throw new Error('Opération inconnue: ' + cfg.op);
     }
@@ -3438,6 +3441,8 @@ async function processSyncQueue() {
         resp = await sb.from(cfg.table).update(item.payload).eq(cfg.idField, item.payload[cfg.idField]);
       } else if (cfg.op === 'delete') {
         resp = await sb.from(cfg.table).delete().eq(cfg.idField, item.payload[cfg.idField]);
+      } else if (cfg.op === 'rpc') {
+        resp = await sb.rpc(cfg.fn, item.payload);
       }
       if (resp && resp.error) throw new Error(resp.error.message);
       processed++;
@@ -8685,6 +8690,53 @@ const CMD_STATUTS = {
 function cmdStatutBadge(s) {
   return '<span class="status-badge status-' + s + '">' + (CMD_STATUTS[s] || s) + '</span>';
 }
+
+// ── Paiement (audit #4 / PR-A) — vue manager-only ──
+// « En retard » est DÉRIVÉ (jamais stocké) : commande livrée, impayée, et
+// échéance (livraison souhaitée, à défaut date commande) + 30 j dépassée.
+const PAIEMENT_MODES = { especes: 'Espèces', mobile_money: 'Mobile Money', virement: 'Virement', cheque: 'Chèque', carte: 'Carte' };
+function modeLabel(m) { return PAIEMENT_MODES[m] || m || ''; }
+
+function isPaiementEnRetard(c) {
+  if (c.statut_paiement === 'paye') return false;
+  if (c.statut !== 'livree') return false;
+  const base = c.date_livraison_souhaitee || c.date_commande;
+  if (!base) return false;
+  const due = new Date(base);
+  if (isNaN(due.getTime())) return false;
+  due.setDate(due.getDate() + 30);
+  return new Date() > due;
+}
+
+function paiementBadge(c) {
+  if (c.statut_paiement === 'paye') return '<span class="status-badge" style="background:#E8F5E9;color:#2E7D32;">Payé</span>';
+  if (isPaiementEnRetard(c)) return '<span class="status-badge" style="background:#FEF2F2;color:#C0392B;">⚠ En retard</span>';
+  return '<span class="status-badge" style="background:#FFF3E8;color:#B84E0A;">Impayé</span>';
+}
+
+// Écriture du paiement via la RPC manager-only mark_commande_paiement.
+// saveRemote (#51) fait surfacer un rejet serveur (RLS/rôle) au lieu d'un faux succès.
+async function markCommandePaiement(cmdId, statut) {
+  if (!isManager()) return;
+  const cmd = STATE.commandes.find(c => c.commande_id === cmdId);
+  if (!cmd) return;
+  let mode = null, date = null;
+  if (statut === 'paye') {
+    const sel = document.getElementById('paymode-' + cmdId);
+    mode = (sel && sel.value) ? sel.value : null;
+    date = new Date().toISOString();
+  }
+  const r = await saveRemote({ action: 'markPaiement', payload: {
+    p_commande_id: cmdId, p_statut_paiement: statut, p_date_paiement: date, p_mode_paiement: mode
+  } });
+  if (!r.ok) return;
+  cmd.statut_paiement = statut;
+  cmd.date_paiement = statut === 'paye' ? date : null;
+  cmd.mode_paiement = statut === 'paye' ? mode : null;
+  renderCommandes();
+  toast(r.queued ? 'Paiement mis à jour (hors ligne — sera synchronisé)'
+                 : (statut === 'paye' ? 'Commande marquée payée' : 'Commande marquée impayée'));
+}
 function clientTypeLabel(t) {
   const m = { particulier: 'Particulier', revendeur: 'Revendeur', restaurant: 'Restaurant', supermarche: 'Supermarché', autre: 'Autre' };
   return m[t] || t;
@@ -8767,7 +8819,7 @@ function renderCommandes() {
       '<td>' + fmtDate(c.date_livraison_souhaitee) + '</td>' +
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + produits + '</td>' +
       '<td><strong>' + fmt(Number(c.montant_total_fcfa)) + '</strong> FCFA</td>' +
-      '<td>' + cmdStatutBadge(c.statut) + '</td>' +
+      '<td>' + cmdStatutBadge(c.statut) + '<span class="manager-only" style="margin-left:0.35rem;">' + paiementBadge(c) + '</span></td>' +
       '</tr>';
 
     // Expand panel
@@ -8783,6 +8835,20 @@ function renderCommandes() {
       if (c.statut === 'en_preparation') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'livree\')">Marquer livrée</button>';
       if (c.statut !== 'livree' && c.statut !== 'annulee') statusBtns += '<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'annulee\')">Annuler</button>';
       statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();generateBonLivraison(\'' + c.commande_id + '\')"><i data-lucide="file-text"></i> Bon de livraison PDF</button>';
+      // ── Paiement (manager-only) : badge + marquer payé/impayé via la RPC ──
+      statusBtns += '<div style="flex-basis:100%;height:0;"></div>';
+      statusBtns += '<span style="display:inline-flex;align-items:center;gap:0.4rem;">Paiement : ' + paiementBadge(c)
+        + (c.statut_paiement === 'paye' && c.date_paiement ? '<span style="color:var(--text-secondary);font-size:0.8rem;">le ' + fmtDate(c.date_paiement) + (c.mode_paiement ? ' · ' + modeLabel(c.mode_paiement) : '') + '</span>' : '')
+        + '</span>';
+      if (c.statut_paiement === 'paye') {
+        statusBtns += '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();markCommandePaiement(\'' + c.commande_id + '\',\'impaye\')">Marquer impayé</button>';
+      } else {
+        statusBtns += '<select id="paymode-' + c.commande_id + '" onclick="event.stopPropagation();" style="padding:0.3rem 0.4rem;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;background:var(--card-bg);color:var(--text-primary);">'
+          + '<option value="">Mode (optionnel)</option>'
+          + Object.keys(PAIEMENT_MODES).map(k => '<option value="' + k + '">' + PAIEMENT_MODES[k] + '</option>').join('')
+          + '</select>';
+        statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();markCommandePaiement(\'' + c.commande_id + '\',\'paye\')">Marquer payé</button>';
+      }
       statusBtns += '</div>';
 
       html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
