@@ -88,12 +88,17 @@
   --color-warning-bg:    #F8F1E2;
   --color-danger-bg:     #F8E9E8;
 
-  /* ===== Navbar (neutre froid sombre, fini le chocolat) ===== */
-  --navbar-bg:           #11181F;
-  --navbar-deep:         #0B1116;
-  --navbar-active:       #1C2730;
-  --navbar-text:         #AEB9C4;
-  --navbar-text-active:  #FFFFFF;
+  /* ===== Navbar — "soft slate" (option B) : ancre sombre bleu-ardoise, fini le near-black.
+     Surfaces ardoise + accent orange adouci (#F08A4B) lisible sur l'ardoise. ===== */
+  --navbar-bg:           #1E2A36;   /* ardoise principale (fond sidebar / menu mobile) */
+  --navbar-deep:         #18222C;   /* ardoise plus sombre (bas du dégradé, fond login) */
+  --navbar-active:       #28384A;   /* ardoise claire (surfaces actives / texture) */
+  --navbar-text:         #C5CFD9;   /* libellé nav inactif (slate clair, ~9:1 sur l'ardoise) */
+  --navbar-text-active:  #FFFFFF;   /* libellé nav actif */
+  --navbar-icon:         #7E8C9A;   /* icône nav inactive (slate sourd, ~4:1) */
+  --navbar-muted:        #8B99A8;   /* sous-titres / sync / labels secondaires */
+  --navbar-accent:       #F08A4B;   /* accent orange adouci (actif : icône + bordure) */
+  --navbar-active-bg:    rgba(240,138,75,0.16);  /* fond de l'item actif (orange très léger) */
 
   /* ===== Typographie ===== */
   --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif;
@@ -813,12 +818,15 @@ body::before {
 }
 @keyframes logoBreath { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
 #top-header .hdr-subtitle {
-  font-size:8px; color:rgba(255,255,255,0.25); font-weight:600;
+  font-size:8px; color:var(--navbar-muted); font-weight:600;
   letter-spacing:0.12em; white-space:nowrap; text-transform:uppercase;
   border-left:none; padding-left:0; text-align:center;
 }
 #top-header .hdr-logo-img {
   height:44px; width:auto; display:block; margin:0 auto 6px;
+  /* Pastille douce derrière la mascotte (soft slate). box-sizing:border-box (reset global)
+     + height:44px fixe → le padding rétrécit l'image à l'intérieur, l'empreinte reste 44px. */
+  background:rgba(255,255,255,0.08); padding:6px; border-radius:12px;
 }
 /* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
    blanc baké dans le PNG serait invisible (blanc sur blanc) sur la carte ; le fond
@@ -849,7 +857,7 @@ body::before {
   overflow-y:auto; overflow-x:hidden;
 }
 #top-header .hdr-nav a {
-  color:rgba(255,255,255,0.4); text-decoration:none;
+  color:var(--navbar-text); text-decoration:none;
   font-family:var(--sans); font-size:11px; font-weight:600;
   letter-spacing:0.02em;
   padding:10px 14px; height:auto;
@@ -858,15 +866,17 @@ body::before {
   border-radius:0 var(--radius-sm) var(--radius-sm) 0;
   white-space:nowrap; transition:all .15s var(--ease);
 }
-#top-header .hdr-nav a .icon { display:inline; font-size:14px; width:20px; text-align:center; flex-shrink:0; }
+#top-header .hdr-nav a .icon { display:inline; font-size:14px; width:20px; text-align:center; flex-shrink:0; color:var(--navbar-icon); }
 #top-header .hdr-nav .nav-short { display:none; }
 #top-header .hdr-nav .nav-full { display:inline; }
-#top-header .hdr-nav a:hover { color:rgba(255,255,255,0.8); background:rgba(255,255,255,0.04); }
+#top-header .hdr-nav a:hover { color:var(--navbar-text-active); background:rgba(255,255,255,0.05); }
+#top-header .hdr-nav a:hover .icon { color:var(--navbar-text); }
 #top-header .hdr-nav a.active {
-  color:#fff; border-left-color:var(--c-orange-400);
-  background:rgba(249,115,22,0.1);
-  text-shadow:0 0 12px rgba(249,115,22,0.3);
+  color:var(--navbar-text-active); border-left-color:var(--navbar-accent);
+  background:var(--navbar-active-bg);
+  text-shadow:none;
 }
+#top-header .hdr-nav a.active .icon { color:var(--navbar-accent); }
 
 /* ── Sidebar Footer ── */
 #top-header .hdr-right {
@@ -875,16 +885,16 @@ body::before {
   border-top:1px solid rgba(255,255,255,0.06);
   margin-top:auto;
 }
-#top-header .hdr-sync { display:flex; align-items:center; gap:6px; font-size:10px; color:rgba(255,255,255,0.3); font-weight:500; }
-#top-header .hdr-user { font-size:9px; color:rgba(255,255,255,0.35); font-weight:500; white-space:normal; letter-spacing:0.02em; word-break:break-all; line-height:1.4; }
+#top-header .hdr-sync { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--navbar-muted); font-weight:500; }
+#top-header .hdr-user { font-size:9px; color:var(--navbar-muted); font-weight:500; white-space:normal; letter-spacing:0.02em; word-break:break-all; line-height:1.4; }
 #top-header .hdr-alerts { position:relative; }
 #top-header .hdr-logout {
   background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
-  color:rgba(255,255,255,0.4); border-radius:var(--radius-sm);
+  color:var(--navbar-text); border-radius:var(--radius-sm);
   padding:6px 14px; font-family:var(--sans); font-size:10px; font-weight:600; width:100%;
   cursor:pointer; transition:all .2s var(--ease); white-space:nowrap; text-transform:uppercase; letter-spacing:0.05em;
 }
-#top-header .hdr-logout:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.8); border-color:rgba(255,255,255,0.12); }
+#top-header .hdr-logout:hover { background:rgba(255,255,255,0.08); color:var(--navbar-text-active); border-color:rgba(255,255,255,0.12); }
 
 .hdr-alert-badge { background:var(--accent-red); color:#fff; font-size:9px; font-weight:700; border-radius:var(--radius-full); width:17px; height:17px; text-align:center; display:inline-block; line-height:17px; }
 .sync-dot { width:7px; height:7px; border-radius:var(--radius-full); flex-shrink:0; display:inline-block; }
@@ -901,9 +911,9 @@ body::before {
   border-radius:var(--radius-sm);
   border:1px solid rgba(255,255,255,0.06);
 }
-.sla-title { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:rgba(255,255,255,0.3); margin-bottom:6px; }
-.sla-id { font-size:12px; font-weight:700; color:var(--c-orange-300); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sla-info { font-size:10px; color:rgba(255,255,255,0.45); margin-bottom:8px; }
+.sla-title { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:var(--navbar-muted); margin-bottom:6px; }
+.sla-id { font-size:12px; font-weight:700; color:var(--navbar-accent); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sla-info { font-size:10px; color:var(--navbar-muted); margin-bottom:8px; }
 .sla-progress-wrap { width:100%; }
 .sla-progress-bar { width:100%; height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; }
 .sla-progress-fill { height:100%; background:linear-gradient(90deg, var(--c-orange-500), var(--c-orange-400)); border-radius:2px; transition:width .3s var(--ease); }
@@ -927,16 +937,18 @@ body::before {
 @keyframes menuReveal { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
 #mobile-menu a {
   display:flex; align-items:center; gap:16px;
-  padding:18px 20px; color:rgba(255,255,255,0.5);
+  padding:18px 20px; color:var(--navbar-text);
   text-decoration:none; font-family:var(--sans);
   font-size:15px; font-weight:600;
   border-radius:var(--radius-md); margin-bottom:4px;
   transition:all .15s var(--ease);
   border:1px solid transparent;
 }
-#mobile-menu a .icon { font-size:1.2rem; width:32px; text-align:center; flex-shrink:0; }
-#mobile-menu a:hover { background:rgba(249,115,22,0.08); color:rgba(255,255,255,0.8); border-color:rgba(249,115,22,0.1); }
-#mobile-menu a.active { background:rgba(249,115,22,0.12); color:#fff; border-color:rgba(249,115,22,0.2); }
+#mobile-menu a .icon { font-size:1.2rem; width:32px; text-align:center; flex-shrink:0; color:var(--navbar-icon); }
+#mobile-menu a:hover { background:rgba(240,138,75,0.10); color:var(--navbar-text-active); border-color:rgba(240,138,75,0.14); }
+#mobile-menu a:hover .icon { color:var(--navbar-text); }
+#mobile-menu a.active { background:var(--navbar-active-bg); color:var(--navbar-text-active); border-color:rgba(240,138,75,0.30); }
+#mobile-menu a.active .icon { color:var(--navbar-accent); }
 
 /* ══════════════ MAIN ══════════════ */
 #main {
@@ -1182,7 +1194,7 @@ body.role-chef_bande .manager-only { display:none !important; }
 .offline-banner { background:#FFFBEB; border-left:3px solid var(--accent-amber); padding:var(--space-3) var(--space-4); border-radius:var(--radius-xs); margin-bottom:var(--space-4); font-size:13px; color:#854D0E; display:none; }
 
 /* ── Sync ── */
-#sync-status { display:flex; align-items:center; gap:6px; font-size:10px; color:rgba(255,255,255,0.3); font-weight:500; }
+#sync-status { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--navbar-muted); font-weight:500; }
 
 /* ══════════════ SUPPLY CHAIN ══════════════ */
 .sc-flow {
