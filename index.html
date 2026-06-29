@@ -435,6 +435,46 @@
 #page-fiche .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
 #page-fiche .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PHASE 8 — Transformation & Abattage (scopé #page-abattage), 3 ONGLETS
+   (Sessions / Fiche détaillée / Statistiques). Présentation seule ; aucun calcul
+   (validation abattage + exports intacts). Aucune autre page touchée.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Onglets : soulignement fin, actif accent */
+#page-abattage .tabs { border-bottom: var(--border-hairline); }
+#page-abattage .tab-btn.active { color: var(--color-accent); border-bottom: 2px solid var(--color-accent); }
+/* Cartes allégées */
+#page-abattage .card { border: var(--border-hairline); box-shadow: none; }
+#page-abattage .card::before { display: none; }
+#page-abattage .card:hover { box-shadow: none; border-color: var(--color-border); }
+/* KPI (Fiche + Stats) : panneau unifié à filets ; valeurs encre SAUF rendement (.gmq-norm garde sa couleur d'état) ; bordures gauche orange retirées */
+#page-abattage .dash-kpi-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+#page-abattage .dash-kpi-bar .dash-kpi { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; margin: 0; padding: var(--space-4) var(--space-5); }
+#page-abattage .dash-kpi-bar .dash-kpi::before { display: none; }
+#page-abattage .dash-kpi-bar .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-abattage .dash-kpi-bar .dk-value:not(.gmq-norm) { color: var(--color-text); }
+#page-abattage .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+@media (max-width: 900px) { #page-abattage .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { #page-abattage .dash-kpi-bar { grid-template-columns: 1fr; } }
+/* Grille détail (stat-grid) → grille d'instruments à filets */
+#page-abattage .stat-grid { gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-md); overflow: hidden; }
+#page-abattage .stat-item { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; text-align: left; padding: var(--space-3); }
+#page-abattage .stat-item:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+/* Tables (Sessions) : filets fins, en-têtes plats, colonnes numériques (3→6) mono à droite */
+#page-abattage .table-wrap { border: var(--border-hairline); box-shadow: none; }
+#page-abattage th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
+#page-abattage td { border-bottom: var(--border-hairline); }
+#page-abattage tbody tr:nth-child(even) td { background: transparent; }
+#page-abattage tbody tr:hover td { background: var(--color-surface-alt); }
+#page-abattage #abattage-list td:nth-child(n+3):nth-child(-n+6), #page-abattage #abattage-list th:nth-child(n+3):nth-child(-n+6) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+/* Badges statut → triplets --status-* (scopé) : Validé=success, Terminé=info, En cours=warning */
+#page-abattage .status-livree { background: var(--status-success-bg); color: var(--status-success-fg); }
+#page-abattage .status-confirmee { background: var(--status-info-bg); color: var(--status-info-fg); }
+#page-abattage .status-en_preparation { background: var(--status-warning-bg); color: var(--status-warning-fg); }
+/* Boutons : primaire plat (+ Nouvelle session, Valider) ; Rapport/Détail déjà outline plats */
+#page-abattage .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
+#page-abattage .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
+
 /* ── Thème sombre — Monitoring IoT / "console SCADA".
    Câblé sur le toggle "Mode Soleil" reconverti (cf. toggleModeSoleil) :
    pose data-theme="dark" sur <html>. Override la couche sémantique --color-*
@@ -2111,7 +2151,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <!-- ═══════════════ PAGE: ABATTAGE ═══════════════ -->
   <div id="page-abattage" class="page">
     <h2><i data-lucide="package"></i> Transformation & Abattage</h2>
-    <p style="color:#C2410C;font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">Suivi des journées d'abattage par bande</p>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">Suivi des journées d'abattage par bande</p>
 
     <div id="abattage-tabs" class="tabs" style="margin-bottom:1.25rem;">
       <button class="tab-btn active" onclick="switchAbattageTab('sessions',this)">Sessions d'abattage</button>
@@ -10727,10 +10767,10 @@ function renderAbattageDetail() {
     '</div>' +
     // Répartition pertes
     '<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">' +
-    '<div style="flex:1;text-align:center;padding:0.75rem;background:#EAF7EE;border-radius:10px;"><div style="font-size:1.2rem;font-weight:900;color:#27AE60;">' + fmt(nbAbattus) + '</div><div style="font-size:0.72rem;color:#C2410C;">Abattus valorisés (' + fmt(nbAbattus / nbVeille * 100, 1) + '%)</div></div>' +
-    '<div style="flex:1;text-align:center;padding:0.75rem;background:#FDECEA;border-radius:10px;"><div style="font-size:1.2rem;font-weight:900;color:#E74C3C;">' + morts + '</div><div style="font-size:0.72rem;color:#C2410C;">Morts (' + fmt(morts / nbVeille * 100, 2) + '%)</div></div>' +
-    '<div style="flex:1;text-align:center;padding:0.75rem;background:#FFF3CD;border-radius:10px;"><div style="font-size:1.2rem;font-weight:900;color:#FF8C00;">' + saisis + '</div><div style="font-size:0.72rem;color:#C2410C;">Saisis (' + fmt(saisis / nbVeille * 100, 2) + '%)</div></div>' +
-    '<div style="flex:1;text-align:center;padding:0.75rem;background:#FFF3E8;border-radius:10px;"><div style="font-size:1.2rem;font-weight:900;color:#C2410C;">' + echappes + '</div><div style="font-size:0.72rem;color:#C2410C;">Échappés (' + fmt(echappes / nbVeille * 100, 2) + '%)</div></div>' +
+    '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-success-bg);border:1px solid var(--status-success-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-success-fg);">' + fmt(nbAbattus) + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Abattus valorisés (' + fmt(nbAbattus / nbVeille * 100, 1) + '%)</div></div>' +
+    '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-danger-bg);border:1px solid var(--status-danger-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-danger-fg);">' + morts + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Morts (' + fmt(morts / nbVeille * 100, 2) + '%)</div></div>' +
+    '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-warning-bg);border:1px solid var(--status-warning-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-warning-fg);">' + saisis + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Saisis (' + fmt(saisis / nbVeille * 100, 2) + '%)</div></div>' +
+    '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-neutral-bg);border:1px solid var(--status-neutral-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-neutral-fg);">' + echappes + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Échappés (' + fmt(echappes / nbVeille * 100, 2) + '%)</div></div>' +
     '</div>' +
     // Impact financier
     '<div class="stat-grid" style="margin-bottom:1rem;">' +
@@ -10741,7 +10781,7 @@ function renderAbattageDetail() {
     '<div class="stat-item"><div class="label">CA réel possible</div><div class="value">' + fmt(caReelPossible) + ' FCFA</div></div>' +
     '<div class="stat-item"><div class="label">Responsable</div><div class="value" style="font-size:0.9rem;">' + (a.responsable || '—') + '</div></div>' +
     '</div>' +
-    (a.note ? '<div style="background:#FFF3E8;padding:0.75rem;border-radius:10px;font-size:0.85rem;color:#C2410C;margin-bottom:1rem;"><strong>Note :</strong> ' + a.note + '</div>' : '');
+    (a.note ? '<div style="background:none;border-left:2px solid var(--color-border);padding:0.5rem 0.75rem;font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem;"><strong>Note :</strong> ' + a.note + '</div>' : '');
 
   // Actions
   if (a.statut !== 'valide') {
@@ -10751,7 +10791,7 @@ function renderAbattageDetail() {
     }
     html += '</div>';
   } else {
-    html += '<div style="font-size:0.85rem;color:#27AE60;font-weight:700;"><i data-lucide="check"></i> Session validée par ' + (a.valide_par || '—') + '</div>';
+    html += '<div style="font-size:0.85rem;color:var(--color-success);font-weight:700;"><i data-lucide="check"></i> Session validée par ' + (a.valide_par || '—') + '</div>';
   }
   html += '</div>';
   container.innerHTML = html;
@@ -10823,7 +10863,7 @@ function renderAbattageStats() {
 
   const batchNames = validated.map(a => { const b = STATE.bandes.find(x => x.bande_id === a.bande_id); return b ? b.nom_bande : '?'; });
   const rendements = validated.map(a => Number(a.rendement_carcasse_pct) || 0);
-  const rendColors = rendements.map(r => r >= 58 ? '#F97316' : r >= 55 ? '#F59E0B' : '#E74C3C');
+  const rendColors = rendements.map(r => r >= 58 ? '#168A53' : r >= 55 ? '#B7791F' : '#C8332B'); // vert si bon rendement, ambre, rouge (état sobre)
 
   const ctx1 = document.getElementById('chart-ab-rendement');
   if (ctx1) {
@@ -10854,10 +10894,10 @@ function renderAbattageStats() {
       data: {
         labels: batchNames,
         datasets: [
-          { label: 'Workers', data: wkrs, backgroundColor: '#3B82F6', borderRadius: 2 },
-          { label: 'Transport', data: trans, backgroundColor: '#1565C0', borderRadius: 2 },
-          { label: 'Emballage', data: emb, backgroundColor: '#F97316', borderRadius: 2 },
-          { label: 'Autres', data: autr, backgroundColor: '#9E9E9E', borderRadius: 2 }
+          { label: 'Workers', data: wkrs, backgroundColor: '#2563EB', borderRadius: 2 },
+          { label: 'Transport', data: trans, backgroundColor: '#0E9488', borderRadius: 2 },
+          { label: 'Emballage', data: emb, backgroundColor: '#B7791F', borderRadius: 2 },
+          { label: 'Autres', data: autr, backgroundColor: '#8A95A1', borderRadius: 2 }
         ]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: t.axis } } }, scales: { x: { stacked: true, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }, y: { stacked: true, beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } } } }
