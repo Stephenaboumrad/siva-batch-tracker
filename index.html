@@ -6443,8 +6443,24 @@ function initTresoreriePage() {
   const totalCarcKg = allBF.reduce((s, bf) => s + bf.fin.carcasseKg, 0);
   const margeKgGlobal = totalCarcKg > 0 ? margeEstimee / totalCarcKg : 0;
 
+  // ── Paiement (audit #4 / PR-D) — calculs SÉPARÉS, orthogonaux à caEncaisse ──
+  // caEncaisse ci-dessus = CA LIVRÉ (livrée + date_commande du mois), INCHANGÉ : il
+  // pilote toujours la réconciliation #52 (table par-bande). On AJOUTE, sans y toucher :
+  //  • caPaye = cash réellement encaissé = payé, scopé par DATE_PAIEMENT du mois
+  //    (le vrai mois d'encaissement, ≠ date_commande). N'alimente PAS la table.
+  //  • creances = livré NON payé (cumulatif, même test que la section créances PR-B).
+  // Montants HT (montant_total_fcfa est HT) ; la TVA reste affichage facture (PR-C).
+  const caPaye = STATE.commandes
+    .filter(c => c.statut_paiement === 'paye' && c.date_paiement && c.date_paiement.startsWith(thisMonth))
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const creances = STATE.commandes
+    .filter(c => c.statut === 'livree' && c.statut_paiement !== 'paye')
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+
   document.getElementById('treso-kpis').innerHTML =
-    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA encaissé — ' + periodLabel + '</div><div class="dk-sub">FCFA</div></div>' +
+    '<div class="dash-kpi dk-success"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA livré — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · facturé (livré)</div></div>' +
+    '<div class="dash-kpi" style="border-left-color:#1565C0;"><div class="dk-value" style="color:#1565C0;">' + fmt(caPaye) + '</div><div class="dk-label">CA encaissé (payé) — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · réglé ce mois</div></div>' +
+    '<div class="dash-kpi" style="border-left-color:#B84E0A;"><div class="dk-value" style="color:#B84E0A;">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · total dû</div></div>' +
     '<div class="dash-kpi" style="border-left-color:#FF8C00;"><div class="dk-value" style="color:#FF8C00;">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
     '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
@@ -6484,7 +6500,7 @@ function initTresoreriePage() {
     totCA += caHorsBande;
   }
   tblHtml += '</tbody><tfoot><tr style="font-weight:700;background:#FFF3E8;">' +
-    '<td colspan="3">TOTAL CA encaissé</td>' +
+    '<td colspan="3">TOTAL CA livré</td>' +
     '<td style="text-align:right;">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
