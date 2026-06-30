@@ -2260,6 +2260,139 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   #page-clients #clients-list tr[onclick] > td:nth-child(7)::before { content: none; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PR-2c — CARTES MOBILES (≤560px) pour les 2 tables Trésorerie :
+   Rentabilité par bande (#treso-table, avec tfoot TOTAL) et Flux mensuel
+   (#treso-flux, valeurs signées colorées). Read-only : aucun bouton, aucun
+   onclick, aucune sous-table. Même technique que PR-2a/2b.
+
+   thead → masqué (libellés régénérés). tbody → cartes de données + libellés
+   nth-child::before. tfoot → carte TOTAL DISTINCTE (accent, gras, bordure
+   gauche) SANS libellé nth-child (règles tfoot séparées → le total reste un
+   vrai total, pas une donnée mal étiquetée).
+
+   Valeurs signées du Flux (Entrées vert / Sorties rouge / Solde & Cumulé ±) :
+   couleur en style INLINE sur le <td> → PRÉSERVÉE (le ::before du libellé est
+   neutre/muted ; la valeur garde sa couleur). .num donne déjà mono + tabular +
+   aligné à droite. Montants FCFA en PLEINE LARGEUR pour éviter tout retour à
+   la ligne.
+
+   ⚠️ MAINTENANCE : libellés indexés par position de colonne (nth-child::before).
+   Réordonner / ajouter / retirer une colonne de renderTresorerie (treso-table /
+   treso-flux) impose de mettre à jour les `content` ci-dessous.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 560px) {
+
+  /* Neutralise l'ombre (A) + l'encadré du wrap (l'id est sur le .table-wrap) ;
+     la carte titrée externe (statique) est conservée. */
+  #page-tresorerie #treso-table,
+  #page-tresorerie #treso-flux {
+    background: none; border: none; box-shadow: none; overflow: visible;
+  }
+
+  /* Aplatir la table ; thead masqué ; tbody + tfoot en blocs. */
+  #page-tresorerie #treso-table table,
+  #page-tresorerie #treso-flux  table,
+  #page-tresorerie #treso-table tbody,
+  #page-tresorerie #treso-flux  tbody,
+  #page-tresorerie #treso-table tfoot {
+    display: block; width: 100%;
+  }
+  #page-tresorerie #treso-table thead,
+  #page-tresorerie #treso-flux  thead {
+    display: none;
+  }
+
+  /* <tr> de données → carte (tbody UNIQUEMENT ; tfoot traité à part). */
+  #page-tresorerie #treso-table tbody tr,
+  #page-tresorerie #treso-flux  tbody tr {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 2px var(--space-3);
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  #page-tresorerie #treso-table tbody tr:hover td,
+  #page-tresorerie #treso-flux  tbody tr:hover td {
+    background: transparent;
+  }
+  /* <td> de données → ligne « libellé : valeur ». */
+  #page-tresorerie #treso-table tbody td,
+  #page-tresorerie #treso-flux  tbody td {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--space-3); flex: 1 1 100%;
+    border: none; padding: 2px 0;
+  }
+  #page-tresorerie #treso-table tbody td::before,
+  #page-tresorerie #treso-flux  tbody td::before {
+    font-family: var(--font-sans); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.03em; text-transform: uppercase;
+    color: var(--color-text-muted); white-space: nowrap;
+  }
+
+  /* ─── Rentabilité (#treso-table) ───
+     Cols : 1 Bande · 2 Statut | 3 Oiseaux | 4 CA réalisé || tfoot TOTAL CA livré
+     Entête « Bande …… Statut », corps Oiseaux + CA réalisé (pleine largeur). */
+  #page-tresorerie #treso-table tbody td:nth-child(1) {   /* Bande = titre */
+    flex: 1 1 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-tresorerie #treso-table tbody td:nth-child(2) {   /* Statut badge(s) */
+    flex: 0 0 auto; justify-content: flex-end;
+    padding-bottom: var(--space-2);
+  }
+  #page-tresorerie #treso-table tbody td:nth-child(1)::before,
+  #page-tresorerie #treso-table tbody td:nth-child(2)::before { content: none; }
+  #page-tresorerie #treso-table tbody td:nth-child(3) {   /* Oiseaux : filet sous l'entête */
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-tresorerie #treso-table tbody td:nth-child(3)::before { content: "Oiseaux"; }
+  #page-tresorerie #treso-table tbody td:nth-child(4)::before { content: "CA réalisé"; }
+
+  /* tfoot TOTAL → carte distincte (accent, gras, bordure gauche) ; PAS de libellé nth-child.
+     La valeur garde sa couleur accent (#page-tresorerie tfoot td.num) + mono (.num). */
+  #page-tresorerie #treso-table tfoot tr {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--space-3);
+    border: var(--border-hairline); border-left: 3px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  #page-tresorerie #treso-table tfoot td {
+    display: block; border: none; background: transparent; padding: 0;
+    font-weight: 700;
+  }
+  #page-tresorerie #treso-table tfoot td:nth-child(1) {   /* « TOTAL CA livré » */
+    flex: 1 1 auto; text-align: left; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.03em; color: var(--color-text);
+  }
+  #page-tresorerie #treso-table tfoot td:nth-child(2) {   /* valeur (accent conservé) */
+    flex: 0 0 auto; text-align: right; font-size: 14px;
+  }
+
+  /* ─── Flux (#treso-flux) ───
+     Cols : 1 Mois | 2 Entrées 3 Sorties 4 Solde 5 Cumulé (valeurs signées colorées).
+     Entête « Mois », 4 montants en PLEINE LARGEUR (anti-wrap FCFA), couleurs conservées. */
+  #page-tresorerie #treso-flux tbody td:nth-child(1) {    /* Mois = titre */
+    flex: 1 1 100%; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-tresorerie #treso-flux tbody td:nth-child(1)::before { content: none; }
+  #page-tresorerie #treso-flux tbody td:nth-child(2) {    /* Entrées : filet sous l'entête */
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-tresorerie #treso-flux tbody td:nth-child(2)::before { content: "Entrées"; }
+  #page-tresorerie #treso-flux tbody td:nth-child(3)::before { content: "Sorties"; }
+  #page-tresorerie #treso-flux tbody td:nth-child(4)::before { content: "Solde"; }
+  #page-tresorerie #treso-flux tbody td:nth-child(5)::before { content: "Cumulé"; }
+}
+
 /* ── Print ── */
 @media print {
   #top-header, #mobile-menu, .notif-panel, #toast, .btn, .modal-overlay { display:none !important; }
