@@ -26,7 +26,7 @@
 
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
 
 /* ═══════════════════════════════════════════════════
    COQORICO — AgriTech Avicole Professionnelle
@@ -885,17 +885,17 @@ body::before {
 /* ── Wordmark SIVA (typographique — remplace la mascotte ; présentation seule) ── */
 .siva-wordmark { display:flex; flex-direction:column; align-items:center; line-height:1; gap:3px; }
 .siva-word {
-  font-family:var(--sans); font-weight:900; font-size:26px;
-  letter-spacing:-0.02em; color:var(--sidebar-wordmark);
+  font-family:'Orbitron', var(--sans); font-weight:900; font-size:38px;
+  letter-spacing:0.02em; color:var(--sidebar-wordmark);   /* Orbitron est large → spacing léger positif, pas négatif */
 }
 .siva-tag {
   font-size:8px; font-weight:600; letter-spacing:0.22em;
-  text-transform:uppercase; color:var(--sidebar-subtle);
+  text-transform:uppercase; color:var(--sidebar-subtle);  /* AGRITECH garde Inter (var(--sans)) : plus lisible qu'Orbitron à 8px */
 }
-/* Mobile top bar : wordmark compact (la barre suit le thème via --sidebar-wordmark) */
-.mtb-word { font-size:16px; }
-/* Login : carte TOUJOURS blanche → wordmark near-black quel que soit le thème, plus grand */
-#login-screen .siva-word { color:#1A1A1A; font-size:40px; }
+/* Mobile top bar : wordmark Orbitron compact (la barre suit le thème via --sidebar-wordmark) */
+.mtb-word { font-size:15px; }
+/* Login : carte TOUJOURS blanche → wordmark near-black quel que soit le thème, plus imposant */
+#login-screen .siva-word { color:#1A1A1A; font-size:44px; }
 
 /* ── Sidebar Nav ── */
 #top-header .hdr-nav {
@@ -1661,6 +1661,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 /* ══════════════ RESPONSIVE ══════════════ */
 @media (max-width:1100px) {
   :root { --sidebar-w: 180px; }
+  #top-header .siva-word { font-size:31px; }   /* Orbitron large → réduire sur sidebar étroite (180–184px) pour éviter tout débordement */
   #top-header .hdr-nav a { font-size:10px; padding:8px 10px; }
   #top-header .hdr-nav .nav-full { display:none; }
   #top-header .hdr-nav .nav-short { display:inline; }

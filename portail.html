@@ -30,7 +30,7 @@
 <script src="https://unpkg.com/lucide@1.21.0"></script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
 
 /* ── Tokens de marque (repris d'index.html pour cohérence) ── */
 :root {
@@ -103,7 +103,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 }
 .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: var(--space-3); }
 .brand-logo { width: auto; display: block; }                 /* mascotte SIVA partagée — même asset qu'index.html */
-.brand-name { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; }   /* wordmark SIVA typographique */
+.brand-name { font-family: 'Orbitron', 'Inter', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 0.02em; }   /* wordmark SIVA Orbitron (large → spacing positif léger) */
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
 .brand-login { flex-direction: column; gap: 12px; margin-bottom: var(--space-4); }
 /* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
@@ -116,7 +116,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   border-radius: 28px;              /* squircle généreux, l'orange respire autour de la mascotte */
   box-shadow: var(--shadow-md);
 }
-.brand-login .brand-name { font-size: 40px; letter-spacing: -0.02em; }
+.brand-login .brand-name { font-size: 38px; letter-spacing: 0.02em; }
 @media (max-width: 480px) { .brand-login .brand-logo { height: 140px; padding: 16px; border-radius: 24px; } }
 .login-sub { text-align: center; color: var(--color-text-secondary); font-size: 14px; margin-bottom: var(--space-6); }
 .field { margin-bottom: var(--space-4); }
