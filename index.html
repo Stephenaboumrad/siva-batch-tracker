@@ -257,7 +257,14 @@
 #page-tresorerie #treso-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 #page-tresorerie #treso-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
 @media (max-width: 900px) { #page-tresorerie #treso-kpis { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { #page-tresorerie #treso-kpis { grid-template-columns: 1fr; } }
+/* Mobile (≤560px) : 6 KPI (pair) → 2 colonnes compactes (pavage 2×3 propre, aucun « orphelin »).
+   Padding + valeur resserrés pour que les GROS montants FCFA (CA livré, coûts engagés) tiennent
+   sans retour à la ligne dans une cellule étroite. Pas de span : la grille pave déjà proprement. */
+@media (max-width: 560px) {
+  #page-tresorerie #treso-kpis { grid-template-columns: repeat(2, 1fr); }
+  #page-tresorerie #treso-kpis .dash-kpi { padding: var(--space-3) var(--space-3); }
+  #page-tresorerie #treso-kpis .dk-value { font-size: 20px; }
+}
 
 /* Cartes allégées : filet fin, pas d'ombre, rythme resserré */
 #page-tresorerie .card { border: var(--border-hairline); box-shadow: none; border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: 1.25rem; }
@@ -303,7 +310,14 @@
 #page-dashboard #dash-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 #page-dashboard #dash-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
 @media (max-width: 900px) { #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { #page-dashboard #dash-kpis { grid-template-columns: 1fr; } }
+/* Mobile (≤560px) : 4 KPI pairs → 2 colonnes compactes (au lieu de 4 blocs très hauts).
+   Densité resserrée (padding + valeur) pour tenir ~1 écran. Même style (cartes blanches,
+   chiffres mono, accent orange) — seule la disposition change. */
+@media (max-width: 560px) {
+  #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); }
+  #page-dashboard #dash-kpis .dash-kpi { padding: var(--space-3) var(--space-3); }
+  #page-dashboard #dash-kpis .dk-value { font-size: 20px; }
+}
 
 /* Cartes allégées : filet fin, pas d'ombre, plus de barre orange au survol */
 #page-dashboard .card { border: var(--border-hairline); box-shadow: none; border-radius: var(--radius-lg); }
@@ -478,7 +492,12 @@
 #page-abattage .dash-kpi-bar .dk-value:not(.gmq-norm) { color: var(--color-text); }
 #page-abattage .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 @media (max-width: 900px) { #page-abattage .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { #page-abattage .dash-kpi-bar { grid-template-columns: 1fr; } }
+/* Mobile (≤560px) : 4 KPI stats abattage → 2 colonnes compactes. (.gmq-norm garde sa couleur d'état) */
+@media (max-width: 560px) {
+  #page-abattage .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); }
+  #page-abattage .dash-kpi-bar .dash-kpi { padding: var(--space-3) var(--space-3); }
+  #page-abattage .dash-kpi-bar .dk-value { font-size: 20px; }
+}
 
 /* Vétérinaire & Santé — barre KPI instrument-panel (même recette que Abattage), scopée #page-veterinaire */
 #page-veterinaire .dash-kpi-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 0; }
@@ -489,7 +508,12 @@
 #page-veterinaire .dash-kpi-bar .dash-kpi:not(.dk-danger):not(.dk-success) .dk-value { color: var(--color-text); }
 #page-veterinaire .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 @media (max-width: 900px) { #page-veterinaire .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { #page-veterinaire .dash-kpi-bar { grid-template-columns: 1fr; } }
+/* Mobile (≤560px) : 4 KPI vétérinaire → 2 colonnes compactes. (dk-danger/dk-success gardent leur couleur) */
+@media (max-width: 560px) {
+  #page-veterinaire .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); }
+  #page-veterinaire .dash-kpi-bar .dash-kpi { padding: var(--space-3) var(--space-3); }
+  #page-veterinaire .dash-kpi-bar .dk-value { font-size: 20px; }
+}
 /* Grille détail (stat-grid) → grille d'instruments à filets */
 #page-abattage .stat-grid { gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-md); overflow: hidden; }
 #page-abattage .stat-item { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; text-align: left; padding: var(--space-3); }
@@ -523,7 +547,15 @@
 #page-clients .kpi-card.kpi-headline .kpi-value { color: var(--color-accent); }
 #page-clients .kpi-card .kpi-label { font-size: 10.5px; letter-spacing: 0.08em; }
 @media (max-width: 1000px) { #page-clients .kpi-bar { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { #page-clients .kpi-bar { grid-template-columns: 1fr; } }
+/* Mobile (≤560px) : 5 KPI (IMPAIR) → 2 colonnes compactes. La vedette « CA du mois » (4ᵉ dans le
+   DOM) passe en pleine largeur ET en tête (order:-1) → 1 ligne pleine largeur puis 4 cartes en 2×2
+   propre, sans cellule orpheline. Padding + valeur resserrés pour tenir le montant FCFA. */
+@media (max-width: 560px) {
+  #page-clients .kpi-bar { grid-template-columns: repeat(2, 1fr); }
+  #page-clients .kpi-bar .kpi-card { padding: var(--space-3) var(--space-3); }
+  #page-clients .kpi-bar .kpi-card .kpi-value { font-size: 20px; }
+  #page-clients .kpi-bar .kpi-headline { grid-column: 1 / -1; order: -1; }
+}
 /* Onglets : soulignement fin, actif accent */
 #page-clients .tabs { border-bottom: var(--border-hairline); }
 #page-clients .tab-btn.active { color: var(--color-accent); border-bottom: 2px solid var(--color-accent); }
