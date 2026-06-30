@@ -1870,6 +1870,229 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   .iot-thresholds-grid { grid-template-columns:repeat(2, 1fr); gap:var(--space-2); }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PR-2a — STRATÉGIE MOBILE DES TABLES LARGES (présentation seule).
+   Desktop INCHANGÉ : tout est sous média (≤768px / ≤560px). Aucune donnée,
+   aucun JS, aucun tri touché. Chiffres mono à droite + tokens conservés ;
+   tous les boutons restent fonctionnels (clic-ligne, Détail, suppr ×).
+
+   (A) ≤768px — AFFORDANCE DE DÉFILEMENT partagée sur TOUTES les tables larges
+       (.table-wrap) : ombres de bord en pur CSS (background-attachment local,
+       AUCUN JS / écouteur de scroll). L'ombre n'apparaît que du côté encore
+       défilable et disparaît en fin de course. Inerte sans débordement (donc
+       inerte sur les 3 tables passées en cartes ci-dessous).
+
+   (B) ≤560px — TRANSFORMATION EN CARTES empilées des 3 tables terrain/ops les
+       plus utilisées au bâtiment : Dernière saisie (#saisie-recent), Saisies
+       journalières (#fiche-saisies-table), Sessions d'abattage (#abattage-list).
+       Technique 100% CSS : thead masqué, <tr> → carte flex, <td> → ligne
+       « libellé : valeur ». Les libellés sont GÉNÉRÉS en CSS, indexés par
+       position de colonne (td:nth-child(n)::before { content }).
+
+       ⚠️ MAINTENANCE : ces libellés sont COUPLÉS À L'ORDRE des colonnes du
+       rendu JS. Si une future PR réordonne / ajoute / retire une colonne d'une
+       de ces 3 tables (renderSaisieRecent / fiche-saisies-table / abattage-list),
+       METTRE À JOUR en parallèle les `content` des nth-child::before ci-dessous,
+       sinon les libellés mobiles se décalent. (Couplage assumé : pas de
+       data-label dans le markup pour rester CSS-only / JS intouché.)
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── (A) Ombres de défilement horizontal (toutes les tables larges) ── */
+@media (max-width: 768px) {
+  .table-wrap {
+    background-color: var(--card-bg);
+    background-image:
+      linear-gradient(to right, var(--card-bg) 32%, transparent),
+      linear-gradient(to left,  var(--card-bg) 32%, transparent),
+      radial-gradient(farthest-side at 0 50%,   rgba(11,17,22,0.13), transparent),
+      radial-gradient(farthest-side at 100% 50%, rgba(11,17,22,0.13), transparent);
+    background-position: left center, right center, left center, right center;
+    background-size: 40px 100%, 40px 100%, 15px 100%, 15px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+  }
+}
+
+/* ── (B) Cartes empilées (≤560px) pour les 3 tables terrain/ops ── */
+@media (max-width: 560px) {
+
+  /* Neutralise l'encadré du wrap + l'ombre (A) sur les tables passées en cartes
+     (chaque ligne porte sa propre bordure) ; allège la carte conteneur générée
+     pour éviter l'effet « boîte dans une boîte ». */
+  #page-saisie   #saisie-recent .table-wrap,
+  #page-fiche    #fiche-saisies-table,
+  #page-abattage #abattage-list .table-wrap {
+    background: none; border: none; box-shadow: none; overflow: visible;
+  }
+  #page-saisie   #saisie-recent  > .card,
+  #page-abattage #abattage-list > .card {
+    border: none; box-shadow: none; background: none; padding: 0;
+  }
+
+  /* Socle commun : aplatir la table puis faire des cartes. */
+  #page-saisie   #saisie-recent table,
+  #page-fiche    #fiche-saisies-table table,
+  #page-abattage #abattage-list table,
+  #page-saisie   #saisie-recent tbody,
+  #page-fiche    #fiche-saisies-table tbody,
+  #page-abattage #abattage-list tbody {
+    display: block; width: 100%;
+  }
+  #page-saisie   #saisie-recent thead,
+  #page-fiche    #fiche-saisies-table thead,
+  #page-abattage #abattage-list thead {
+    display: none;   /* libellés régénérés par td::before */
+  }
+  /* <tr> → carte */
+  #page-saisie   #saisie-recent tbody tr,
+  #page-fiche    #fiche-saisies-table tbody tr,
+  #page-abattage #abattage-list tbody tr {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 2px var(--space-3);
+    position: relative;
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  /* pas de teinte de survol en mode carte */
+  #page-saisie   #saisie-recent tbody tr:hover td,
+  #page-fiche    #fiche-saisies-table tbody tr:hover td,
+  #page-abattage #abattage-list tbody tr:hover td {
+    background: transparent;
+  }
+  /* <td> → ligne « libellé : valeur » pleine largeur (réglages par table ensuite) */
+  #page-saisie   #saisie-recent tbody td,
+  #page-fiche    #fiche-saisies-table tbody td,
+  #page-abattage #abattage-list tbody td {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--space-3); flex: 1 1 100%;
+    border: none; padding: 2px 0;
+  }
+  /* apparence du libellé généré (le texte est défini par table plus bas) */
+  #page-saisie   #saisie-recent tbody td::before,
+  #page-fiche    #fiche-saisies-table tbody td::before,
+  #page-abattage #abattage-list tbody td::before {
+    font-family: var(--font-sans); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.03em; text-transform: uppercase;
+    color: var(--color-text-muted); white-space: nowrap;
+  }
+
+  /* ─── Table 1 — Dernière saisie (#saisie-recent) ───
+     Cols : 1 Date · 2 Jour | 3 Mort. 4 Aliment 5 Eau 6 Poids 7 T°C 8 Hum%
+     Carte : entête « Date …… J{n} » + 6 métriques en 2 colonnes. */
+  #page-saisie #saisie-recent tbody td:nth-child(1) {            /* Date = titre */
+    flex: 1 1 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-saisie #saisie-recent tbody td:nth-child(2) {            /* Jour = pastille */
+    flex: 0 0 auto; justify-content: flex-end;
+    font-weight: 700; font-size: 12px; color: var(--color-accent);
+    padding-bottom: var(--space-2);
+  }
+  #page-saisie #saisie-recent tbody td:nth-child(1)::before,
+  #page-saisie #saisie-recent tbody td:nth-child(2)::before { content: none; }
+  #page-saisie #saisie-recent tbody td:nth-child(n+3) { flex: 1 1 calc(50% - var(--space-3)); }
+  #page-saisie #saisie-recent tbody td:nth-child(3),
+  #page-saisie #saisie-recent tbody td:nth-child(4) {            /* filet sous l'entête */
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-saisie #saisie-recent tbody td:nth-child(3)::before { content: "Mort."; }
+  #page-saisie #saisie-recent tbody td:nth-child(4)::before { content: "Aliment"; }
+  #page-saisie #saisie-recent tbody td:nth-child(5)::before { content: "Eau"; }
+  #page-saisie #saisie-recent tbody td:nth-child(6)::before { content: "Poids"; }
+  #page-saisie #saisie-recent tbody td:nth-child(7)::before { content: "T°C"; }
+  #page-saisie #saisie-recent tbody td:nth-child(8)::before { content: "Hum%"; }
+
+  /* ─── Table 2 — Saisies journalières (#fiche-saisies-table) ───
+     Cols : 1 Date · 2 Jour · 3 Phase | 4 Mort. 5 Eff. 6 Alim. 7 Eau 8 Poids
+            9 IC 10 GMQ 11 T°C 12 Hum% | 13 × (suppr, manager-only)
+     Carte : entête « Date · J{n} · Phase » + 9 métriques (2 col), × épinglé
+     en haut à droite. Coloration hors-norme T°/Hum (style inline) conservée. */
+  #page-fiche #fiche-saisies-table tbody tr { padding-right: var(--space-10); } /* réserve le coin pour × */
+  #page-fiche #fiche-saisies-table tbody td:nth-child(1) {       /* Date = titre */
+    flex: 0 0 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(2) {       /* Jour */
+    flex: 0 0 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 12px; color: var(--color-accent);
+    padding-bottom: var(--space-2);
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(3) {       /* Phase (garde sa puce colorée inline) */
+    flex: 0 0 auto; justify-content: flex-start;
+    padding-bottom: var(--space-2);
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(1)::before,
+  #page-fiche #fiche-saisies-table tbody td:nth-child(2)::before,
+  #page-fiche #fiche-saisies-table tbody td:nth-child(3)::before { content: none; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(n+4):nth-child(-n+12) {
+    flex: 1 1 calc(50% - var(--space-3));
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(4),
+  #page-fiche #fiche-saisies-table tbody td:nth-child(5) {       /* filet sous l'entête */
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(4)::before  { content: "Mort."; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(5)::before  { content: "Eff."; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(6)::before  { content: "Alim. kg"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(7)::before  { content: "Eau L"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(8)::before  { content: "Poids g"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(9)::before  { content: "IC"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(10)::before { content: "GMQ"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(11)::before { content: "T°C"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(12)::before { content: "Hum%"; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(13) {      /* × épinglé (le bouton garde manager-only) */
+    position: absolute; top: var(--space-2); right: var(--space-3);
+    flex: 0 0 auto; padding: 0;
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(13)::before { content: none; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(13) .btn { min-height: 30px; padding: 4px 8px; }
+
+  /* ─── Table 3 — Sessions d'abattage (#abattage-list) ───
+     Cols : 1 Date · 2 Bande | 3 Nb abattus 4 Poids carc. 5 Rendement 6 Coût j.
+            | 7 Statut · 8 Détail
+     Carte : entête « Bande …… Date » (ordre inversé via flex order), 4 métriques
+     (2 col), pied « Statut … Détail ». Clic-carte (viewAbattageDetail) + Détail
+     (stopPropagation) conservés. */
+  #page-abattage #abattage-list tbody td:nth-child(2) {         /* Bande = titre (ordre 1) */
+    order: 1; flex: 1 1 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-abattage #abattage-list tbody td:nth-child(1) {         /* Date (ordre 2, à droite) */
+    order: 2; flex: 0 0 auto; justify-content: flex-end;
+    font-size: 12px; color: var(--color-text-muted);
+    padding-bottom: var(--space-2);
+  }
+  #page-abattage #abattage-list tbody td:nth-child(1)::before,
+  #page-abattage #abattage-list tbody td:nth-child(2)::before { content: none; }
+  #page-abattage #abattage-list tbody td:nth-child(n+3):nth-child(-n+6) {
+    order: 3; flex: 1 1 calc(50% - var(--space-3));
+  }
+  #page-abattage #abattage-list tbody td:nth-child(3),
+  #page-abattage #abattage-list tbody td:nth-child(4) {         /* filet sous l'entête */
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-abattage #abattage-list tbody td:nth-child(3)::before { content: "Abattus"; }
+  #page-abattage #abattage-list tbody td:nth-child(4)::before { content: "Carcasse"; }
+  #page-abattage #abattage-list tbody td:nth-child(5)::before { content: "Rendement"; }
+  #page-abattage #abattage-list tbody td:nth-child(6)::before { content: "Coût j."; }
+  #page-abattage #abattage-list tbody td:nth-child(7) {         /* Statut (pied, gauche) */
+    order: 7; flex: 1 1 auto; justify-content: flex-start;
+    border-top: var(--border-hairline); padding-top: var(--space-2); margin-top: var(--space-1);
+  }
+  #page-abattage #abattage-list tbody td:nth-child(8) {         /* Détail (pied, droite) */
+    order: 8; flex: 0 0 auto; justify-content: flex-end;
+    border-top: var(--border-hairline); padding-top: var(--space-2); margin-top: var(--space-1);
+  }
+  #page-abattage #abattage-list tbody td:nth-child(7)::before,
+  #page-abattage #abattage-list tbody td:nth-child(8)::before { content: none; }
+}
+
 /* ── Print ── */
 @media print {
   #top-header, #mobile-menu, .notif-panel, #toast, .btn, .modal-overlay { display:none !important; }
