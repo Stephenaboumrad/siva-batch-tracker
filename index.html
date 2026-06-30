@@ -3054,7 +3054,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h4 style="color:#EA580C;font-size:0.85rem;margin-bottom:0.5rem;">1. Identification</h4>
     <div class="form-row">
       <div class="form-group"><label>Bande</label><select id="ab-bande"></select></div>
-      <div class="form-group"><label>Date abattage</label><input type="date" id="ab-date" oninput="updateAbWithdrawalWarn()"></div>
+      <div class="form-group"><label>Date abattage</label><input type="date" id="ab-date"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Heure début</label><input type="time" id="ab-heure-debut" value="05:30"></div>
@@ -3099,19 +3099,34 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">5. Observations</h4>
     <div class="form-group"><textarea id="ab-note" rows="2" placeholder="Observations, incidents, qualité…" style="width:100%;padding:0.6rem 0.85rem;border:1px solid #A7F3D0;border-radius:6px;font-size:0.85rem;font-family:'Inter',sans-serif;background:#FFFFFF;"></textarea></div>
 
-    <!-- Délai d'attente (withdrawal period) : avertissement + confirmation requise -->
-    <div id="ab-withdrawal-warn" style="display:none;margin-top:0.75rem;padding:0.75rem 1rem;border-radius:8px;background:#FEF2F2;border:1px solid #FCA5A5;">
-      <div id="ab-withdrawal-msg" style="font-size:0.85rem;color:#991B1B;font-weight:600;display:flex;align-items:flex-start;gap:0.4rem;line-height:1.4;"></div>
-      <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.65rem;font-size:0.85rem;color:#991B1B;font-weight:600;cursor:pointer;">
-        <input type="checkbox" id="ab-withdrawal-confirm" style="width:auto;margin:0;flex:none;">
-        Je confirme l'abattage malgré le délai d'attente
-      </label>
-    </div>
-
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeAbattageModal()">Annuler</button>
       <button class="btn btn-primary" onclick="submitAbattage('en_cours')">Enregistrer</button>
       <button class="btn btn-gold manager-only" onclick="submitAbattage('valide')">Enregistrer et valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Confirmation override délai d'attente (MANAGER) — modale centrée bloquante ═══ -->
+<div id="withdrawal-confirm-modal" class="modal-overlay" style="display:none;z-index:600;">
+  <div class="modal" style="max-width:520px;padding:0;overflow:hidden;">
+    <div style="background:var(--color-danger);color:#fff;padding:0.9rem 1.1rem;display:flex;align-items:center;gap:0.5rem;">
+      <i data-lucide="alert-triangle" style="width:20px;height:20px;flex:none;"></i>
+      <h3 style="margin:0;color:#fff;font-size:1rem;">Délai d'attente non respecté</h3>
+    </div>
+    <div style="padding:1.1rem;">
+      <p style="margin:0 0 0.75rem;font-size:0.9rem;color:var(--text-primary);">Abattage autorisé à partir du <strong id="wc-date" style="font-family:var(--font-mono);"></strong>.</p>
+      <div id="wc-traitement" style="background:var(--status-neutral-bg);border-radius:6px;padding:0.6rem 0.8rem;font-size:0.85rem;color:var(--text-primary);margin-bottom:0.75rem;"></div>
+      <div style="background:var(--status-danger-bg);border-left:4px solid var(--color-danger);border-radius:6px;padding:0.6rem 0.8rem;font-size:0.85rem;color:var(--status-danger-fg);font-weight:600;margin-bottom:0.95rem;">Abattre avant cette date expose à des résidus médicamenteux dans la viande (risque sanitaire et de conformité DSV).</div>
+      <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:0.88rem;color:var(--text-primary);font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="wc-confirm-check" onchange="wcToggleLaunch()" style="width:auto;margin:0.15rem 0 0;flex:none;">
+        Je confirme l'abattage malgré le délai d'attente, et j'en assume la responsabilité.
+      </label>
+      <div id="wc-trace" style="margin-top:0.75rem;font-size:0.72rem;color:var(--text-muted);font-style:italic;"></div>
+    </div>
+    <div class="modal-actions" style="padding:0 1.1rem 1.1rem;">
+      <button class="btn btn-outline" onclick="closeWithdrawalConfirm()">Annuler</button>
+      <button class="btn btn-primary" id="wc-launch-btn" onclick="confirmWithdrawalOverride()" disabled style="background:var(--color-danger);border-color:var(--color-danger);">Lancer l'abattage</button>
     </div>
   </div>
 </div>
@@ -4847,6 +4862,27 @@ async function validateNotif(notifId) {
   const notif = STATE.notifications.find(n => n.notif_id === notifId);
   if (!notif) return;
 
+  // Garde délai d'attente — le MANAGER valide une session d'abattage (la sienne
+  // ou celle d'un chef_bande en file). Si la date est avant la date autorisée et
+  // que l'override n'est pas déjà tracé, ouvrir la confirmation ; la trace sera
+  // au nom du manager validant. Annuler = la session reste en file (non validée).
+  if (notif.type === 'abattage') {
+    let p = {};
+    try { p = JSON.parse(notif.payload_json || '{}'); } catch (e) {}
+    if (!p.delai_attente_override) {
+      const wBande = STATE.bandes.find(b => b.bande_id === p.bande_id);
+      const wInd = wBande ? computeIndicators(wBande) : null;
+      const wSd = parseDayLocal(p.date_abattage);
+      if (wInd && wInd.earliestSlaughterDate && wSd && wSd < wInd.earliestSlaughterDate) {
+        openWithdrawalConfirm(wInd, function (override) { performValidateNotif(notif, override); });
+        return;
+      }
+    }
+  }
+  performValidateNotif(notif, null);
+}
+
+async function performValidateNotif(notif, override) {
   // Update notification status
   notif.statut = 'validee';
   notif.valide_par = currentUser.name;
@@ -4855,6 +4891,12 @@ async function validateNotif(notifId) {
   // Execute the original action
   let payload = {};
   try { payload = JSON.parse(notif.payload_json || '{}'); } catch(e) {}
+  if (override && notif.type === 'abattage') {
+    payload.delai_attente_override = true;
+    payload.delai_attente_override_par = override.par;
+    payload.delai_attente_override_at = override.at;
+    payload.delai_attente_override_motif = override.motif;
+  }
   const actionMap = { intrant: 'addIntrant', reception: 'addReception', abattage: 'addAbattage' };
   const apiAction = actionMap[notif.type];
 
@@ -6257,15 +6299,16 @@ function loadFicheBande() {
   const ipColor = ipVal >= 300 ? '#22C55E' : ipVal >= 250 ? '#F97316' : '#EF4444';
 
   // Délai d'attente avant abattage (configurable, migration 0015). Affiché
-  // uniquement si un traitement impose une date : ambre si encore en cours,
-  // vert si déjà respecté. Aucun affichage si aucun délai n'est enregistré.
+  // uniquement si un traitement impose une date : alerte sanitaire ROUGE si
+  // encore en cours, vert si déjà respecté. Rien si aucun délai n'est enregistré.
+  // Présentation seule — aucun calcul (earliestSlaughterDate vient de computeIndicators).
   let withdrawalHtml = '';
   if (ind.earliestSlaughterDate) {
     const pending = ind.earliestSlaughterDate > parseDayLocal(todayStr());
     const b = ind.withdrawalBinding;
-    const bindTxt = b ? ' — ' + b.nom_produit + ' du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
+    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
     withdrawalHtml = pending
-      ? '<div style="margin-top:0.6rem;padding:0.5rem 0.75rem;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="shield-alert" style="width:15px;height:15px;flex:none;"></i> Abattage autorisé à partir du ' + fmtDate(ind.earliestSlaughterDate) + bindTxt + '</div>'
+      ? '<div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-danger-bg);border-left:4px solid var(--color-danger);color:var(--status-danger-fg);font-size:0.82rem;font-weight:700;display:flex;align-items:center;gap:0.45rem;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex:none;"></i><span>Abattage autorisé à partir du <span style="font-family:var(--font-mono);">' + fmtDate(ind.earliestSlaughterDate) + '</span>' + bindTxt + '</span></div>'
       : '<div style="margin-top:0.6rem;padding:0.5rem 0.75rem;border-radius:6px;background:#DCFCE7;color:#166534;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="shield-check" style="width:15px;height:15px;flex:none;"></i> Délai d\'attente respecté (depuis le ' + fmtDate(ind.earliestSlaughterDate) + ')</div>';
   }
 
@@ -11187,7 +11230,6 @@ function showAbattageModal() {
       const ind = computeIndicators(b);
       document.getElementById('ab-effectif-veille').value = ind.effectifActuel;
     }
-    updateAbWithdrawalWarn();
   };
   document.getElementById('ab-date').value = todayStr();
   document.getElementById('ab-responsable').value = currentUser ? currentUser.name : '';
@@ -11208,33 +11250,64 @@ function showAbattageModal() {
   document.getElementById('ab-calc-pertes').textContent = '';
   document.getElementById('ab-calc-poids').textContent = '';
   document.getElementById('ab-calc-couts').textContent = '';
-  document.getElementById('ab-withdrawal-confirm').checked = false;
-  document.getElementById('ab-withdrawal-warn').style.display = 'none';
   document.getElementById('abattage-modal').style.display = 'flex';
 }
 function closeAbattageModal() { document.getElementById('abattage-modal').style.display = 'none'; }
 
-// ── Délai d'attente : avertit si la session d'abattage est datée AVANT la date
-// autorisée (max des date_intrant + delai_attente_jours). Flag, pas blocage :
-// la case « Je confirme » (vérifiée à la soumission) laisse l'éleveur décider.
-function updateAbWithdrawalWarn() {
-  const warn = document.getElementById('ab-withdrawal-warn');
-  if (!warn) return;
-  const bande = STATE.bandes.find(b => b.bande_id === document.getElementById('ab-bande').value);
-  const sd = parseDayLocal(document.getElementById('ab-date').value);
-  if (!bande || !sd) { warn.style.display = 'none'; return; }
-  const ind = computeIndicators(bande);
-  const wd = ind.earliestSlaughterDate;
-  if (wd && sd < wd) {
-    const b = ind.withdrawalBinding;
-    const bindTxt = b ? ' (traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ', délai ' + b.delai_attente_jours + ' j)' : '';
-    document.getElementById('ab-withdrawal-msg').innerHTML =
-      '<i data-lucide="octagon-alert" style="width:16px;height:16px;flex:none;"></i><span>Délai d\'attente non respecté : abattage autorisé à partir du <strong>' + fmtDate(wd) + '</strong>' + bindTxt + '. Abattre avant cette date expose à des résidus médicamenteux dans la viande.</span>';
-    warn.style.display = 'block';
-  } else {
-    warn.style.display = 'none';
-    document.getElementById('ab-withdrawal-confirm').checked = false;
-  }
+// ── Délai d'attente : modale de confirmation d'override (MANAGER uniquement) ──
+// Présente la date autorisée, le traitement en cause et le risque sanitaire ;
+// « Lancer l'abattage » reste désactivé tant que la case n'est pas cochée. Un
+// SEUL manager décide (pas de double signature). onConfirm reçoit la trace
+// {par, at, motif} à écrire sur l'enregistrement d'abattage. Présentation seule :
+// la condition (earliestSlaughterDate) est calculée en amont, jamais ici.
+let _withdrawalOnConfirm = null;
+let _withdrawalInd = null;
+
+function openWithdrawalConfirm(ind, onConfirm) {
+  _withdrawalOnConfirm = onConfirm;
+  _withdrawalInd = ind;
+  const wd = ind ? ind.earliestSlaughterDate : null;
+  const b = ind ? ind.withdrawalBinding : null;
+  document.getElementById('wc-date').textContent = fmtDate(wd);
+  document.getElementById('wc-traitement').innerHTML = b
+    ? 'Traitement en cause : <strong>« ' + escHtml(b.nom_produit) + ' »</strong> administré le ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j).'
+    : 'Traitement en cause : —';
+  const who = currentUser ? currentUser.name : '—';
+  const now = new Date();
+  const stamp = now.toLocaleDateString('fr-FR') + ' ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('wc-trace').textContent = 'Décision enregistrée au nom de ' + who + ' · ' + stamp;
+  document.getElementById('wc-confirm-check').checked = false;
+  document.getElementById('wc-launch-btn').disabled = true;
+  document.getElementById('withdrawal-confirm-modal').style.display = 'flex';
+}
+
+function closeWithdrawalConfirm() {
+  document.getElementById('withdrawal-confirm-modal').style.display = 'none';
+  _withdrawalOnConfirm = null;
+  _withdrawalInd = null;
+}
+
+function wcToggleLaunch() {
+  document.getElementById('wc-launch-btn').disabled = !document.getElementById('wc-confirm-check').checked;
+}
+
+function confirmWithdrawalOverride() {
+  if (!document.getElementById('wc-confirm-check').checked) return;
+  const ind = _withdrawalInd;
+  const cb = _withdrawalOnConfirm;
+  const wd = ind ? ind.earliestSlaughterDate : null;
+  const b = ind ? ind.withdrawalBinding : null;
+  // Motif = INSTANTANÉ textuel figé (reste vrai même si l'intrant est ensuite modifié/supprimé).
+  const motif = wd
+    ? 'Autorisé à partir du ' + fmtDate(wd) + (b ? ' — « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '')
+    : '';
+  const override = {
+    par: currentUser ? (currentUser.name + (currentUser.matricule ? ' (' + currentUser.matricule + ')' : '')) : 'inconnu',
+    at: new Date().toISOString(),
+    motif: motif
+  };
+  closeWithdrawalConfirm();
+  if (typeof cb === 'function') cb(override);
 }
 
 function updateAbCalcs() {
@@ -11268,20 +11341,26 @@ async function submitAbattage(statut) {
   const nbAbattus = parseInt(document.getElementById('ab-nb-abattus').value);
   if (!nbAbattus || nbAbattus <= 0) { toast('Nombre d\'oiseaux abattus requis', 'error'); return; }
 
-  // Garde délai d'attente : session datée avant la date autorisée → exiger la
-  // case de confirmation. Flag, pas blocage dur : une fois cochée, on continue.
-  const wBande = STATE.bandes.find(b => b.bande_id === bandeId);
-  if (wBande) {
-    const wInd = computeIndicators(wBande);
+  // Garde délai d'attente — MANAGER uniquement. Si un manager enregistre une
+  // session datée avant la date autorisée, on ouvre la modale d'override (la
+  // décision et sa trace sont au nom du manager). Un chef_bande n'est JAMAIS
+  // bloqué ici : sa session part en file de validation (performAbattageWrite),
+  // et l'override éventuel est décidé par le manager au moment de la validation.
+  if (isManager()) {
+    const wBande = STATE.bandes.find(b => b.bande_id === bandeId);
+    const wInd = wBande ? computeIndicators(wBande) : null;
     const wSd = parseDayLocal(document.getElementById('ab-date').value);
-    if (wInd.earliestSlaughterDate && wSd && wSd < wInd.earliestSlaughterDate
-        && !document.getElementById('ab-withdrawal-confirm').checked) {
-      updateAbWithdrawalWarn();
-      toast('Délai d\'attente non respecté : cochez la case de confirmation pour enregistrer', 'error');
+    if (wInd && wInd.earliestSlaughterDate && wSd && wSd < wInd.earliestSlaughterDate) {
+      openWithdrawalConfirm(wInd, function (override) { performAbattageWrite(statut, override); });
       return;
     }
   }
+  performAbattageWrite(statut, null);
+}
 
+async function performAbattageWrite(statut, override) {
+  const bandeId = document.getElementById('ab-bande').value;
+  const nbAbattus = parseInt(document.getElementById('ab-nb-abattus').value);
   const poidsVif = parseFloat(document.getElementById('ab-poids-vif').value) || 0;
   const rendement = parseFloat(document.getElementById('ab-rendement').value) || 58;
   const poidsCarcasse = poidsVif * rendement / 100;
@@ -11313,6 +11392,15 @@ async function submitAbattage(statut) {
     valide_par: statut === 'valide' ? (currentUser ? currentUser.name : '') : '',
     note: document.getElementById('ab-note').value.trim()
   };
+
+  // Trace override délai d'attente (manager only) — absente si pas d'override
+  // (les colonnes prennent alors leurs défauts DB : false / null). Migration 0016.
+  if (override) {
+    payload.delai_attente_override = true;
+    payload.delai_attente_override_par = override.par;
+    payload.delai_attente_override_at = override.at;
+    payload.delai_attente_override_motif = override.motif;
+  }
 
   const btn = document.querySelector('#abattage-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
