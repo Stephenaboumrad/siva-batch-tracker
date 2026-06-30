@@ -1782,9 +1782,14 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   .tabs::-webkit-scrollbar { display:none; }
   .tab-btn { padding:9px 14px; font-size:12px; white-space:nowrap; }
 
-  /* Supply chain flow */
-  .sc-flow { padding:4px 8px; }
-  .sc-flow-chip { padding:7px 12px; font-size:11px; }
+  /* Supply chain flow (PR-3) : fini le scroll horizontal — les 5 étapes
+     s'ENROULENT et restent TOUTES visibles/tappables (≈2 lignes sur ~380px).
+     Flèches masquées (l'ordre G→D / haut→bas porte le sens du flux ; les arrows
+     ne sont PAS des .sc-flow-chip → l'index DOM de switchSupplyTab reste correct).
+     CSS seul : DOM/onclick/ordre des chips inchangés. */
+  .sc-flow { padding:8px; flex-wrap:wrap; justify-content:center; gap:6px; overflow-x:visible; }
+  .sc-flow-arrow { display:none; }
+  .sc-flow-chip { padding:9px 14px; font-size:11.5px; min-height:40px; }
 
   /* Tables — touch-friendly */
   th, td { padding:10px 10px; font-size:12px; }
