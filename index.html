@@ -2093,6 +2093,173 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   #page-abattage #abattage-list tbody td:nth-child(8)::before { content: none; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   PR-2b — CARTES MOBILES (≤560px) pour les 2 tables à PANNEAU D'EXPANSION :
+   Commandes (#commandes-list) et Clients (#clients-list). Même technique que
+   PR-2a, MAIS chaque ligne principale est suivie d'une <tr colspan> d'expansion
+   (sous-table imbriquée + boutons). On ne transforme QUE les lignes principales,
+   via 2 discriminants :
+     • tr[onclick]          → seules les lignes principales (l'expansion n'a pas d'onclick)
+     • .table-wrap > table  → uniquement la table externe (la sous-table imbriquée
+                               est dans .expand-panel, jamais dans un .table-wrap)
+   Le panneau d'expansion reste un bloc normal lisible ; la sous-table imbriquée
+   reste une vraie table. AUCUN JS/donnée touché ; le clic de bascule part de la
+   carte ; les boutons d'action gardent leur stopPropagation ET leur manager-only
+   (mes règles sont SANS !important → ne surchargent jamais le hide !important).
+
+   ⚠️ MAINTENANCE : libellés CSS indexés par position de colonne (nth-child::before).
+   Si une future PR réordonne / ajoute / retire une colonne de #commandes-list ou
+   #clients-list (renderCommandes / renderClientsList), METTRE À JOUR en parallèle
+   les `content` ci-dessous.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 560px) {
+
+  /* Neutralise l'ombre (A) + l'encadré du wrap ; allège la carte conteneur générée. */
+  #page-clients #commandes-list .table-wrap,
+  #page-clients #clients-list   .table-wrap {
+    background: none; border: none; box-shadow: none; overflow: visible;
+  }
+  #page-clients #commandes-list > .card,
+  #page-clients #clients-list   > .card {
+    border: none; box-shadow: none; background: none; padding: 0;
+  }
+
+  /* Aplatir UNIQUEMENT la table externe (chaîne enfant-direct → sous-table imbriquée intacte). */
+  #page-clients #commandes-list .table-wrap > table,
+  #page-clients #clients-list   .table-wrap > table,
+  #page-clients #commandes-list .table-wrap > table > tbody,
+  #page-clients #clients-list   .table-wrap > table > tbody {
+    display: block; width: 100%;
+  }
+  #page-clients #commandes-list .table-wrap > table > thead,
+  #page-clients #clients-list   .table-wrap > table > thead {
+    display: none;
+  }
+
+  /* Ligne d'EXPANSION (tr sans onclick) → bloc pleine largeur ; panneau normal.
+     (Chaîne enfant-direct : ne touche QUE les <tr> de la table externe, pas la sous-table.) */
+  #page-clients #commandes-list .table-wrap > table > tbody > tr:not([onclick]),
+  #page-clients #clients-list   .table-wrap > table > tbody > tr:not([onclick]) {
+    display: block; width: 100%; margin-bottom: var(--space-3);
+  }
+  #page-clients #commandes-list .table-wrap > table > tbody > tr:not([onclick]) > td,
+  #page-clients #clients-list   .table-wrap > table > tbody > tr:not([onclick]) > td {
+    display: block; width: 100%; padding: 0; border: none;
+  }
+  /* (b) Grille info de l'expansion Clients : 2 col → 1 col (lisibilité mobile). */
+  #page-clients #clients-list .expand-panel > div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Ligne PRINCIPALE (tr[onclick]) → carte. tr[onclick] suffit à viser les
+     seules lignes principales (l'expansion et la sous-table n'ont pas d'onclick). ── */
+  #page-clients #commandes-list tr[onclick],
+  #page-clients #clients-list   tr[onclick] {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 2px var(--space-3);
+    position: relative;
+    border: var(--border-hairline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  #page-clients #commandes-list tr[onclick]:hover > td,
+  #page-clients #clients-list   tr[onclick]:hover > td {
+    background: transparent;
+  }
+  #page-clients #commandes-list tr[onclick] > td,
+  #page-clients #clients-list   tr[onclick] > td {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--space-3); flex: 1 1 100%;
+    border: none; padding: 2px 0;
+  }
+  #page-clients #commandes-list tr[onclick] > td::before,
+  #page-clients #clients-list   tr[onclick] > td::before {
+    font-family: var(--font-sans); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.03em; text-transform: uppercase;
+    color: var(--color-text-muted); white-space: nowrap;
+  }
+
+  /* ─── Commandes (#commandes-list) ───
+     Cols : 1 N° · 2 Client | 3 Date cmd 4 Livraison | 5 Produits | 6 Montant | 7 Statut+paiement
+     Entête « #N° …… Client » ; Date/Livraison (2 col) ; Produits (pleine largeur,
+     liste COMPLÈTE dé-tronquée) ; Montant (pleine largeur) ; pied Statut. */
+  #page-clients #commandes-list tr[onclick] > td:nth-child(1) {   /* N° = titre (garde la puce Portail) */
+    flex: 1 1 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(2) {   /* Client */
+    flex: 0 0 auto; justify-content: flex-end;
+    font-weight: 600; font-size: 12.5px; color: var(--color-text-secondary);
+    padding-bottom: var(--space-2);
+  }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(1)::before,
+  #page-clients #commandes-list tr[onclick] > td:nth-child(2)::before { content: none; }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(3),
+  #page-clients #commandes-list tr[onclick] > td:nth-child(4) {    /* 2 col + filet sous l'entête */
+    flex: 1 1 calc(50% - var(--space-3));
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(3)::before { content: "Date cmd"; }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(4)::before { content: "Livraison"; }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(5) {    /* Produits : pleine largeur, empilé, dé-tronqué */
+    flex: 1 1 100%; flex-direction: column; align-items: flex-start;
+    justify-content: flex-start; gap: 2px;
+    max-width: none !important; white-space: normal !important;
+    overflow: visible !important; text-overflow: clip !important;
+  }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(5)::before { content: "Produits"; }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(6) { flex: 1 1 100%; }  /* Montant */
+  #page-clients #commandes-list tr[onclick] > td:nth-child(6)::before { content: "Montant"; }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(7) {    /* Statut + paiement : pied */
+    flex: 1 1 100%; justify-content: flex-start; gap: var(--space-2);
+    border-top: var(--border-hairline); padding-top: var(--space-2); margin-top: var(--space-1);
+  }
+  #page-clients #commandes-list tr[onclick] > td:nth-child(7)::before { content: none; }
+
+  /* ─── Clients (#clients-list) ───
+     Cols : 1 Nom · 2 Type | 3 Ville 4 Téléphone | 6 CA total | pied 5 Statut + 7 Actions
+     (CA total remonté avant Statut via flex order). */
+  #page-clients #clients-list tr[onclick] > td:nth-child(1) {     /* Nom = titre */
+    order: 1; flex: 1 1 auto; justify-content: flex-start;
+    font-weight: 700; font-size: 13.5px; color: var(--color-text);
+    padding-bottom: var(--space-2);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(2) {     /* Type */
+    order: 2; flex: 0 0 auto; justify-content: flex-end;
+    font-weight: 600; font-size: 12.5px; color: var(--color-text-secondary);
+    padding-bottom: var(--space-2);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(1)::before,
+  #page-clients #clients-list tr[onclick] > td:nth-child(2)::before { content: none; }
+  #page-clients #clients-list tr[onclick] > td:nth-child(3) {     /* Ville (2 col + filet) */
+    order: 3; flex: 1 1 calc(50% - var(--space-3));
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(4) {     /* Téléphone (2 col + filet) */
+    order: 4; flex: 1 1 calc(50% - var(--space-3));
+    border-top: var(--border-hairline); padding-top: var(--space-2);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(3)::before { content: "Ville"; }
+  #page-clients #clients-list tr[onclick] > td:nth-child(4)::before { content: "Téléphone"; }
+  #page-clients #clients-list tr[onclick] > td:nth-child(6) {     /* CA total : remonté dans le corps */
+    order: 5; flex: 1 1 100%;
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(6)::before { content: "CA total"; }
+  #page-clients #clients-list tr[onclick] > td:nth-child(5) {     /* Statut : pied gauche */
+    order: 6; flex: 1 1 auto; justify-content: flex-start;
+    border-top: var(--border-hairline); padding-top: var(--space-2); margin-top: var(--space-1);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(7) {     /* Actions : pied droite (manager-only conservé) */
+    order: 7; flex: 0 0 auto; justify-content: flex-end;
+    border-top: var(--border-hairline); padding-top: var(--space-2); margin-top: var(--space-1);
+  }
+  #page-clients #clients-list tr[onclick] > td:nth-child(5)::before,
+  #page-clients #clients-list tr[onclick] > td:nth-child(7)::before { content: none; }
+}
+
 /* ── Print ── */
 @media print {
   #top-header, #mobile-menu, .notif-panel, #toast, .btn, .modal-overlay { display:none !important; }
