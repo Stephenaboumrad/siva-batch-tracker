@@ -1,0 +1,18 @@
+{
+  "name": "SIVA Coqorico",
+  "short_name": "SIVA",
+  "description": "Gestion d'élevage avicole — SIVA Coqorico",
+  "lang": "fr",
+  "dir": "ltr",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#F4F6F8",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
