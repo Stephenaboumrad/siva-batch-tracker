@@ -461,6 +461,17 @@
 #page-abattage .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 @media (max-width: 900px) { #page-abattage .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { #page-abattage .dash-kpi-bar { grid-template-columns: 1fr; } }
+
+/* Vétérinaire & Santé — barre KPI instrument-panel (même recette que Abattage), scopée #page-veterinaire */
+#page-veterinaire .dash-kpi-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 0; }
+#page-veterinaire .dash-kpi-bar .dash-kpi { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; margin: 0; padding: var(--space-4) var(--space-5); }
+#page-veterinaire .dash-kpi-bar .dash-kpi::before { display: none; }
+#page-veterinaire .dash-kpi-bar .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+/* Valeurs neutres par défaut ; rouge/vert conservés uniquement sur les KPI sémantiques (dk-danger/dk-success). */
+#page-veterinaire .dash-kpi-bar .dash-kpi:not(.dk-danger):not(.dk-success) .dk-value { color: var(--color-text); }
+#page-veterinaire .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+@media (max-width: 900px) { #page-veterinaire .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { #page-veterinaire .dash-kpi-bar { grid-template-columns: 1fr; } }
 /* Grille détail (stat-grid) → grille d'instruments à filets */
 #page-abattage .stat-grid { gap: var(--bw-hairline); background: var(--color-border-subtle); border: var(--border-hairline); border-radius: var(--radius-md); overflow: hidden; }
 #page-abattage .stat-item { background: var(--color-surface); border: none; border-radius: 0; box-shadow: none; text-align: left; padding: var(--space-3); }
@@ -1851,6 +1862,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
       <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
     </a>
+    <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this)">
+      <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
+    </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon"><i data-lucide="package"></i></span> Transformation
     </a>
@@ -1906,6 +1920,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </a>
   <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="chart-line"></i></span> Bandes
+  </a>
+  <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="package"></i></span> Transformation
@@ -1965,6 +1982,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
+    <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
@@ -2301,6 +2319,31 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ═══════════════ PAGE: VÉTÉRINAIRE & SANTÉ ═══════════════ -->
+  <div id="page-veterinaire" class="page">
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="stethoscope"></i> Vétérinaire & Santé</h2>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Suivi sanitaire & biosécurité par bande — vaccinations, traitements, mortalité.</p>
+
+    <div class="form-group" style="max-width:320px;margin-bottom:1.25rem;">
+      <label>Bande</label>
+      <select id="vet-bande-select" onchange="renderVetActiveTab()"></select>
+    </div>
+
+    <div id="vet-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" data-vet-tab="overview" onclick="switchVetTab('overview',this)">Vue d'ensemble</button>
+      <button class="tab-btn" data-vet-tab="vaccination" onclick="switchVetTab('vaccination',this)">Carnet de vaccination</button>
+      <button class="tab-btn" data-vet-tab="traitements" onclick="switchVetTab('traitements',this)">Traitements</button>
+      <button class="tab-btn" data-vet-tab="mortalite" onclick="switchVetTab('mortalite',this)">Mortalité & santé</button>
+      <button class="tab-btn" data-vet-tab="biosecurite" onclick="switchVetTab('biosecurite',this)">Biosécurité</button>
+    </div>
+
+    <div id="vet-tab-overview"></div>
+    <div id="vet-tab-vaccination" style="display:none;"></div>
+    <div id="vet-tab-traitements" style="display:none;"></div>
+    <div id="vet-tab-mortalite" style="display:none;"></div>
+    <div id="vet-tab-biosecurite" style="display:none;"></div>
   </div>
 
   <div id="page-supply" class="page">
@@ -3233,8 +3276,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4091,6 +4134,7 @@ const PAGE_TITLES = {
   bandes: 'Gestion des bandes',
   saisie: 'Saisie Terrain',
   fiche: 'Bandes',
+  veterinaire: 'Vétérinaire & Santé',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
@@ -4119,6 +4163,106 @@ function updateBottomBar(page) {
   // Update mobile top bar title
   const titleEl = document.getElementById('mtb-page-title');
   if (titleEl) titleEl.textContent = PAGE_TITLES[page] || page;
+}
+
+// ══════════════════════════════════════════
+// ── Vétérinaire & Santé (SHELL) ──
+// ══════════════════════════════════════════
+// Cadre CONFIGURABLE : AUCUNE valeur médicale en dur (noms de vaccins, jours,
+// délais, causes). La Vue d'ensemble ne fait que LIRE des données existantes
+// (intrants + computeIndicators) ; aucun recalcul. Les 4 autres onglets sont des
+// placeholders remplis dans des PR ultérieures avec les données du vétérinaire /
+// de la DSV. Scopé à #page-veterinaire — aucun effet sur les autres pages.
+
+function populateVetSelect() {
+  const select = document.getElementById('vet-bande-select');
+  if (!select) return;
+  const list = STATE.bandes.filter(b => !b.archivee);
+  select.innerHTML = list.length === 0
+    ? '<option value="">Aucune bande</option>'
+    : list.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('');
+}
+
+function initVeterinairePage() {
+  populateVetSelect();
+  renderVetActiveTab();
+}
+
+function switchVetTab(tab, btn) {
+  document.querySelectorAll('#vet-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  ['overview', 'vaccination', 'traitements', 'mortalite', 'biosecurite'].forEach(t => {
+    const el = document.getElementById('vet-tab-' + t);
+    if (el) el.style.display = (t === tab) ? 'block' : 'none';
+  });
+  renderVetActiveTab();
+}
+
+function renderVetActiveTab() {
+  const active = document.querySelector('#vet-tabs .tab-btn.active');
+  const tab = active ? active.getAttribute('data-vet-tab') : 'overview';
+  if (tab === 'overview') renderVetOverview();
+  else renderVetPlaceholder(tab);
+}
+
+// Onglets à venir : placeholder structurel (décrit le contenu futur, sans valeur médicale).
+function renderVetPlaceholder(tab) {
+  const labels = {
+    vaccination: 'le calendrier vaccinal sera configuré avec votre vétérinaire / la DSV',
+    traitements: 'le journal des traitements et délais d\'attente arrive prochainement',
+    mortalite: 'les causes de mortalité et événements sanitaires arrivent prochainement',
+    biosecurite: 'le registre de biosécurité (nettoyage, vide sanitaire, visiteurs) arrive prochainement'
+  };
+  const el = document.getElementById('vet-tab-' + tab);
+  if (!el) return;
+  el.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="clock"></i></div>'
+    + '<p>Bientôt disponible — ' + (labels[tab] || 'à configurer avec votre vétérinaire') + '.</p></div>';
+}
+
+// Vue d'ensemble : LECTURE SEULE de données déjà calculées. Aucun recalcul ici.
+function renderVetOverview() {
+  const el = document.getElementById('vet-tab-overview');
+  if (!el) return;
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  if (!bande) {
+    el.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune bande à afficher.</p></div>';
+    return;
+  }
+  const ind = computeIndicators(bande);
+
+  // KPI 1 : vaccinations faites = nombre d'intrants EXISTANTS de type 'vaccin'.
+  const nbVaccins = (ind.intrants || []).filter(i => i.type === 'vaccin').length;
+  // KPI 3 : mortalité cumulée % = ind.tauxMort (déjà calculé). Seuils existants : <3 vert, <=5 neutre, >5 rouge.
+  const mort = Number(ind.tauxMort) || 0;
+  const mortClass = mort < 3 ? 'dk-success' : (mort <= 5 ? '' : 'dk-danger');
+  // KPI 4 : statut abattage = délai d'attente (réutilise earliestSlaughterDate).
+  const wd = ind.earliestSlaughterDate;
+  let abVal, abSub, abClass;
+  if (!wd) { abVal = 'OK'; abSub = 'aucun délai actif'; abClass = 'dk-success'; }
+  else if (wd > parseDayLocal(todayStr())) { abVal = fmtDate(wd); abSub = 'délai d\'attente en cours'; abClass = 'dk-danger'; }
+  else { abVal = 'OK'; abSub = 'délai respecté'; abClass = 'dk-success'; }
+
+  const kpis =
+    '<div class="dash-kpi-bar">'
+    + '<div class="dash-kpi"><div class="dk-value">' + nbVaccins + '</div><div class="dk-label">Vaccinations faites</div><div class="dk-sub">intrants type « vaccin »</div></div>'
+    + '<div class="dash-kpi"><div class="dk-value">—</div><div class="dk-label">Prochaine échéance</div><div class="dk-sub">carnet vaccinal à venir</div></div>'
+    + '<div class="dash-kpi ' + mortClass + '"><div class="dk-value">' + fmt(mort, 1) + '%</div><div class="dk-label">Mortalité cumulée</div><div class="dk-sub">seuil alerte 5%</div></div>'
+    + '<div class="dash-kpi ' + abClass + '"><div class="dk-value">' + abVal + '</div><div class="dk-label">Statut abattage</div><div class="dk-sub">' + abSub + '</div></div>'
+    + '</div>';
+
+  // Statut délai d'attente détaillé — réutilise earliestSlaughterDate + withdrawalBinding (aucun recalcul).
+  let wdLine;
+  if (wd && wd > parseDayLocal(todayStr())) {
+    const b = ind.withdrawalBinding;
+    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
+    wdLine = '<div style="margin-top:1rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-danger-bg);border-left:4px solid var(--color-danger);color:var(--status-danger-fg);font-size:0.82rem;font-weight:700;display:flex;align-items:center;gap:0.45rem;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex:none;"></i><span>Abattage autorisé à partir du <span style="font-family:var(--font-mono);">' + fmtDate(wd) + '</span>' + bindTxt + '</span></div>';
+  } else {
+    wdLine = '<div style="margin-top:1rem;padding:0.5rem 0.75rem;border-radius:6px;background:var(--status-neutral-bg);color:var(--text-muted);font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="check" style="width:15px;height:15px;flex:none;"></i> Aucun délai d\'attente actif sur cette bande.</div>';
+  }
+
+  el.innerHTML = kpis + wdLine
+    + '<p style="margin-top:1rem;font-size:0.78rem;color:var(--text-muted);font-style:italic;">Indicateurs dérivés des saisies et intrants existants. Le carnet de vaccination, les traitements, la mortalité détaillée et la biosécurité seront activés dans leurs onglets dédiés.</p>';
 }
 
 function openPlusSheet() {
@@ -4379,6 +4523,7 @@ function navigate(page, el) {
     case 'bandes': renderBandes(); break;
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
+    case 'veterinaire': initVeterinairePage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
