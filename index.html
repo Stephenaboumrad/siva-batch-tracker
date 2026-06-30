@@ -1647,6 +1647,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #mobile-top-bar .mtb-title {
   font-family:var(--sans); font-size:16px; font-weight:600;
   color:var(--text-primary); letter-spacing:-0.02em;
+  min-width:0;   /* PR-4 : enfant flex → autorise le rétrécissement pour que l'ellipsis s'active */
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 #mobile-top-bar .mtb-logo {
@@ -1769,7 +1770,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   /* Grids → single column */
   .commercial-grid { grid-template-columns:1fr; }
-  .stock-grid { grid-template-columns:1fr; }
+  /* Stock : 2 colonnes sur mobile (PR-4) — inventaire plus dense, moins de scroll.
+     Densité resserrée (padding + valeur 20px) pour que les gros kg ne reviennent
+     pas à la ligne dans la carte étroite (même approche densité que PR-1 KPI). */
+  .stock-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--space-2); }
+  .stock-card { padding:var(--space-3); }
+  .stock-card .stock-qty { font-size:20px; margin:6px 0; }
   .notif-panel { width:100%; left:0; right:0; top:auto; bottom:0; max-height:80vh; border-radius:var(--radius-xl) var(--radius-xl) 0 0; }
 
   /* Deadlines */
