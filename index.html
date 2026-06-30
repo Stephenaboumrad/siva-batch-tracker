@@ -2179,6 +2179,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
               <input type="number" id="intrant-cout" min="0" placeholder="0">
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Délai d'attente avant abattage (jours)</label>
+              <input type="number" id="intrant-delai" min="0" step="1" inputmode="numeric" placeholder="—">
+              <div style="font-size:11px;color:var(--text-muted);margin-top:0.25rem;font-style:italic;">Délai indiqué sur l'étiquette produit / par le vétérinaire. Laisser vide si aucun (ex. vitamines).</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -3047,7 +3054,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h4 style="color:#EA580C;font-size:0.85rem;margin-bottom:0.5rem;">1. Identification</h4>
     <div class="form-row">
       <div class="form-group"><label>Bande</label><select id="ab-bande"></select></div>
-      <div class="form-group"><label>Date abattage</label><input type="date" id="ab-date"></div>
+      <div class="form-group"><label>Date abattage</label><input type="date" id="ab-date" oninput="updateAbWithdrawalWarn()"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Heure début</label><input type="time" id="ab-heure-debut" value="05:30"></div>
@@ -3091,6 +3098,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">5. Observations</h4>
     <div class="form-group"><textarea id="ab-note" rows="2" placeholder="Observations, incidents, qualité…" style="width:100%;padding:0.6rem 0.85rem;border:1px solid #A7F3D0;border-radius:6px;font-size:0.85rem;font-family:'Inter',sans-serif;background:#FFFFFF;"></textarea></div>
+
+    <!-- Délai d'attente (withdrawal period) : avertissement + confirmation requise -->
+    <div id="ab-withdrawal-warn" style="display:none;margin-top:0.75rem;padding:0.75rem 1rem;border-radius:8px;background:#FEF2F2;border:1px solid #FCA5A5;">
+      <div id="ab-withdrawal-msg" style="font-size:0.85rem;color:#991B1B;font-weight:600;display:flex;align-items:flex-start;gap:0.4rem;line-height:1.4;"></div>
+      <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.65rem;font-size:0.85rem;color:#991B1B;font-weight:600;cursor:pointer;">
+        <input type="checkbox" id="ab-withdrawal-confirm" style="width:auto;margin:0;flex:none;">
+        Je confirme l'abattage malgré le délai d'attente
+      </label>
+    </div>
 
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeAbattageModal()">Annuler</button>
@@ -3571,6 +3587,30 @@ function todayStr() {
 
 function daysBetween(d1, d2) {
   return Math.floor((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+// Parse une date calendaire ('YYYY-MM-DD' ou ISO) en Date LOCALE à minuit,
+// indépendante du fuseau (évite les décalages de jour sur la comparaison).
+function parseDayLocal(s) {
+  if (!s) return null;
+  const p = String(s).slice(0, 10).split('-');
+  if (p.length !== 3) return null;
+  const dt = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+// Délai d'attente (withdrawal period) — date d'abattage au plus tôt induite par
+// UN intrant = date_intrant + delai_attente_jours (valeur SAISIE par l'éleveur,
+// migration 0015 ; aucune valeur médicale en dur). Renvoie une Date (minuit
+// local) ou null si pas de délai (champ vide / 0 → les lignes existantes
+// n'induisent aucune contrainte).
+function intrantClearanceDate(intrant) {
+  const delai = Number(intrant.delai_attente_jours);
+  if (!delai || delai <= 0) return null;
+  const d = parseDayLocal(intrant.date_intrant);
+  if (!d) return null;
+  d.setDate(d.getDate() + delai);
+  return d;
 }
 
 function toast(msg, type = 'success') {
@@ -4351,6 +4391,19 @@ function computeIndicators(bande) {
     .sort((a, b) => new Date(a.date_saisie) - new Date(b.date_saisie));
   const intrants = STATE.intrants.filter(i => i.bande_id === bande.bande_id);
 
+  // ── Délai d'attente : date d'abattage autorisée au plus tôt (sans cache) ──
+  // = max sur les traitements de (date_intrant + delai_attente_jours). On
+  // retient l'intrant le plus contraignant (celui qui repousse la date).
+  let earliestSlaughterDate = null;
+  let withdrawalBinding = null;
+  intrants.forEach(i => {
+    const clear = intrantClearanceDate(i);
+    if (clear && (!earliestSlaughterDate || clear > earliestSlaughterDate)) {
+      earliestSlaughterDate = clear;
+      withdrawalBinding = i;
+    }
+  });
+
   const nbEntree = Number(bande.nb_poussins_entree) || 0;
   const poidsInitial = Number(bande.poids_initial_moyen_g) || 42;
   const rendement = Number(bande.rendement_carcasse_pct) || 58;
@@ -4461,6 +4514,7 @@ function computeIndicators(bande) {
     poidsCarcasse, lastSaisieDate,
     ip, viabilite, carcasseEstimee, pctCible, phase,
     lastTemp, lastHumidite,
+    earliestSlaughterDate, withdrawalBinding,
     coutPoussins, coutAliment, coutIntrants, produitBrut, margeBrute, margeParKg,
     nbSortie, poidsCarcasseSortie, totalCarcasseKg, prixVente, rendement, poidsInitial
   };
@@ -6072,7 +6126,11 @@ async function submitSaisie() {
           nom_produit: nomProduit,
           quantite: Number(document.getElementById('intrant-quantite').value) || 0,
           unite: document.getElementById('intrant-unite').value,
-          cout_total_fcfa: Number(document.getElementById('intrant-cout').value) || 0
+          cout_total_fcfa: Number(document.getElementById('intrant-cout').value) || 0,
+          // Délai d'attente saisi (jours) ; vide → null = aucun délai enregistré.
+          delai_attente_jours: document.getElementById('intrant-delai').value !== ''
+            ? Number(document.getElementById('intrant-delai').value)
+            : null
         };
         if (currentUser && currentUser.role === 'chef_bande') {
           // Block: requires manager validation
@@ -6112,6 +6170,7 @@ function resetSaisieForm() {
   document.getElementById('intrant-nom').value = '';
   document.getElementById('intrant-quantite').value = '';
   document.getElementById('intrant-cout').value = '';
+  document.getElementById('intrant-delai').value = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
   clearSaisieValidation();
@@ -6197,6 +6256,19 @@ function loadFicheBande() {
   const ipVal = ind.ip || 0;
   const ipColor = ipVal >= 300 ? '#22C55E' : ipVal >= 250 ? '#F97316' : '#EF4444';
 
+  // Délai d'attente avant abattage (configurable, migration 0015). Affiché
+  // uniquement si un traitement impose une date : ambre si encore en cours,
+  // vert si déjà respecté. Aucun affichage si aucun délai n'est enregistré.
+  let withdrawalHtml = '';
+  if (ind.earliestSlaughterDate) {
+    const pending = ind.earliestSlaughterDate > parseDayLocal(todayStr());
+    const b = ind.withdrawalBinding;
+    const bindTxt = b ? ' — ' + b.nom_produit + ' du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
+    withdrawalHtml = pending
+      ? '<div style="margin-top:0.6rem;padding:0.5rem 0.75rem;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="shield-alert" style="width:15px;height:15px;flex:none;"></i> Abattage autorisé à partir du ' + fmtDate(ind.earliestSlaughterDate) + bindTxt + '</div>'
+      : '<div style="margin-top:0.6rem;padding:0.5rem 0.75rem;border-radius:6px;background:#DCFCE7;color:#166534;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="shield-check" style="width:15px;height:15px;flex:none;"></i> Délai d\'attente respecté (depuis le ' + fmtDate(ind.earliestSlaughterDate) + ')</div>';
+  }
+
   document.getElementById('fiche-header').innerHTML = `
     <div class="card-header">
       <h3>${bande.nom_bande}</h3>
@@ -6221,6 +6293,7 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">Eau totale</div><div class="value">${ind.eauTotal > 0 ? fmt(ind.eauTotal,0) + ' L' : '—'}</div></div>
       <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
+    ${withdrawalHtml}
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
   // Encart Rentabilité (réservé managers SIVA-001 / SIVA-002)
@@ -6602,15 +6675,21 @@ function renderFicheIntrantsTable(ind) {
   }
 
   const typeLabels = { vaccin: 'Vaccin', medicament: 'Médicament', vitamine: 'Vitamine', autre: 'Autre' };
-  let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>Quantité</th><th>Coût (FCFA)</th><th></th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>Quantité</th><th>Coût (FCFA)</th><th>Abattable le</th><th></th></tr></thead><tbody>';
 
   ind.intrants.forEach(i => {
+    // Date d'abattage au plus tôt induite par CE traitement (délai d'attente, 0015).
+    const clear = intrantClearanceDate(i);
+    const clearTxt = clear
+      ? fmtDate(clear) + ' <span style="color:var(--text-muted);">(' + i.delai_attente_jours + ' j)</span>'
+      : '<span style="color:var(--text-muted);">—</span>';
     html += `<tr>
       <td>${fmtDate(i.date_intrant)}</td>
       <td>${typeLabels[i.type] || i.type}</td>
       <td>${i.nom_produit}</td>
       <td>${i.quantite} ${i.unite}</td>
       <td>${fmt(Number(i.cout_total_fcfa))}</td>
+      <td>${clearTxt}</td>
       <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteIntrant('${i.intrant_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
@@ -11108,6 +11187,7 @@ function showAbattageModal() {
       const ind = computeIndicators(b);
       document.getElementById('ab-effectif-veille').value = ind.effectifActuel;
     }
+    updateAbWithdrawalWarn();
   };
   document.getElementById('ab-date').value = todayStr();
   document.getElementById('ab-responsable').value = currentUser ? currentUser.name : '';
@@ -11128,9 +11208,34 @@ function showAbattageModal() {
   document.getElementById('ab-calc-pertes').textContent = '';
   document.getElementById('ab-calc-poids').textContent = '';
   document.getElementById('ab-calc-couts').textContent = '';
+  document.getElementById('ab-withdrawal-confirm').checked = false;
+  document.getElementById('ab-withdrawal-warn').style.display = 'none';
   document.getElementById('abattage-modal').style.display = 'flex';
 }
 function closeAbattageModal() { document.getElementById('abattage-modal').style.display = 'none'; }
+
+// ── Délai d'attente : avertit si la session d'abattage est datée AVANT la date
+// autorisée (max des date_intrant + delai_attente_jours). Flag, pas blocage :
+// la case « Je confirme » (vérifiée à la soumission) laisse l'éleveur décider.
+function updateAbWithdrawalWarn() {
+  const warn = document.getElementById('ab-withdrawal-warn');
+  if (!warn) return;
+  const bande = STATE.bandes.find(b => b.bande_id === document.getElementById('ab-bande').value);
+  const sd = parseDayLocal(document.getElementById('ab-date').value);
+  if (!bande || !sd) { warn.style.display = 'none'; return; }
+  const ind = computeIndicators(bande);
+  const wd = ind.earliestSlaughterDate;
+  if (wd && sd < wd) {
+    const b = ind.withdrawalBinding;
+    const bindTxt = b ? ' (traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ', délai ' + b.delai_attente_jours + ' j)' : '';
+    document.getElementById('ab-withdrawal-msg').innerHTML =
+      '<i data-lucide="octagon-alert" style="width:16px;height:16px;flex:none;"></i><span>Délai d\'attente non respecté : abattage autorisé à partir du <strong>' + fmtDate(wd) + '</strong>' + bindTxt + '. Abattre avant cette date expose à des résidus médicamenteux dans la viande.</span>';
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+    document.getElementById('ab-withdrawal-confirm').checked = false;
+  }
+}
 
 function updateAbCalcs() {
   const nbAbattus = parseInt(document.getElementById('ab-nb-abattus').value) || 0;
@@ -11162,6 +11267,20 @@ async function submitAbattage(statut) {
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
   const nbAbattus = parseInt(document.getElementById('ab-nb-abattus').value);
   if (!nbAbattus || nbAbattus <= 0) { toast('Nombre d\'oiseaux abattus requis', 'error'); return; }
+
+  // Garde délai d'attente : session datée avant la date autorisée → exiger la
+  // case de confirmation. Flag, pas blocage dur : une fois cochée, on continue.
+  const wBande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (wBande) {
+    const wInd = computeIndicators(wBande);
+    const wSd = parseDayLocal(document.getElementById('ab-date').value);
+    if (wInd.earliestSlaughterDate && wSd && wSd < wInd.earliestSlaughterDate
+        && !document.getElementById('ab-withdrawal-confirm').checked) {
+      updateAbWithdrawalWarn();
+      toast('Délai d\'attente non respecté : cochez la case de confirmation pour enregistrer', 'error');
+      return;
+    }
+  }
 
   const poidsVif = parseFloat(document.getElementById('ab-poids-vif').value) || 0;
   const rendement = parseFloat(document.getElementById('ab-rendement').value) || 58;
