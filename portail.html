@@ -22,13 +22,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#11181F">
 <title>SIVA — Portail Client B2B</title>
+<!-- Favicon : monogramme « S » (SVG inline, identique à l'app) -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%231A1A1A'/%3E%3Ctext%20x='32'%20y='47'%20font-family='Arial,Helvetica,sans-serif'%20font-size='46'%20font-weight='bold'%20fill='%23ffffff'%20text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
 
 <!-- CDN (versions épinglées, jamais @latest) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2"></script>
 <script src="https://unpkg.com/lucide@1.21.0"></script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
 
 /* ── Tokens de marque (repris d'index.html pour cohérence) ── */
 :root {
@@ -101,7 +103,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 }
 .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: var(--space-3); }
 .brand-logo { width: auto; display: block; }                 /* mascotte SIVA partagée — même asset qu'index.html */
-.brand-name { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.brand-name { font-family: 'Orbitron', 'Inter', sans-serif; font-size: 20px; font-weight: 900; letter-spacing: 0.02em; }   /* wordmark SIVA Orbitron (large → spacing positif léger) */
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
 .brand-login { flex-direction: column; gap: 12px; margin-bottom: var(--space-4); }
 /* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
@@ -114,7 +116,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   border-radius: 28px;              /* squircle généreux, l'orange respire autour de la mascotte */
   box-shadow: var(--shadow-md);
 }
-.brand-login .brand-name { letter-spacing: 0.04em; }
+.brand-login .brand-name { font-size: 38px; letter-spacing: 0.02em; }
 @media (max-width: 480px) { .brand-login .brand-logo { height: 140px; padding: 16px; border-radius: 24px; } }
 .login-sub { text-align: center; color: var(--color-text-secondary); font-size: 14px; margin-bottom: var(--space-6); }
 .field { margin-bottom: var(--space-4); }
@@ -274,7 +276,6 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 <section id="screen-login">
   <div class="login-card">
     <div class="brand brand-login">
-      <img class="brand-logo" src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés">
       <div class="brand-name">SIVA</div>
     </div>
     <p class="login-sub">Portail client de la Société Ivoirienne de Volailles et Assimilés</p>
@@ -302,7 +303,6 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 <section id="screen-app" class="hidden">
   <header class="app-header">
     <div class="brand">
-      <img class="brand-logo" src="./assets/siva-logo-mascotte.png" alt="SIVA — Société Ivoirienne de Volailles et Assimilés">
       <div class="brand-name">SIVA</div>
     </div>
     <div class="header-right">
