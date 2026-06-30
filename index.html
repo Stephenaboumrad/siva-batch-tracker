@@ -2987,6 +2987,49 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: ligne de protocole vaccinal (MANAGER) -->
+<div id="proto-modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3><i data-lucide="syringe"></i> <span id="proto-modal-title">Nouvelle ligne de protocole</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom du vaccin</label><input type="text" id="pv-nom" placeholder="Saisi depuis votre vétérinaire / la DSV"></div>
+      <div class="form-group"><label>Jour cible (âge, J1 = entrée)</label><input type="number" id="pv-jour" min="0" step="1" inputmode="numeric" placeholder="Ex. 10"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="pv-voie" placeholder="Ex. eau de boisson / oculaire / injection"></div>
+      <div class="form-group"><label>Ordre d'affichage</label><input type="number" id="pv-ordre" min="0" step="1" value="0" inputmode="numeric"></div>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="pv-actif" checked style="width:auto;">
+      <label for="pv-actif" style="margin:0;">Actif (appliqué aux bandes)</label>
+    </div>
+    <div class="form-group"><label>Note (optionnel)</label><textarea id="pv-note" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div id="pv-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeProtoModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitProto()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: marquer une vaccination faite (manager direct / chef_bande a_valider) -->
+<div id="vacc-fait-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:460px;">
+    <h3><i data-lucide="syringe"></i> Marquer une vaccination faite</h3>
+    <p id="vf-vaccin" style="font-size:0.88rem;color:var(--text-primary);font-weight:600;margin:0 0 0.75rem;"></p>
+    <div class="form-row">
+      <div class="form-group"><label>Date réelle</label><input type="date" id="vf-date"></div>
+      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="vf-voie" placeholder="Ex. eau de boisson"></div>
+    </div>
+    <div class="form-group"><label>Note (optionnel)</label><input type="text" id="vf-note" placeholder="Remarque…"></div>
+    <div id="vf-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeVaccFaitModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitVaccFait()">Marquer fait</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -3472,11 +3515,18 @@ const ACTION_MAP = {
   // Catalogue produits
   addProduit:         { table: 'produits',        op: 'insert' },
   updateProduit:      { table: 'produits',        op: 'update', idField: 'produit_id' },
-  deleteProduit:      { table: 'produits',        op: 'delete', idField: 'produit_id' }
+  deleteProduit:      { table: 'produits',        op: 'delete', idField: 'produit_id' },
+  // Vaccination — protocole (référence globale) + statut d'exécution par bande
+  addProtocoleVaccin:    { table: 'protocole_vaccinal', op: 'insert' },
+  updateProtocoleVaccin: { table: 'protocole_vaccinal', op: 'update', idField: 'proto_id' },
+  deleteProtocoleVaccin: { table: 'protocole_vaccinal', op: 'delete', idField: 'proto_id' },
+  addVaccination:        { table: 'vaccinations',       op: 'insert' },
+  updateVaccination:     { table: 'vaccinations',       op: 'update', idField: 'vacc_id' },
+  deleteVaccination:     { table: 'vaccinations',       op: 'delete', idField: 'vacc_id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -3723,7 +3773,9 @@ const ALL_TABLES = [
   ['paies',           'paies'],
   ['depenses_rh',     'depensesRH'],
   ['notifications',   'notifications'],
-  ['produits',        'produits']
+  ['produits',        'produits'],
+  ['protocole_vaccinal', 'protocoleVaccinal'],
+  ['vaccinations',    'vaccinations']
 ];
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
@@ -3842,7 +3894,9 @@ async function apiGet(params) {
     getEmployes:        { table: 'employes' },
     getPaies:           { table: 'paies',           filterKey: 'mois' },
     getDepensesRH:      { table: 'depenses_rh' },
-    getNotifications:   { table: 'notifications',   filterKey: 'statut' }
+    getNotifications:   { table: 'notifications',   filterKey: 'statut' },
+    getProtocoleVaccinal: { table: 'protocole_vaccinal' },
+    getVaccinations:    { table: 'vaccinations',    filterKey: 'bande_id' }
   };
   const cfg = READ_MAP[action];
   if (!cfg) throw new Error('Action inconnue: ' + action);
@@ -4042,6 +4096,8 @@ async function loadAllData() {
     STATE.depensesRH = data.depensesRH || [];
     STATE.notifications = data.notifications || [];
     STATE.produits = data.produits || [];
+    STATE.protocoleVaccinal = data.protocoleVaccinal || [];
+    STATE.vaccinations = data.vaccinations || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières si la table est vide (rarement utilisé : déjà seedé en SQL)
@@ -4064,7 +4120,9 @@ async function loadAllData() {
         stocks: STATE.stocks, clients: STATE.clients, commandes: STATE.commandes,
         lignesCommande: STATE.lignesCommande, abattages: STATE.abattages,
         employes: STATE.employes, paies: STATE.paies, depensesRH: STATE.depensesRH,
-        notifications: STATE.notifications, produits: STATE.produits, cachedAt: new Date().toISOString()
+        notifications: STATE.notifications, produits: STATE.produits,
+        protocoleVaccinal: STATE.protocoleVaccinal, vaccinations: STATE.vaccinations,
+        cachedAt: new Date().toISOString()
       };
       for (const k of CACHE_EXCLUDED) delete snapshot[k];
       localStorage.setItem('coqorico_cache', JSON.stringify(snapshot));
@@ -4099,6 +4157,8 @@ async function loadAllData() {
       STATE.depensesRH = cached.depensesRH || [];
       STATE.notifications = cached.notifications || [];
       STATE.produits = cached.produits || [];
+      STATE.protocoleVaccinal = cached.protocoleVaccinal || [];
+      STATE.vaccinations = cached.vaccinations || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -4202,6 +4262,7 @@ function renderVetActiveTab() {
   const active = document.querySelector('#vet-tabs .tab-btn.active');
   const tab = active ? active.getAttribute('data-vet-tab') : 'overview';
   if (tab === 'overview') renderVetOverview();
+  else if (tab === 'vaccination') renderVetVaccination();
   else renderVetPlaceholder(tab);
 }
 
@@ -4231,8 +4292,23 @@ function renderVetOverview() {
   }
   const ind = computeIndicators(bande);
 
-  // KPI 1 : vaccinations faites = nombre d'intrants EXISTANTS de type 'vaccin'.
-  const nbVaccins = (ind.intrants || []).filter(i => i.type === 'vaccin').length;
+  // KPI 1 & 2 : carnet de vaccination (réutilise computeVaccinationStatus — aucun recalcul ailleurs).
+  const vstatus = computeVaccinationStatus(bande);
+  const nbActiveV = vstatus.length;
+  const nbDoneV = vstatus.filter(v => v.vacc).length;
+  const pendingV = vstatus.filter(v => !v.vacc).sort((a, b) =>
+    ((a.plannedDate ? a.plannedDate.getTime() : Infinity) - (b.plannedDate ? b.plannedDate.getTime() : Infinity)));
+  let echVal = '—', echSub = 'protocole non défini', echClass = '';
+  if (nbActiveV > 0) {
+    if (pendingV.length === 0) { echVal = 'À jour'; echSub = 'protocole complet'; echClass = 'dk-success'; }
+    else {
+      const nx = pendingV[0];
+      echVal = 'J' + nx.proto.jour_cible;
+      if (nx.status === 'retard')   { echSub = escHtml(nx.proto.nom_vaccin) + ' — en retard'; echClass = 'dk-danger'; }
+      else if (nx.status === 'due') { echSub = escHtml(nx.proto.nom_vaccin) + ' — aujourd\'hui'; echClass = 'dk-danger'; }
+      else                          { echSub = escHtml(nx.proto.nom_vaccin) + ' — dans ' + nx.daysUntil + ' j'; echClass = ''; }
+    }
+  }
   // KPI 3 : mortalité cumulée % = ind.tauxMort (déjà calculé). Seuils existants : <3 vert, <=5 neutre, >5 rouge.
   const mort = Number(ind.tauxMort) || 0;
   const mortClass = mort < 3 ? 'dk-success' : (mort <= 5 ? '' : 'dk-danger');
@@ -4245,8 +4321,8 @@ function renderVetOverview() {
 
   const kpis =
     '<div class="dash-kpi-bar">'
-    + '<div class="dash-kpi"><div class="dk-value">' + nbVaccins + '</div><div class="dk-label">Vaccinations faites</div><div class="dk-sub">intrants type « vaccin »</div></div>'
-    + '<div class="dash-kpi"><div class="dk-value">—</div><div class="dk-label">Prochaine échéance</div><div class="dk-sub">carnet vaccinal à venir</div></div>'
+    + '<div class="dash-kpi"><div class="dk-value">' + nbDoneV + (nbActiveV ? '/' + nbActiveV : '') + '</div><div class="dk-label">Vaccinations faites</div><div class="dk-sub">' + (nbActiveV ? 'du protocole' : 'protocole non défini') + '</div></div>'
+    + '<div class="dash-kpi ' + echClass + '"><div class="dk-value">' + echVal + '</div><div class="dk-label">Prochaine échéance</div><div class="dk-sub">' + echSub + '</div></div>'
     + '<div class="dash-kpi ' + mortClass + '"><div class="dk-value">' + fmt(mort, 1) + '%</div><div class="dk-label">Mortalité cumulée</div><div class="dk-sub">seuil alerte 5%</div></div>'
     + '<div class="dash-kpi ' + abClass + '"><div class="dk-value">' + abVal + '</div><div class="dk-label">Statut abattage</div><div class="dk-sub">' + abSub + '</div></div>'
     + '</div>';
@@ -4263,6 +4339,271 @@ function renderVetOverview() {
 
   el.innerHTML = kpis + wdLine
     + '<p style="margin-top:1rem;font-size:0.78rem;color:var(--text-muted);font-style:italic;">Indicateurs dérivés des saisies et intrants existants. Le carnet de vaccination, les traitements, la mortalité détaillée et la biosécurité seront activés dans leurs onglets dédiés.</p>';
+}
+
+// ── Carnet de vaccination (PIECE 2) ───────────────────────────────────────
+// CONFIGURABLE : tout vient de protocole_vaccinal (saisi manager) et vaccinations
+// (statut par bande). Aucune valeur médicale en dur. Lecture seule ici ; les
+// écritures passent par les handlers dédiés (migration 0017 + RLS).
+
+// Statut par bande : 1 entrée par ligne ACTIVE du protocole. Date prévue =
+// date_entree + (jour_cible - 1) (convention J1 = jour d'entrée, comme cycleDay).
+function computeVaccinationStatus(bande) {
+  if (!bande) return [];
+  const protos = STATE.protocoleVaccinal
+    .filter(p => p.actif !== false)
+    .slice()
+    .sort((a, b) => (Number(a.jour_cible) - Number(b.jour_cible)) || (Number(a.ordre || 0) - Number(b.ordre || 0)));
+  const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id);
+  const today = parseDayLocal(todayStr());
+  const entree = parseDayLocal(bande.date_entree);
+  return protos.map(p => {
+    const vacc = vaccs.find(v => v.proto_id === p.proto_id) || null;
+    let plannedDate = null;
+    if (entree && Number.isFinite(Number(p.jour_cible))) {
+      plannedDate = new Date(entree.getTime());
+      plannedDate.setDate(plannedDate.getDate() + (Number(p.jour_cible) - 1));
+    }
+    let status, daysUntil = null;
+    if (vacc) {
+      status = (vacc.statut_validation === 'valide') ? 'fait_valide' : 'fait_a_valider';
+    } else if (plannedDate) {
+      daysUntil = Math.round((plannedDate - today) / 86400000);
+      status = daysUntil < 0 ? 'retard' : (daysUntil === 0 ? 'due' : 'avenir');
+    } else {
+      status = 'avenir';
+    }
+    return { proto: p, vacc, plannedDate, status, daysUntil };
+  });
+}
+
+function vaccStatusBadge(v) {
+  switch (v.status) {
+    case 'fait_valide':    return '<span class="badge badge-green">Fait</span>';
+    case 'fait_a_valider': return '<span class="badge" style="background:#FEF3C7;color:#92400E;">Fait — à valider</span>';
+    case 'retard':         return '<span class="badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);">En retard</span>';
+    case 'due':            return '<span class="badge" style="background:#FFEDD5;color:#9A3412;">À faire aujourd\'hui</span>';
+    default:               return '<span class="badge badge-grey">À venir' + (v.daysUntil != null ? ' (dans ' + v.daysUntil + ' j)' : '') + '</span>';
+  }
+}
+
+function renderVetVaccination() {
+  const el = document.getElementById('vet-tab-vaccination');
+  if (!el) return;
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  const manager = isManager();
+  let html = '';
+
+  // 1) Protocole de référence (éditeur manager ; lecture seule chef_bande)
+  const protos = STATE.protocoleVaccinal.slice()
+    .sort((a, b) => (Number(a.jour_cible) - Number(b.jour_cible)) || (Number(a.ordre || 0) - Number(b.ordre || 0)));
+  html += '<div class="card"><div class="card-header"><h3>Protocole vaccinal de référence</h3>'
+    + (manager ? '<button class="btn btn-primary btn-sm" onclick="showProtoModal()">+ Ajouter</button>' : '')
+    + '</div>';
+  if (protos.length === 0) {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">'
+      + (manager ? 'Aucune ligne. Ajoutez les vaccins de votre protocole (saisis depuis votre vétérinaire / la DSV).' : 'Aucun protocole défini par le gérant.')
+      + '</p>';
+  } else {
+    html += '<div class="table-wrap"><table><thead><tr><th>Vaccin</th><th>Jour</th><th>Voie</th><th>Actif</th>' + (manager ? '<th></th>' : '') + '</tr></thead><tbody>';
+    protos.forEach(p => {
+      html += '<tr><td>' + escHtml(p.nom_vaccin) + '</td><td>J' + p.jour_cible + '</td><td>' + (escHtml(p.voie || '') || '—') + '</td><td>' + (p.actif === false ? 'Non' : 'Oui') + '</td>'
+        + (manager ? '<td style="white-space:nowrap;"><button class="btn btn-sm btn-outline" onclick="editProto(\'' + p.proto_id + '\')"><i data-lucide="pencil"></i></button> <button class="btn btn-sm btn-danger" onclick="deleteProto(\'' + p.proto_id + '\')"><i data-lucide="x"></i></button></td>' : '')
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
+  // 2) Statut de la bande sélectionnée
+  html += '<div class="card"><div class="card-header"><h3>Statut de la bande' + (bande ? ' — ' + escHtml(bande.nom_bande) : '') + '</h3></div>';
+  if (!bande) {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Sélectionnez une bande pour voir le statut des vaccinations.</p>';
+  } else {
+    const status = computeVaccinationStatus(bande);
+    if (status.length === 0) {
+      html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Aucun vaccin actif au protocole.</p>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Vaccin</th><th>Prévu</th><th>Date prévue</th><th>Statut</th><th>Action</th></tr></thead><tbody>';
+      status.forEach(v => {
+        const p = v.proto;
+        let action;
+        if (!v.vacc) {
+          action = '<button class="btn btn-sm btn-primary" onclick="openVaccFaitModal(\'' + p.proto_id + '\')">Marquer fait</button>';
+        } else if (v.status === 'fait_a_valider') {
+          action = manager
+            ? '<button class="btn btn-sm btn-gold" onclick="confirmVaccination(\'' + v.vacc.vacc_id + '\')">Confirmer</button> <button class="btn btn-sm btn-danger" onclick="deleteVaccination(\'' + v.vacc.vacc_id + '\')" title="Annuler"><i data-lucide="x"></i></button>'
+            : '<span style="color:var(--text-muted);font-size:0.78rem;">en attente de validation</span>';
+        } else {
+          action = manager
+            ? '<button class="btn btn-sm btn-danger" onclick="deleteVaccination(\'' + v.vacc.vacc_id + '\')" title="Annuler"><i data-lucide="x"></i></button>'
+            : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        }
+        const doneInfo = v.vacc
+          ? '<div style="font-size:0.72rem;color:var(--text-muted);">fait le ' + fmtDate(v.vacc.date_faite) + (v.vacc.fait_par ? ' · ' + escHtml(v.vacc.fait_par) : '') + (v.vacc.statut_validation === 'valide' && v.vacc.valide_par ? ' · validé ' + escHtml(v.vacc.valide_par) : '') + '</div>'
+          : '';
+        html += '<tr><td>' + escHtml(p.nom_vaccin)
+          + (v.vacc && v.vacc.voie ? '<div style="font-size:0.72rem;color:var(--text-muted);">' + escHtml(v.vacc.voie) + '</div>' : '')
+          + '</td><td>J' + p.jour_cible + '</td><td>' + (v.plannedDate ? fmtDate(v.plannedDate) : '—') + '</td><td>' + vaccStatusBadge(v) + doneInfo + '</td><td style="white-space:nowrap;">' + action + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── Protocole : éditeur (MANAGER) ──
+let editingProtoId = null;
+function showProtoModal() {
+  if (!isManager()) return;
+  editingProtoId = null;
+  document.getElementById('proto-modal-title').textContent = 'Nouvelle ligne de protocole';
+  document.getElementById('pv-nom').value = '';
+  document.getElementById('pv-jour').value = '';
+  document.getElementById('pv-voie').value = '';
+  document.getElementById('pv-ordre').value = '0';
+  document.getElementById('pv-actif').checked = true;
+  document.getElementById('pv-note').value = '';
+  document.getElementById('pv-msg').textContent = '';
+  document.getElementById('proto-modal').style.display = 'flex';
+}
+function editProto(id) {
+  if (!isManager()) return;
+  const p = STATE.protocoleVaccinal.find(x => x.proto_id === id);
+  if (!p) return;
+  editingProtoId = id;
+  document.getElementById('proto-modal-title').textContent = 'Modifier la ligne';
+  document.getElementById('pv-nom').value = p.nom_vaccin || '';
+  document.getElementById('pv-jour').value = (p.jour_cible != null ? p.jour_cible : '');
+  document.getElementById('pv-voie').value = p.voie || '';
+  document.getElementById('pv-ordre').value = (p.ordre != null ? p.ordre : 0);
+  document.getElementById('pv-actif').checked = p.actif !== false;
+  document.getElementById('pv-note').value = p.note || '';
+  document.getElementById('pv-msg').textContent = '';
+  document.getElementById('proto-modal').style.display = 'flex';
+}
+function closeProtoModal() { document.getElementById('proto-modal').style.display = 'none'; }
+
+async function submitProto() {
+  const nom = document.getElementById('pv-nom').value.trim();
+  const jourRaw = document.getElementById('pv-jour').value;
+  const msg = document.getElementById('pv-msg'); if (msg) msg.textContent = '';
+  if (!nom) { if (msg) msg.textContent = 'Le nom du vaccin est requis.'; return; }
+  if (jourRaw === '' || Number(jourRaw) < 0) { if (msg) msg.textContent = 'Le jour cible (>= 0) est requis.'; return; }
+  const fields = {
+    nom_vaccin: nom,
+    jour_cible: Math.round(Number(jourRaw)),
+    voie: document.getElementById('pv-voie').value.trim() || null,
+    ordre: Number(document.getElementById('pv-ordre').value) || 0,
+    actif: document.getElementById('pv-actif').checked,
+    note: document.getElementById('pv-note').value.trim() || null
+  };
+  const isEdit = !!editingProtoId;
+  const action = isEdit ? 'updateProtocoleVaccin' : 'addProtocoleVaccin';
+  const payload = isEdit ? Object.assign({ proto_id: editingProtoId }, fields)
+                         : Object.assign({ proto_id: 'pv-' + uuid() }, fields);
+  const applyLocal = () => {
+    if (isEdit) { const p = STATE.protocoleVaccinal.find(x => x.proto_id === editingProtoId); if (p) Object.assign(p, fields); }
+    else { STATE.protocoleVaccinal.push(payload); }
+  };
+  const btn = document.querySelector('#proto-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await apiPost({ action: action, payload: payload });
+    applyLocal(); closeProtoModal(); renderVetActiveTab();
+    toast(isEdit ? 'Protocole mis à jour' : 'Ligne ajoutée');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) { applyLocal(); closeProtoModal(); renderVetActiveTab(); toast('Enregistré (hors ligne)'); }
+    else { toast('Erreur : ' + err.message, 'error'); }
+  } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+}
+
+async function deleteProto(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer cette ligne du protocole ? (les vaccinations déjà enregistrées sont conservées)')) return;
+  const r = await saveRemote({ action: 'deleteProtocoleVaccin', payload: { proto_id: id } });
+  if (!r.ok) return;
+  STATE.protocoleVaccinal = STATE.protocoleVaccinal.filter(p => p.proto_id !== id);
+  renderVetActiveTab();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Ligne supprimée');
+}
+
+// ── Marquer fait (MANAGER direct 'valide' / CHEF_BANDE 'a_valider') ──
+let faitProtoId = null;
+function openVaccFaitModal(protoId) {
+  const p = STATE.protocoleVaccinal.find(x => x.proto_id === protoId);
+  if (!p) return;
+  faitProtoId = protoId;
+  document.getElementById('vf-vaccin').textContent = p.nom_vaccin + ' (J' + p.jour_cible + ')';
+  document.getElementById('vf-date').value = todayStr();
+  document.getElementById('vf-voie').value = p.voie || '';
+  document.getElementById('vf-note').value = '';
+  document.getElementById('vf-msg').textContent = '';
+  document.getElementById('vacc-fait-modal').style.display = 'flex';
+}
+function closeVaccFaitModal() { document.getElementById('vacc-fait-modal').style.display = 'none'; }
+
+function currentUserLabel() {
+  return currentUser ? (currentUser.name + (currentUser.matricule ? ' (' + currentUser.matricule + ')' : '')) : null;
+}
+
+async function submitVaccFait() {
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const p = STATE.protocoleVaccinal.find(x => x.proto_id === faitProtoId);
+  const msg = document.getElementById('vf-msg'); if (msg) msg.textContent = '';
+  if (!bandeId || !p) { if (msg) msg.textContent = 'Bande ou vaccin introuvable.'; return; }
+  const dateFaite = document.getElementById('vf-date').value;
+  if (!dateFaite) { if (msg) msg.textContent = 'La date réelle est requise.'; return; }
+  const manager = isManager();
+  const payload = {
+    vacc_id: 'vac-' + uuid(),
+    bande_id: bandeId,
+    proto_id: p.proto_id,
+    nom_vaccin: p.nom_vaccin,
+    jour_cible: p.jour_cible,
+    date_faite: dateFaite,
+    voie: document.getElementById('vf-voie').value.trim() || null,
+    fait_par: currentUserLabel(),
+    statut_validation: manager ? 'valide' : 'a_valider',
+    valide_par: manager ? currentUserLabel() : null,
+    valide_at: manager ? new Date().toISOString() : null,
+    note: document.getElementById('vf-note').value.trim() || null
+  };
+  const btn = document.querySelector('#vacc-fait-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await apiPost({ action: 'addVaccination', payload: payload });
+    STATE.vaccinations.push(payload);
+    closeVaccFaitModal(); renderVetActiveTab(); checkAlerts();
+    toast(manager ? 'Vaccination enregistrée' : 'Vaccination enregistrée — à valider par le gérant');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) { STATE.vaccinations.push(payload); closeVaccFaitModal(); renderVetActiveTab(); toast('Enregistré (hors ligne)'); }
+    else { toast('Erreur : ' + err.message, 'error'); }
+  } finally { btn.disabled = false; btn.textContent = 'Marquer fait'; }
+}
+
+async function confirmVaccination(vaccId) {
+  if (!isManager()) return;
+  const v = STATE.vaccinations.find(x => x.vacc_id === vaccId);
+  if (!v) return;
+  const patch = { vacc_id: vaccId, statut_validation: 'valide', valide_par: currentUserLabel(), valide_at: new Date().toISOString() };
+  const r = await saveRemote({ action: 'updateVaccination', payload: patch });
+  if (!r.ok) return;
+  Object.assign(v, { statut_validation: 'valide', valide_par: patch.valide_par, valide_at: patch.valide_at });
+  renderVetActiveTab(); checkAlerts();
+  toast(r.queued ? 'Confirmé (hors ligne)' : 'Vaccination validée');
+}
+
+async function deleteVaccination(vaccId) {
+  if (!isManager()) return;
+  if (!confirm('Annuler cette vaccination ? La ligne sera supprimée.')) return;
+  const r = await saveRemote({ action: 'deleteVaccination', payload: { vacc_id: vaccId } });
+  if (!r.ok) return;
+  STATE.vaccinations = STATE.vaccinations.filter(v => v.vacc_id !== vaccId);
+  renderVetActiveTab(); checkAlerts();
+  toast(r.queued ? 'Annulé (hors ligne)' : 'Vaccination annulée');
 }
 
 function openPlusSheet() {
@@ -4750,6 +5091,18 @@ function checkAlerts() {
         alerts.push({ level: 'warning', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
       }
     }
+
+    // Vaccinations dues / en retard / imminentes (réutilise computeVaccinationStatus ;
+    // le rappel s'efface dès qu'une ligne vaccinations existe — a_valider OU valide).
+    computeVaccinationStatus(b).forEach(v => {
+      if (v.status === 'retard') {
+        alerts.push({ level: 'critical', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » EN RETARD (prévue J' + v.proto.jour_cible + ', ' + fmtDate(v.plannedDate) + ')' });
+      } else if (v.status === 'due') {
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » à faire AUJOURD\'HUI (J' + v.proto.jour_cible + ')' });
+      } else if (v.status === 'avenir' && v.daysUntil != null && v.daysUntil <= 3) {
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » dans ' + v.daysUntil + ' j (J' + v.proto.jour_cible + ')' });
+      }
+    });
   });
 
   // Stock bas — générateur dédié (seuils d'alerte). Format riche → {level,icon,text}.
