@@ -3018,9 +3018,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h2 style="margin:0 0 0.25rem;"><i data-lucide="stethoscope"></i> Vétérinaire & Santé</h2>
     <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Suivi sanitaire & biosécurité par bande — vaccinations, traitements, mortalité.</p>
 
-    <div class="form-group" style="max-width:320px;margin-bottom:1.25rem;">
-      <label>Bande</label>
-      <select id="vet-bande-select" onchange="renderVetActiveTab()"></select>
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:1rem;margin-bottom:1.25rem;">
+      <div class="form-group" style="max-width:320px;margin:0;flex:1 1 240px;">
+        <label>Bande</label>
+        <select id="vet-bande-select" onchange="renderVetActiveTab()"></select>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="exportRegistreDSV()" style="flex:none;"><i data-lucide="file-down"></i> Registre DSV (PDF)</button>
     </div>
 
     <div id="vet-tabs" class="tabs" style="margin-bottom:1.25rem;">
@@ -3410,6 +3413,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="btn btn-outline btn-sm manager-only" onclick="navigate('supply',null)">Gérer les matières premières</button>
     </div>
 
+    <div class="card" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Santé &amp; vétérinaire</h3></div>
+      <div id="param-vet"></div>
+    </div>
+
     <div class="card" style="max-width:640px;">
       <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Application</h3></div>
       <div id="param-app"></div>
@@ -3685,10 +3693,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <h3><i data-lucide="syringe"></i> <span id="proto-modal-title">Nouvelle ligne de protocole</span></h3>
     <div class="form-row">
       <div class="form-group"><label>Nom du vaccin</label><input type="text" id="pv-nom" placeholder="Saisi depuis votre vétérinaire / la DSV"></div>
-      <div class="form-group"><label>Jour cible (âge, J1 = entrée)</label><input type="number" id="pv-jour" min="0" step="1" inputmode="numeric" placeholder="Ex. 10"></div>
+      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="pv-voie" placeholder="Ex. eau de boisson / oculaire / injection"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="pv-voie" placeholder="Ex. eau de boisson / oculaire / injection"></div>
+      <div class="form-group"><label>Jour cible (âge, J1 = entrée)</label><input type="number" id="pv-jour" min="0" step="1" inputmode="numeric" placeholder="Ex. 10"></div>
+      <div class="form-group"><label>Jour max (fenêtre, optionnel)</label><input type="number" id="pv-jourmax" min="0" step="1" inputmode="numeric" placeholder="Ex. 6 → J4–J6"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>Ordre d'affichage</label><input type="number" id="pv-ordre" min="0" step="1" value="0" inputmode="numeric"></div>
     </div>
     <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
@@ -3718,6 +3729,78 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeVaccFaitModal()">Annuler</button>
       <button class="btn btn-primary" onclick="submitVaccFait()">Marquer fait</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: traitement au plan de référence (protocole_traitements, manager) -->
+<div id="proto-trait-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3><i data-lucide="pill"></i> <span id="pt-modal-title">Nouveau traitement au plan</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Produit</label><input type="text" id="pt-nom" placeholder="Ex. Hépatoprotecteur"></div>
+      <div class="form-group"><label>Molécule (optionnel)</label><input type="text" id="pt-molecule" placeholder="Ex. Toltrazuril"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Type d'acte</label><input type="text" id="pt-type" placeholder="hépatoprotecteur / vitamine / anticoccidien…"></div>
+      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="pt-voie" placeholder="Ex. eau de boisson"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Jour cible (âge, J1 = entrée)</label><input type="number" id="pt-jour" min="0" step="1" inputmode="numeric" placeholder="Ex. 19"></div>
+      <div class="form-group"><label>Jour max (fenêtre, optionnel)</label><input type="number" id="pt-jourmax" min="0" step="1" inputmode="numeric" placeholder="Optionnel"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Durée (jours)</label><input type="number" id="pt-duree" min="0" step="1" inputmode="numeric" placeholder="Ex. 3"></div>
+      <div class="form-group"><label>Ordre d'affichage</label><input type="number" id="pt-ordre" min="0" step="1" value="0" inputmode="numeric"></div>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="pt-conditionnel" style="width:auto;">
+      <label for="pt-conditionnel" style="margin:0;">Conditionnel (« si nécessaire » — pas de jour planifié)</label>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="pt-actif" checked style="width:auto;">
+      <label for="pt-actif" style="margin:0;">Actif</label>
+    </div>
+    <div class="form-group"><label>Note (optionnel)</label><textarea id="pt-note" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div id="pt-hint" style="font-size:0.78rem;color:var(--text-muted);min-height:1rem;"></div>
+    <div id="pt-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeProtoTraitModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitProtoTrait()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: enregistrer un traitement (registre par bande) -->
+<div id="trait-fait-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3><i data-lucide="pill"></i> <span id="tf-title">Nouveau traitement</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Produit</label><input type="text" id="tf-produit" placeholder="Nom du produit"></div>
+      <div class="form-group"><label>Molécule (optionnel)</label><input type="text" id="tf-molecule"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Type d'acte</label><input type="text" id="tf-type"></div>
+      <div class="form-group"><label>Date</label><input type="date" id="tf-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Dose (texte libre)</label><input type="text" id="tf-dose" placeholder="Ex. 1 g/L"></div>
+      <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="tf-voie" placeholder="Ex. eau de boisson"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Durée (jours)</label><input type="number" id="tf-duree" min="0" step="1" inputmode="numeric"></div>
+      <div class="form-group"><label>Délai d'attente (jours)</label><input type="number" id="tf-delai" min="0" step="1" inputmode="numeric" placeholder="à renseigner (notice/RCP)"></div>
+    </div>
+    <div class="form-group"><label>Source du délai d'attente</label><input type="text" id="tf-delai-source" placeholder="Ex. notice produit / RCP / vétérinaire / DSV"></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="tf-omsa" style="width:auto;">
+      <label for="tf-omsa" style="margin:0;">Antibiotique critique (liste OMSA)</label>
+    </div>
+    <div class="form-group"><label>Observation (optionnel)</label><input type="text" id="tf-obs" placeholder="Remarque…"></div>
+    <div id="tf-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeTraitFaitModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitTraitFait()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -4214,11 +4297,18 @@ const ACTION_MAP = {
   deleteProtocoleVaccin: { table: 'protocole_vaccinal', op: 'delete', idField: 'proto_id' },
   addVaccination:        { table: 'vaccinations',       op: 'insert' },
   updateVaccination:     { table: 'vaccinations',       op: 'update', idField: 'vacc_id' },
-  deleteVaccination:     { table: 'vaccinations',       op: 'delete', idField: 'vacc_id' }
+  deleteVaccination:     { table: 'vaccinations',       op: 'delete', idField: 'vacc_id' },
+  // Traitements — plan de référence (protocole_traitements) + registre par bande (traitements)
+  addProtocoleTraitement:    { table: 'protocole_traitements', op: 'insert' },
+  updateProtocoleTraitement: { table: 'protocole_traitements', op: 'update', idField: 'proto_trait_id' },
+  deleteProtocoleTraitement: { table: 'protocole_traitements', op: 'delete', idField: 'proto_trait_id' },
+  addTraitement:         { table: 'traitements',        op: 'insert' },
+  updateTraitement:      { table: 'traitements',        op: 'update', idField: 'traitement_id' },
+  deleteTraitement:      { table: 'traitements',        op: 'delete', idField: 'traitement_id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -4413,6 +4503,22 @@ function intrantClearanceDate(intrant) {
   return d;
 }
 
+// Délai d'attente d'un TRAITEMENT (registre 0018) → date d'abattage autorisée au
+// plus tôt. Le délai (jours, SAISI par produit réel ; aucune valeur médicale en
+// dur) court à partir de la DERNIÈRE administration : date_traitement +
+// (duree_jours - 1) + delai_attente_jours. Renvoie une Date (minuit local) ou
+// null si aucun délai renseigné (→ « à renseigner », jamais de date devinée).
+function traitementClearanceDate(t) {
+  const delai = Number(t.delai_attente_jours);
+  if (!delai || delai <= 0) return null;
+  const d = parseDayLocal(t.date_traitement);
+  if (!d) return null;
+  const dur = Number(t.duree_jours);
+  const lastDose = (dur && dur > 0) ? dur - 1 : 0;
+  d.setDate(d.getDate() + lastDose + delai);
+  return d;
+}
+
 function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -4467,8 +4573,15 @@ const ALL_TABLES = [
   ['notifications',   'notifications'],
   ['produits',        'produits'],
   ['protocole_vaccinal', 'protocoleVaccinal'],
-  ['vaccinations',    'vaccinations']
+  ['vaccinations',    'vaccinations'],
+  ['protocole_traitements', 'protocoleTraitements'],
+  ['traitements',     'traitements']
 ];
+
+// Tables dont la migration peut ne pas être encore appliquée en prod : getAll
+// tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
+// front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements']);
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
 // colonnes financières) ; les managers lisent les tables complètes.
@@ -4549,6 +4662,12 @@ async function apiGet(params) {
       // pas encore (migration 0008 non exécutée) — n'interrompt pas le reste du
       // chargement. Les tables réelles gardent leur erreur (→ repli cache offline).
       if (src !== t) return sbSelect(src).catch(() => []);
+      // Tables OPTIONNELLES (migration récente pas forcément appliquée en prod).
+      // Railway auto-déploie main : le front peut arriver AVANT que Stephen n'ait
+      // exécuté 0018 dans Supabase. Sans ce repli, la relation manquante ferait
+      // échouer TOUT getAll (app entière hors ligne). On tolère donc [] pour ces
+      // tables tant que la migration n'est pas passée ; elles se peupleront ensuite.
+      if (OPTIONAL_TABLES.has(t)) return sbSelect(t).catch(() => []);
       return sbSelect(t);
     }));
     ALL_TABLES.forEach(([, key], i) => { out[key] = results[i]; });
@@ -4588,7 +4707,9 @@ async function apiGet(params) {
     getDepensesRH:      { table: 'depenses_rh' },
     getNotifications:   { table: 'notifications',   filterKey: 'statut' },
     getProtocoleVaccinal: { table: 'protocole_vaccinal' },
-    getVaccinations:    { table: 'vaccinations',    filterKey: 'bande_id' }
+    getVaccinations:    { table: 'vaccinations',    filterKey: 'bande_id' },
+    getProtocoleTraitements: { table: 'protocole_traitements' },
+    getTraitements:     { table: 'traitements',     filterKey: 'bande_id' }
   };
   const cfg = READ_MAP[action];
   if (!cfg) throw new Error('Action inconnue: ' + action);
@@ -4790,6 +4911,8 @@ async function loadAllData() {
     STATE.produits = data.produits || [];
     STATE.protocoleVaccinal = data.protocoleVaccinal || [];
     STATE.vaccinations = data.vaccinations || [];
+    STATE.protocoleTraitements = data.protocoleTraitements || [];
+    STATE.traitements = data.traitements || [];
     STATE.loaded = true;
     isOnline = true;
     // Seed matières premières si la table est vide (rarement utilisé : déjà seedé en SQL)
@@ -4814,6 +4937,7 @@ async function loadAllData() {
         employes: STATE.employes, paies: STATE.paies, depensesRH: STATE.depensesRH,
         notifications: STATE.notifications, produits: STATE.produits,
         protocoleVaccinal: STATE.protocoleVaccinal, vaccinations: STATE.vaccinations,
+        protocoleTraitements: STATE.protocoleTraitements, traitements: STATE.traitements,
         cachedAt: new Date().toISOString()
       };
       for (const k of CACHE_EXCLUDED) delete snapshot[k];
@@ -4851,6 +4975,8 @@ async function loadAllData() {
       STATE.produits = cached.produits || [];
       STATE.protocoleVaccinal = cached.protocoleVaccinal || [];
       STATE.vaccinations = cached.vaccinations || [];
+      STATE.protocoleTraitements = cached.protocoleTraitements || [];
+      STATE.traitements = cached.traitements || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -4959,6 +5085,9 @@ function renderVetActiveTab() {
   const tab = active ? active.getAttribute('data-vet-tab') : 'overview';
   if (tab === 'overview') renderVetOverview();
   else if (tab === 'vaccination') renderVetVaccination();
+  else if (tab === 'traitements') renderVetTraitements();
+  else if (tab === 'mortalite') renderVetSante();
+  else if (tab === 'biosecurite') renderVetBiosecurite();
   else renderVetPlaceholder(tab);
 }
 
@@ -4999,15 +5128,22 @@ function renderVetOverview() {
     if (pendingV.length === 0) { echVal = 'À jour'; echSub = 'protocole complet'; echClass = 'dk-success'; }
     else {
       const nx = pendingV[0];
-      echVal = 'J' + nx.proto.jour_cible;
+      echVal = protoJourLabel(nx.proto);
       if (nx.status === 'retard')   { echSub = escHtml(nx.proto.nom_vaccin) + ' — en retard'; echClass = 'dk-danger'; }
       else if (nx.status === 'due') { echSub = escHtml(nx.proto.nom_vaccin) + ' — aujourd\'hui'; echClass = 'dk-danger'; }
       else                          { echSub = escHtml(nx.proto.nom_vaccin) + ' — dans ' + nx.daysUntil + ' j'; echClass = ''; }
     }
   }
-  // KPI 3 : mortalité cumulée % = ind.tauxMort (déjà calculé). Seuils existants : <3 vert, <=5 neutre, >5 rouge.
+  // KPI 3 : mortalité cumulée %. Seuil = paramètre utilisateur (Paramètres →
+  // Santé & vétérinaire). Le vétérinaire n'a fourni AUCUN chiffre : sans seuil
+  // défini, aucune coloration d'alerte n'est appliquée (pas de valeur devinée).
   const mort = Number(ind.tauxMort) || 0;
-  const mortClass = mort < 3 ? 'dk-success' : (mort <= 5 ? '' : 'dk-danger');
+  const seuilMortCum = vetParamNum('mortCumul');
+  let mortClass = '', mortSub = 'seuil non défini';
+  if (seuilMortCum != null) {
+    mortClass = mort >= seuilMortCum ? 'dk-danger' : (mort >= seuilMortCum * 0.8 ? '' : 'dk-success');
+    mortSub = 'seuil ' + fmt(seuilMortCum, 1) + '%';
+  }
   // KPI 4 : statut abattage = délai d'attente (réutilise earliestSlaughterDate).
   const wd = ind.earliestSlaughterDate;
   let abVal, abSub, abClass;
@@ -5019,7 +5155,7 @@ function renderVetOverview() {
     '<div class="dash-kpi-bar">'
     + '<div class="dash-kpi"><div class="dk-value">' + nbDoneV + (nbActiveV ? '/' + nbActiveV : '') + '</div><div class="dk-label">Vaccinations faites</div><div class="dk-sub">' + (nbActiveV ? 'du protocole' : 'protocole non défini') + '</div></div>'
     + '<div class="dash-kpi ' + echClass + '"><div class="dk-value">' + echVal + '</div><div class="dk-label">Prochaine échéance</div><div class="dk-sub">' + echSub + '</div></div>'
-    + '<div class="dash-kpi ' + mortClass + '"><div class="dk-value">' + fmt(mort, 1) + '%</div><div class="dk-label">Mortalité cumulée</div><div class="dk-sub">seuil alerte 5%</div></div>'
+    + '<div class="dash-kpi ' + mortClass + '"><div class="dk-value">' + fmt(mort, 1) + '%</div><div class="dk-label">Mortalité cumulée</div><div class="dk-sub">' + mortSub + '</div></div>'
     + '<div class="dash-kpi ' + abClass + '"><div class="dk-value">' + abVal + '</div><div class="dk-label">Statut abattage</div><div class="dk-sub">' + abSub + '</div></div>'
     + '</div>';
 
@@ -5055,22 +5191,42 @@ function computeVaccinationStatus(bande) {
   const entree = parseDayLocal(bande.date_entree);
   return protos.map(p => {
     const vacc = vaccs.find(v => v.proto_id === p.proto_id) || null;
-    let plannedDate = null;
+    let plannedDate = null, windowEndDate = null;
     if (entree && Number.isFinite(Number(p.jour_cible))) {
       plannedDate = new Date(entree.getTime());
       plannedDate.setDate(plannedDate.getDate() + (Number(p.jour_cible) - 1));
+      // Fenêtre de jour (ex. J3-5, migration 0019) : la borne haute jour_max
+      // repousse le passage en « retard ». jour_max NULL → acte à jour unique
+      // (windowEndDate = plannedDate), comportement inchangé.
+      const jmax = (p.jour_max != null && Number.isFinite(Number(p.jour_max)))
+        ? Number(p.jour_max) : Number(p.jour_cible);
+      windowEndDate = new Date(entree.getTime());
+      windowEndDate.setDate(windowEndDate.getDate() + (jmax - 1));
     }
     let status, daysUntil = null;
     if (vacc) {
       status = (vacc.statut_validation === 'valide') ? 'fait_valide' : 'fait_a_valider';
     } else if (plannedDate) {
       daysUntil = Math.round((plannedDate - today) / 86400000);
-      status = daysUntil < 0 ? 'retard' : (daysUntil === 0 ? 'due' : 'avenir');
+      if (today < plannedDate) status = 'avenir';
+      else if (today <= windowEndDate) status = 'due';
+      else status = 'retard';
     } else {
       status = 'avenir';
     }
-    return { proto: p, vacc, plannedDate, status, daysUntil };
+    return { proto: p, vacc, plannedDate, windowEndDate, status, daysUntil };
   });
+}
+
+// Libellé de jour d'un item de protocole : « Jx » ou « Jx–Jy » si fenêtre
+// (jour_max). Convention app : J1 = mise en place (comme cycleDay). Utilisé par
+// le carnet de vaccination, la vue d'ensemble et les alertes.
+function protoJourLabel(p) {
+  const jc = Number(p.jour_cible);
+  if (p.jour_max != null && Number.isFinite(Number(p.jour_max)) && Number(p.jour_max) > jc) {
+    return 'J' + jc + '–J' + Number(p.jour_max);
+  }
+  return 'J' + (Number.isFinite(jc) ? jc : '?');
 }
 
 function vaccStatusBadge(v) {
@@ -5104,7 +5260,7 @@ function renderVetVaccination() {
   } else {
     html += '<div class="table-wrap"><table><thead><tr><th>Vaccin</th><th>Jour</th><th>Voie</th><th>Actif</th>' + (manager ? '<th></th>' : '') + '</tr></thead><tbody>';
     protos.forEach(p => {
-      html += '<tr><td>' + escHtml(p.nom_vaccin) + '</td><td>J' + p.jour_cible + '</td><td>' + (escHtml(p.voie || '') || '—') + '</td><td>' + (p.actif === false ? 'Non' : 'Oui') + '</td>'
+      html += '<tr><td>' + escHtml(p.nom_vaccin) + '</td><td>' + protoJourLabel(p) + '</td><td>' + (escHtml(p.voie || '') || '—') + '</td><td>' + (p.actif === false ? 'Non' : 'Oui') + '</td>'
         + (manager ? '<td style="white-space:nowrap;"><button class="btn btn-sm btn-outline" onclick="editProto(\'' + p.proto_id + '\')"><i data-lucide="pencil"></i></button> <button class="btn btn-sm btn-danger" onclick="deleteProto(\'' + p.proto_id + '\')"><i data-lucide="x"></i></button></td>' : '')
         + '</tr>';
     });
@@ -5141,7 +5297,7 @@ function renderVetVaccination() {
           : '';
         html += '<tr><td>' + escHtml(p.nom_vaccin)
           + (v.vacc && v.vacc.voie ? '<div style="font-size:0.72rem;color:var(--text-muted);">' + escHtml(v.vacc.voie) + '</div>' : '')
-          + '</td><td>J' + p.jour_cible + '</td><td>' + (v.plannedDate ? fmtDate(v.plannedDate) : '—') + '</td><td>' + vaccStatusBadge(v) + doneInfo + '</td><td style="white-space:nowrap;">' + action + '</td></tr>';
+          + '</td><td>' + protoJourLabel(p) + '</td><td>' + (v.plannedDate ? fmtDate(v.plannedDate) : '—') + '</td><td>' + vaccStatusBadge(v) + doneInfo + '</td><td style="white-space:nowrap;">' + action + '</td></tr>';
       });
       html += '</tbody></table></div>';
     }
@@ -5158,6 +5314,7 @@ function showProtoModal() {
   document.getElementById('proto-modal-title').textContent = 'Nouvelle ligne de protocole';
   document.getElementById('pv-nom').value = '';
   document.getElementById('pv-jour').value = '';
+  document.getElementById('pv-jourmax').value = '';
   document.getElementById('pv-voie').value = '';
   document.getElementById('pv-ordre').value = '0';
   document.getElementById('pv-actif').checked = true;
@@ -5173,6 +5330,7 @@ function editProto(id) {
   document.getElementById('proto-modal-title').textContent = 'Modifier la ligne';
   document.getElementById('pv-nom').value = p.nom_vaccin || '';
   document.getElementById('pv-jour').value = (p.jour_cible != null ? p.jour_cible : '');
+  document.getElementById('pv-jourmax').value = (p.jour_max != null ? p.jour_max : '');
   document.getElementById('pv-voie').value = p.voie || '';
   document.getElementById('pv-ordre').value = (p.ordre != null ? p.ordre : 0);
   document.getElementById('pv-actif').checked = p.actif !== false;
@@ -5185,12 +5343,15 @@ function closeProtoModal() { document.getElementById('proto-modal').style.displa
 async function submitProto() {
   const nom = document.getElementById('pv-nom').value.trim();
   const jourRaw = document.getElementById('pv-jour').value;
+  const jourMaxRaw = document.getElementById('pv-jourmax').value;
   const msg = document.getElementById('pv-msg'); if (msg) msg.textContent = '';
   if (!nom) { if (msg) msg.textContent = 'Le nom du vaccin est requis.'; return; }
   if (jourRaw === '' || Number(jourRaw) < 0) { if (msg) msg.textContent = 'Le jour cible (>= 0) est requis.'; return; }
+  if (jourMaxRaw !== '' && Number(jourMaxRaw) < Number(jourRaw)) { if (msg) msg.textContent = 'Le jour max doit être ≥ au jour cible.'; return; }
   const fields = {
     nom_vaccin: nom,
     jour_cible: Math.round(Number(jourRaw)),
+    jour_max: (jourMaxRaw === '' ? null : Math.round(Number(jourMaxRaw))),
     voie: document.getElementById('pv-voie').value.trim() || null,
     ordre: Number(document.getElementById('pv-ordre').value) || 0,
     actif: document.getElementById('pv-actif').checked,
@@ -5232,7 +5393,7 @@ function openVaccFaitModal(protoId) {
   const p = STATE.protocoleVaccinal.find(x => x.proto_id === protoId);
   if (!p) return;
   faitProtoId = protoId;
-  document.getElementById('vf-vaccin').textContent = p.nom_vaccin + ' (J' + p.jour_cible + ')';
+  document.getElementById('vf-vaccin').textContent = p.nom_vaccin + ' (' + protoJourLabel(p) + ')';
   document.getElementById('vf-date').value = todayStr();
   document.getElementById('vf-voie').value = p.voie || '';
   document.getElementById('vf-note').value = '';
@@ -5300,6 +5461,476 @@ async function deleteVaccination(vaccId) {
   STATE.vaccinations = STATE.vaccinations.filter(v => v.vacc_id !== vaccId);
   renderVetActiveTab(); checkAlerts();
   toast(r.queued ? 'Annulé (hors ligne)' : 'Vaccination annulée');
+}
+
+// ══════════════════════════════════════════
+// ── Traitements, santé, biosécurité & registre DSV (PIÈCE 3) ──
+// ══════════════════════════════════════════
+// Actes de SOUTIEN (hépatoprotecteur, vitamine, anticoccidien, diurétique, acide
+// organique...) — PAS des vaccins. Plan de référence (protocole_traitements,
+// 0018) + registre d'exécution par bande (traitements, 0018). Aucune valeur
+// médicale en dur : délais d'attente SAISIS à l'exécution (migration 0015-0016),
+// seuils de mortalité PARAMÉTRÉS. Convention de jour app inchangée (J1 = mise en
+// place, comme cycleDay).
+
+// ── Données de référence vétérinaire (libellés uniquement, aucune logique) ──
+const VET_MONITORING_SIGNS = ['Diarrhée', 'Symptômes respiratoires', 'Mortalité élevée'];
+const VET_MORTALITY_CAUSES = ['Virale', 'Bactérienne', 'Parasitaire'];
+
+// ── Paramètres vétérinaire (localStorage, comme le mode sombre) ──
+// AUCUNE valeur médicale par défaut : les seuils de mortalité démarrent VIDES
+// (à définir par le gérant) — sans eux, aucune alerte mortalité n'est émise.
+// Défauts non médicaux : vide sanitaire 15 j (fourni par le véto), anticoccidien
+// « Toltrazuril » (suggestion), identité du vétérinaire répondant (éditable).
+const VET_PARAMS_DEFAULTS = {
+  mortDaily: '', mortCumul: '', videSanitaire: '15', anticoccidien: 'Toltrazuril',
+  vetNom: 'Dr Doua T. Privat Camille', vetOnvci: '168', vetStructure: 'Complexe Vétérinaire CI'
+};
+function getVetParams() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('coqorico_vet_params') || '{}') || {}; } catch (e) { saved = {}; }
+  return Object.assign({}, VET_PARAMS_DEFAULTS, saved);
+}
+function saveVetParams(partial) {
+  const merged = Object.assign(getVetParams(), partial || {});
+  const clean = {};
+  Object.keys(VET_PARAMS_DEFAULTS).forEach(k => { clean[k] = merged[k] != null ? String(merged[k]) : ''; });
+  try { localStorage.setItem('coqorico_vet_params', JSON.stringify(clean)); } catch (e) {}
+  return clean;
+}
+function vetParamNum(key) {
+  const v = getVetParams()[key];
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+// Âge (Jx, convention app J1 = mise en place) d'un acte daté sur une bande.
+function ageJourBande(bande, dateStr) {
+  if (!bande || !bande.date_entree || !dateStr) return null;
+  const d = daysBetween(bande.date_entree, dateStr);
+  return (d == null || isNaN(d)) ? null : (d + 1);
+}
+
+// ── Onglet Traitements : plan de référence (manager) + registre par bande ──
+function renderVetTraitements() {
+  const el = document.getElementById('vet-tab-traitements');
+  if (!el) return;
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  const manager = isManager();
+  let html = '';
+
+  // 1) Plan de traitements de référence
+  const plan = STATE.protocoleTraitements.slice()
+    .sort((a, b) => (Number(a.ordre || 0) - Number(b.ordre || 0)) || (Number(a.jour_cible) - Number(b.jour_cible)));
+  html += '<div class="card"><div class="card-header"><h3>Plan de traitements de référence</h3>'
+    + (manager ? '<button class="btn btn-primary btn-sm" onclick="showProtoTraitModal()">+ Ajouter</button>' : '')
+    + '</div>';
+  html += '<p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 0.6rem;">Actes de soutien (hépatoprotecteur, vitamine, anticoccidien, diurétique, acide organique…). Ce ne sont <strong>pas des vaccins</strong>. Les délais d\'attente se saisissent à l\'exécution, selon le produit réel.</p>';
+  if (plan.length === 0) {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">' + (manager ? 'Aucun traitement au plan. Ajoutez le programme de votre vétérinaire.' : 'Aucun plan de traitements défini par le gérant.') + '</p>';
+  } else {
+    html += '<div class="table-wrap"><table><thead><tr><th>Produit</th><th>Type</th><th>Jour</th><th>Voie</th><th>Durée</th><th>Appliquer</th>' + (manager ? '<th></th>' : '') + '</tr></thead><tbody>';
+    plan.forEach(p => {
+      const jourTxt = p.conditionnel ? '<span class="badge badge-grey">si nécessaire</span>' : protoJourLabel(p);
+      const dureeTxt = (p.duree_jours != null ? p.duree_jours + ' j' : '—');
+      const applyBtn = bande
+        ? '<button class="btn btn-sm btn-primary" onclick="openTraitFaitModal(\'' + p.proto_trait_id + '\')">Appliquer</button>'
+        : '<span style="color:var(--text-muted);font-size:0.75rem;">choisir une bande</span>';
+      html += '<tr><td>' + escHtml(p.nom_produit) + (p.molecule ? '<div style="font-size:0.72rem;color:var(--text-muted);">' + escHtml(p.molecule) + '</div>' : '')
+        + '</td><td>' + (escHtml(p.type_acte || '') || '—') + '</td><td>' + jourTxt + '</td><td>' + (escHtml(p.voie || '') || '—') + '</td><td>' + dureeTxt + '</td><td>' + applyBtn + '</td>'
+        + (manager ? '<td style="white-space:nowrap;"><button class="btn btn-sm btn-outline" onclick="editProtoTrait(\'' + p.proto_trait_id + '\')"><i data-lucide="pencil"></i></button> <button class="btn btn-sm btn-danger" onclick="deleteProtoTrait(\'' + p.proto_trait_id + '\')"><i data-lucide="x"></i></button></td>' : '')
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '<p style="font-size:0.75rem;color:var(--text-muted);font-style:italic;margin-top:0.6rem;"><strong>NB véto :</strong> hépatoprotecteur à chaque transition alimentaire et après chaque anticoccidien (rappel, non automatisé).</p>';
+  html += '</div>';
+
+  // 2) Registre par bande
+  html += '<div class="card"><div class="card-header"><h3>Registre des traitements' + (bande ? ' — ' + escHtml(bande.nom_bande) : '') + '</h3>'
+    + (bande ? '<button class="btn btn-primary btn-sm" onclick="openTraitFaitModal(null)">+ Traitement</button>' : '')
+    + '</div>';
+  if (!bande) {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Sélectionnez une bande pour saisir et consulter ses traitements.</p>';
+  } else {
+    const list = STATE.traitements.filter(t => t.bande_id === bande.bande_id)
+      .slice().sort((a, b) => new Date(a.date_traitement) - new Date(b.date_traitement));
+    if (list.length === 0) {
+      html += '<p style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Aucun traitement enregistré pour cette bande.</p>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Âge</th><th>Produit</th><th>Voie</th><th>Délai attente</th><th>Abattage OK</th><th>Statut</th><th>Action</th></tr></thead><tbody>';
+      list.forEach(t => {
+        const age = ageJourBande(bande, t.date_traitement);
+        const clear = traitementClearanceDate(t);
+        const delaiTxt = (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : '<span style="color:var(--color-danger);font-weight:700;">à renseigner</span>');
+        const clearTxt = (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : '—');
+        const omsa = t.critique_omsa ? ' <span class="badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);">critique OMSA</span>' : '';
+        const statut = (t.statut_validation === 'valide')
+          ? '<span class="badge badge-green">Validé</span>'
+          : '<span class="badge" style="background:#FEF3C7;color:#92400E;">À valider</span>';
+        let action;
+        if (t.statut_validation !== 'valide') {
+          action = manager
+            ? '<button class="btn btn-sm btn-gold" onclick="confirmTraitement(\'' + t.traitement_id + '\')">Confirmer</button> <button class="btn btn-sm btn-danger" onclick="deleteTraitement(\'' + t.traitement_id + '\')" title="Supprimer"><i data-lucide="x"></i></button>'
+            : '<span style="color:var(--text-muted);font-size:0.78rem;">en attente</span>';
+        } else {
+          action = manager
+            ? '<button class="btn btn-sm btn-danger" onclick="deleteTraitement(\'' + t.traitement_id + '\')" title="Supprimer"><i data-lucide="x"></i></button>'
+            : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        }
+        html += '<tr><td>' + fmtDate(t.date_traitement) + '</td><td>' + (age != null ? 'J' + age : '—') + '</td><td>' + escHtml(t.nom_produit) + omsa
+          + (t.molecule ? '<div style="font-size:0.72rem;color:var(--text-muted);">' + escHtml(t.molecule) + '</div>' : '')
+          + '</td><td>' + (escHtml(t.voie || '') || '—') + '</td><td>' + delaiTxt + '</td><td>' + clearTxt + '</td><td>' + statut + '</td><td style="white-space:nowrap;">' + action + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── Plan de traitements : éditeur (MANAGER) ──
+let editingProtoTraitId = null;
+function showProtoTraitModal() {
+  if (!isManager()) return;
+  editingProtoTraitId = null;
+  document.getElementById('pt-modal-title').textContent = 'Nouveau traitement au plan';
+  ['pt-nom', 'pt-molecule', 'pt-type', 'pt-jour', 'pt-jourmax', 'pt-voie', 'pt-duree', 'pt-note'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pt-ordre').value = '0';
+  document.getElementById('pt-conditionnel').checked = false;
+  document.getElementById('pt-actif').checked = true;
+  document.getElementById('pt-hint').textContent = 'Anticoccidien recommandé (suggestion, modifiable) : ' + (getVetParams().anticoccidien || 'Toltrazuril');
+  document.getElementById('pt-msg').textContent = '';
+  document.getElementById('proto-trait-modal').style.display = 'flex';
+}
+function editProtoTrait(id) {
+  if (!isManager()) return;
+  const p = STATE.protocoleTraitements.find(x => x.proto_trait_id === id);
+  if (!p) return;
+  editingProtoTraitId = id;
+  document.getElementById('pt-modal-title').textContent = 'Modifier le traitement';
+  document.getElementById('pt-nom').value = p.nom_produit || '';
+  document.getElementById('pt-molecule').value = p.molecule || '';
+  document.getElementById('pt-type').value = p.type_acte || '';
+  document.getElementById('pt-jour').value = (p.jour_cible != null ? p.jour_cible : '');
+  document.getElementById('pt-jourmax').value = (p.jour_max != null ? p.jour_max : '');
+  document.getElementById('pt-voie').value = p.voie || '';
+  document.getElementById('pt-duree').value = (p.duree_jours != null ? p.duree_jours : '');
+  document.getElementById('pt-ordre').value = (p.ordre != null ? p.ordre : 0);
+  document.getElementById('pt-conditionnel').checked = !!p.conditionnel;
+  document.getElementById('pt-actif').checked = p.actif !== false;
+  document.getElementById('pt-note').value = p.note || '';
+  document.getElementById('pt-hint').textContent = '';
+  document.getElementById('pt-msg').textContent = '';
+  document.getElementById('proto-trait-modal').style.display = 'flex';
+}
+function closeProtoTraitModal() { document.getElementById('proto-trait-modal').style.display = 'none'; }
+
+async function submitProtoTrait() {
+  const nom = document.getElementById('pt-nom').value.trim();
+  const jourRaw = document.getElementById('pt-jour').value;
+  const jourMaxRaw = document.getElementById('pt-jourmax').value;
+  const dureeRaw = document.getElementById('pt-duree').value;
+  const msg = document.getElementById('pt-msg'); if (msg) msg.textContent = '';
+  if (!nom) { if (msg) msg.textContent = 'Le nom du produit est requis.'; return; }
+  if (jourRaw === '' || Number(jourRaw) < 0) { if (msg) msg.textContent = 'Le jour cible (≥ 0) est requis.'; return; }
+  if (jourMaxRaw !== '' && Number(jourMaxRaw) < Number(jourRaw)) { if (msg) msg.textContent = 'Le jour max doit être ≥ au jour cible.'; return; }
+  const fields = {
+    nom_produit: nom,
+    molecule: document.getElementById('pt-molecule').value.trim() || null,
+    type_acte: document.getElementById('pt-type').value.trim() || null,
+    jour_cible: Math.round(Number(jourRaw)),
+    jour_max: (jourMaxRaw === '' ? null : Math.round(Number(jourMaxRaw))),
+    voie: document.getElementById('pt-voie').value.trim() || null,
+    duree_jours: (dureeRaw === '' ? null : Math.round(Number(dureeRaw))),
+    conditionnel: document.getElementById('pt-conditionnel').checked,
+    ordre: Number(document.getElementById('pt-ordre').value) || 0,
+    actif: document.getElementById('pt-actif').checked,
+    note: document.getElementById('pt-note').value.trim() || null
+  };
+  const isEdit = !!editingProtoTraitId;
+  const action = isEdit ? 'updateProtocoleTraitement' : 'addProtocoleTraitement';
+  const payload = isEdit ? Object.assign({ proto_trait_id: editingProtoTraitId }, fields)
+                         : Object.assign({ proto_trait_id: 'pt-' + uuid() }, fields);
+  const applyLocal = () => {
+    if (isEdit) { const p = STATE.protocoleTraitements.find(x => x.proto_trait_id === editingProtoTraitId); if (p) Object.assign(p, fields); }
+    else { STATE.protocoleTraitements.push(payload); }
+  };
+  const btn = document.querySelector('#proto-trait-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await apiPost({ action: action, payload: payload });
+    applyLocal(); closeProtoTraitModal(); renderVetActiveTab();
+    toast(isEdit ? 'Traitement mis à jour' : 'Traitement ajouté au plan');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) { applyLocal(); closeProtoTraitModal(); renderVetActiveTab(); toast('Enregistré (hors ligne)'); }
+    else { toast('Erreur : ' + err.message, 'error'); }
+  } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+}
+
+async function deleteProtoTrait(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer ce traitement du plan ? (les traitements déjà enregistrés sont conservés)')) return;
+  const r = await saveRemote({ action: 'deleteProtocoleTraitement', payload: { proto_trait_id: id } });
+  if (!r.ok) return;
+  STATE.protocoleTraitements = STATE.protocoleTraitements.filter(p => p.proto_trait_id !== id);
+  renderVetActiveTab();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Traitement retiré du plan');
+}
+
+// ── Registre : enregistrer un traitement (MANAGER 'valide' / CHEF_BANDE 'a_valider') ──
+let faitTraitProtoId = null;
+function openTraitFaitModal(protoTraitId) {
+  const bandeId = document.getElementById('vet-bande-select').value;
+  if (!bandeId) { toast('Sélectionnez une bande.', 'error'); return; }
+  faitTraitProtoId = protoTraitId || null;
+  const p = protoTraitId ? STATE.protocoleTraitements.find(x => x.proto_trait_id === protoTraitId) : null;
+  document.getElementById('tf-title').textContent = p ? ('Appliquer : ' + p.nom_produit) : 'Nouveau traitement';
+  document.getElementById('tf-produit').value = p ? (p.nom_produit || '') : '';
+  document.getElementById('tf-molecule').value = p ? (p.molecule || '') : '';
+  document.getElementById('tf-type').value = p ? (p.type_acte || '') : '';
+  document.getElementById('tf-date').value = todayStr();
+  document.getElementById('tf-dose').value = '';
+  document.getElementById('tf-voie').value = p ? (p.voie || '') : '';
+  document.getElementById('tf-duree').value = (p && p.duree_jours != null) ? p.duree_jours : '';
+  document.getElementById('tf-delai').value = '';
+  document.getElementById('tf-delai-source').value = '';
+  document.getElementById('tf-omsa').checked = false;
+  document.getElementById('tf-obs').value = '';
+  document.getElementById('tf-msg').textContent = '';
+  document.getElementById('trait-fait-modal').style.display = 'flex';
+}
+function closeTraitFaitModal() { document.getElementById('trait-fait-modal').style.display = 'none'; }
+
+async function submitTraitFait() {
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  const msg = document.getElementById('tf-msg'); if (msg) msg.textContent = '';
+  const produit = document.getElementById('tf-produit').value.trim();
+  const date = document.getElementById('tf-date').value;
+  const delaiRaw = document.getElementById('tf-delai').value;
+  const dureeRaw = document.getElementById('tf-duree').value;
+  if (!bande) { if (msg) msg.textContent = 'Bande introuvable.'; return; }
+  if (!produit) { if (msg) msg.textContent = 'Le produit est requis.'; return; }
+  if (!date) { if (msg) msg.textContent = 'La date est requise.'; return; }
+  if (delaiRaw !== '' && Number(delaiRaw) < 0) { if (msg) msg.textContent = 'Le délai d\'attente doit être ≥ 0.'; return; }
+  if (dureeRaw !== '' && Number(dureeRaw) < 0) { if (msg) msg.textContent = 'La durée doit être ≥ 0.'; return; }
+  const manager = isManager();
+  const payload = {
+    traitement_id: 'trt-' + uuid(),
+    bande_id: bande.bande_id,
+    proto_trait_id: faitTraitProtoId,
+    nom_produit: produit,
+    molecule: document.getElementById('tf-molecule').value.trim() || null,
+    type_acte: document.getElementById('tf-type').value.trim() || null,
+    date_traitement: date,
+    jour_cible: ageJourBande(bande, date),
+    dose: document.getElementById('tf-dose').value.trim() || null,
+    voie: document.getElementById('tf-voie').value.trim() || null,
+    duree_jours: (dureeRaw === '' ? null : Math.round(Number(dureeRaw))),
+    delai_attente_jours: (delaiRaw === '' ? null : Math.round(Number(delaiRaw))),
+    delai_attente_source: document.getElementById('tf-delai-source').value.trim() || null,
+    critique_omsa: document.getElementById('tf-omsa').checked,
+    fait_par: currentUserLabel(),
+    statut_validation: manager ? 'valide' : 'a_valider',
+    valide_par: manager ? currentUserLabel() : null,
+    valide_at: manager ? new Date().toISOString() : null,
+    observation: document.getElementById('tf-obs').value.trim() || null
+  };
+  const btn = document.querySelector('#trait-fait-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    await apiPost({ action: 'addTraitement', payload: payload });
+    STATE.traitements.push(payload);
+    closeTraitFaitModal(); renderVetActiveTab(); checkAlerts();
+    toast(manager ? 'Traitement enregistré' : 'Traitement enregistré — à valider par le gérant');
+  } catch (err) {
+    if (err.message.includes("file d'attente")) { STATE.traitements.push(payload); closeTraitFaitModal(); renderVetActiveTab(); toast('Enregistré (hors ligne)'); }
+    else { toast('Erreur : ' + err.message, 'error'); }
+  } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+}
+
+async function confirmTraitement(id) {
+  if (!isManager()) return;
+  const t = STATE.traitements.find(x => x.traitement_id === id);
+  if (!t) return;
+  const patch = { traitement_id: id, statut_validation: 'valide', valide_par: currentUserLabel(), valide_at: new Date().toISOString() };
+  const r = await saveRemote({ action: 'updateTraitement', payload: patch });
+  if (!r.ok) return;
+  Object.assign(t, { statut_validation: 'valide', valide_par: patch.valide_par, valide_at: patch.valide_at });
+  renderVetActiveTab(); checkAlerts();
+  toast(r.queued ? 'Confirmé (hors ligne)' : 'Traitement validé');
+}
+
+async function deleteTraitement(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer ce traitement du registre ?')) return;
+  const r = await saveRemote({ action: 'deleteTraitement', payload: { traitement_id: id } });
+  if (!r.ok) return;
+  STATE.traitements = STATE.traitements.filter(t => t.traitement_id !== id);
+  renderVetActiveTab(); checkAlerts();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Traitement supprimé');
+}
+
+// ── Onglet Mortalité & santé : suivi (lecture) + référence ; FLAG champ cause ──
+function renderVetSante() {
+  const el = document.getElementById('vet-tab-mortalite');
+  if (!el) return;
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  const seuilCum = vetParamNum('mortCumul');
+  const seuilJour = vetParamNum('mortDaily');
+  let html = '';
+
+  html += '<div class="card"><div class="card-header"><h3>Mortalité — suivi</h3></div>';
+  if (bande) {
+    const ind = computeIndicators(bande);
+    html += '<div class="param-info-row"><span>Mortalité cumulée</span><strong>' + fmt(Number(ind.tauxMort) || 0, 1) + '%</strong></div>'
+      + '<div class="param-info-row"><span>Effectif actuel</span><strong>' + fmt(ind.effectifActuel) + '</strong></div>'
+      + '<div class="param-info-row"><span>Seuil d\'alerte cumulée</span><strong>' + (seuilCum != null ? fmt(seuilCum, 1) + '%' : 'non défini') + '</strong></div>'
+      + '<div class="param-info-row"><span>Seuil d\'alerte journalière</span><strong>' + (seuilJour != null ? fmt(seuilJour, 1) + '%' : 'non défini') + '</strong></div>';
+  } else {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;">Sélectionnez une bande.</p>';
+  }
+  if (seuilCum == null && seuilJour == null) {
+    html += '<div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-warning-bg);color:var(--status-warning-fg);font-size:0.8rem;font-weight:600;"><i data-lucide="alert-triangle" style="width:15px;height:15px;"></i> Aucun seuil de mortalité défini — <strong>aucune alerte mortalité n\'est émise</strong>. À renseigner dans Paramètres → Santé &amp; vétérinaire.</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="card"><div class="card-header"><h3>Signes à surveiller quotidiennement</h3></div>'
+    + '<ul style="margin:0;padding-left:1.1rem;font-size:0.88rem;color:var(--text-primary);">'
+    + VET_MONITORING_SIGNS.map(s => '<li>' + escHtml(s) + '</li>').join('')
+    + '</ul><p style="font-size:0.75rem;color:var(--text-muted);margin:0.5rem 0 0;">Référence vétérinaire — liste indicative, non automatisée.</p></div>';
+
+  html += '<div class="card"><div class="card-header"><h3>Causes de mortalité à distinguer</h3></div>'
+    + '<ul style="margin:0;padding-left:1.1rem;font-size:0.88rem;color:var(--text-primary);">'
+    + VET_MORTALITY_CAUSES.map(c => '<li>' + escHtml(c) + '</li>').join('')
+    + '</ul><div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-neutral-bg);color:var(--text-muted);font-size:0.78rem;"><i data-lucide="info" style="width:15px;height:15px;"></i> La saisie journalière ne comporte pas encore de champ « cause de mortalité ». Cette classification est fournie comme référence ; son enregistrement par mort nécessitera un ajout au formulaire de saisie (suite véto).</div></div>';
+  el.innerHTML = html;
+}
+
+// ── Onglet Biosécurité : vide sanitaire (référence paramétrable) ──
+function renderVetBiosecurite() {
+  const el = document.getElementById('vet-tab-biosecurite');
+  if (!el) return;
+  const vide = getVetParams().videSanitaire || '15';
+  el.innerHTML =
+    '<div class="card"><div class="card-header"><h3>Vide sanitaire</h3></div>'
+    + '<div class="param-info-row"><span>Durée minimale recommandée</span><strong>' + escHtml(String(vide)) + ' jours</strong></div>'
+    + '<p style="font-size:0.78rem;color:var(--text-muted);margin:0.5rem 0 0;">Référence paramétrable (Paramètres → Santé &amp; vétérinaire). Durée entre deux bandes dans un même bâtiment. Surface d\'information — non automatisé.</p></div>'
+    + '<div class="card"><div class="card-header"><h3>Registre de biosécurité</h3></div><p style="color:var(--text-muted);font-size:0.85rem;">Nettoyage, désinfection, visiteurs — à venir.</p></div>';
+}
+
+// ── Export PDF : registre sanitaire DSV (vaccinations + traitements + signature) ──
+// Réutilise l'en-tête/pied/section/tableau de marque partagés (reportHeaderPDF…),
+// la mascotte (LOGO_DATAURL) et fmt() — même stack que les autres exports.
+async function exportRegistreDSV() {
+  const bandeId = document.getElementById('vet-bande-select').value;
+  const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
+  if (!bande) { toast('Sélectionnez une bande pour exporter le registre DSV.', 'error'); return; }
+  try {
+    await ensureJsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pw = doc.internal.pageSize.getWidth();
+    const ind = computeIndicators(bande);
+    const vp = getVetParams();
+    const souche = bande.souche || 'Cobb 500';
+
+    let y = reportHeaderPDF(doc, {
+      title: 'Registre sanitaire DSV',
+      subtitle: bande.nom_bande || bande.bande_id,
+      period: 'Entrée ' + fmtDate(bande.date_entree)
+    });
+
+    // Bloc informations bande (deux colonnes)
+    doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    const infoL = [
+      'Bande : ' + (bande.nom_bande || bande.bande_id),
+      'Identifiant : ' + bande.bande_id,
+      'Bâtiment : ' + (bande.batiment || '—')
+    ];
+    const infoR = [
+      'Souche : ' + souche,
+      'Effectif entrée : ' + fmt(bande.nb_poussins_entree) + '  ·  actuel : ' + fmt(ind.effectifActuel),
+      'Âge actuel : J' + (cycleDay(bande) || '—')
+    ];
+    infoL.forEach((t, i) => doc.text(t, 12, y + i * 5));
+    infoR.forEach((t, i) => doc.text(t, pw / 2, y + i * 5));
+    y += infoL.length * 5 + 3;
+
+    // Section 1 : vaccinations réalisées
+    y = reportSectionTitlePDF(doc, 'Registre des vaccinations', y);
+    const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id)
+      .slice().sort((a, b) => new Date(a.date_faite) - new Date(b.date_faite));
+    const vaccRows = vaccs.map(v => {
+      const age = ageJourBande(bande, v.date_faite);
+      return [
+        fmtDate(v.date_faite), (age != null ? 'J' + age : '—'),
+        v.nom_vaccin || '—', v.voie || '—', v.fait_par || '—',
+        (v.statut_validation === 'valide' ? 'Validé' : 'À valider')
+      ];
+    });
+    y = reportTablePDF(doc, y,
+      ['Date', 'Âge', 'Vaccin', 'Voie', 'Réalisé par', 'Statut'],
+      [22, 13, 50, 40, 40, 25], vaccRows,
+      { emptyMsg: 'Aucune vaccination enregistrée pour cette bande.' });
+    y += 4;
+
+    // Section 2 : traitements médicamenteux
+    y = reportSectionTitlePDF(doc, 'Registre des traitements médicamenteux', y);
+    const traits = STATE.traitements.filter(t => t.bande_id === bande.bande_id)
+      .slice().sort((a, b) => new Date(a.date_traitement) - new Date(b.date_traitement));
+    const traitRows = traits.map(t => {
+      const age = ageJourBande(bande, t.date_traitement);
+      const clear = traitementClearanceDate(t);
+      return [
+        fmtDate(t.date_traitement), (age != null ? 'J' + age : '—'),
+        (t.nom_produit || '—') + (t.critique_omsa ? ' [OMSA]' : ''),
+        (t.molecule || t.type_acte || '—'), t.voie || '—', (t.dose || '—'),
+        (t.duree_jours != null ? t.duree_jours + ' j' : '—'),
+        (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner'),
+        (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner')
+      ];
+    });
+    y = reportTablePDF(doc, y,
+      ['Date', 'Âge', 'Produit', 'Molécule/Type', 'Voie', 'Dose', 'Durée', 'Délai att.', 'Abattage OK'],
+      [20, 12, 34, 30, 24, 18, 14, 18, 20], traitRows,
+      { emptyMsg: 'Aucun traitement enregistré pour cette bande.' });
+    y += 6;
+
+    // Légende des conventions (transparence : aucune date devinée)
+    if (y > 250) { doc.addPage(); y = 20; }
+    doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    const legend = doc.splitTextToSize(
+      'Age : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = derniere administration + delai d\'attente. « a renseigner » = delai non saisi (aucune date devinee). [OMSA] = antibiotique critique (liste OMSA), signale par l\'utilisateur.',
+      pw - 24);
+    doc.text(legend, 12, y); y += legend.length * 3.4 + 6;
+
+    // Bloc vétérinaire + zone de signature (identité éditable via Paramètres)
+    if (y > 245) { doc.addPage(); y = 20; }
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    doc.setFontSize(9); doc.setFont(undefined, 'bold');
+    doc.text('Vétérinaire référent', 12, y);
+    doc.setFont(undefined, 'normal');
+    doc.text((vp.vetNom || '—') + (vp.vetOnvci ? '   ·   N° ONVCI ' + vp.vetOnvci : ''), 12, y + 5);
+    if (vp.vetStructure) doc.text(vp.vetStructure, 12, y + 10);
+    const sy = y + 26;
+    doc.setFontSize(9);
+    doc.text('Signature du vétérinaire :', 12, sy);
+    doc.text('Signature du responsable élevage :', pw / 2, sy);
+    doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.3);
+    doc.line(12, sy + 18, 90, sy + 18);
+    doc.line(pw / 2, sy + 18, pw - 12, sy + 18);
+
+    reportFooterPDF(doc);
+    const slug = String(bande.nom_bande || bande.bande_id).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    doc.save('registre-dsv-' + slug + '.pdf');
+    toast('Registre DSV généré');
+  } catch (err) {
+    toast('Erreur export PDF : ' + err.message, 'error');
+  }
 }
 
 function openPlusSheet() {
@@ -5746,11 +6377,25 @@ function checkAlerts() {
   activeBandes.forEach(b => {
     const ind = computeIndicators(b);
 
-    // Mortalité cumulée
-    if (ind.tauxMort > 5) {
-      alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — Mortalité critique ' + fmt(ind.tauxMort, 1) + '%' });
-    } else if (ind.tauxMort > 3) {
-      alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Mortalité ' + fmt(ind.tauxMort, 1) + '%' });
+    // Mortalité — seuils PARAMÉTRÉS (Paramètres → Santé & vétérinaire). Le
+    // vétérinaire n'a fourni AUCUN chiffre : sans seuil défini, AUCUNE alerte
+    // mortalité n'est émise (jamais de déclenchement sur une valeur devinée).
+    // Remplace l'ancien 3%/5% codé en dur.
+    const seuilMortCumAl = vetParamNum('mortCumul');
+    if (seuilMortCumAl != null && ind.tauxMort >= seuilMortCumAl) {
+      alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — Mortalité cumulée ' + fmt(ind.tauxMort, 1) + '% (seuil ' + fmt(seuilMortCumAl, 1) + '%)' });
+    }
+    const seuilMortJourAl = vetParamNum('mortDaily');
+    if (seuilMortJourAl != null) {
+      const lastS = (ind.saisies && ind.saisies.length) ? ind.saisies[ind.saisies.length - 1] : null;
+      if (lastS) {
+        const mortsJour = Number(lastS.mortalite_jour) || 0;
+        const debutJour = (Number(lastS.effectif) || 0) + mortsJour;   // effectif en début de journée
+        const tauxJour = debutJour > 0 ? (mortsJour / debutJour) * 100 : 0;
+        if (tauxJour >= seuilMortJourAl) {
+          alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Mortalité journalière ' + fmt(tauxJour, 1) + '% (seuil ' + fmt(seuilMortJourAl, 1) + '%)' });
+        }
+      }
     }
 
     // IC cumulatif
@@ -5803,11 +6448,11 @@ function checkAlerts() {
     // le rappel s'efface dès qu'une ligne vaccinations existe — a_valider OU valide).
     computeVaccinationStatus(b).forEach(v => {
       if (v.status === 'retard') {
-        alerts.push({ level: 'critical', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » EN RETARD (prévue J' + v.proto.jour_cible + ', ' + fmtDate(v.plannedDate) + ')' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » EN RETARD (prévue ' + protoJourLabel(v.proto) + ', ' + fmtDate(v.plannedDate) + ')' });
       } else if (v.status === 'due') {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » à faire AUJOURD\'HUI (J' + v.proto.jour_cible + ')' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » à faire AUJOURD\'HUI (' + protoJourLabel(v.proto) + ')' });
       } else if (v.status === 'avenir' && v.daysUntil != null && v.daysUntil <= 3) {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » dans ' + v.daysUntil + ' j (J' + v.proto.jour_cible + ')' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » dans ' + v.daysUntil + ' j (' + protoJourLabel(v.proto) + ')' });
       }
     });
   });
@@ -9057,6 +9702,49 @@ function initParametresPage() {
       '<div class="param-info-row"><span>Source de données</span><strong>Supabase</strong></div>' +
       '<div class="param-info-row"><span>État de connexion</span><strong>' + (isOnline ? 'En ligne' : 'Hors ligne') + '</strong></div>';
   }
+  renderVetParamsSettings();
+}
+
+// Réglages sanitaires (localStorage, cet appareil). Aucun seuil médical par
+// défaut : les seuils de mortalité vides = aucune alerte mortalité (cf. checkAlerts).
+function renderVetParamsSettings() {
+  const el = document.getElementById('param-vet');
+  if (!el) return;
+  const vp = getVetParams();
+  el.innerHTML =
+    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">Réglages sanitaires locaux (cet appareil). Le vétérinaire n\'a fourni aucun seuil de mortalité : <strong>tant qu\'ils restent vides, aucune alerte mortalité n\'est émise</strong>.</p>'
+    + '<div class="form-row"><div class="form-group"><label>Seuil mortalité journalière (%)</label><input type="number" id="vp-mort-daily" min="0" step="0.1" inputmode="decimal" placeholder="à définir"></div>'
+    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="vp-mort-cumul" min="0" step="0.1" inputmode="decimal" placeholder="à définir"></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Vide sanitaire minimum (jours)</label><input type="number" id="vp-vide" min="0" step="1" inputmode="numeric"></div>'
+    + '<div class="form-group"><label>Anticoccidien recommandé</label><input type="text" id="vp-anticoc"></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Vétérinaire référent</label><input type="text" id="vp-vet-nom"></div>'
+    + '<div class="form-group"><label>N° ONVCI</label><input type="text" id="vp-vet-onvci"></div></div>'
+    + '<div class="form-group"><label>Structure vétérinaire</label><input type="text" id="vp-vet-struct"></div>'
+    + '<div id="vp-msg" style="font-size:0.82rem;color:var(--color-success);min-height:1rem;"></div>'
+    + '<button class="btn btn-primary btn-sm" onclick="saveVetParamsFromUI()">Enregistrer</button>';
+  // Valeurs injectées via .value (évite tout échappement d'attribut).
+  document.getElementById('vp-mort-daily').value = vp.mortDaily;
+  document.getElementById('vp-mort-cumul').value = vp.mortCumul;
+  document.getElementById('vp-vide').value = vp.videSanitaire;
+  document.getElementById('vp-anticoc').value = vp.anticoccidien;
+  document.getElementById('vp-vet-nom').value = vp.vetNom;
+  document.getElementById('vp-vet-onvci').value = vp.vetOnvci;
+  document.getElementById('vp-vet-struct').value = vp.vetStructure;
+}
+
+function saveVetParamsFromUI() {
+  saveVetParams({
+    mortDaily: document.getElementById('vp-mort-daily').value.trim(),
+    mortCumul: document.getElementById('vp-mort-cumul').value.trim(),
+    videSanitaire: document.getElementById('vp-vide').value.trim(),
+    anticoccidien: document.getElementById('vp-anticoc').value.trim(),
+    vetNom: document.getElementById('vp-vet-nom').value.trim(),
+    vetOnvci: document.getElementById('vp-vet-onvci').value.trim(),
+    vetStructure: document.getElementById('vp-vet-struct').value.trim()
+  });
+  const m = document.getElementById('vp-msg'); if (m) m.textContent = 'Enregistré.';
+  toast('Paramètres santé enregistrés');
+  try { checkAlerts(); } catch (e) {}
 }
 
 // ── Settings ──
