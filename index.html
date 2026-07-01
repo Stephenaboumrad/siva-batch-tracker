@@ -5338,6 +5338,17 @@ if (window.Chart) {
   Chart.defaults.plugins.legend.labels.usePointStyle = true;
   Chart.defaults.plugins.legend.labels.boxWidth = 8;
   Chart.defaults.plugins.legend.labels.boxHeight = 8;
+  // Axe X catégoriel (dates / mois / bandes) : libellés HORIZONTAUX (fin de la
+  // rotation diagonale à l'étroit) + saut automatique pour éviter le chevauchement.
+  // Un seul point central → couvre TOUS les graphes (les maxTicksLimit par graphe
+  // restent respectés). Nette lisibilité mobile ; sur desktop large les libellés
+  // tiennent déjà à l'horizontale → rendu quasi inchangé.
+  if (Chart.defaults.scales && Chart.defaults.scales.category) {
+    const catTicks = Chart.defaults.scales.category.ticks = Chart.defaults.scales.category.ticks || {};
+    catTicks.maxRotation = 0;
+    catTicks.autoSkip = true;
+    catTicks.autoSkipPadding = 10;
+  }
 }
 // Couleurs instrumentales lues sur les tokens CSS (feuilles) au moment du rendu →
 // s'adaptent automatiquement au thème clair / sombre (SCADA). Jamais de couleur en dur.
