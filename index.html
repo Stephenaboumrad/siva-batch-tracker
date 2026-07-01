@@ -5835,6 +5835,101 @@ function renderVetBiosecurite() {
 // ── Export PDF : registre sanitaire DSV (vaccinations + traitements + signature) ──
 // Réutilise l'en-tête/pied/section/tableau de marque partagés (reportHeaderPDF…),
 // la mascotte (LOGO_DATAURL) et fmt() — même stack que les autres exports.
+// ── Formatage des libellés du registre DSV (enums → libellés humains) ──
+const TYPE_ACTE_LABELS = {
+  hepatoprotecteur: 'Hépatoprotecteur', vitamine: 'Vitamine', anticoccidien: 'Anticoccidien',
+  diuretique: 'Diurétique', acide_organique: 'Acide organique'
+};
+// Normalisation sans accents/casse pour comparer produit vs molécule/type.
+function _noAccentLower(s) {
+  return String(s == null ? '' : s).toLowerCase()
+    .replace(/[àâä]/g, 'a').replace(/[éèêë]/g, 'e').replace(/[îï]/g, 'i')
+    .replace(/[ôö]/g, 'o').replace(/[ûüù]/g, 'u').replace(/ç/g, 'c').trim();
+}
+// Enum type d'acte → libellé humain (JAMAIS de underscore brut ni de casse enum).
+function humanizeActe(s) {
+  if (!s) return '';
+  const key = String(s).trim().toLowerCase();
+  if (TYPE_ACTE_LABELS[key]) return TYPE_ACTE_LABELS[key];
+  const t = key.replace(/_/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+// Cellule « Molécule/Type » : molécule si présente, sinon type d'acte humanisé.
+// Si le résultat ne fait que répéter le produit (sans accents/casse) → « — ».
+function moleculeTypeCell(nomProduit, molecule, typeActe) {
+  const raw = (molecule && String(molecule).trim()) ? String(molecule).trim() : humanizeActe(typeActe);
+  if (!raw) return '—';
+  if (_noAccentLower(raw) === _noAccentLower(nomProduit)) return '—';
+  return raw;
+}
+// Couleur SOBRE du Statut (jamais criard) : retard = rouge éteint, fait/réalisé =
+// vert éteint, prévu/à venir = gris ; sinon encre neutre.
+function dsvStatutColor(val) {
+  const s = String(val || '');
+  if (/retard/i.test(s)) return [150, 52, 44];
+  if (/^(Fait|Réalisé|Validé)/.test(s)) return [70, 110, 84];
+  if (/venir|Prévu/.test(s)) return REPORT_BRAND.muted;
+  return null;
+}
+
+// ── Rendu de tableau DÉDIÉ au registre DSV ──────────────────────────────────
+// Largeurs explicites ; RETOUR À LA LIGNE dans la cellule (jamais de troncature
+// mi-mot ni de collision entre colonnes) ; gouttières gauche+droite ; hauteur de
+// ligne régulière selon le nb de lignes ; alignement en HAUT ; filet de
+// séparation ; coloration Statut facultative. N'altère PAS reportTablePDF
+// (partagé par les autres exports). cols : [{ label, w, color?(val)->[r,g,b]|null }].
+function dsvTablePDF(doc, y, cols, rows, opts) {
+  opts = opts || {};
+  const X0 = 10, PAD = 2, LH = 3.4, VPAD = 1.9, ASC = 2.5;
+  const pageBottom = doc.internal.pageSize.getHeight() - 16;
+  const totalW = cols.reduce((a, c) => a + c.w, 0);
+  const wrap = (v, w) => doc.splitTextToSize(String(v == null ? '' : v), Math.max(4, w - PAD * 2));
+
+  const drawHead = () => {
+    doc.setFont(undefined, 'bold'); doc.setFontSize(7);
+    const hcells = cols.map(c => wrap(c.label, c.w));
+    const maxLines = hcells.reduce((m, ls) => Math.max(m, ls.length), 1);
+    const hh = maxLines * LH + VPAD * 2;
+    doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
+    doc.rect(X0, y, totalW, hh, 'F');
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    let x = X0;
+    hcells.forEach((ls, i) => { ls.forEach((ln, li) => doc.text(ln, x + PAD, y + VPAD + ASC + li * LH)); x += cols[i].w; });
+    doc.setFont(undefined, 'normal');
+    y += hh;
+  };
+
+  drawHead();
+
+  if (!rows || rows.length === 0) {
+    doc.setFontSize(8); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text(opts.emptyMsg || 'Aucune donnée.', X0 + PAD, y + VPAD + ASC);
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    return y + LH + VPAD * 2 + 2;
+  }
+
+  doc.setFontSize(7);
+  rows.forEach(row => {
+    const cells = cols.map((c, i) => wrap(row[i], c.w));
+    const maxLines = cells.reduce((m, ls) => Math.max(m, ls.length), 1);
+    const rh = maxLines * LH + VPAD * 2;
+    if (y + rh > pageBottom) { doc.addPage(); y = 20; doc.setFontSize(7); drawHead(); doc.setFontSize(7); }
+    let x = X0;
+    cells.forEach((ls, i) => {
+      const col = cols[i];
+      const rgb = (col.color && col.color(row[i])) || null;
+      if (rgb) doc.setTextColor(rgb[0], rgb[1], rgb[2]); else doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+      ls.forEach((ln, li) => doc.text(ln, x + PAD, y + VPAD + ASC + li * LH));
+      x += col.w;
+    });
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.1);
+    doc.line(X0, y + rh, X0 + totalW, y + rh);
+    y += rh;
+  });
+  return y + 2;
+}
+
 async function exportRegistreDSV() {
   const bandeId = document.getElementById('vet-bande-select').value;
   const bande = bandeId ? STATE.bandes.find(b => b.bande_id === bandeId) : null;
@@ -5851,7 +5946,8 @@ async function exportRegistreDSV() {
     let y = reportHeaderPDF(doc, {
       title: 'Registre sanitaire DSV',
       subtitle: bande.nom_bande || bande.bande_id,
-      period: 'Entrée ' + fmtDate(bande.date_entree)
+      period: 'Entrée ' + fmtDate(bande.date_entree),
+      marginTop: 8   // marge haute : le bandeau ne colle plus au bord supérieur
     });
 
     // Bloc informations bande (deux colonnes)
@@ -5890,10 +5986,15 @@ async function exportRegistreDSV() {
         (v.vacc && v.vacc.fait_par) ? v.vacc.fait_par : '—'
       ];
     });
-    y = reportTablePDF(doc, y,
-      ['Date prévue', 'Âge', 'Vaccin', 'Voie', 'Statut', 'Date réalisée', 'Réalisé par'],
-      [24, 14, 46, 34, 26, 24, 22], vaccRows,
-      { emptyMsg: 'Aucun protocole vaccinal défini.' });
+    y = dsvTablePDF(doc, y, [
+      { label: 'Date prévue', w: 22 },
+      { label: 'Âge', w: 13 },
+      { label: 'Vaccin', w: 48 },
+      { label: 'Voie', w: 33 },
+      { label: 'Statut', w: 24, color: dsvStatutColor },
+      { label: 'Date réalisée', w: 22 },
+      { label: 'Réalisé par', w: 28 }
+    ], vaccRows, { emptyMsg: 'Aucun protocole vaccinal défini.' });
     y += 4;
 
     // Section 2 : traitements — PLAN de référence non réalisé (Prévu) + actes
@@ -5915,7 +6016,7 @@ async function exportRegistreDSV() {
         'Réalisé',
         fmtDate(t.date_traitement), (age != null ? 'J' + age : '—'),
         (t.nom_produit || '—') + (t.critique_omsa ? ' [OMSA]' : ''),
-        (t.molecule || t.type_acte || '—'), t.voie || '—', (t.dose || '—'),
+        moleculeTypeCell(t.nom_produit, t.molecule, t.type_acte), t.voie || '—', (t.dose || '—'),
         (t.duree_jours != null ? t.duree_jours + ' j' : '—'),
         (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner'),
         (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner')
@@ -5930,23 +6031,31 @@ async function exportRegistreDSV() {
           p.conditionnel ? 'si nécessaire' : (pd ? fmtDate(pd) : '—'),
           p.conditionnel ? '—' : protoJourLabel(p),
           p.nom_produit || '—',
-          (p.molecule || p.type_acte || '—'), p.voie || '—', '—',
+          moleculeTypeCell(p.nom_produit, p.molecule, p.type_acte), p.voie || '—', '—',
           (p.duree_jours != null ? p.duree_jours + ' j' : '—'),
           'à renseigner', '—'
         ] };
       });
     const traitRows = rowsR.concat(rowsP).sort((a, b) => a.key - b.key).map(r => r.cells);
-    y = reportTablePDF(doc, y,
-      ['Statut', 'Date', 'Âge', 'Produit', 'Molécule/Type', 'Voie', 'Dose', 'Durée', 'Délai att.', 'Abattage OK'],
-      [16, 20, 12, 30, 26, 22, 16, 12, 16, 20], traitRows,
-      { emptyMsg: 'Aucun plan de traitements ni traitement enregistré.' });
+    y = dsvTablePDF(doc, y, [
+      { label: 'Statut', w: 16, color: dsvStatutColor },
+      { label: 'Date', w: 20 },
+      { label: 'Âge', w: 11 },
+      { label: 'Produit', w: 30 },
+      { label: 'Molécule/Type', w: 24 },
+      { label: 'Voie', w: 22 },
+      { label: 'Dose', w: 14 },
+      { label: 'Durée', w: 11 },
+      { label: 'Délai att.', w: 18 },
+      { label: 'Abattage OK', w: 24 }
+    ], traitRows, { emptyMsg: 'Aucun plan de traitements ni traitement enregistré.' });
     y += 6;
 
     // Légende des conventions (transparence : aucune date devinée)
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
     const legend = doc.splitTextToSize(
-      'Registre = protocole prevu + actes realises. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / A venir / En retard). Traitements : Statut « Prevu » = plan de reference non encore realise ; « Realise » = acte effectue (donnees reelles). Age : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = derniere administration + delai d\'attente. « a renseigner » = delai non saisi (aucune date devinee). [OMSA] = antibiotique critique (liste OMSA), signale par l\'utilisateur.',
+      'Registre = protocole prévu + actes réalisés. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / À venir / En retard). Traitements : Statut « Prévu » = plan de référence non encore réalisé ; « Réalisé » = acte effectué (données réelles). Âge : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = dernière administration + délai d\'attente. « À renseigner » = délai non saisi (aucune date devinée). [OMSA] = antibiotique critique (liste OMSA), signalé par l\'utilisateur.',
       pw - 24);
     doc.text(legend, 12, y); y += legend.length * 3.4 + 6;
 
@@ -9142,6 +9251,11 @@ function reportHeaderPDF(doc, opts) {
   opts = opts || {};
   const pw = doc.internal.pageSize.getWidth();
   const BANNER = 33;   // hauteur du bandeau de marque unifié (orange continu)
+  // Marge haute OPTIONNELLE : décale tout le bandeau vers le bas pour ne pas
+  // coller au bord supérieur de la page (registre DSV). Défaut 0 = plein bord,
+  // comportement STRICTEMENT INCHANGÉ pour tous les autres exports (facture,
+  // bilan, dailies, etc.) qui ne passent pas marginTop.
+  const mt = Number(opts.marginTop) || 0;
 
   // ── Bandeau de marque UNIFIÉ : logo + identité société + titre du rapport sur
   // une seule barre orange continue en haut de page. Orange de marque #B84E0A
@@ -9150,44 +9264,44 @@ function reportHeaderPDF(doc, opts) {
   // pastille arrondie : la barre étant orange, le logo s'y pose directement.
   // Tout le texte du bandeau est blanc.
   doc.setFillColor(184, 78, 10);
-  doc.rect(0, 0, pw, BANNER, 'F');
+  doc.rect(0, mt, pw, BANNER, 'F');
 
   // Mascotte à gauche, centrée verticalement, sans pastille. Repli intact :
   // si addImage échoue, le texte démarre simplement plus à gauche.
   let tx = 12;
   if (LOGO_DATAURL) {
     try {
-      doc.addImage(LOGO_DATAURL, 'PNG', 10, 4, 25, 25); tx = 40;
+      doc.addImage(LOGO_DATAURL, 'PNG', 10, mt + 4, 25, 25); tx = 40;
     } catch (e) { tx = 12; }
   }
 
   // Colonne gauche : identité société (blanc sur orange).
   doc.setTextColor(255, 255, 255);
   doc.setFont(undefined, 'bold'); doc.setFontSize(20);
-  doc.text(REPORT_BRAND.acronym, tx, 13.5);           // « S.I.V.A »
+  doc.text(REPORT_BRAND.acronym, tx, mt + 13.5);           // « S.I.V.A »
   doc.setFont(undefined, 'normal'); doc.setFontSize(9);
   doc.setTextColor(255, 238, 230);
-  doc.text(REPORT_BRAND.legalName, tx, 20);           // raison sociale
+  doc.text(REPORT_BRAND.legalName, tx, mt + 20);           // raison sociale
 
   // Colonne droite : titre du rapport + sous-titre, alignés à droite, mêmes
   // lignes de base que l'identité — l'ensemble forme un seul bloc d'en-tête.
   doc.setTextColor(255, 255, 255);
   doc.setFont(undefined, 'bold'); doc.setFontSize(14);
-  doc.text(String(opts.title || 'Rapport'), pw - 10, 13.5, { align: 'right' });
+  doc.text(String(opts.title || 'Rapport'), pw - 10, mt + 13.5, { align: 'right' });
   if (opts.subtitle) {
     doc.setFont(undefined, 'normal'); doc.setFontSize(10);
     doc.setTextColor(255, 238, 230);
-    doc.text(String(opts.subtitle), pw - 10, 20, { align: 'right' });
+    doc.text(String(opts.subtitle), pw - 10, mt + 20, { align: 'right' });
   }
 
   // Ligne méta sur le bandeau : période (gauche) / date de génération (droite).
   doc.setFont(undefined, 'normal'); doc.setFontSize(8);
   doc.setTextColor(255, 238, 230);
-  if (opts.period) doc.text('Période : ' + opts.period, tx, 26.5);
-  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, 26.5, { align: 'right' });
+  if (opts.period) doc.text('Période : ' + opts.period, tx, mt + 26.5);
+  doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), pw - 10, mt + 26.5, { align: 'right' });
 
   // Filet de séparation discret sous le bandeau, puis début du corps du rapport.
-  let y = BANNER + 4;
+  let y = mt + BANNER + 4;
   doc.setDrawColor.apply(doc, REPORT_BRAND.line); doc.setLineWidth(0.2);
   doc.line(10, y, pw - 10, y);
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
