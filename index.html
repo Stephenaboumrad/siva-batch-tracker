@@ -1631,6 +1631,35 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #bottom-tab-bar .tab-item.active .tab-icon { transform:scale(1.1); }
 #bottom-tab-bar .tab-item:active { transform:scale(0.92); transition-duration:.06s; }
 
+/* ── FAB central « Saisie » — action PRIMAIRE (composant autonome ; la barre est
+   display:none en desktop → intrinsèquement mobile). SEUL élément coloré de la
+   nav : remplissage orange marque (--color-accent, token existant). La pastille
+   déborde AU-DESSUS du bord haut de la barre ; le safe-area-inset reste en bas de
+   la barre (bords opposés → aucun conflit). Re-cibler = openSaisieFAB(). ── */
+#bottom-tab-bar .tab-fab {
+  flex:1; position:relative; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-end;
+  background:none; border:none; cursor:pointer; padding:6px 4px 8px;
+  min-width:0; -webkit-tap-highlight-color:transparent;
+}
+#bottom-tab-bar .tab-fab .fab-circle {
+  position:absolute; top:calc(-1 * var(--fab-rise, 22px)); left:50%; transform:translateX(-50%);
+  width:56px; height:56px; border-radius:50%;
+  background:var(--color-accent); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 16px rgba(15,24,34,0.24), 0 2px 4px rgba(15,24,34,0.12);
+  transition:transform .12s var(--ease);
+}
+#bottom-tab-bar .tab-fab .fab-circle svg.lucide { width:26px; height:26px; stroke-width:2.4; }
+#bottom-tab-bar .tab-fab:active .fab-circle { transform:translateX(-50%) scale(0.92); }
+#bottom-tab-bar .tab-fab .fab-label {
+  font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:0.01em;
+  color:var(--sidebar-text);
+}
+/* Sur la page Saisie : masquer le FAB (on y est déjà + évite le chevauchement avec
+   la barre fixe « Enregistrer »). La barre redevient un rail propre à 4 onglets. */
+#bottom-tab-bar.on-saisie .tab-fab { display:none; }
+
 /* ── Mobile top bar ── */
 #mobile-top-bar {
   display:none; position:fixed; top:0; left:0; right:0;
@@ -1664,20 +1693,20 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #mobile-top-bar .mtb-btn:hover { background:var(--surface); }
 
 /* ── Plus bottom sheet ── */
-#plus-sheet-overlay {
+#plus-sheet-overlay, #saisie-sheet-overlay {
   display:none; position:fixed; inset:0; background:rgba(11,17,22,0.4);
   backdrop-filter:blur(4px); z-index:200;
 }
-#plus-sheet-overlay.open { display:block; animation:overlayIn .15s var(--ease); }
-#plus-sheet {
+#plus-sheet-overlay.open, #saisie-sheet-overlay.open { display:block; animation:overlayIn .15s var(--ease); }
+#plus-sheet, #saisie-sheet {
   position:fixed; bottom:0; left:0; right:0;
   background:var(--card-bg); border-radius:var(--radius-xl) var(--radius-xl) 0 0;
   padding:var(--space-3) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom));
   box-shadow:var(--shadow-xl); z-index:201;
   transform:translateY(100%); transition:transform .3s var(--ease-out);
 }
-#plus-sheet-overlay.open #plus-sheet { transform:translateY(0); }
-#plus-sheet .sheet-handle {
+#plus-sheet-overlay.open #plus-sheet, #saisie-sheet-overlay.open #saisie-sheet { transform:translateY(0); }
+#plus-sheet .sheet-handle, #saisie-sheet .sheet-handle {
   width:36px; height:4px; background:var(--c-sand-300); border-radius:2px;
   margin:0 auto var(--space-4);
 }
@@ -1690,6 +1719,20 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #plus-sheet a:hover,
 #plus-sheet a:active { background:var(--surface); }
 #plus-sheet a .icon { font-size:20px; width:32px; text-align:center; }
+/* Sélecteur de bande du FAB Saisie (réutilise le chrome du plus-sheet) */
+#saisie-sheet .saisie-sheet-title {
+  font-family:var(--sans); font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.08em; color:var(--text-muted); padding:0 4px var(--space-3);
+}
+#saisie-sheet .saisie-sheet-item {
+  display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  padding:14px 16px; margin-bottom:4px; min-height:52px;
+  background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+  color:var(--text-primary); font-family:var(--sans); font-size:15px; font-weight:700;
+  cursor:pointer; transition:background .1s, border-color .1s;
+}
+#saisie-sheet .saisie-sheet-item:active { background:var(--color-accent-soft); border-color:var(--color-accent); }
+#saisie-sheet .saisie-sheet-item::after { content:"\2197"; margin-left:auto; color:var(--color-accent); font-weight:700; }
 
 /* ── Mode soleil toggle (découvrable, avec état on/off) ── */
 .mode-soleil-toggle {
@@ -1730,7 +1773,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   #top-header .hdr-nav .nav-short { display:inline; }
 }
 @media (max-width:768px) {
-  :root { --sidebar-w: 0px; --bottom-bar-h: 56px; }
+  :root { --sidebar-w: 0px; --bottom-bar-h: 56px; --fab-rise: 22px; }
   body::before { background-size:20px 20px; }
   .siva-login-logo { height:132px; padding:16px; border-radius:24px; } /* mascotte 100px + pastille réduite (écho portail) */
 
@@ -1742,7 +1785,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   #main {
     margin-left:0; max-width:100%;
-    padding:calc(56px + env(safe-area-inset-top, 0px) + var(--space-4)) var(--space-4) calc(var(--space-4) + var(--bottom-bar-h) + env(safe-area-inset-bottom, 0px));
+    padding:calc(56px + env(safe-area-inset-top, 0px) + var(--space-4)) var(--space-4) calc(var(--space-4) + var(--bottom-bar-h) + var(--fab-rise) + env(safe-area-inset-bottom, 0px));
   }
   #main h2 { font-size:18px; margin-bottom:var(--space-3); }
 
@@ -2599,13 +2642,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="tab-icon"><i data-lucide="chart-line"></i></span>
       <span>Bandes</span>
     </button>
-    <button class="tab-item" data-page="saisie" onclick="navigateTab('saisie')">
-      <span class="tab-icon"><i data-lucide="pencil-ruler"></i></span>
-      <span>Saisie</span>
+    <!-- FAB central : Saisie = action PRIMAIRE de l'app. Composant autonome —
+         re-cibler = changer openSaisieFAB()/l'onclick. (Ancien onglet IoT retiré :
+         IOT_ENABLED=false le masquait déjà via display:none.) -->
+    <button class="tab-fab" onclick="openSaisieFAB()" aria-label="Nouvelle saisie du jour">
+      <span class="fab-circle"><i data-lucide="plus"></i></span>
+      <span class="fab-label">Saisie</span>
     </button>
-    <button class="tab-item" data-page="iot" onclick="navigateTab('iot')">
-      <span class="tab-icon"><i data-lucide="activity"></i></span>
-      <span>IoT</span>
+    <button class="tab-item" data-page="abattage" onclick="navigateTab('abattage')">
+      <span class="tab-icon"><i data-lucide="package"></i></span>
+      <span>Transfo.</span>
     </button>
     <button class="tab-item" data-page="plus" onclick="openPlusSheet()">
       <span class="tab-icon"><i data-lucide="ellipsis"></i></span>
@@ -2625,6 +2671,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
     <a href="#" data-page="tresorerie" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
     <a href="#" data-page="parametres" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
+  </div>
+</div>
+
+<!-- Sélecteur de bande du FAB Saisie — n'apparaît QUE si >1 bande active (voir openSaisieFAB) -->
+<div id="saisie-sheet-overlay" onclick="closeSaisieSheet()">
+  <div id="saisie-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="saisie-sheet-title">Saisie du jour — choisir la bande</div>
+    <div id="saisie-sheet-list"></div>
   </div>
 </div>
 
@@ -4857,6 +4912,10 @@ function updateBottomBar(page) {
   document.querySelectorAll('#bottom-tab-bar .tab-item').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-page') === page);
   });
+  // FAB Saisie masqué sur la page Saisie (on y est déjà + évite le chevauchement
+  // avec la barre fixe « Enregistrer ») → la barre redevient un rail à 4 onglets.
+  const bar = document.getElementById('bottom-tab-bar');
+  if (bar) bar.classList.toggle('on-saisie', page === 'saisie');
   // Update mobile top bar title
   const titleEl = document.getElementById('mtb-page-title');
   if (titleEl) titleEl.textContent = PAGE_TITLES[page] || page;
@@ -6589,6 +6648,23 @@ function openSaisieFor(bandeId) {
     updateSaisieInfo();
   }, 50);
 }
+
+// ── FAB Saisie (action primaire de l'app) — cible du bouton central de la nav mobile.
+//    Réutilise openSaisieFor (aucune duplication de logique de saisie).
+//    0 bande active → page Saisie (état vide « Aucune bande active »).
+//    1 active → ouverture DIRECTE (1 tap = saisie). >1 → petit sélecteur de bande. ──
+function openSaisieFAB() {
+  const active = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
+  if (active.length === 1) { openSaisieFor(active[0].bande_id); return; }
+  if (active.length === 0) { navigate('saisie', null); return; }
+  const list = document.getElementById('saisie-sheet-list');
+  list.innerHTML = active.map(b =>
+    `<button class="saisie-sheet-item" onclick="pickSaisieBande('${b.bande_id}')">${bandeLabel(b)}</button>`
+  ).join('');
+  document.getElementById('saisie-sheet-overlay').classList.add('open');
+}
+function pickSaisieBande(bandeId) { closeSaisieSheet(); openSaisieFor(bandeId); }
+function closeSaisieSheet() { document.getElementById('saisie-sheet-overlay').classList.remove('open'); }
 
 // ── Bandes list ──
 let bandeFilter = 'all';
