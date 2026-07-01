@@ -519,7 +519,12 @@
 #page-veterinaire .dash-kpi-bar .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
 /* Valeurs neutres par défaut ; rouge/vert conservés uniquement sur les KPI sémantiques (dk-danger/dk-success). */
 #page-veterinaire .dash-kpi-bar .dash-kpi:not(.dk-danger):not(.dk-success) .dk-value { color: var(--color-text); }
+/* Chiffres alignés sur le KPI Dashboard (23px mono), pas le 28px de base : même traitement numérique. */
+#page-veterinaire .dash-kpi-bar .dk-value { font-size: 23px; }
 #page-veterinaire .dash-kpi-bar .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+/* Tables plates (filet fin, sans ombre) comme le reste de l'app (treso/saisie/fiche/abattage/clients/supply) :
+   harmonise les 2 tables de référence + statut/registre avec le style de table global. */
+#page-veterinaire .table-wrap { border: var(--border-hairline); box-shadow: none; }
 @media (max-width: 900px) { #page-veterinaire .dash-kpi-bar { grid-template-columns: repeat(2, 1fr); } }
 /* Mobile (≤560px) : 4 KPI vétérinaire → 2 colonnes compactes. (dk-danger/dk-success gardent leur couleur) */
 @media (max-width: 560px) {
@@ -5142,7 +5147,7 @@ function renderVetOverview() {
   let mortClass = '', mortSub = 'seuil non défini';
   if (seuilMortCum != null) {
     mortClass = mort >= seuilMortCum ? 'dk-danger' : (mort >= seuilMortCum * 0.8 ? '' : 'dk-success');
-    mortSub = 'seuil ' + fmt(seuilMortCum, 1) + '%';
+    mortSub = 'seuil ' + fmtPct(seuilMortCum) + '%';
   }
   // KPI 4 : statut abattage = délai d'attente (réutilise earliestSlaughterDate).
   const wd = ind.earliestSlaughterDate;
@@ -5478,12 +5483,15 @@ const VET_MONITORING_SIGNS = ['Diarrhée', 'Symptômes respiratoires', 'Mortalit
 const VET_MORTALITY_CAUSES = ['Virale', 'Bactérienne', 'Parasitaire'];
 
 // ── Paramètres vétérinaire (localStorage, comme le mode sombre) ──
-// AUCUNE valeur médicale par défaut : les seuils de mortalité démarrent VIDES
-// (à définir par le gérant) — sans eux, aucune alerte mortalité n'est émise.
-// Défauts non médicaux : vide sanitaire 15 j (fourni par le véto), anticoccidien
-// « Toltrazuril » (suggestion), identité du vétérinaire répondant (éditable).
+// Défaut mortalité CUMULÉE = 3 % (valeur broiler saine, pour qu'un appareil neuf
+// ne soit pas aveugle aux alertes) ; MODIFIABLE dans Paramètres → Santé & véto
+// (mettre à vide y désactive l'alerte). 3% n'est PAS codé en dur dans la logique :
+// c'est la valeur par défaut de CE param, lu partout via getVetParams/vetParamNum.
+// Le seuil JOURNALIER reste vide par défaut (le véto n'a fourni aucun chiffre).
+// Autres défauts non médicaux : vide sanitaire 15 j (fourni par le véto),
+// anticoccidien « Toltrazuril » (suggestion), identité vétérinaire (éditable).
 const VET_PARAMS_DEFAULTS = {
-  mortDaily: '', mortCumul: '', videSanitaire: '15', anticoccidien: 'Toltrazuril',
+  mortDaily: '', mortCumul: '3', videSanitaire: '15', anticoccidien: 'Toltrazuril',
   vetNom: 'Dr Doua T. Privat Camille', vetOnvci: '168', vetStructure: 'Complexe Vétérinaire CI'
 };
 function getVetParams() {
@@ -5504,6 +5512,8 @@ function vetParamNum(key) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+// Format d'un SEUIL en % : entier propre (3 %) sinon une décimale (2,5 %).
+function fmtPct(n) { return fmt(n, (Number(n) % 1 === 0) ? 0 : 1); }
 // Âge (Jx, convention app J1 = mise en place) d'un acte daté sur une bande.
 function ageJourBande(bande, dateStr) {
   if (!bande || !bande.date_entree || !dateStr) return null;
@@ -5788,8 +5798,8 @@ function renderVetSante() {
     const ind = computeIndicators(bande);
     html += '<div class="param-info-row"><span>Mortalité cumulée</span><strong>' + fmt(Number(ind.tauxMort) || 0, 1) + '%</strong></div>'
       + '<div class="param-info-row"><span>Effectif actuel</span><strong>' + fmt(ind.effectifActuel) + '</strong></div>'
-      + '<div class="param-info-row"><span>Seuil d\'alerte cumulée</span><strong>' + (seuilCum != null ? fmt(seuilCum, 1) + '%' : 'non défini') + '</strong></div>'
-      + '<div class="param-info-row"><span>Seuil d\'alerte journalière</span><strong>' + (seuilJour != null ? fmt(seuilJour, 1) + '%' : 'non défini') + '</strong></div>';
+      + '<div class="param-info-row"><span>Seuil d\'alerte cumulée</span><strong>' + (seuilCum != null ? fmtPct(seuilCum) + '%' : 'non défini') + '</strong></div>'
+      + '<div class="param-info-row"><span>Seuil d\'alerte journalière</span><strong>' + (seuilJour != null ? fmtPct(seuilJour) + '%' : 'non défini') + '</strong></div>';
   } else {
     html += '<p style="color:var(--text-muted);font-size:0.85rem;">Sélectionnez une bande.</p>';
   }
@@ -5860,51 +5870,83 @@ async function exportRegistreDSV() {
     infoR.forEach((t, i) => doc.text(t, pw / 2, y + i * 5));
     y += infoL.length * 5 + 3;
 
-    // Section 1 : vaccinations réalisées
+    // Section 1 : vaccinations — PROTOCOLE COMPLET + statut réalisé.
+    // computeVaccinationStatus renvoie 1 ligne par vaccin ACTIF du protocole (les
+    // 6 vaccins seedés), avec date prévue + statut, et le vacc réalisé s'il existe.
+    // -> le registre n'est jamais vide en début de cycle : tout le plan apparaît.
     y = reportSectionTitlePDF(doc, 'Registre des vaccinations', y);
-    const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id)
-      .slice().sort((a, b) => new Date(a.date_faite) - new Date(b.date_faite));
-    const vaccRows = vaccs.map(v => {
-      const age = ageJourBande(bande, v.date_faite);
+    const V_STATUT = { fait_valide: 'Fait (validé)', fait_a_valider: 'Fait (à valider)', retard: 'En retard', due: 'À faire (auj.)', avenir: 'À venir' };
+    const vaccStatus = computeVaccinationStatus(bande);
+    const vaccRows = vaccStatus.map(v => {
+      const p = v.proto;
+      const voie = (v.vacc && v.vacc.voie) ? v.vacc.voie : (p.voie || '—');
       return [
-        fmtDate(v.date_faite), (age != null ? 'J' + age : '—'),
-        v.nom_vaccin || '—', v.voie || '—', v.fait_par || '—',
-        (v.statut_validation === 'valide' ? 'Validé' : 'À valider')
+        v.plannedDate ? fmtDate(v.plannedDate) : '—',
+        protoJourLabel(p),
+        p.nom_vaccin || '—',
+        voie,
+        V_STATUT[v.status] || '—',
+        v.vacc ? fmtDate(v.vacc.date_faite) : '—',
+        (v.vacc && v.vacc.fait_par) ? v.vacc.fait_par : '—'
       ];
     });
     y = reportTablePDF(doc, y,
-      ['Date', 'Âge', 'Vaccin', 'Voie', 'Réalisé par', 'Statut'],
-      [22, 13, 50, 40, 40, 25], vaccRows,
-      { emptyMsg: 'Aucune vaccination enregistrée pour cette bande.' });
+      ['Date prévue', 'Âge', 'Vaccin', 'Voie', 'Statut', 'Date réalisée', 'Réalisé par'],
+      [24, 14, 46, 34, 26, 24, 22], vaccRows,
+      { emptyMsg: 'Aucun protocole vaccinal défini.' });
     y += 4;
 
-    // Section 2 : traitements médicamenteux
+    // Section 2 : traitements — PLAN de référence non réalisé (Prévu) + actes
+    // réalisés (Réalisé, données réelles incl. délai d'attente). Un item du plan
+    // déjà réalisé n'apparaît qu'en Réalisé (pas de doublon). Colonne Statut =
+    // distinction PRÉVU / RÉALISÉ, non ambiguë pour la DSV.
     y = reportSectionTitlePDF(doc, 'Registre des traitements médicamenteux', y);
-    const traits = STATE.traitements.filter(t => t.bande_id === bande.bande_id)
-      .slice().sort((a, b) => new Date(a.date_traitement) - new Date(b.date_traitement));
-    const traitRows = traits.map(t => {
+    const plannedDateForJ = (jc) => {
+      const e = parseDayLocal(bande.date_entree);
+      if (!e || !Number.isFinite(Number(jc))) return null;
+      const d = new Date(e.getTime()); d.setDate(d.getDate() + (Number(jc) - 1)); return d;
+    };
+    const realizedT = STATE.traitements.filter(t => t.bande_id === bande.bande_id);
+    const realizedProtoIds = new Set(realizedT.map(t => t.proto_trait_id).filter(Boolean));
+    const rowsR = realizedT.map(t => {
       const age = ageJourBande(bande, t.date_traitement);
       const clear = traitementClearanceDate(t);
-      return [
+      return { key: (age != null ? age : 9998), cells: [
+        'Réalisé',
         fmtDate(t.date_traitement), (age != null ? 'J' + age : '—'),
         (t.nom_produit || '—') + (t.critique_omsa ? ' [OMSA]' : ''),
         (t.molecule || t.type_acte || '—'), t.voie || '—', (t.dose || '—'),
         (t.duree_jours != null ? t.duree_jours + ' j' : '—'),
         (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner'),
         (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner')
-      ];
+      ] };
     });
+    const rowsP = STATE.protocoleTraitements
+      .filter(p => p.actif !== false && !realizedProtoIds.has(p.proto_trait_id))
+      .map(p => {
+        const pd = p.conditionnel ? null : plannedDateForJ(p.jour_cible);
+        return { key: p.conditionnel ? 100000 : (Number(p.jour_cible) || 0), cells: [
+          'Prévu',
+          p.conditionnel ? 'si nécessaire' : (pd ? fmtDate(pd) : '—'),
+          p.conditionnel ? '—' : protoJourLabel(p),
+          p.nom_produit || '—',
+          (p.molecule || p.type_acte || '—'), p.voie || '—', '—',
+          (p.duree_jours != null ? p.duree_jours + ' j' : '—'),
+          'à renseigner', '—'
+        ] };
+      });
+    const traitRows = rowsR.concat(rowsP).sort((a, b) => a.key - b.key).map(r => r.cells);
     y = reportTablePDF(doc, y,
-      ['Date', 'Âge', 'Produit', 'Molécule/Type', 'Voie', 'Dose', 'Durée', 'Délai att.', 'Abattage OK'],
-      [20, 12, 34, 30, 24, 18, 14, 18, 20], traitRows,
-      { emptyMsg: 'Aucun traitement enregistré pour cette bande.' });
+      ['Statut', 'Date', 'Âge', 'Produit', 'Molécule/Type', 'Voie', 'Dose', 'Durée', 'Délai att.', 'Abattage OK'],
+      [16, 20, 12, 30, 26, 22, 16, 12, 16, 20], traitRows,
+      { emptyMsg: 'Aucun plan de traitements ni traitement enregistré.' });
     y += 6;
 
     // Légende des conventions (transparence : aucune date devinée)
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
     const legend = doc.splitTextToSize(
-      'Age : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = derniere administration + delai d\'attente. « a renseigner » = delai non saisi (aucune date devinee). [OMSA] = antibiotique critique (liste OMSA), signale par l\'utilisateur.',
+      'Registre = protocole prevu + actes realises. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / A venir / En retard). Traitements : Statut « Prevu » = plan de reference non encore realise ; « Realise » = acte effectue (donnees reelles). Age : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = derniere administration + delai d\'attente. « a renseigner » = delai non saisi (aucune date devinee). [OMSA] = antibiotique critique (liste OMSA), signale par l\'utilisateur.',
       pw - 24);
     doc.text(legend, 12, y); y += legend.length * 3.4 + 6;
 
@@ -6383,7 +6425,7 @@ function checkAlerts() {
     // Remplace l'ancien 3%/5% codé en dur.
     const seuilMortCumAl = vetParamNum('mortCumul');
     if (seuilMortCumAl != null && ind.tauxMort >= seuilMortCumAl) {
-      alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — Mortalité cumulée ' + fmt(ind.tauxMort, 1) + '% (seuil ' + fmt(seuilMortCumAl, 1) + '%)' });
+      alerts.push({ level: 'critical', icon: '<i data-lucide="octagon-alert"></i>', text: b.nom_bande + ' — Mortalité cumulée ' + fmt(ind.tauxMort, 1) + '% (seuil ' + fmtPct(seuilMortCumAl) + '%)' });
     }
     const seuilMortJourAl = vetParamNum('mortDaily');
     if (seuilMortJourAl != null) {
@@ -6393,7 +6435,7 @@ function checkAlerts() {
         const debutJour = (Number(lastS.effectif) || 0) + mortsJour;   // effectif en début de journée
         const tauxJour = debutJour > 0 ? (mortsJour / debutJour) * 100 : 0;
         if (tauxJour >= seuilMortJourAl) {
-          alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Mortalité journalière ' + fmt(tauxJour, 1) + '% (seuil ' + fmt(seuilMortJourAl, 1) + '%)' });
+          alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Mortalité journalière ' + fmt(tauxJour, 1) + '% (seuil ' + fmtPct(seuilMortJourAl) + '%)' });
         }
       }
     }
@@ -9712,9 +9754,9 @@ function renderVetParamsSettings() {
   if (!el) return;
   const vp = getVetParams();
   el.innerHTML =
-    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">Réglages sanitaires locaux (cet appareil). Le vétérinaire n\'a fourni aucun seuil de mortalité : <strong>tant qu\'ils restent vides, aucune alerte mortalité n\'est émise</strong>.</p>'
-    + '<div class="form-row"><div class="form-group"><label>Seuil mortalité journalière (%)</label><input type="number" id="vp-mort-daily" min="0" step="0.1" inputmode="decimal" placeholder="à définir"></div>'
-    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="vp-mort-cumul" min="0" step="0.1" inputmode="decimal" placeholder="à définir"></div></div>'
+    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">Réglages sanitaires locaux (cet appareil). Seuil de mortalité cumulée par défaut <strong>3 %</strong> (modifiable) ; le seuil journalier est optionnel. <strong>Un champ vidé désactive l\'alerte correspondante.</strong></p>'
+    + '<div class="form-row"><div class="form-group"><label>Seuil mortalité journalière (%)</label><input type="number" id="vp-mort-daily" min="0" step="0.1" inputmode="decimal" placeholder="optionnel"></div>'
+    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="vp-mort-cumul" min="0" step="0.1" inputmode="decimal" placeholder="défaut 3"></div></div>'
     + '<div class="form-row"><div class="form-group"><label>Vide sanitaire minimum (jours)</label><input type="number" id="vp-vide" min="0" step="1" inputmode="numeric"></div>'
     + '<div class="form-group"><label>Anticoccidien recommandé</label><input type="text" id="vp-anticoc"></div></div>'
     + '<div class="form-row"><div class="form-group"><label>Vétérinaire référent</label><input type="text" id="vp-vet-nom"></div>'
