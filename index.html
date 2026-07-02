@@ -125,7 +125,7 @@
   --sidebar-icon:        #A2937D;   /* icône inactive (warm muted) */
   --sidebar-muted:       #6E6250;   /* texte fonctionnel secondaire (sync / user / lot actif) — ~5:1, lisible AA */
   --sidebar-subtle:      #9A8E7A;   /* sous-titre décoratif « SIVA · AGRITECH » (micro-label) */
-  --sidebar-accent:      #C2410C;   /* accent orange (barre active + icône active) */
+  --sidebar-accent:      var(--accent);   /* accent orange (barre active + icône active) — unifié sur le V du wordmark */
   --sidebar-hover:       rgba(0,0,0,0.04);   /* survol (assombrissement léger) */
   --sidebar-soft:        rgba(0,0,0,0.035);  /* fond doux (logout / lot actif) */
   --sidebar-logo-bg:     #F7E2D6;   /* pastille pêche derrière la mascotte (legacy) */
@@ -169,7 +169,9 @@
   --card-bg: var(--color-surface);
   --page-bg: var(--color-bg);
   --white: var(--color-surface);
-  --surface: var(--color-surface-alt);
+  /* --surface a été réaffecté (harmonisation 1/2) au beige chaud sidebar : ses
+     anciens consommateurs pointent désormais var(--color-surface-alt) (rendu
+     inchangé). Définition : bloc « Consolidation accent » plus bas. */
 
   --header-h: 56px;
   --bottom-bar-h: 0px;
@@ -224,6 +226,24 @@
   --accent-ring: 0 0 0 3px rgba(226,100,15,0.14); /* #E2640F @ 14% */
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   HARMONISATION 1/2 — Consolidation accent. UN SEUL orange dans l'app :
+   celui du V du wordmark SIVA (--sw-accent → --color-accent #E2640F,
+   = --c-orange-600). Alias sémantiques courts ; toutes les valeurs sont
+   les DOMINANTES déjà en place (rien d'inventé). --text-muted, --radius-sm/
+   --radius-md et l'échelle --fs-* existent déjà plus haut.
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  --accent:         var(--color-accent);         /* #E2640F — orange du V du wordmark */
+  --accent-pressed: var(--color-accent-hover);   /* #B84E0A — palier -700 existant (hover/:active) */
+  --surface:        var(--sidebar-bg);           /* #EFE9DD — beige chaud (ardoise en thème sombre) */
+  --surface-card:   var(--color-surface);        /* #FFFFFF — fond de carte dominant */
+  --anthracite:     var(--navbar-bg);            /* #1E2A36 — ardoise nav/login en usage */
+  --text:           var(--color-text);           /* #0F1822 — encre */
+  --danger:         var(--color-danger);         /* #C8332B */
+  --success:        var(--color-success);        /* #0E7C4A */
+}
+
 /* Nombres financiers tabulaires — APPLIQUÉ en Phase 2 */
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; letter-spacing: -0.01em; }
 
@@ -245,8 +265,6 @@
 #page-tresorerie tbody tr:nth-child(even) td { background: transparent; }
 #page-tresorerie tbody tr:hover td { background: var(--color-surface-alt); }
 /* Bouton primaire (défensif — la page n'en a pas) : plat, sans dégradé ni glow coloré */
-#page-tresorerie .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-tresorerie .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 3 — Refonte STRUCTURELLE Trésorerie (TOUT scopé #page-tresorerie →
@@ -347,8 +365,6 @@
 #page-dashboard tbody tr:hover td { background: var(--color-surface-alt); }
 
 /* Bouton primaire (cartes bandes : « Saisie terrain ») : plat, sans dégradé ni glow */
-#page-dashboard .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-dashboard .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 4b — Dashboard CORPS restructuré (toujours scopé #page-dashboard).
@@ -440,8 +456,6 @@
 /* Bandeau résumé : valeurs chiffrées en mono */
 #page-saisie #saisie-info strong { font-family: var(--font-mono); }
 /* Bouton Enregistrer : accent PLAT (sans dégradé ni glow) mais gardé proéminent */
-#page-saisie .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-saisie .btn-primary:hover { background: var(--color-accent-hover); box-shadow: var(--shadow-md); transform: none; }
 /* Tableau « Dernière saisie » : filets fins, en-têtes plats, colonnes numériques (2→8) mono à droite */
 #page-saisie .table-wrap { border: var(--border-hairline); box-shadow: none; }
 #page-saisie th { background: var(--color-surface); border-bottom: var(--border-hairline); color: var(--color-text-muted); }
@@ -482,8 +496,6 @@
 #page-fiche .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
 #page-fiche .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
 /* Bouton primaire éventuel → plat (les boutons Registre/Excel sont déjà outline plats) */
-#page-fiche .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-fiche .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 8 — Transformation & Abattage (scopé #page-abattage), 3 ONGLETS
@@ -548,8 +560,6 @@
 #page-abattage .status-confirmee { background: var(--status-info-bg); color: var(--status-info-fg); }
 #page-abattage .status-en_preparation { background: var(--status-warning-bg); color: var(--status-warning-fg); }
 /* Boutons : primaire plat (+ Nouvelle session, Valider) ; Rapport/Détail déjà outline plats */
-#page-abattage .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-abattage .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 5 — Commercial & Ventes (scopé #page-clients), 4 ONGLETS
@@ -561,7 +571,7 @@
 #page-clients .kpi-card { background: var(--color-surface); border: none; border-left: none; border-radius: 0; box-shadow: none; padding: var(--space-4) var(--space-5); }
 #page-clients .kpi-card:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
 #page-clients .kpi-card .kpi-value { color: var(--color-text); font-size: 23px; }
-#page-clients .kpi-card.kpi-warn .kpi-value { color: var(--color-warning); }
+#page-clients .kpi-card.kpi-warn .kpi-value { color: var(--accent); } /* harmonisation 1/2 : ex-ambre → accent unique */
 #page-clients .kpi-card.kpi-headline .kpi-value { color: var(--color-accent); }
 #page-clients .kpi-card .kpi-label { font-size: 10.5px; letter-spacing: 0.08em; }
 @media (max-width: 1000px) { #page-clients .kpi-bar { grid-template-columns: repeat(2, 1fr); } }
@@ -599,10 +609,6 @@
 #page-clients .status-confirmee { background: var(--status-info-bg); color: var(--status-info-fg); }
 #page-clients .src-portail { background: var(--status-neutral-bg); color: var(--status-neutral-fg); border-color: var(--status-neutral-bd); }
 /* Boutons : primaire/gold plats, danger ghost ; outline + filtres déjà plats */
-#page-clients .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-clients .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
-#page-clients .btn-gold { background: var(--color-warning); box-shadow: var(--shadow-sm); }
-#page-clients .btn-gold:hover { box-shadow: var(--shadow-md); transform: none; }
 #page-clients .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
 #page-clients .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
 
@@ -636,8 +642,6 @@
 /* Tables formulation par phase : colonnes Qté/Prix/Coût (2→4) mono à droite */
 #page-supply #alim-phases-all td:nth-child(n+2):nth-child(-n+4), #page-supply #alim-phases-all th:nth-child(n+2):nth-child(-n+4) { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
 /* Boutons : primaire plat ; "+ Ajouter une entrée" (btn-primary.btn-sm en-tête de carte) → outline accent ; danger ghost */
-#page-supply .btn-primary { background: var(--color-accent); box-shadow: var(--shadow-sm); }
-#page-supply .btn-primary:hover { box-shadow: var(--shadow-md); transform: none; }
 #page-supply .card-header .btn-primary.btn-sm { background: none; color: var(--color-accent); border: 1px solid var(--color-accent); box-shadow: none; }
 #page-supply .card-header .btn-primary.btn-sm:hover { background: var(--color-accent-soft); box-shadow: none; }
 #page-supply .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
@@ -831,7 +835,7 @@ body::before {
 }
 .hero-batch-card::after {
   content:''; position:absolute; top:-40px; right:-40px; width:160px; height:160px;
-  background:radial-gradient(circle, rgba(234,88,12,0.05), transparent 70%);
+  background:radial-gradient(circle, rgba(226,100,15,0.05), transparent 70%);
   pointer-events:none; border-radius:50%;
 }
 .hero-batch-inner { display:flex; gap:var(--space-6); align-items:center; }
@@ -846,7 +850,7 @@ body::before {
 }
 .hero-metric {
   text-align:center; padding:var(--space-3); border-radius:var(--radius-sm);
-  background:var(--surface); border:1px solid var(--border-subtle);
+  background:var(--color-surface-alt); border:1px solid var(--border-subtle);
 }
 .hero-metric .hm-value { font-family:var(--mono); font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
 .hero-metric .hm-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); font-weight:700; margin-top:2px; }
@@ -854,7 +858,7 @@ body::before {
 
 /* ── Attention panel ── */
 .attention-panel {
-  background:linear-gradient(135deg, #FEF2F2, #FFF7ED); border:1px solid rgba(234,88,12,0.15);
+  background:linear-gradient(135deg, #FEF2F2, #FFF7ED); border:1px solid rgba(226,100,15,0.15);
   border-radius:var(--radius-md); padding:var(--space-4) var(--space-5);
   margin-bottom:var(--space-4);
 }
@@ -865,7 +869,7 @@ body::before {
 }
 .attention-item {
   display:flex; align-items:center; gap:var(--space-3); padding:8px 0;
-  border-bottom:1px solid rgba(234,88,12,0.08); font-size:13px;
+  border-bottom:1px solid rgba(226,100,15,0.08); font-size:13px;
 }
 .attention-item:last-child { border-bottom:none; }
 
@@ -1115,7 +1119,7 @@ body::before {
 .stat-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:var(--space-2); }
 .stat-item {
   text-align:center; padding:var(--space-3) var(--space-1);
-  background:var(--surface); border-radius:var(--radius-sm);
+  background:var(--color-surface-alt); border-radius:var(--radius-sm);
   border:1px solid var(--border-subtle);
   transition:all .15s var(--ease);
 }
@@ -1145,7 +1149,7 @@ body::before {
 }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
   outline:none; border-color:var(--primary);
-  box-shadow:0 0 0 3px rgba(234,88,12,0.07), var(--shadow-inner);
+  box-shadow:0 0 0 3px rgba(226,100,15,0.07), var(--shadow-inner);
 }
 .form-group input::placeholder { color:var(--c-sand-400); }
 .form-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0 var(--space-4); }
@@ -1161,29 +1165,37 @@ body::before {
 }
 .btn:hover { transform:translateY(-1px); }
 .btn:active { transform:translateY(0) scale(0.97); transition-duration:.06s; }
+/* ── Hiérarchie de boutons unifiée (harmonisation 1/2) : primaire = accent
+   plein, texte blanc, AUCUNE ombre (plat, instrument de précision) ;
+   secondaire = outline anthracite ; danger = --danger plein. Le thème sombre
+   s'adapte tout seul (--color-accent y est surchargé → var(--accent) suit).
+   NB contraste : blanc sur #E2640F ≈ 3.1:1 — même compromis que les 7 pages
+   Phase 2 déjà en prod ; pour un AA strict, basculer --accent sur
+   --c-orange-700 (une ligne). ── */
 .btn-primary {
-  /* a11y: darkened to --c-orange-700→800 so white text reaches WCAG AA (≥4.5:1) on white surfaces */
-  background:linear-gradient(135deg, var(--c-orange-700) 0%, var(--c-orange-800) 100%);
-  color:#fff; box-shadow:0 2px 8px rgba(234,88,12,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  background:var(--accent);
+  color:#fff; box-shadow:none;
 }
-.btn-primary:hover { box-shadow:0 4px 20px rgba(234,88,12,0.35), inset 0 1px 0 rgba(255,255,255,0.1); }
-/* Dark theme (SCADA console): keep the existing mid-orange button — the darkening above is for AA on white only */
-[data-theme="dark"] .btn-primary { background:linear-gradient(135deg, var(--c-orange-500) 0%, var(--c-orange-600) 100%); }
+.btn-primary:hover { background:var(--accent-pressed); box-shadow:none; transform:none; }
+.btn-primary:active { background:var(--accent-pressed); }
 .btn-gold {
-  background:linear-gradient(135deg, var(--c-amber-500), var(--c-amber-600));
-  color:#fff; box-shadow:0 2px 8px rgba(180,83,9,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  /* Variante « valider/confirmer » (sémantique statut, pas un accent) : aplatie
+     comme le reste ; hue warning conservée — deux CTA côte à côte (ex. modale
+     abattage « Enregistrer » / « Enregistrer et valider ») doivent rester
+     distinguables. */
+  background:var(--color-warning); color:#fff; box-shadow:none;
 }
-.btn-gold:hover { box-shadow:0 4px 16px rgba(180,83,9,0.3); }
+.btn-gold:hover { background:var(--c-amber-600); box-shadow:none; transform:none; }
 .btn-outline {
-  background:var(--card-bg); border:1.5px solid var(--border); color:var(--text-primary);
-  box-shadow:var(--shadow-sm);
+  background:var(--surface-card); border:1.5px solid var(--border); color:var(--text-primary);
+  box-shadow:none;
 }
-.btn-outline:hover { border-color:var(--primary); color:var(--primary); box-shadow:var(--shadow-md); }
+.btn-outline:hover { border-color:var(--anthracite); color:var(--anthracite); box-shadow:none; }
 .btn-danger {
-  background:linear-gradient(135deg, #EF4444, var(--c-red-600));
-  color:#fff; box-shadow:0 2px 8px rgba(220,38,38,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  background:var(--danger);
+  color:#fff; box-shadow:none;
 }
-.btn-danger:hover { box-shadow:0 4px 16px rgba(220,38,38,0.3); }
+.btn-danger:hover { background:var(--c-red-600); box-shadow:none; transform:none; }
 .btn-sm { padding:5px 12px; font-size:11px; min-height:28px; border-radius:var(--radius-xs); }
 
 /* Saisie Terrain save wrapper — inline on desktop, becomes a sticky full-width bar on mobile (see ≤768px block) */
@@ -1196,7 +1208,7 @@ body::before {
 table { width:100%; border-collapse:collapse; }
 th, td { padding:10px 14px; text-align:left; }
 th {
-  background:linear-gradient(180deg, var(--surface), var(--c-sand-100));
+  background:linear-gradient(180deg, var(--color-surface-alt), var(--c-sand-100));
   font-family:var(--sans); font-weight:700;
   color:var(--text-muted); text-transform:uppercase;
   font-size:9.5px; letter-spacing:0.12em;
@@ -1206,8 +1218,8 @@ th {
 td { font-size:13px; border-bottom:1px solid var(--c-sand-200); color:var(--text-primary); }
 tbody tr { transition:all .1s var(--ease); }
 tbody tr:nth-child(even) td { background:rgba(250,247,242,0.5); }
-tbody tr:hover td { background:rgba(234,88,12,0.025); }
-tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--surface), var(--c-sand-100)); border-top:2px solid var(--border); }
+tbody tr:hover td { background:rgba(226,100,15,0.025); }
+tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--color-surface-alt), var(--c-sand-100)); border-top:2px solid var(--border); }
 
 /* ── Charts ── */
 .chart-container { position:relative; height:280px; margin-bottom:20px; }
@@ -1322,10 +1334,10 @@ body.role-chef_bande .manager-only { display:none !important; }
   cursor:pointer; background:transparent; color:var(--text-muted);
   border:none; white-space:nowrap; transition:all .2s var(--ease);
 }
-.sc-flow-chip:hover { background:var(--surface); color:var(--text-primary); }
+.sc-flow-chip:hover { background:var(--color-surface-alt); color:var(--text-primary); }
 .sc-flow-chip.active {
   background:linear-gradient(135deg, var(--c-orange-500), var(--c-orange-600));
-  color:#fff; box-shadow:0 2px 12px rgba(234,88,12,0.2);
+  color:#fff; box-shadow:0 2px 12px rgba(226,100,15,0.2);
 }
 .sc-flow-arrow { color:var(--c-sand-300); font-size:13px; flex-shrink:0; padding:0 2px; }
 
@@ -1368,11 +1380,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   border-radius:var(--radius-sm); font-size:13px; font-family:var(--sans); background:#fff;
   min-height:38px; transition:all .15s;
 }
-.filter-bar select:focus, .filter-bar input:focus { border-color:var(--primary); outline:none; box-shadow:0 0 0 3px rgba(234,88,12,0.06); }
+.filter-bar select:focus, .filter-bar input:focus { border-color:var(--primary); outline:none; box-shadow:0 0 0 3px rgba(226,100,15,0.06); }
 
 /* ── Expand panel ── */
 .expand-panel {
-  background:var(--surface); border-top:1px solid var(--border-subtle);
+  background:var(--color-surface-alt); border-top:1px solid var(--border-subtle);
   padding:var(--space-4) var(--space-5); font-size:13px;
   animation:expandIn .25s var(--ease-out);
 }
@@ -1396,10 +1408,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   transition:all .2s var(--ease);
 }
 .kpi-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
-.kpi-card .kpi-value { font-family:var(--mono); font-size:28px; font-weight:700; color:var(--c-orange-600); font-variant-numeric:tabular-nums; transition:color 0.3s; }
+.kpi-card .kpi-value { font-family:var(--mono); font-size:28px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; transition:color 0.3s; }
 .kpi-card .kpi-label { font-family:var(--sans); font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.12em; margin-top:6px; font-weight:700; }
-.kpi-card.kpi-warn .kpi-value { color:var(--accent-amber); }
-.kpi-card.kpi-warn { border-left-color:var(--accent-amber); }
+.kpi-card.kpi-warn .kpi-value { color:var(--accent); } /* harmonisation 1/2 : plus d'accent ambre sur les KPI — un seul accent */
+.kpi-card.kpi-warn { border-left-color:var(--accent); } /* harmonisation 1/2 : suit la valeur KPI (accent unique) */
 
 /* ── Status badges ── */
 .status-badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:var(--radius-full); font-family:var(--sans); font-size:10px; font-weight:700; white-space:nowrap; text-transform:uppercase; letter-spacing:0.04em; }
@@ -1415,7 +1427,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 .src-portail { background:var(--c-orange-50); color:var(--c-orange-700); border:1px solid var(--c-orange-200); }
 
 /* ── Ligne commande ── */
-.ligne-row { display:flex; gap:var(--space-2); align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; padding:var(--space-3) var(--space-3); background:var(--surface); border-radius:var(--radius-sm); border:1px solid var(--border-subtle); }
+.ligne-row { display:flex; gap:var(--space-2); align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; padding:var(--space-3) var(--space-3); background:var(--color-surface-alt); border-radius:var(--radius-sm); border:1px solid var(--border-subtle); }
 .ligne-row .form-group { margin-bottom:0; flex:1; min-width:100px; }
 .ligne-row .form-group.wide { min-width:150px; }
 
@@ -1430,7 +1442,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 .dash-kpi::before {
   content:''; position:absolute; top:-20px; right:-20px; width:80px; height:80px;
-  background:radial-gradient(circle, rgba(234,88,12,0.04), transparent 70%);
+  background:radial-gradient(circle, rgba(226,100,15,0.04), transparent 70%);
   pointer-events:none; border-radius:50%;
 }
 .dash-kpi:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
@@ -1469,7 +1481,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 /* ── Dash sections ── */
 .dash-section-title { font-family:var(--sans); font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.14em; color:var(--text-muted); margin:var(--space-6) 0 var(--space-3); padding-bottom:var(--space-2); border-bottom:1px solid var(--border-subtle); }
 .dash-cmd-row { display:flex; align-items:center; gap:var(--space-3); padding:10px 0; border-bottom:1px solid var(--c-sand-200); font-size:13px; flex-wrap:wrap; transition:all .1s; }
-.dash-cmd-row:hover { background:rgba(234,88,12,0.015); padding-left:4px; }
+.dash-cmd-row:hover { background:rgba(226,100,15,0.015); padding-left:4px; }
 .dash-cmd-row:last-child { border-bottom:none; }
 .dash-cmd-client { font-weight:700; min-width:140px; }
 .dash-cmd-detail { color:var(--text-secondary); flex:1; }
@@ -1478,7 +1490,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 .dash-cmd-date.soon { color:var(--accent-amber); }
 
 .dash-stock-row { display:flex; align-items:center; gap:var(--space-3); padding:8px 0; border-bottom:1px solid var(--c-sand-200); font-size:13px; transition:all .1s; }
-.dash-stock-row:hover { background:rgba(234,88,12,0.015); }
+.dash-stock-row:hover { background:rgba(226,100,15,0.015); }
 .dash-stock-row:last-child { border-bottom:none; }
 .dash-stock-name { font-weight:700; min-width:150px; }
 .dash-stock-levels { color:var(--text-muted); min-width:130px; font-size:11px; }
@@ -1524,9 +1536,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 .notif-panel.open { display:flex; animation:panelSlide .3s var(--ease-out); }
 @keyframes panelSlide { from{transform:translateX(100%)} to{transform:translateX(0)} }
-.notif-panel-header { padding:16px 20px; border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; background:var(--surface); }
+.notif-panel-header { padding:16px 20px; border-bottom:1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-alt); }
 .notif-panel-header h3 { font-family:var(--sans); font-weight:700; font-size:15px; color:var(--text-primary); margin:0; }
-.notif-panel-tabs { display:flex; border-bottom:1px solid var(--border-subtle); padding:0 16px; background:var(--surface); }
+.notif-panel-tabs { display:flex; border-bottom:1px solid var(--border-subtle); padding:0 16px; background:var(--color-surface-alt); }
 .notif-panel-tabs button {
   padding:10px 14px; border:none; background:none;
   font-family:var(--sans); font-size:12px; font-weight:500;
@@ -1547,7 +1559,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 .notif-card .nc-title { font-family:var(--sans); font-size:13px; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:6px; }
 .notif-card .nc-time { font-size:10px; color:var(--text-muted); white-space:nowrap; }
 .notif-card .nc-author { font-size:11px; color:var(--text-muted); margin-bottom:4px; }
-.notif-card .nc-payload { background:var(--surface); border-radius:var(--radius-xs); padding:10px 12px; font-size:11px; color:var(--text-secondary); margin:8px 0; line-height:1.5; font-family:var(--mono); }
+.notif-card .nc-payload { background:var(--color-surface-alt); border-radius:var(--radius-xs); padding:10px 12px; font-size:11px; color:var(--text-secondary); margin:8px 0; line-height:1.5; font-family:var(--mono); }
 .notif-card .nc-actions { display:flex; gap:8px; margin-top:10px; }
 .nc-note-input { width:100%; margin-top:8px; padding:10px 12px; border:1.5px solid var(--border); border-radius:var(--radius-xs); font-size:12px; font-family:var(--sans); display:none; min-height:38px; }
 
@@ -1650,7 +1662,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #bottom-tab-bar .tab-fab .fab-circle {
   position:absolute; top:calc(-1 * var(--fab-rise, 22px)); left:50%; transform:translateX(-50%);
   width:56px; height:56px; border-radius:50%;
-  background:var(--color-accent); color:#fff;
+  background:var(--accent); color:#fff;
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 6px 16px rgba(15,24,34,0.24), 0 2px 4px rgba(15,24,34,0.12);
   transition:transform .12s var(--ease);
@@ -1695,7 +1707,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   transition:all .15s; min-width:44px; min-height:44px;
   display:flex; align-items:center; justify-content:center;
 }
-#mobile-top-bar .mtb-btn:hover { background:var(--surface); }
+#mobile-top-bar .mtb-btn:hover { background:var(--color-surface-alt); }
 
 /* ── Plus bottom sheet ── */
 #plus-sheet-overlay, #saisie-sheet-overlay {
@@ -1722,7 +1734,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   transition:background .1s; min-height:48px;
 }
 #plus-sheet a:hover,
-#plus-sheet a:active { background:var(--surface); }
+#plus-sheet a:active { background:var(--color-surface-alt); }
 #plus-sheet a .icon { font-size:20px; width:32px; text-align:center; }
 /* Sélecteur de bande du FAB Saisie (réutilise le chrome du plus-sheet) */
 #saisie-sheet .saisie-sheet-title {
@@ -1732,7 +1744,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #saisie-sheet .saisie-sheet-item {
   display:flex; align-items:center; gap:12px; width:100%; text-align:left;
   padding:14px 16px; margin-bottom:4px; min-height:52px;
-  background:var(--surface); border:1px solid var(--border-subtle); border-radius:var(--radius-md);
+  background:var(--color-surface-alt); border:1px solid var(--border-subtle); border-radius:var(--radius-md);
   color:var(--text-primary); font-family:var(--sans); font-size:15px; font-weight:700;
   cursor:pointer; transition:background .1s, border-color .1s;
 }
@@ -1748,15 +1760,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   width:100%;
 }
 .mode-soleil-toggle:hover { color:var(--sidebar-text-active); background:var(--sidebar-hover); }
-.mode-soleil-toggle.active { background:#EA580C; color:#fff; border-color:#EA580C; }
+.mode-soleil-toggle.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 /* Bouton mode soleil mobile : état actif visible */
-#mtb-soleil.active { background:#EA580C; color:#fff; border-radius:var(--radius-sm); }
+#mtb-soleil.active { background:var(--accent); color:#fff; border-radius:var(--radius-sm); }
 
 /* ── Paramètres ── */
 .param-row { display:flex; align-items:center; justify-content:space-between; gap:1rem; cursor:pointer; padding:6px 0; }
 .param-switch { width:44px; height:26px; border-radius:999px; background:#C9BEB4; position:relative; transition:background .15s; flex-shrink:0; }
 .param-switch::after { content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .15s; box-shadow:0 1px 3px rgba(0,0,0,0.25); }
-.param-switch.on { background:#EA580C; }
+.param-switch.on { background:var(--accent); }
 .param-switch.on::after { transform:translateX(18px); }
 .param-info-row { display:flex; justify-content:space-between; gap:1rem; padding:9px 0; border-bottom:1px solid var(--border-subtle); font-size:0.9rem; }
 .param-info-row:last-child { border-bottom:none; }
@@ -2519,7 +2531,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 #login-screen input:focus {
   border-color:var(--c-orange-600) !important;
-  box-shadow:0 0 0 3px rgba(234,88,12,0.1), inset 0 1px 2px rgba(15,23,42,0.04) !important;
+  box-shadow:0 0 0 3px rgba(226,100,15,0.1), inset 0 1px 2px rgba(15,23,42,0.04) !important;
 }
 
 </style>
@@ -2695,7 +2707,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <button onclick="toggleNotifPanel()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#475569;">&times;</button>
   </div>
   <div class="notif-panel-tabs">
-    <button class="active" onclick="switchNotifTab('pending',this)">En attente <span id="notif-pending-count" style="background:#FFF7ED;color:#EA580C;border-radius:4px;padding:0 0.35rem;font-size:0.68rem;margin-left:0.3rem;"></span></button>
+    <button class="active" onclick="switchNotifTab('pending',this)">En attente <span id="notif-pending-count" style="background:var(--color-accent-soft);color:var(--accent);border-radius:4px;padding:0 0.35rem;font-size:0.68rem;margin-left:0.3rem;"></span></button>
     <button onclick="switchNotifTab('history',this)">Historique</button>
   </div>
   <div class="notif-panel-body" id="notif-panel-body"></div>
@@ -2709,18 +2721,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div style="margin-bottom:36px;">
       <div class="siva-wordmark"><span class="siva-word">SI<span class="sw-accent">V</span>A</span></div>
       <div style="font-family:'Inter',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:10px;">Gestion Avicole Professionnelle</div>
-      <div style="width:40px;height:2px;background:linear-gradient(90deg,#EA580C,#FB923C);margin:14px auto 0;border-radius:1px;"></div>
+      <div style="width:40px;height:2px;background:var(--accent);margin:14px auto 0;border-radius:1px;"></div>
     </div>
     <div style="text-align:left;margin-bottom:14px;">
       <label style="display:block;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Identifiant</label>
-      <input type="text" id="login-matricule" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="SIVA-001" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      <input type="text" id="login-matricule" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="SIVA-001" onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--accent-ring)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
     </div>
     <div style="text-align:left;margin-bottom:4px;">
       <label style="display:block;font-family:'Inter',sans-serif;font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Mot de passe</label>
-      <input type="password" id="login-password" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="Votre mot de passe" onfocus="this.style.borderColor='#EA580C';this.style.boxShadow='0 0 0 3px rgba(234,88,12,0.1)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="password" id="login-password" style="width:100%;padding:14px 16px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:'Inter',sans-serif;background:#FFFFFF;min-height:50px;transition:border-color 0.15s,box-shadow 0.15s;color:var(--navbar-deep);" placeholder="Votre mot de passe" onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--accent-ring)'" onblur="this.style.borderColor='#E2E8F0';this.style.boxShadow='none'" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div id="login-error" style="color:#DC2626;font-size:12px;margin-top:8px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:600;"></div>
-    <button onclick="doLogin()" style="width:100%;margin-top:18px;padding:14px 16px;background:linear-gradient(135deg,#EA580C,#F97316);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.02em;cursor:pointer;transition:all 0.15s;min-height:50px;box-shadow:0 2px 8px rgba(234,88,12,0.3);" onmouseover="this.style.background='linear-gradient(135deg,#C2410C,#EA580C)';this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(234,88,12,0.35)'" onmouseout="this.style.background='linear-gradient(135deg,#EA580C,#F97316)';this.style.transform='none';this.style.boxShadow='0 2px 8px rgba(234,88,12,0.3)'">Connexion</button>
+    <button onclick="doLogin()" style="width:100%;margin-top:18px;padding:14px 16px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;letter-spacing:0.02em;cursor:pointer;transition:all 0.15s;min-height:50px;" onmouseover="this.style.background='var(--accent-pressed)';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--accent)';this.style.transform='none'">Connexion</button>
     <div style="margin-top:28px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#94A3B8;letter-spacing:0.06em;">SIVA &middot; AZAGUIE &middot; COTE D'IVOIRE</div>
   </div>
 </div>
@@ -3928,7 +3940,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="form-row" id="emp-salary-journalier" style="display:none;">
       <div class="form-group"><label>Taux journalier (FCFA)</label><input type="number" id="emp-taux-jour" min="0"></div>
     </div>
-    <div id="emp-charge-calc" style="font-size:0.85rem;color:#C2410C;margin-bottom:0.75rem;"></div>
+    <div id="emp-charge-calc" style="font-size:0.85rem;color:var(--accent);margin-bottom:0.75rem;"></div>
     <div class="form-group"><label>Note</label><input type="text" id="emp-note" placeholder="Remarques…"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeEmployeModal()">Annuler</button>
@@ -3971,7 +3983,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div class="modal" style="max-width:700px;">
     <h3><i data-lucide="package"></i> Nouvelle session d'abattage</h3>
 
-    <h4 style="color:#EA580C;font-size:0.85rem;margin-bottom:0.5rem;">1. Identification</h4>
+    <h4 style="color:var(--accent);font-size:0.85rem;margin-bottom:0.5rem;">1. Identification</h4>
     <div class="form-row">
       <div class="form-group"><label>Bande</label><select id="ab-bande"></select></div>
       <div class="form-group"><label>Date abattage</label><input type="date" id="ab-date"></div>
@@ -3982,7 +3994,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div class="form-group"><label>Responsable</label><input type="text" id="ab-responsable"></div>
 
-    <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">2. Comptage oiseaux</h4>
+    <h4 style="color:var(--accent);font-size:0.85rem;margin:1rem 0 0.5rem;">2. Comptage oiseaux</h4>
     <div class="form-row">
       <div class="form-group"><label>Effectif veille</label><input type="number" id="ab-effectif-veille" min="0" oninput="updateAbCalcs()"></div>
       <div class="form-group"><label>Nb oiseaux abattus</label><input type="number" id="ab-nb-abattus" min="0" oninput="updateAbCalcs()"></div>
@@ -3992,16 +4004,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Saisis/condamnés</label><input type="number" id="ab-saisis" min="0" value="0" oninput="updateAbCalcs()"></div>
       <div class="form-group"><label>Échappés</label><input type="number" id="ab-echappes" min="0" value="0" oninput="updateAbCalcs()"></div>
     </div>
-    <div id="ab-calc-pertes" style="font-size:0.85rem;color:#C2410C;margin-bottom:0.5rem;"></div>
+    <div id="ab-calc-pertes" style="font-size:0.85rem;color:var(--accent);margin-bottom:0.5rem;"></div>
 
-    <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">3. Pesée et rendement</h4>
+    <h4 style="color:var(--accent);font-size:0.85rem;margin:1rem 0 0.5rem;">3. Pesée et rendement</h4>
     <div class="form-row">
       <div class="form-group"><label>Poids vif total (kg)</label><input type="number" id="ab-poids-vif" step="0.1" min="0" oninput="updateAbCalcs()"></div>
       <div class="form-group"><label>Rendement carcasse réel (%)</label><input type="number" id="ab-rendement" step="0.1" value="58" min="0" max="100" oninput="updateAbCalcs()"></div>
     </div>
-    <div id="ab-calc-poids" style="font-size:0.85rem;color:#C2410C;margin-bottom:0.5rem;"></div>
+    <div id="ab-calc-poids" style="font-size:0.85rem;color:var(--accent);margin-bottom:0.5rem;"></div>
 
-    <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">4. Coûts journée</h4>
+    <h4 style="color:var(--accent);font-size:0.85rem;margin:1rem 0 0.5rem;">4. Coûts journée</h4>
     <div class="form-row">
       <div class="form-group"><label>Nb workers</label><input type="number" id="ab-workers" min="0" oninput="updateAbCalcs()"></div>
       <div class="form-group"><label>Coût total workers (FCFA)</label><input type="number" id="ab-cout-workers" min="0" oninput="updateAbCalcs()"></div>
@@ -4014,9 +4026,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Autres coûts (FCFA)</label><input type="number" id="ab-cout-autres" min="0" value="0" oninput="updateAbCalcs()"></div>
       <div class="form-group"><label>Note autres</label><input type="text" id="ab-note-autres" placeholder="Détail coûts autres"></div>
     </div>
-    <div id="ab-calc-couts" style="font-size:0.85rem;color:#C2410C;font-weight:600;margin-bottom:0.5rem;"></div>
+    <div id="ab-calc-couts" style="font-size:0.85rem;color:var(--accent);font-weight:600;margin-bottom:0.5rem;"></div>
 
-    <h4 style="color:#EA580C;font-size:0.85rem;margin:1rem 0 0.5rem;">5. Observations</h4>
+    <h4 style="color:var(--accent);font-size:0.85rem;margin:1rem 0 0.5rem;">5. Observations</h4>
     <div class="form-group"><textarea id="ab-note" rows="2" placeholder="Observations, incidents, qualité…" style="width:100%;padding:0.6rem 0.85rem;border:1px solid #A7F3D0;border-radius:6px;font-size:0.85rem;font-family:'Inter',sans-serif;background:#FFFFFF;"></textarea></div>
 
     <div class="modal-actions">
@@ -7082,7 +7094,7 @@ function computeDeadlines(batchData) {
       deadlines.push({
         label: 'Abattage estimé — ' + b.nom_bande,
         icon: '<i data-lucide="package"></i>',
-        color: daysLeft <= 7 ? '#C62828' : '#EA580C',
+        color: daysLeft <= 7 ? '#C62828' : 'var(--accent)',
         date: fDate,
         daysLeft: daysLeft,
         sub: 'Poids vif : ' + (ind.hasWeighing ? Math.round(ind.poidsMesure) + 'g' : 'non pesé') + ' / cible ' + fmt(TARGET_LIVE_WEIGHT_G) + 'g'
@@ -7108,7 +7120,7 @@ function computeDeadlines(batchData) {
           deadlines.push({
             label: 'Fin phase ' + phaseName + ' — ' + b.nom_bande,
             icon: '<i data-lucide="sprout"></i>',
-            color: '#EA580C',
+            color: 'var(--accent)',
             date: endDate,
             daysLeft: daysLeft,
             sub: 'Jour actuel : J' + jour
@@ -7133,7 +7145,7 @@ function computeDeadlines(batchData) {
     deadlines.push({
       label: 'Livraison — ' + (cl ? cl.nom : '?'),
       icon: '<i data-lucide="truck"></i>',
-      color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? '#EA580C' : '#EA580C',
+      color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? 'var(--accent)' : 'var(--accent)',
       date: livDate,
       daysLeft: daysLeft,
       sub: fmt(Number(c.montant_total_fcfa) || 0) + ' FCFA'
@@ -7307,10 +7319,10 @@ function renderDashboard() {
       const humOk = ind.lastHumidite != null && ind.lastHumidite >= norm.humMin && ind.lastHumidite <= norm.humMax;
       ambianceHtml = `<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;">`;
       if (ind.lastTemp != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? '#FFF7ED' : '#FEF2F2'};color:${tempOk ? '#EA580C' : '#DC2626'};font-weight:600;"><i data-lucide="thermometer"></i> ${fmt(ind.lastTemp,1)}°C</span>`;
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? 'var(--color-accent-soft)' : '#FEF2F2'};color:${tempOk ? 'var(--accent)' : '#DC2626'};font-weight:600;"><i data-lucide="thermometer"></i> ${fmt(ind.lastTemp,1)}°C</span>`;
       }
       if (ind.lastHumidite != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? '#FFF7ED' : '#FEF2F2'};color:${humOk ? '#EA580C' : '#DC2626'};font-weight:600;"><i data-lucide="droplet"></i> ${fmt(ind.lastHumidite,0)}%</span>`;
+        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? 'var(--color-accent-soft)' : '#FEF2F2'};color:${humOk ? 'var(--accent)' : '#DC2626'};font-weight:600;"><i data-lucide="droplet"></i> ${fmt(ind.lastHumidite,0)}%</span>`;
       }
       if (ind.eauTotal > 0) {
         ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:#EFF6FF;color:#3B82F6;font-weight:600;"><i data-lucide="droplets"></i> ${fmt(ind.eauTotal,0)} L</span>`;
