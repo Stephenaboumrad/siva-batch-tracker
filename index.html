@@ -2534,6 +2534,119 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   box-shadow:0 0 0 3px rgba(226,100,15,0.1), inset 0 1px 2px rgba(15,23,42,0.04) !important;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   HARMONISATION 2/2 — Premier écran mobile (bandes + commercial).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Jour de cycle dans la colonne Date entrée (bandes en cours) */
+.bande-jday { font-family:var(--font-mono); font-size:11px; font-weight:700; color:var(--color-text-muted); }
+
+/* Libellés des filtres date (Du / Au) — visibles à toutes les tailles */
+.filter-date-label { font-size:0.78rem; font-weight:600; color:var(--text-muted); }
+
+/* Badge compteur du bouton « Filtres » (nb de filtres actifs ≠ défaut) */
+.filter-count-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:16px; height:16px; padding:0 4px; margin-left:6px;
+  border-radius:var(--radius-full); background:var(--accent); color:#fff;
+  font-size:10px; font-weight:700;
+}
+
+/* Desktop / tablette : bouton « Filtres » caché, champs à plat dans la barre
+   (display:contents → participe au flex de .filter-bar, rendu inchangé). */
+#cmd-filters-toggle { display:none; }
+#cmd-filter-fields { display:contents; }
+
+/* ≤480px : les 4 filtres empilés se replient derrière « Filtres » pour que
+   KPI + « + Nouvelle commande » + les premières commandes tiennent au 1er écran. */
+@media (max-width: 480px) {
+  #cmd-filters-toggle { display:inline-flex; align-self:flex-start; }
+  #cmd-filter-fields {
+    display:none; width:100%;
+    flex-direction:column; gap:var(--space-2);
+  }
+  #cmd-filter-fields.open { display:flex; }
+  #cmd-filter-fields .filter-date-label { margin-bottom:-4px; }
+}
+
+@media (max-width: 560px) {
+  /* ── Rythme vertical de la page Gestion des bandes ──
+     titre → onglets → contrôles → contenu, compressé (l'entête occupait
+     presque un écran avant le tableau). Les !important surchargent les
+     styles inline du markup partagé. */
+  #page-bandes h2 { margin-bottom:var(--space-2); }
+  #bandes-controls { margin-bottom:var(--space-2) !important; gap:var(--space-2) !important; }
+  #bandes-controls .tabs { margin-bottom:0; }
+  #bandes-controls label { min-height:0 !important; font-size:0.8rem !important; }
+  #bandes-controls .btn-primary { width:100%; }
+
+  /* ─── Table 4 — Gestion des bandes (#bandes-list) → cartes empilées ───
+     Cols renderBandes() : 1 Nom · 2 Date entrée (+J) · 3 Poussins ·
+     4 Fournisseur · 5 Statut · 6 Actions.
+     Carte : « Nom …… Statut » en entête, puis Entrée / Poussins /
+     (Fournisseur si renseigné), actions pleine largeur sous un filet.
+     ⚠️ MAINTENANCE : libellés ::before POSITIONNELS — même couplage à
+     l'ordre des colonnes que les 3 tables cartes plus haut (#saisie-recent /
+     #fiche-saisies-table / #abattage-list). Réordonner, ajouter ou retirer
+     une colonne dans renderBandes() ⇒ mettre à jour ces nth-child EN MÊME
+     TEMPS, sinon les libellés mobiles se décalent. */
+  #page-bandes #bandes-list .table-wrap {
+    background:none; border:none; box-shadow:none; overflow:visible;
+  }
+  #page-bandes #bandes-list table,
+  #page-bandes #bandes-list tbody { display:block; width:100%; }
+  #page-bandes #bandes-list thead { display:none; }
+  #page-bandes #bandes-list tbody tr {
+    display:flex; flex-wrap:wrap; align-items:baseline;
+    gap:2px var(--space-3);
+    border:var(--border-hairline); border-radius:var(--radius-md);
+    background:var(--color-surface);
+    padding:var(--space-3) var(--space-4); margin-bottom:var(--space-3);
+  }
+  #page-bandes #bandes-list tbody tr:hover td,
+  #page-bandes #bandes-list tbody tr:nth-child(even) td { background:transparent; } /* ni survol ni zébrure en carte */
+  #page-bandes #bandes-list tbody td {
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:var(--space-3); flex:1 1 100%;
+    border:none; padding:2px 0;
+  }
+  #page-bandes #bandes-list tbody td::before {
+    font-family:var(--font-sans); font-weight:600; font-size:11px;
+    letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--color-text-muted); white-space:nowrap;
+  }
+  /* Entête de carte : Nom (titre, gauche) + Statut (badges, droite) */
+  #page-bandes #bandes-list tbody td:nth-child(1) {
+    order:1; flex:1 1 auto; justify-content:flex-start;
+    font-weight:700; font-size:13.5px; color:var(--color-text);
+    padding-bottom:var(--space-2);
+  }
+  #page-bandes #bandes-list tbody td:nth-child(5) {
+    order:2; flex:0 0 auto; justify-content:flex-end;
+    padding-bottom:var(--space-2);
+  }
+  #page-bandes #bandes-list tbody td:nth-child(1)::before,
+  #page-bandes #bandes-list tbody td:nth-child(5)::before,
+  #page-bandes #bandes-list tbody td:nth-child(6)::before { content:none; }
+  #page-bandes #bandes-list tbody td:nth-child(2) {
+    order:3; border-top:var(--border-hairline); padding-top:var(--space-2);
+  }
+  #page-bandes #bandes-list tbody td:nth-child(3) { order:4; }
+  #page-bandes #bandes-list tbody td:nth-child(4) { order:5; }
+  #page-bandes #bandes-list tbody td:nth-child(2)::before { content:"Entrée"; }
+  #page-bandes #bandes-list tbody td:nth-child(3)::before { content:"Poussins"; }
+  #page-bandes #bandes-list tbody td:nth-child(4)::before { content:"Fournisseur"; }
+  /* Fournisseur non renseigné : ligne masquée (classe posée par renderBandes) */
+  #page-bandes #bandes-list tbody td.cell-empty { display:none; }
+  /* Actions : rangée pleine largeur sous un filet */
+  #page-bandes #bandes-list tbody td:nth-child(6) {
+    order:6; justify-content:flex-start;
+    border-top:var(--border-hairline); padding-top:var(--space-2); margin-top:2px;
+  }
+  /* J-day mis en avant dans la carte */
+  #page-bandes #bandes-list tbody td .bande-jday { color:var(--accent); }
+}
+
 </style>
 </head>
 <body>
@@ -2780,7 +2893,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
   <div id="page-bandes" class="page">
     <h2><i data-lucide="chart-line"></i> Gestion des bandes</h2>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+    <div id="bandes-controls" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div class="tabs">
         <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
         <button class="tab-btn" onclick="filterBandes('en_cours',this)">En cours</button>
@@ -3194,21 +3307,29 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Tab 1: Commandes -->
     <div id="cl-tab-commandes">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <div class="filter-bar">
-          <select id="filter-cmd-statut" onchange="renderCommandes()">
-            <option value="">Tous statuts</option>
-            <option value="soumise">Soumise (portail)</option>
-            <option value="en_attente">En attente</option>
-            <option value="confirmee">Confirmée</option>
-            <option value="en_preparation">En préparation</option>
-            <option value="livree">Livrée</option>
-            <option value="annulee">Annulée</option>
-          </select>
-          <select id="filter-cmd-client" onchange="renderCommandes()">
-            <option value="">Tous clients</option>
-          </select>
-          <input type="date" id="filter-cmd-from" onchange="renderCommandes()" title="Date début">
-          <input type="date" id="filter-cmd-to" onchange="renderCommandes()" title="Date fin">
+        <div class="filter-bar" id="cmd-filter-bar">
+          <!-- ≤480px : les filtres se replient derrière ce bouton (badge = nb de filtres actifs) -->
+          <button type="button" id="cmd-filters-toggle" class="btn btn-outline btn-sm" onclick="toggleCmdFilters()" aria-expanded="false" aria-controls="cmd-filter-fields">
+            <i data-lucide="filter"></i> Filtres<span id="cmd-filters-count" class="filter-count-badge" style="display:none;"></span>
+          </button>
+          <div class="filter-fields" id="cmd-filter-fields">
+            <select id="filter-cmd-statut" onchange="renderCommandes()">
+              <option value="">Tous statuts</option>
+              <option value="soumise">Soumise (portail)</option>
+              <option value="en_attente">En attente</option>
+              <option value="confirmee">Confirmée</option>
+              <option value="en_preparation">En préparation</option>
+              <option value="livree">Livrée</option>
+              <option value="annulee">Annulée</option>
+            </select>
+            <select id="filter-cmd-client" onchange="renderCommandes()">
+              <option value="">Tous clients</option>
+            </select>
+            <label class="filter-date-label" for="filter-cmd-from">Du</label>
+            <input type="date" id="filter-cmd-from" onchange="renderCommandes()" title="Commandes à partir de cette date (date de commande)">
+            <label class="filter-date-label" for="filter-cmd-to">Au</label>
+            <input type="date" id="filter-cmd-to" onchange="renderCommandes()" title="Commandes jusqu'à cette date (date de commande)">
+          </div>
         </div>
         <button class="btn btn-primary manager-only" onclick="showCommandeModal()">+ Nouvelle commande</button>
       </div>
@@ -7604,11 +7725,14 @@ function renderBandes() {
       actions += ` <button class="btn btn-sm btn-outline manager-only" onclick="unarchiveBande('${b.bande_id}')">Désarchiver</button>`;
       if (canDeleteBande()) actions += ` <button class="btn btn-sm btn-danger" onclick="showDeleteBandeModal('${b.bande_id}')">Supprimer définitivement</button>`;
     }
+    // Jour de cycle (J-day) affiché seulement pour les bandes en cours ;
+    // classe cell-empty = fournisseur non renseigné (masqué en carte mobile).
+    const jday = b.statut === 'en_cours' ? cycleDay(b) : null;
     html += `<tr>
       <td><strong>${escHtml(b.nom_bande || b.bande_id)}</strong></td>
-      <td>${fmtDate(b.date_entree)}</td>
+      <td>${fmtDate(b.date_entree)}${jday ? ' <span class="bande-jday">J' + jday + '</span>' : ''}</td>
       <td>${fmt(b.nb_poussins_entree)}</td>
-      <td>${escHtml(b.fournisseur_poussins || '—')}</td>
+      <td${b.fournisseur_poussins ? '' : ' class="cell-empty"'}>${escHtml(b.fournisseur_poussins || '—')}</td>
       <td>${statusBadge}${archBadge}</td>
       <td><div style="display:flex;gap:6px;flex-wrap:wrap;">${actions}</div></td>
     </tr>`;
@@ -11632,8 +11756,31 @@ function renderClientsKPI() {
 // ── Commandes tab ──
 // ══════════════════════════════
 
+// ── Filtres commandes repliables (≤480px) — présentation seule ──
+function toggleCmdFilters() {
+  const fields = document.getElementById('cmd-filter-fields');
+  if (!fields) return;
+  const open = fields.classList.toggle('open');
+  const btn = document.getElementById('cmd-filters-toggle');
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// Badge = nombre de filtres actifs (≠ défaut) sur le bouton « Filtres ».
+function updateCmdFiltersBadge() {
+  const active = ['filter-cmd-statut', 'filter-cmd-client', 'filter-cmd-from', 'filter-cmd-to']
+    .reduce((n, id) => {
+      const el = document.getElementById(id);
+      return n + (el && el.value ? 1 : 0);
+    }, 0);
+  const badge = document.getElementById('cmd-filters-count');
+  if (!badge) return;
+  badge.textContent = active;
+  badge.style.display = active > 0 ? '' : 'none';
+}
+
 function renderCommandes() {
   renderClientsKPI();
+  updateCmdFiltersBadge();
   // Populate client filter
   const cSel = document.getElementById('filter-cmd-client');
   const curVal = cSel.value;
