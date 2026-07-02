@@ -5168,7 +5168,7 @@ function renderVetOverview() {
   let wdLine;
   if (wd && wd > parseDayLocal(todayStr())) {
     const b = ind.withdrawalBinding;
-    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
+    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_admin) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
     wdLine = '<div style="margin-top:1rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-danger-bg);border-left:4px solid var(--color-danger);color:var(--status-danger-fg);font-size:0.82rem;font-weight:700;display:flex;align-items:center;gap:0.45rem;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex:none;"></i><span>Abattage autorisé à partir du <span style="font-family:var(--font-mono);">' + fmtDate(wd) + '</span>' + bindTxt + '</span></div>';
   } else {
     wdLine = '<div style="margin-top:1rem;padding:0.5rem 0.75rem;border-radius:6px;background:var(--status-neutral-bg);color:var(--text-muted);font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="check" style="width:15px;height:15px;flex:none;"></i> Aucun délai d\'attente actif sur cette bande.</div>';
@@ -6382,17 +6382,24 @@ function computeIndicators(bande) {
   const intrants = STATE.intrants.filter(i => i.bande_id === bande.bande_id);
 
   // ── Délai d'attente : date d'abattage autorisée au plus tôt (sans cache) ──
-  // = max sur les traitements de (date_intrant + delai_attente_jours). On
-  // retient l'intrant le plus contraignant (celui qui repousse la date).
+  // = la date la plus tardive imposée par les intrants (0015 : date_intrant +
+  // délai) ET par le registre des traitements (0018 : dernière administration +
+  // délai). On retient la ligne la plus contraignante, quelle que soit sa source.
+  // withdrawalBinding est normalisé {nom_produit, date_admin, delai_attente_jours}
+  // pour un affichage uniforme (KPI véto, fiche, modale d'override, motif figé).
   let earliestSlaughterDate = null;
   let withdrawalBinding = null;
-  intrants.forEach(i => {
-    const clear = intrantClearanceDate(i);
+  const retainWithdrawal = (clear, binding) => {
     if (clear && (!earliestSlaughterDate || clear > earliestSlaughterDate)) {
       earliestSlaughterDate = clear;
-      withdrawalBinding = i;
+      withdrawalBinding = binding;
     }
-  });
+  };
+  intrants.forEach(i => retainWithdrawal(intrantClearanceDate(i),
+    { nom_produit: i.nom_produit, date_admin: i.date_intrant, delai_attente_jours: i.delai_attente_jours }));
+  (STATE.traitements || []).filter(t => t.bande_id === bande.bande_id)
+    .forEach(t => retainWithdrawal(traitementClearanceDate(t),
+      { nom_produit: t.nom_produit, date_admin: t.date_traitement, delai_attente_jours: t.delai_attente_jours }));
 
   const nbEntree = Number(bande.nb_poussins_entree) || 0;
   const poidsInitial = Number(bande.poids_initial_moyen_g) || 42;
@@ -8324,7 +8331,7 @@ function loadFicheBande() {
   if (ind.earliestSlaughterDate) {
     const pending = ind.earliestSlaughterDate > parseDayLocal(todayStr());
     const b = ind.withdrawalBinding;
-    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
+    const bindTxt = b ? ' — traitement « ' + b.nom_produit + ' » du ' + fmtDate(b.date_admin) + ' (délai ' + b.delai_attente_jours + ' j)' : '';
     withdrawalHtml = pending
       ? '<div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-danger-bg);border-left:4px solid var(--color-danger);color:var(--status-danger-fg);font-size:0.82rem;font-weight:700;display:flex;align-items:center;gap:0.45rem;"><i data-lucide="alert-triangle" style="width:16px;height:16px;flex:none;"></i><span>Abattage autorisé à partir du <span style="font-family:var(--font-mono);">' + fmtDate(ind.earliestSlaughterDate) + '</span>' + bindTxt + '</span></div>'
       : '<div style="margin-top:0.6rem;padding:0.5rem 0.75rem;border-radius:6px;background:#DCFCE7;color:#166534;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="shield-check" style="width:15px;height:15px;flex:none;"></i> Délai d\'attente respecté (depuis le ' + fmtDate(ind.earliestSlaughterDate) + ')</div>';
@@ -13336,7 +13343,7 @@ function openWithdrawalConfirm(ind, onConfirm) {
   const b = ind ? ind.withdrawalBinding : null;
   document.getElementById('wc-date').textContent = fmtDate(wd);
   document.getElementById('wc-traitement').innerHTML = b
-    ? 'Traitement en cause : <strong>« ' + escHtml(b.nom_produit) + ' »</strong> administré le ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j).'
+    ? 'Traitement en cause : <strong>« ' + escHtml(b.nom_produit) + ' »</strong> administré le ' + fmtDate(b.date_admin) + ' (délai ' + b.delai_attente_jours + ' j).'
     : 'Traitement en cause : —';
   const who = currentUser ? currentUser.name : '—';
   const now = new Date();
@@ -13365,7 +13372,7 @@ function confirmWithdrawalOverride() {
   const b = ind ? ind.withdrawalBinding : null;
   // Motif = INSTANTANÉ textuel figé (reste vrai même si l'intrant est ensuite modifié/supprimé).
   const motif = wd
-    ? 'Autorisé à partir du ' + fmtDate(wd) + (b ? ' — « ' + b.nom_produit + ' » du ' + fmtDate(b.date_intrant) + ' (délai ' + b.delai_attente_jours + ' j)' : '')
+    ? 'Autorisé à partir du ' + fmtDate(wd) + (b ? ' — « ' + b.nom_produit + ' » du ' + fmtDate(b.date_admin) + ' (délai ' + b.delai_attente_jours + ' j)' : '')
     : '';
   const override = {
     par: currentUser ? (currentUser.name + (currentUser.matricule ? ' (' + currentUser.matricule + ')' : '')) : 'inconnu',
