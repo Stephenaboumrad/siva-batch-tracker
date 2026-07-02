@@ -7744,10 +7744,13 @@ function renderBandes() {
 
 // ── Gestion des bandes : archivage & suppression ──
 
-// Suppression définitive réservée aux comptes admin (pas au compte démo/chef de bande).
+// Liste conservée pour canViewRentabilite (encart Rentabilité de la fiche).
 const SUPER_ADMIN_MATRICULES = ['SIVA-001', 'SIVA-002'];
+// Suppression définitive : contrôle par RÔLE (migration 0021 = enforcement
+// serveur — RLS manager-only + trigger BEFORE DELETE). Le check client n'est
+// plus qu'une affordance UX ; le serveur est le contrôle.
 function canDeleteBande() {
-  return !!currentUser && SUPER_ADMIN_MATRICULES.includes(currentUser.matricule);
+  return isManager();
 }
 
 // Compte les lignes liées à une bande (depuis STATE) pour la confirmation de suppression.
@@ -7791,7 +7794,7 @@ async function setBandeArchivee(bandeId, archivee) {
 
 // Modale de confirmation : libellé + nombre de lignes liées supprimées.
 function showDeleteBandeModal(bandeId) {
-  if (!canDeleteBande()) { toast('Action réservée à un manager (SIVA-001 / SIVA-002)', 'error'); return; }
+  if (!canDeleteBande()) { toast('Action réservée à un manager', 'error'); return; }
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   if (!bande) return;
   const c = countBandeLinks(bandeId);
@@ -7838,7 +7841,7 @@ async function deleteBandeComplete(bandeId) {
 }
 
 async function confirmDeleteBande(bandeId) {
-  if (!canDeleteBande()) { toast('Action réservée à un manager (SIVA-001 / SIVA-002)', 'error'); return; }
+  if (!canDeleteBande()) { toast('Action réservée à un manager', 'error'); return; }
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   if (!bande) return;
   const btn = document.getElementById('confirm-delete-bande-btn');
