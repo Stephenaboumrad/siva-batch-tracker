@@ -4494,6 +4494,15 @@ function parseDayLocal(s) {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
+// Jour calendaire 'YYYY-MM-DD' d'une valeur date, comparable en chaîne.
+// Indispensable pour les colonnes timestamptz (ex. date_livraison_souhaitee) :
+// PostgREST les renvoie en ISO complet ('2026-07-06T00:00:00+00:00'), qui ne
+// matche jamais todayStr() en égalité stricte et exclut le jour limite des
+// filtres de plage en chaîne. Renvoie '' si la valeur est vide.
+function dateOnly(v) {
+  return v ? String(v).slice(0, 10) : '';
+}
+
 // Délai d'attente (withdrawal period) — date d'abattage au plus tôt induite par
 // UN intrant = date_intrant + delai_attente_jours (valeur SAISIE par l'éleveur,
 // migration 0015 ; aucune valeur médicale en dur). Renvoie une Date (minuit
@@ -7059,10 +7068,10 @@ function computeDeadlines(batchData) {
   const todayS = today.toISOString().slice(0, 10);
   const in14 = new Date(today); in14.setDate(in14.getDate() + 14);
   const in14S = in14.toISOString().slice(0, 10);
-  STATE.commandes.filter(c =>
-    (c.statut === 'confirmee' || c.statut === 'en_preparation') &&
-    c.date_livraison_souhaitee >= todayS && c.date_livraison_souhaitee <= in14S
-  ).forEach(c => {
+  STATE.commandes.filter(c => {
+    const d = dateOnly(c.date_livraison_souhaitee);
+    return (c.statut === 'confirmee' || c.statut === 'en_preparation') && d >= todayS && d <= in14S;
+  }).forEach(c => {
     const cl = STATE.clients.find(x => x.client_id === c.client_id);
     const livDate = new Date(c.date_livraison_souhaitee);
     livDate.setHours(0, 0, 0, 0);
@@ -7128,8 +7137,13 @@ function renderDashboard() {
     grid.innerHTML = '';
     grid.appendChild(emptyDiv);
     emptyDiv.style.display = '';
-    renderAlerts([]);
-    document.getElementById('dash-kpis').innerHTML = '';
+    // Les alertes hors-bande (stock bas, livraisons, réceptions non inspectées)
+    // existent aussi entre deux cycles : l'en-tête doit refléter la même liste
+    // que le badge de navigation (posé par checkAlerts ci-dessus).
+    renderAlerts(alerts);
+    document.getElementById('dash-kpis').innerHTML = alerts.length > 0
+      ? '<div class="dash-kpi card-stagger dk-danger"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>'
+      : '';
     document.getElementById('dash-commandes').innerHTML = '';
     document.getElementById('dash-stocks-watch').innerHTML = '';
     document.getElementById('dash-deadlines').innerHTML = '';
@@ -7297,10 +7311,10 @@ function renderDashboard() {
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndS = weekEnd.toISOString().slice(0, 10);
   const todayS = todayStr();
-  const upcomingCmds = STATE.commandes.filter(c =>
-    (c.statut === 'confirmee' || c.statut === 'en_preparation') &&
-    c.date_livraison_souhaitee >= todayS && c.date_livraison_souhaitee <= weekEndS
-  ).sort((a, b) => (a.date_livraison_souhaitee || '').localeCompare(b.date_livraison_souhaitee || ''));
+  const upcomingCmds = STATE.commandes.filter(c => {
+    const d = dateOnly(c.date_livraison_souhaitee);
+    return (c.statut === 'confirmee' || c.statut === 'en_preparation') && d >= todayS && d <= weekEndS;
+  }).sort((a, b) => (a.date_livraison_souhaitee || '').localeCompare(b.date_livraison_souhaitee || ''));
 
   let cmdHtml = '<div class="dash-section-title">Commandes à livrer cette semaine</div>';
   if (upcomingCmds.length === 0) {
@@ -7386,16 +7400,16 @@ function renderDashMortalityCharts(batchData) {
     if (!ctx) return;
 
     const saisies = STATE.saisies
-      .filter(s => s.bande_id === bd.bande.bande_id && Number(s.mortalite) > 0)
-      .sort((a, b) => (Number(a.jour) || 0) - (Number(b.jour) || 0));
+      .filter(s => s.bande_id === bd.bande.bande_id && Number(s.mortalite_jour) > 0)
+      .sort((a, b) => (Number(a.jour_bande) || 0) - (Number(b.jour_bande) || 0));
 
-    const maxJour = bd.jour || saisies.reduce((m, s) => Math.max(m, Number(s.jour) || 0), 0);
+    const maxJour = bd.jour || saisies.reduce((m, s) => Math.max(m, Number(s.jour_bande) || 0), 0);
     const labels = [];
     const values = [];
     for (let j = 1; j <= maxJour; j++) {
       labels.push('J' + j);
-      const s = saisies.find(x => Number(x.jour) === j);
-      values.push(s ? Number(s.mortalite) : 0);
+      const s = saisies.find(x => Number(x.jour_bande) === j);
+      values.push(s ? Number(s.mortalite_jour) : 0);
     }
 
     dashMortalityCharts[idx] = new Chart(ctx.getContext('2d'), {
@@ -7744,6 +7758,8 @@ async function createBande() {
     return;
   }
 
+  const btn = document.querySelector('#modal-overlay .btn-primary');
+  btn.disabled = true; btn.textContent = 'Création...';
   try {
     await apiPost({ action: 'addBande', payload });
     STATE.bandes.push(payload);
@@ -7760,6 +7776,8 @@ async function createBande() {
     } else {
       toast('Erreur: ' + err.message, 'error');
     }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Créer';
   }
 }
 
@@ -8053,38 +8071,50 @@ function clearSaisieValidation() {
   SAISIE_VALIDATED_FIELDS.forEach(f => setFieldMsg(f, null));
 }
 
+// Renvoie le niveau du contrôle ('error' | 'warn' | null) : submitSaisie bloque
+// sur 'error' (incohérence de données), les 'warn' restent consultatifs.
 function validateSaisieField(field) {
   const ctx = getSaisieValidationContext();
   const input = document.getElementById('saisie-' + field);
-  if (!input) return;
+  if (!input) return null;
   const raw = input.value;
-  if (raw === '' || raw == null) { setFieldMsg(field, null); return; }
+  if (raw === '' || raw == null) { setFieldMsg(field, null); return null; }
   const val = Number(raw);
-  if (!Number.isFinite(val)) { setFieldMsg(field, null); return; }
-  if (!ctx) { setFieldMsg(field, null); return; }
+  if (!Number.isFinite(val)) { setFieldMsg(field, null); return null; }
+  if (!ctx) { setFieldMsg(field, null); return null; }
 
   if (field === 'mortalite') {
     if (val > ctx.effectif) {
       setFieldMsg(field, 'error', 'Supérieur à l\'effectif (' + fmt(ctx.effectif) + ')');
-    } else { setFieldMsg(field, null); }
+      return 'error';
+    }
+    setFieldMsg(field, null); return null;
   } else if (field === 'temperature') {
     const n = ctx.norm;
     if (val < n.tempMin || val > n.tempMax) {
       setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.tempMin + '–' + n.tempMax + '°C) — confirmer ?');
-    } else { setFieldMsg(field, null); }
+      return 'warn';
+    }
+    setFieldMsg(field, null); return null;
   } else if (field === 'humidite') {
     const n = ctx.norm;
     if (val < n.humMin || val > n.humMax) {
       setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (norme ' + n.humMin + '–' + n.humMax + '%) — confirmer ?');
-    } else { setFieldMsg(field, null); }
+      return 'warn';
+    }
+    setFieldMsg(field, null); return null;
   } else if (field === 'poids') {
     if (val > 0) {
       const std = getCobbStandardWeight(ctx.jour);
       if (val < std * 0.5 || val > std * 1.6) {
         setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (~' + fmt(std) + ' g attendu) — confirmer ?');
-      } else { setFieldMsg(field, null); }
-    } else { setFieldMsg(field, null); }
+        return 'warn';
+      }
+      setFieldMsg(field, null); return null;
+    }
+    setFieldMsg(field, null); return null;
   }
+  return null;
 }
 
 function validateAllSaisieFields() {
@@ -8148,6 +8178,15 @@ function toggleIntrantForm() {
 async function submitSaisie() {
   const bandeId = document.getElementById('saisie-bande').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
+
+  // Validation bloquante : re-jouer les contrôles de champ au moment du submit ;
+  // une 'error' (ex. mortalité > effectif) empêche l'enregistrement — les
+  // messages sous champs sont posés par setFieldMsg, le formulaire reste rempli.
+  // Les 'warn' (température, poids inhabituels…) restent consultatifs.
+  if (SAISIE_VALIDATED_FIELDS.map(validateSaisieField).includes('error')) {
+    toast('Corrigez les champs en erreur avant d\'enregistrer', 'error');
+    return;
+  }
 
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   const dateSaisie = document.getElementById('saisie-date').value;
@@ -11497,8 +11536,11 @@ function renderClientsKPI() {
   const weekEnd = endOfWeek.toISOString().slice(0, 10);
   const monthStart = today.slice(0, 7) + '-01';
 
-  const cmdToday = STATE.commandes.filter(c => c.date_livraison_souhaitee === today && c.statut !== 'annulee' && c.statut !== 'livree').length;
-  const cmdWeek = STATE.commandes.filter(c => c.date_livraison_souhaitee >= weekStart && c.date_livraison_souhaitee <= weekEnd && c.statut !== 'annulee' && c.statut !== 'livree').length;
+  const cmdToday = STATE.commandes.filter(c => dateOnly(c.date_livraison_souhaitee) === today && c.statut !== 'annulee' && c.statut !== 'livree').length;
+  const cmdWeek = STATE.commandes.filter(c => {
+    const d = dateOnly(c.date_livraison_souhaitee);
+    return d >= weekStart && d <= weekEnd && c.statut !== 'annulee' && c.statut !== 'livree';
+  }).length;
   const caMois = STATE.commandes.filter(c => c.statut === 'livree' && c.date_commande >= monthStart).reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   // "À traiter" = en attente d'action : internes 'en_attente' + commandes portail 'soumise'.
   const enAttente = STATE.commandes.filter(c => c.statut === 'en_attente' || c.statut === 'soumise').length;
@@ -13017,7 +13059,7 @@ function getCommandeAlerts() {
   const alerts = [];
   const today = todayStr();
   const todayDeliveries = STATE.commandes.filter(c =>
-    c.date_livraison_souhaitee === today && c.statut !== 'livree' && c.statut !== 'annulee'
+    dateOnly(c.date_livraison_souhaitee) === today && c.statut !== 'livree' && c.statut !== 'annulee'
   );
   if (todayDeliveries.length > 0) {
     alerts.push({
