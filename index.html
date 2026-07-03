@@ -4466,6 +4466,8 @@ const ACTION_MAP = {
   markPaiement:       { op: 'rpc', fn: 'mark_commande_paiement' },
   addLigneCommande:   { table: 'lignes_commande', op: 'insert' },
   deleteLigneCommande:{ table: 'lignes_commande', op: 'delete', idField: 'ligne_id' },
+  // Commande + lignes = UNE unité composite (rejouable hors ligne d'un bloc — D-F1)
+  addCommandeWithLignes: { op: 'composite' },
   // Abattages
   addAbattage:        { table: 'abattages',       op: 'insert' },
   updateAbattage:     { table: 'abattages',       op: 'update', idField: 'abattage_id' },
@@ -4919,6 +4921,41 @@ async function apiGet(params) {
   return await sbSelect(cfg.table, filters);
 }
 
+// ── Exécuteur de l'action composite addCommandeWithLignes (D-F1) ───────────
+// L'en-tête et ses lignes s'écrivent ensemble ; hors ligne, l'unité ENTIÈRE
+// part en file (via le catch d'apiPost) et se rejoue d'un bloc — fini les
+// lignes perdues quand l'en-tête levait avant la boucle. Idempotent au rejeu :
+// commande_id / ligne_id sont UNIQUE en base → « duplicate key » = déjà écrit,
+// on continue. Une ligne REJETÉE (contrainte/RLS — un throw réseau, lui,
+// remonte et garde l'unité en file) est abandonnée et montant_total_fcfa est
+// recalculé sur les lignes réellement écrites (B-F4).
+async function execCommandeWithLignes(payload) {
+  const commande = payload.commande;
+  const lignes = Array.isArray(payload.lignes) ? payload.lignes : [];
+  const isDup = m => /duplicate key/i.test(m || '');
+
+  const rh = await sb.from('commandes').insert([commande]);
+  if (rh.error && !isDup(rh.error.message)) throw new Error(rh.error.message);
+
+  const okLignes = [];
+  let rejected = 0;
+  for (const l of lignes) {
+    const rl = await sb.from('lignes_commande').insert([l]);
+    if (!rl.error || isDup(rl.error.message)) okLignes.push(l);
+    else { rejected++; console.error('Ligne de commande rejetée :', rl.error.message); }
+  }
+
+  let montant = Number(commande.montant_total_fcfa) || 0;
+  if (rejected > 0) {
+    montant = okLignes.reduce((s, l) => s + (Number(l.montant_fcfa) || 0), 0);
+    const ru = await sb.from('commandes')
+      .update({ montant_total_fcfa: montant })
+      .eq('commande_id', commande.commande_id);
+    if (ru.error) console.error('Recalcul du montant de la commande :', ru.error.message);
+  }
+  return { success: true, okLignes, rejected, montant };
+}
+
 async function apiPost(body) {
   const action = body.action;
   const payload = body.payload || {};
@@ -4926,6 +4963,11 @@ async function apiPost(body) {
   if (!cfg) throw new Error('Action inconnue: ' + action);
 
   try {
+    if (cfg.op === 'composite') {
+      // Unité composite : l'exécuteur gère lui-même resp.error/duplicates et
+      // renvoie un résultat riche ; le catch hors-ligne ci-dessous s'applique.
+      return await execCommandeWithLignes(payload);
+    }
     let resp;
     if (cfg.op === 'insert') {
       resp = await sb.from(cfg.table).insert([payload]);
@@ -5030,7 +5072,12 @@ async function processSyncQueue() {
     if (!cfg) { errors++; remaining.push(item); continue; }
     try {
       let resp;
-      if (cfg.op === 'insert') {
+      if (cfg.op === 'composite') {
+        // Unité composite (commande + lignes) : rejouée d'un bloc, idempotente
+        // (duplicates ignorés) ; un throw (réseau) la garde en file.
+        await execCommandeWithLignes(item.payload);
+        resp = null;
+      } else if (cfg.op === 'insert') {
         resp = await sb.from(cfg.table).insert([item.payload]);
       } else if (cfg.op === 'update') {
         resp = await sb.from(cfg.table).update(item.payload).eq(cfg.idField, item.payload[cfg.idField]);
@@ -6937,9 +6984,23 @@ function createNotification(type, action, bandeId, bandeNom, payload) {
   };
   STATE.notifications = STATE.notifications || [];
   STATE.notifications.push(notif);
-  apiPost({ action: 'addNotification', payload: notif }).catch(() => {});
   updateBellBadge();
-  return notif;
+  // D-F2 : renvoie la PROMESSE d'écriture. Pour le chef_bande, la notification
+  // EST la persistance de l'entrée terrain (intrant/réception/abattage — 0021 :
+  // le chef n'écrit pas ces tables) : les chemins de soumission DOIVENT
+  // l'attendre, un rejet serveur doit remonter au formulaire. Hors ligne,
+  // apiPost met en file puis lève « file d'attente » = succès pour l'appelant.
+  const p = apiPost({ action: 'addNotification', payload: notif });
+  p.catch(err => {
+    // Rejet serveur (pas hors-ligne) : retirer la notif optimiste, sinon
+    // cloche fantôme. Marque aussi la promesse comme gérée pour les appelants
+    // qui n'attendent pas (journal de saisie).
+    if (!(err && err.message && err.message.includes("file d'attente"))) {
+      STATE.notifications = STATE.notifications.filter(n => n.notif_id !== notif.notif_id);
+      updateBellBadge();
+    }
+  });
+  return p;
 }
 
 function toggleNotifPanel() {
@@ -7105,25 +7166,40 @@ async function performValidateNotif(notif, override) {
   const apiAction = actionMap[notif.type];
 
   if (apiAction) {
-    const r = await saveRemote({ action: apiAction, payload: payload });
-    if (!r.ok) {
-      // Rejet serveur (déjà signalé par saveRemote) : on annule la validation.
+    const r = await saveRemote({ action: apiAction, payload: payload }, { silent: true });
+    // D-F3 : « duplicate key » sur l'insert DATA = la ligne existe déjà (rejeu
+    // d'une validation dont la mise à jour de notification avait échoué) →
+    // considérer comme DÉJÀ APPLIQUÉ et poursuivre vers la validation de la
+    // notification, au lieu de la remettre en attente (item coincé).
+    const dejaApplique = !r.ok && r.error && /duplicate key/i.test((r.error.message || ''));
+    if (!r.ok && !dejaApplique) {
+      // Rejet serveur réel : on annule la validation.
+      toast("Échec de l'enregistrement : " + ((r.error && r.error.message) || 'erreur serveur'), 'error');
       notif.statut = 'en_attente';
       notif.valide_par = '';
       notif.date_validation = '';
       renderNotifPanel('pending');
       return;
     }
-    // Succès OU hors ligne (mis en file) : on applique en local.
-    if (notif.type === 'intrant') STATE.intrants.push(payload);
-    else if (notif.type === 'reception') STATE.receptions.push(payload);
-    else if (notif.type === 'abattage') STATE.abattages.push(payload);
+    // Succès, hors ligne (mis en file) ou déjà appliqué : refléter en local
+    // (sans doublon si la ligne y est déjà).
+    const idField = { intrant: 'intrant_id', reception: 'reception_id', abattage: 'abattage_id' }[notif.type];
+    const stateList = { intrant: STATE.intrants, reception: STATE.receptions, abattage: STATE.abattages }[notif.type];
+    if (stateList && !stateList.some(x => x[idField] === payload[idField])) stateList.push(payload);
   }
 
-  // Persist notification update
-  apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
-
-  toast(notif.type + ' validé et enregistré');
+  // Persist notification update — un échec ICI doit remonter au manager :
+  // sinon la notification ressuscite en_attente au prochain rechargement
+  // (le rejeu est alors géré par la branche « déjà appliqué » ci-dessus).
+  const rn = await saveRemote({ action: 'updateNotification', payload: notif }, { silent: true });
+  if (!rn.ok) {
+    notif.statut = 'en_attente';
+    notif.valide_par = '';
+    notif.date_validation = '';
+    toast('Données enregistrées, mais statut de notification NON mis à jour — revalidez pour réessayer.', 'error');
+  } else {
+    toast(notif.type + ' validé et enregistré');
+  }
   updateBellBadge();
   renderNotifPanel('pending');
   // Re-render active page
@@ -7142,7 +7218,18 @@ async function rejectNotif(notifId) {
   notif.date_validation = new Date().toISOString();
   notif.note_manager = note;
 
-  apiPost({ action: 'updateNotification', payload: notif }).catch(() => {});
+  // D-F3 : un échec de la mise à jour doit remonter (sinon l'item ressuscite
+  // en_attente au rechargement sans que le manager le sache).
+  const rn = await saveRemote({ action: 'updateNotification', payload: notif }, { silent: true });
+  if (!rn.ok) {
+    notif.statut = 'en_attente';
+    notif.valide_par = '';
+    notif.date_validation = '';
+    notif.note_manager = '';
+    toast('Rejet NON enregistré côté serveur — réessayez.', 'error');
+    renderNotifPanel('pending');
+    return;
+  }
 
   toast(notif.type + ' rejeté' + (note ? ' — ' + note : ''));
   updateBellBadge();
@@ -8405,6 +8492,7 @@ async function submitSaisie() {
 
   try {
     const bandeName = bande ? bande.nom_bande : bandeId;
+    let intrantRejete = null;
 
     // Saisie always goes through (just logged)
     await apiPost({ action: 'addSaisie', payload: saisiePayload });
@@ -8432,9 +8520,20 @@ async function submitSaisie() {
             : null
         };
         if (currentUser && currentUser.role === 'chef_bande') {
-          // Block: requires manager validation
-          createNotification('intrant', nomProduit + ' ajouté — ' + bandeName, bandeId, bandeName, intrantPayload);
-          toast('Intrant envoyé pour validation — en attente d\'approbation');
+          // Validation manager requise : la notification EST la persistance de
+          // l'intrant. La saisie du jour est DÉJÀ écrite à ce stade : un rejet
+          // serveur de la notification ne doit PAS remonter au catch global
+          // (re-soumettre dupliquerait la saisie) → message dédié.
+          try {
+            await createNotification('intrant', nomProduit + ' ajouté — ' + bandeName, bandeId, bandeName, intrantPayload);
+            toast('Intrant envoyé pour validation — en attente d\'approbation');
+          } catch (err) {
+            if (err.message.includes("file d'attente")) {
+              toast('Intrant envoyé pour validation — en attente d\'approbation');
+            } else {
+              intrantRejete = err.message;
+            }
+          }
         } else {
           await apiPost({ action: 'addIntrant', payload: intrantPayload });
           STATE.intrants.push(intrantPayload);
@@ -8442,7 +8541,11 @@ async function submitSaisie() {
       }
     }
 
-    toast('Saisie enregistrée');
+    if (intrantRejete) {
+      toast('Saisie enregistrée, mais intrant NON transmis : ' + intrantRejete + ' — ressaisir l\'intrant seul.', 'error');
+    } else {
+      toast('Saisie enregistrée');
+    }
     resetSaisieForm();
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
@@ -11285,7 +11388,14 @@ async function submitReception() {
   try {
     if (currentUser && currentUser.role === 'chef_bande') {
       const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === fournId);
-      createNotification('reception', 'Réception ' + produit + ' — ' + (fourn ? fourn.nom : '?'), '', '', payload);
+      // La notification EST la persistance (0021) : attendre l'écriture. Hors
+      // ligne = mise en file (succès) ; rejet serveur → catch externe, la
+      // modale reste ouverte et le formulaire est préservé.
+      try {
+        await createNotification('reception', 'Réception ' + produit + ' — ' + (fourn ? fourn.nom : '?'), '', '', payload);
+      } catch (err) {
+        if (!err.message.includes("file d'attente")) throw err;
+      }
       toast('Réception envoyée pour validation — en attente d\'approbation');
       closeReceptionModal();
     } else {
@@ -11747,11 +11857,18 @@ function renderClientsKPI() {
   // Commandes portail reçues, pas encore acceptées — mises en avant pour ne pas passer inaperçues.
   const cmdPortail = STATE.commandes.filter(c => c.statut === 'soumise' && c.source === 'portail_client').length;
 
+  // C-F1 (minimum documenté) : le KPI CA du mois n'est rendu QUE pour le
+  // manager — l'affichage chiffre d'affaires disparaît de la vue chef_bande.
+  // (Le vrai cloisonnement des colonnes financières reste au backlog.)
+  const caCard = isManager()
+    ? '<div class="kpi-card kpi-headline"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>'
+    : '';
+
   document.getElementById('clients-kpi').innerHTML =
     '<div class="kpi-card"><div class="kpi-value">' + cmdPortail + '</div><div class="kpi-label">Portail — à accepter</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdToday + '</div><div class="kpi-label">Commandes aujourd\'hui</div></div>' +
     '<div class="kpi-card"><div class="kpi-value">' + cmdWeek + '</div><div class="kpi-label">À livrer cette semaine</div></div>' +
-    '<div class="kpi-card kpi-headline"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>' +
+    caCard +
     '<div class="kpi-card ' + (enAttente > 0 ? 'kpi-warn' : '') + '"><div class="kpi-value">' + enAttente + '</div><div class="kpi-label">Commandes en attente</div></div>';
 }
 
@@ -12039,18 +12156,22 @@ async function submitCommande() {
   const btn = document.querySelector('#commande-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
-    await apiPost({ action: 'addCommande', payload: cmdPayload });
+    // Unité composite (D-F1) : en-tête + lignes écrits/rejoués ensemble ; hors
+    // ligne, apiPost met l'unité ENTIÈRE en file (plus aucune ligne perdue).
+    const r = await apiPost({ action: 'addCommandeWithLignes', payload: { commande: cmdPayload, lignes } });
     STATE.commandes.push(cmdPayload);
-    for (const l of lignes) {
-      // En-tête déjà persisté ; on n'ajoute la ligne à STATE que si elle est
-      // écrite (succès) ou mise en file (hors ligne). Un rejet serveur d'une ligne
-      // est signalé par saveRemote et la ligne n'est PAS poussée (cohérence montant).
-      const rl = await saveRemote({ action: 'addLigneCommande', payload: l });
-      if (rl.ok) STATE.lignesCommande.push(l);
-    }
+    const okLignes = (r && r.okLignes) ? r.okLignes : lignes;
+    okLignes.forEach(l => STATE.lignesCommande.push(l));
     closeCommandeModal();
     renderCommandes();
-    toast('Commande enregistrée');
+    if (r && r.rejected > 0) {
+      // Ligne(s) rejetée(s) serveur : le montant de l'en-tête a été recalculé
+      // sur les lignes réellement écrites (B-F4) — refléter en local.
+      cmdPayload.montant_total_fcfa = r.montant;
+      toast('Commande enregistrée — ' + r.rejected + ' ligne(s) rejetée(s), montant recalculé', 'error');
+    } else {
+      toast('Commande enregistrée');
+    }
   } catch (err) {
     if (err.message.includes("file d'attente")) {
       STATE.commandes.push(cmdPayload);
@@ -12342,7 +12463,9 @@ function renderClientsList() {
       '<td>' + (c.ville || '—') + '</td>' +
       '<td>' + (c.telephone || '—') + '</td>' +
       '<td><span class="badge ' + (inactive ? 'badge-grey' : 'badge-green') + '">' + (inactive ? 'Inactif' : 'Actif') + '</span></td>' +
-      '<td><strong>' + fmt(caTotal) + '</strong> FCFA</td>' +
+      // C-F1 : CA total masqué pour le chef. Cellule conservée (« — ») pour ne
+      // pas décaler les libellés positionnels des cartes mobiles (PR-2b).
+      '<td>' + (isManager() ? '<strong>' + fmt(caTotal) + '</strong> FCFA' : '—') + '</td>' +
       '<td class="manager-only"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleClientStatut(\'' + c.client_id + '\')">' + (inactive ? 'Activer' : 'Désactiver') + '</button></td>' +
       '</tr>';
 
@@ -12360,7 +12483,7 @@ function renderClientsList() {
       html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">' +
         '<div><strong>Email :</strong> ' + (c.email || '—') + '<br><strong>Adresse :</strong> ' + (c.adresse || '—') + '<br><strong>Contact :</strong> ' + (c.contact_nom || '—') + '</div>' +
-        '<div><strong>CA cumulé :</strong> <span style="font-weight:700;color:var(--primary-dark);">' + fmt(caTotal) + ' FCFA</span><br><strong>Commande moyenne :</strong> ' + fmt(cmdMoyenne) + ' FCFA<br><strong>Commandes livrées :</strong> ' + cmdCount + '</div>' +
+        '<div><strong>CA cumulé :</strong> ' + (isManager() ? '<span style="font-weight:700;color:var(--primary-dark);">' + fmt(caTotal) + ' FCFA</span>' : '—') + '<br><strong>Commande moyenne :</strong> ' + (isManager() ? fmt(cmdMoyenne) + ' FCFA' : '—') + '<br><strong>Commandes livrées :</strong> ' + cmdCount + '</div>' +
         '</div>' +
         '<h4>5 dernières commandes</h4>' +
         '<table><thead><tr><th>Date</th><th>Statut</th><th>Montant</th></tr></thead><tbody>' + cmdRows + '</tbody></table>' +
@@ -13745,7 +13868,14 @@ async function performAbattageWrite(statut, override) {
   try {
     if (currentUser && currentUser.role === 'chef_bande') {
       const abBande = STATE.bandes.find(b => b.bande_id === bandeId);
-      createNotification('abattage', 'Session abattage — ' + (abBande ? abBande.nom_bande : bandeId), bandeId, abBande ? abBande.nom_bande : '', payload);
+      // La notification EST la persistance (0021) : attendre l'écriture. Hors
+      // ligne = mise en file (succès) ; rejet serveur → catch externe, la
+      // modale reste ouverte et le formulaire est préservé.
+      try {
+        await createNotification('abattage', 'Session abattage — ' + (abBande ? abBande.nom_bande : bandeId), bandeId, abBande ? abBande.nom_bande : '', payload);
+      } catch (err) {
+        if (!err.message.includes("file d'attente")) throw err;
+      }
       toast('Abattage envoyé pour validation — en attente d\'approbation');
       closeAbattageModal();
     } else {
