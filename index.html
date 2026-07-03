@@ -2535,6 +2535,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   C-F1 — Libellés positionnels des cartes mobiles suivant la CONVERSION
+   financière par rôle : pour le chef_bande, la colonne 6 des commandes
+   affiche des kg (pas un montant), celle des clients des kg livrés, celle
+   des sessions d'abattage le poids vif. Les ::before doivent dire vrai.
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 560px) {
+  body.role-chef_bande #page-clients #commandes-list tr[onclick] > td:nth-child(6)::before { content: "Quantité"; }
+  body.role-chef_bande #page-clients #clients-list tr[onclick] > td:nth-child(6)::before { content: "Kg livrés"; }
+  body.role-chef_bande #page-abattage #abattage-list tbody td:nth-child(6)::before { content: "Poids vif"; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    HARMONISATION 2/2 — Premier écran mobile (bandes + commercial).
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -3300,7 +3312,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="clients-tabs" class="tabs" style="margin-bottom:1.25rem;">
       <button class="tab-btn active" onclick="switchClientsTab('commandes',this)">Commandes</button>
       <button class="tab-btn" onclick="switchClientsTab('clients',this)">Clients</button>
-      <button class="tab-btn" onclick="switchClientsTab('commercial',this)">Tableau commercial</button>
+      <button class="tab-btn manager-only" onclick="switchClientsTab('commercial',this)">Tableau commercial</button>
       <button class="tab-btn manager-only" onclick="switchClientsTab('catalogue',this)">Catalogue</button>
     </div>
 
@@ -4411,6 +4423,26 @@ function applyRoleAccess() {
 
 function isManager() {
   return currentUser && currentUser.role === 'manager';
+}
+
+// ── Visibilité financière (C-F1, passe UI complète) ────────────────────────
+// Le chef_bande travaille en unités OPÉRATIONNELLES (oiseaux, kg, dates,
+// statuts) : les montants sont réservés au manager. Deux outils, à utiliser
+// pour TOUTE nouvelle surface financière :
+//  - canSeeFinance()   : gate de BLOC (onglet, carte KPI, section/colonne
+//    d'export, graphique de coûts).
+//  - fmtMoney(v, unit) : montant formaté pour le manager, null pour le chef —
+//    l'appelant SUBSTITUE l'équivalent opérationnel (jamais de cellule vide).
+function canSeeFinance() { return isManager(); }
+function fmtMoney(v, unit) {
+  if (!canSeeFinance()) return null;
+  return fmt(v) + (unit === undefined ? ' FCFA' : unit);
+}
+// Équivalent opérationnel d'un montant de commande : total des kg des lignes.
+function commandeKgLabel(c) {
+  const kg = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id)
+    .reduce((s, l) => s + (Number(l.quantite_kg) || 0), 0);
+  return fmt(kg, 1) + ' kg';
 }
 
 // ── Config (Supabase) ──
@@ -7081,8 +7113,8 @@ function formatNotifStatut(s) {
 
 function formatNotifPayload(type, p) {
   if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g';
-  if (type === 'intrant') return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + ' — ' + fmt(p.cout_total_fcfa || 0) + ' FCFA';
-  if (type === 'reception') return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + ' @ ' + fmt(p.prix_unitaire_fcfa || 0) + ' FCFA';
+  if (type === 'intrant') { const m = fmtMoney(p.cout_total_fcfa || 0); return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' — ' + m : ''); }
+  if (type === 'reception') { const m = fmtMoney(p.prix_unitaire_fcfa || 0); return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' @ ' + m : ''); }
   if (type === 'abattage') return (p.nb_oiseaux_abattus || 0) + ' oiseaux | ' + (p.poids_vif_total_kg || 0) + ' kg vif';
   return JSON.stringify(p).slice(0, 120);
 }
@@ -7356,7 +7388,7 @@ function computeDeadlines(batchData) {
       color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? 'var(--accent)' : 'var(--accent)',
       date: livDate,
       daysLeft: daysLeft,
-      sub: fmt(Number(c.montant_total_fcfa) || 0) + ' FCFA'
+      sub: fmtMoney(Number(c.montant_total_fcfa) || 0) || commandeKgLabel(c)
     });
   });
 
@@ -9078,7 +9110,10 @@ function renderFicheIntrantsTable(ind) {
   }
 
   const typeLabels = { vaccin: 'Vaccin', medicament: 'Médicament', vitamine: 'Vitamine', autre: 'Autre' };
-  let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>Quantité</th><th>Coût (FCFA)</th><th>Abattable le</th><th></th></tr></thead><tbody>';
+  // C-F1 : colonne Coût réservée au manager (le chef garde une table complète
+  // en unités opérationnelles : quantité + date d'abattage autorisée).
+  const showFin = canSeeFinance();
+  let html = '<table><thead><tr><th>Date</th><th>Type</th><th>Produit</th><th>Quantité</th>' + (showFin ? '<th>Coût (FCFA)</th>' : '') + '<th>Abattable le</th><th></th></tr></thead><tbody>';
 
   ind.intrants.forEach(i => {
     // Date d'abattage au plus tôt induite par CE traitement (délai d'attente, 0015).
@@ -9091,7 +9126,7 @@ function renderFicheIntrantsTable(ind) {
       <td>${typeLabels[i.type] || i.type}</td>
       <td>${i.nom_produit}</td>
       <td>${i.quantite} ${i.unite}</td>
-      <td>${fmt(Number(i.cout_total_fcfa))}</td>
+      ${showFin ? '<td>' + fmt(Number(i.cout_total_fcfa)) + '</td>' : ''}
       <td>${clearTxt}</td>
       <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteIntrant('${i.intrant_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
@@ -9935,14 +9970,20 @@ async function exportPDF() {
   doc.setFontSize(9); doc.setFont(undefined, 'normal');
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
 
+  // C-F1 : lignes financières (prix poussin / coût aliment) réservées au
+  // manager — l'export du chef reste complet en unités opérationnelles.
   const infoLines = [
     `Nom: ${bande.nom_bande || '—'}  ·  Bâtiment: ${bande.batiment || '—'}`,
     `Date d'entrée: ${fmtDate(bande.date_entree)}`,
-    `Poussins: ${fmt(bande.nb_poussins_entree)} — Fournisseur: ${bande.fournisseur_poussins || '—'}`,
+    `Poussins: ${fmt(bande.nb_poussins_entree)} — Fournisseur: ${bande.fournisseur_poussins || '—'}`
+  ].concat(canSeeFinance() ? [
     `Prix poussin: ${fmt(bande.prix_poussin_unitaire)} FCFA — Poids initial: ${bande.poids_initial_moyen_g || 42} g`,
-    `Coût aliment: ${fmt(bande.cout_aliment_kg)} FCFA/kg — Rendement carcasse paramétré: ${bande.rendement_carcasse_pct || 58}%`,
+    `Coût aliment: ${fmt(bande.cout_aliment_kg)} FCFA/kg — Rendement carcasse paramétré: ${bande.rendement_carcasse_pct || 58}%`
+  ] : [
+    `Poids initial: ${bande.poids_initial_moyen_g || 42} g — Rendement carcasse paramétré: ${bande.rendement_carcasse_pct || 58}%`
+  ]).concat([
     `Statut: ${isClosed ? 'Terminée' : 'En cours'}${bande.date_sortie ? ' — Sortie: ' + fmtDate(bande.date_sortie) : ''}`
-  ];
+  ]);
   infoLines.forEach(l => { doc.text(l, 12, y); y += 5; });
 
   // Section 2: Indicateurs de cycle de vie
@@ -9961,6 +10002,9 @@ async function exportPDF() {
   indLines.forEach(l => { doc.text(l, 12, y); y += 5; });
 
   // Section 3: Bilan économique de clôture (réutilise computeBandeEconomics)
+  // C-F1 : section entièrement réservée au manager — l'export chef passe
+  // directement du résumé d'indicateurs au tableau journalier.
+  if (canSeeFinance()) {
   y += 4;
   checkPage(60);
   y = reportSectionTitlePDF(doc, '3. Bilan économique de clôture', y);
@@ -10021,6 +10065,7 @@ async function exportPDF() {
   }
   doc.setFont(undefined, 'normal'); doc.setFontSize(9);
   doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  }
 
   // Section 4: Tableau journalier
   y += 4;
@@ -10067,8 +10112,9 @@ async function exportPDF() {
 
   if (ind.intrants.length > 0) {
     const typeLabels = { vaccin: 'Vaccin', medicament: 'Médic.', vitamine: 'Vit.', autre: 'Autre' };
-    const iCols = ['Date', 'Type', 'Produit', 'Qté', 'Coût FCFA'];
-    const iColW = [25, 18, 50, 25, 25];
+    // C-F1 : colonne Coût réservée au manager.
+    const iCols = canSeeFinance() ? ['Date', 'Type', 'Produit', 'Qté', 'Coût FCFA'] : ['Date', 'Type', 'Produit', 'Qté'];
+    const iColW = canSeeFinance() ? [25, 18, 50, 25, 25] : [25, 18, 60, 30];
     let x = 10;
 
     doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
@@ -10086,9 +10132,9 @@ async function exportPDF() {
         fmtDate(item.date_intrant),
         typeLabels[item.type] || item.type,
         item.nom_produit,
-        item.quantite + ' ' + item.unite,
-        fmt(Number(item.cout_total_fcfa))
+        item.quantite + ' ' + item.unite
       ];
+      if (canSeeFinance()) vals.push(fmt(Number(item.cout_total_fcfa)));
       vals.forEach((v, i) => { doc.text(String(v).substring(0, 30), x + 1, y); x += iColW[i]; });
       y += 4;
     });
@@ -10127,7 +10173,10 @@ async function exportExcel() {
     ['Poids vif moyen (g)', Math.round(poidsMoyen)],
     ['GMQ (g/j)', ind.gmq != null ? Math.round(ind.gmq * 10) / 10 : '—'],
     ['Rendement abattage (%)', Math.round(rend.affiche * 10) / 10 + ' (' + rend.source + ')'],
-    ['Poids carcasse estimé (g)', Math.round(ind.poidsCarcasse)],
+    ['Poids carcasse estimé (g)', Math.round(ind.poidsCarcasse)]
+  // C-F1 : bilan économique réservé au manager — la feuille chef garde
+  // carcasse et kg vendus (opérationnels) sans montants.
+  ]).concat(canSeeFinance() ? [
     [],
     ['Bilan économique de clôture'],
     ['Coût poussins (FCFA)', Math.round(eco.coutPoussins)],
@@ -10142,6 +10191,11 @@ async function exportExcel() {
     ['Prix de cession / kg (FCFA)', eco.prixCessionKg != null ? Math.round(eco.prixCessionKg) : '—'],
     ['Marge nette (FCFA)', eco.margeDisponible ? Math.round(eco.margeNetteTotale) : 'projetée / non disponible'],
     ['Marge nette / kg (FCFA)', eco.margeNetteKg != null ? Math.round(eco.margeNetteKg) : '—']
+  ] : [
+    [],
+    ['Production'],
+    ['Carcasse produite (kg)', Math.round(eco.carcasseKg * 10) / 10 + (eco.carcasseReelle ? ' (réelle)' : ' (projetée)')],
+    ['Kg vendus (kg)', Math.round(eco.kgVendus * 10) / 10]
   ]);
   const ws0 = XLSX.utils.aoa_to_sheet(synthData);
   applyReportSheetBranding(ws0, brand.length, 2);
@@ -10820,17 +10874,20 @@ function renderAllAlimPhases() {
     grandTotalKg += totalKg;
     grandTotalCout += totalCout;
 
+    // C-F1 : colonnes Prix/Coût réservées au manager — le chef garde une table
+    // complète en kg + dates.
+    const showFin = canSeeFinance();
+    const nbCols = showFin ? 6 : 4;
     let rows = '';
     if (display.length === 0) {
-      rows = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-secondary);">Aucune entrée pour cette phase.</td></tr>`;
+      rows = `<tr><td colspan="${nbCols}" style="text-align:center;padding:1.5rem;color:var(--text-secondary);">Aucune entrée pour cette phase.</td></tr>`;
     } else {
       display.forEach(e => {
         const ph = e._ph === true;
         rows += `<tr${ph ? ' class="alim-placeholder"' : ''}>
           <td>${e.nom_mp || '—'}</td>
           <td>${fmt(Number(e.quantite_kg), 2)}</td>
-          <td>${ph ? '—' : fmt(Number(e.prix_unitaire))}</td>
-          <td>${fmt(Number(e.cout_total))}</td>
+          ${showFin ? '<td>' + (ph ? '—' : fmt(Number(e.prix_unitaire))) + '</td><td>' + fmt(Number(e.cout_total)) + '</td>' : ''}
           <td>${ph ? '—' : fmtDate(e.date_livraison)}</td>
           <td>${(!ph && canEdit) ? `<button class="btn btn-danger btn-sm" onclick="deleteAlimentPhase('${e.ap_id}')"><i data-lucide="x"></i></button>` : ''}</td>
         </tr>`;
@@ -10840,8 +10897,7 @@ function renderAllAlimPhases() {
     const tfoot = realEntries.length > 0 ? `<tfoot><tr>
       <td><strong>Sous-total</strong></td>
       <td><strong>${fmt(totalKg, 2)} kg</strong></td>
-      <td></td>
-      <td><strong>${fmt(totalCout)} FCFA</strong></td>
+      ${showFin ? '<td></td><td><strong>' + fmt(totalCout) + ' FCFA</strong></td>' : ''}
       <td colspan="2"></td>
     </tr></tfoot>` : '';
 
@@ -10856,8 +10912,7 @@ function renderAllAlimPhases() {
             <thead><tr>
               <th>Matière</th>
               <th>Qté (kg)</th>
-              <th>Prix/kg (FCFA)</th>
-              <th>Coût total (FCFA)</th>
+              ${showFin ? '<th>Prix/kg (FCFA)</th><th>Coût total (FCFA)</th>' : ''}
               <th>Date livraison</th>
               <th></th>
             </tr></thead>
@@ -10870,7 +10925,7 @@ function renderAllAlimPhases() {
 
   document.getElementById('alim-phases-all').innerHTML = html;
   document.getElementById('alim-batch-total').textContent =
-    fmt(grandTotalKg, 1) + ' kg — ' + fmt(grandTotalCout) + ' FCFA';
+    fmt(grandTotalKg, 1) + ' kg' + (canSeeFinance() ? ' — ' + fmt(grandTotalCout) + ' FCFA' : '');
 }
 
 // ── Matières premières tab (Tab 2) ──
@@ -10935,19 +10990,22 @@ function renderAlimResume() {
   PHASES.forEach(p => { phaseTotals[p.id] = { kg: 0, cout: 0 }; });
   let grandKg = 0, grandCout = 0;
 
+  // C-F1 : sous-colonnes FCFA réservées au manager (le chef garde le résumé
+  // complet en kg par phase).
+  const showFin = canSeeFinance();
   let rows = '';
   Object.entries(mpData).forEach(([nom, phases]) => {
     let rowKg = 0, rowCout = 0;
     rows += `<tr><td><strong>${nom}</strong></td>`;
     PHASES.forEach(p => {
       const d = phases[p.id] || { kg: 0, cout: 0 };
-      rows += `<td>${fmt(d.kg, 1)}</td><td>${fmt(d.cout)}</td>`;
+      rows += `<td>${fmt(d.kg, 1)}</td>` + (showFin ? `<td>${fmt(d.cout)}</td>` : '');
       phaseTotals[p.id].kg   += d.kg;
       phaseTotals[p.id].cout += d.cout;
       rowKg  += d.kg;
       rowCout += d.cout;
     });
-    rows += `<td><strong>${fmt(rowKg, 1)}</strong></td><td><strong>${fmt(rowCout)}</strong></td></tr>`;
+    rows += `<td><strong>${fmt(rowKg, 1)}</strong></td>` + (showFin ? `<td><strong>${fmt(rowCout)}</strong></td>` : '') + '</tr>';
     grandKg  += rowKg;
     grandCout += rowCout;
   });
@@ -10955,9 +11013,9 @@ function renderAlimResume() {
   // Total row
   let totalRow = '<tr style="background:#FFF7ED;font-weight:700;"><td>TOTAL</td>';
   PHASES.forEach(p => {
-    totalRow += `<td>${fmt(phaseTotals[p.id].kg, 1)}</td><td>${fmt(phaseTotals[p.id].cout)}</td>`;
+    totalRow += `<td>${fmt(phaseTotals[p.id].kg, 1)}</td>` + (showFin ? `<td>${fmt(phaseTotals[p.id].cout)}</td>` : '');
   });
-  totalRow += `<td>${fmt(grandKg, 1)}</td><td>${fmt(grandCout)}</td></tr>`;
+  totalRow += `<td>${fmt(grandKg, 1)}</td>` + (showFin ? `<td>${fmt(grandCout)}</td>` : '') + '</tr>';
 
   if (entries.length === 0) {
     container.innerHTML = '<div class="card"><p style="text-align:center;color:var(--text-secondary);padding:2rem;">Aucune donnée alimentaire pour cette bande.</p></div>';
@@ -10974,16 +11032,13 @@ function renderAlimResume() {
           <thead>
             <tr>
               <th rowspan="2">Matière</th>
-              <th colspan="2" style="text-align:center;">Pré-démarrage</th>
-              <th colspan="2" style="text-align:center;">Démarrage</th>
-              <th colspan="2" style="text-align:center;">Croissance</th>
-              <th colspan="2" style="text-align:center;">Total</th>
+              <th colspan="${canSeeFinance() ? 2 : 1}" style="text-align:center;">Pré-démarrage</th>
+              <th colspan="${canSeeFinance() ? 2 : 1}" style="text-align:center;">Démarrage</th>
+              <th colspan="${canSeeFinance() ? 2 : 1}" style="text-align:center;">Croissance</th>
+              <th colspan="${canSeeFinance() ? 2 : 1}" style="text-align:center;">Total</th>
             </tr>
             <tr>
-              <th>kg</th><th>FCFA</th>
-              <th>kg</th><th>FCFA</th>
-              <th>kg</th><th>FCFA</th>
-              <th>kg</th><th>FCFA</th>
+              ${canSeeFinance() ? '<th>kg</th><th>FCFA</th><th>kg</th><th>FCFA</th><th>kg</th><th>FCFA</th><th>kg</th><th>FCFA</th>' : '<th>kg</th><th>kg</th><th>kg</th><th>kg</th>'}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -10993,9 +11048,9 @@ function renderAlimResume() {
     </div>
     <div class="card" style="margin-top:1rem;background:#FFF7ED;border-left:4px solid var(--primary);">
       <div style="text-align:center;">
-        <div style="font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;">Coût alimentaire total de la bande</div>
-        <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark);margin-top:0.25rem;">${fmt(grandCout)} FCFA</div>
-        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.15rem;">${fmt(grandKg, 1)} kg de matières premières</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;">${canSeeFinance() ? 'Coût alimentaire total de la bande' : 'Aliment total de la bande'}</div>
+        <div style="font-size:1.5rem;font-weight:800;color:var(--primary-dark);margin-top:0.25rem;">${canSeeFinance() ? fmt(grandCout) + ' FCFA' : fmt(grandKg, 1) + ' kg'}</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.15rem;">${canSeeFinance() ? fmt(grandKg, 1) + ' kg de matières premières' : 'matières premières toutes phases'}</div>
       </div>
     </div>`;
 }
@@ -11188,15 +11243,15 @@ function renderFournisseurs() {
       const totalCum = receps.reduce((s, r) => s + (Number(r.cout_total_fcfa) || 0), 0);
       let recepRows = last5.length === 0
         ? '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);">Aucune réception</td></tr>'
-        : last5.map(r => `<tr><td>${fmtDate(r.date_reception)}</td><td>${r.type_produit}</td><td>${fmt(Number(r.quantite),1)} ${r.unite}</td><td>${fmt(Number(r.cout_total_fcfa))} FCFA</td></tr>`).join('');
+        : last5.map(r => `<tr><td>${fmtDate(r.date_reception)}</td><td>${r.type_produit}</td><td>${fmt(Number(r.quantite),1)} ${r.unite}</td>${canSeeFinance() ? '<td>' + fmt(Number(r.cout_total_fcfa)) + ' FCFA</td>' : ''}</tr>`).join('');
       html += `<tr><td colspan="6" style="padding:0;">
         <div class="expand-panel">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">
             <div><strong>Email :</strong> ${f.email || '—'}<br><strong>Adresse :</strong> ${f.adresse || '—'}<br><strong>Pays :</strong> ${f.pays || '—'}</div>
-            <div><strong>Note :</strong> ${f.note || '—'}<br><strong>Total cumulé :</strong> <span style="font-weight:700;color:var(--primary-dark);">${fmt(totalCum)} FCFA</span></div>
+            <div><strong>Note :</strong> ${f.note || '—'}<br>${canSeeFinance() ? '<strong>Total cumulé :</strong> <span style="font-weight:700;color:var(--primary-dark);">' + fmt(totalCum) + ' FCFA</span>' : '<strong>Réceptions :</strong> ' + STATE.receptions.filter(r => r.fournisseur_id === f.fournisseur_id).length}</div>
           </div>
           <h4>5 dernières réceptions</h4>
-          <table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Coût</th></tr></thead><tbody>${recepRows}</tbody></table>
+          <table><thead><tr><th>Date</th><th>Produit</th><th>Qté</th>${canSeeFinance() ? '<th>Coût</th>' : ''}</tr></thead><tbody>${recepRows}</tbody></table>
         </div>
       </td></tr>`;
     }
@@ -11299,7 +11354,9 @@ function renderReceptions() {
     return;
   }
 
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Fournisseur</th><th>Produit</th><th>Catégorie</th><th>Qté</th><th>Prix/u</th><th>Coût total</th><th>N° lot</th><th>Inspection</th><th class="manager-only"></th></tr></thead><tbody>';
+  // C-F1 : colonnes Prix/Coût réservées au manager — le chef garde la
+  // traçabilité complète (dates, quantités, lots, inspections).
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Fournisseur</th><th>Produit</th><th>Catégorie</th><th>Qté</th>' + (canSeeFinance() ? '<th>Prix/u</th><th>Coût total</th>' : '') + '<th>N° lot</th><th>Inspection</th><th class="manager-only"></th></tr></thead><tbody>';
   list.forEach(r => {
     const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === r.fournisseur_id);
     const insp = STATE.inspections.find(i => i.reception_id === r.reception_id);
@@ -11319,8 +11376,7 @@ function renderReceptions() {
       <td>${r.type_produit}</td>
       <td>${catEmoji(r.categorie)} ${catLabel(r.categorie)}</td>
       <td>${fmt(Number(r.quantite), 1)} ${r.unite}</td>
-      <td>${fmt(Number(r.prix_unitaire_fcfa))}</td>
-      <td><strong>${fmt(Number(r.cout_total_fcfa))}</strong> FCFA</td>
+      ${canSeeFinance() ? '<td>' + fmt(Number(r.prix_unitaire_fcfa)) + '</td><td><strong>' + fmt(Number(r.cout_total_fcfa)) + '</strong> FCFA</td>' : ''}
       <td>${r.numero_lot || '—'}</td>
       <td>${inspBadge}</td>
       <td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')"><i data-lucide="x"></i></button></td>
@@ -11754,6 +11810,9 @@ function initClientsPage() {
 }
 
 function switchClientsTab(tab, btn) {
+  // C-F1 : le Tableau commercial est intrinsèquement financier (CA, top
+  // clients) → réservé au manager (bouton masqué + garde ici).
+  if (tab === 'commercial' && !canSeeFinance()) tab = 'commandes';
   currentClientsTab = tab;
   ['commandes','clients','commercial','catalogue'].forEach(t => {
     const el = document.getElementById('cl-tab-' + t);
@@ -11860,7 +11919,7 @@ function renderClientsKPI() {
   // C-F1 (minimum documenté) : le KPI CA du mois n'est rendu QUE pour le
   // manager — l'affichage chiffre d'affaires disparaît de la vue chef_bande.
   // (Le vrai cloisonnement des colonnes financières reste au backlog.)
-  const caCard = isManager()
+  const caCard = canSeeFinance()
     ? '<div class="kpi-card kpi-headline"><div class="kpi-value">' + fmt(caMois) + '</div><div class="kpi-label">CA du mois (FCFA)</div></div>'
     : '';
 
@@ -11931,7 +11990,10 @@ function renderCommandes() {
     return;
   }
 
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date cmd</th><th>Livraison souh.</th><th>Produits</th><th>Montant</th><th>Statut</th></tr></thead><tbody>';
+  // C-F1 : la colonne Montant devient Quantité (kg) pour le chef — même
+  // position (les libellés positionnels des cartes mobiles suivent via
+  // body.role-chef_bande dans le CSS).
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Date cmd</th><th>Livraison souh.</th><th>Produits</th><th>' + (canSeeFinance() ? 'Montant' : 'Quantité') + '</th><th>Statut</th></tr></thead><tbody>';
   list.forEach(c => {
     const client = STATE.clients.find(cl => cl.client_id === c.client_id);
     const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
@@ -11943,15 +12005,15 @@ function renderCommandes() {
       '<td>' + fmtDate(c.date_commande) + '</td>' +
       '<td>' + fmtDate(c.date_livraison_souhaitee) + '</td>' +
       '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + produits + '</td>' +
-      '<td><strong>' + fmt(Number(c.montant_total_fcfa)) + '</strong> FCFA</td>' +
+      '<td>' + (canSeeFinance() ? '<strong>' + fmt(Number(c.montant_total_fcfa)) + '</strong> FCFA' : '<strong>' + commandeKgLabel(c) + '</strong>') + '</td>' +
       '<td>' + cmdStatutBadge(c.statut) + '<span class="manager-only" style="margin-left:0.35rem;">' + paiementBadge(c) + '</span></td>' +
       '</tr>';
 
     // Expand panel
     if (expandedCommandeId === c.commande_id) {
       let ligneRows = lignes.length === 0
-        ? '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);">Aucune ligne</td></tr>'
-        : lignes.map(l => '<tr><td>' + ligneProduitNom(l) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td><td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td></tr>').join('');
+        ? '<tr><td colspan="' + (canSeeFinance() ? 4 : 2) + '" style="text-align:center;color:var(--text-secondary);">Aucune ligne</td></tr>'
+        : lignes.map(l => '<tr><td>' + ligneProduitNom(l) + '</td><td>' + fmt(Number(l.quantite_kg), 1) + ' kg</td>' + (canSeeFinance() ? '<td>' + fmt(Number(l.prix_kg_fcfa)) + '</td><td>' + fmt(Number(l.montant_fcfa)) + ' FCFA</td>' : '') + '</tr>').join('');
 
       let statusBtns = '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;" class="manager-only">';
       if (c.statut === 'soumise') statusBtns += '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();updateCommandeStatut(\'' + c.commande_id + '\',\'confirmee\')">Accepter</button>';
@@ -11979,7 +12041,7 @@ function renderCommandes() {
 
       html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
         '<div style="margin-bottom:0.5rem;"><strong>Note :</strong> ' + (c.note || '—') + '</div>' +
-        '<table><thead><tr><th>Produit</th><th>Qté</th><th>Prix/kg</th><th>Montant</th></tr></thead><tbody>' + ligneRows + '</tbody></table>' +
+        '<table><thead><tr><th>Produit</th><th>Qté</th>' + (canSeeFinance() ? '<th>Prix/kg</th><th>Montant</th>' : '') + '</tr></thead><tbody>' + ligneRows + '</tbody></table>' +
         statusBtns +
         '</div></td></tr>';
     }
@@ -12451,21 +12513,22 @@ function renderClientsList() {
     container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun client enregistré.</p></div>';
     return;
   }
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Ville</th><th>Téléphone</th><th>Statut</th><th>CA total</th><th class="manager-only">Actions</th></tr></thead><tbody>';
+  // C-F1 : la colonne CA total devient « Kg livrés » pour le chef — même
+  // position (libellé mobile suivi via body.role-chef_bande dans le CSS).
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Type</th><th>Ville</th><th>Téléphone</th><th>Statut</th><th>' + (canSeeFinance() ? 'CA total' : 'Kg livrés') + '</th><th class="manager-only">Actions</th></tr></thead><tbody>';
   STATE.clients.forEach(c => {
     const inactive = c.statut === 'inactif';
-    const caTotal = STATE.commandes
-      .filter(cmd => cmd.client_id === c.client_id && cmd.statut === 'livree')
-      .reduce((s, cmd) => s + (Number(cmd.montant_total_fcfa) || 0), 0);
+    const livrees = STATE.commandes.filter(cmd => cmd.client_id === c.client_id && cmd.statut === 'livree');
+    const caTotal = livrees.reduce((s, cmd) => s + (Number(cmd.montant_total_fcfa) || 0), 0);
+    const kgTotal = livrees.reduce((s, cmd) => s + STATE.lignesCommande.filter(l => l.commande_id === cmd.commande_id).reduce((k, l) => k + (Number(l.quantite_kg) || 0), 0), 0);
     html += '<tr class="' + (inactive ? 'row-inactive' : '') + '" style="cursor:pointer;" onclick="toggleClientExpand(\'' + c.client_id + '\')">' +
       '<td><strong>' + c.nom + '</strong></td>' +
       '<td>' + clientTypeLabel(c.type) + '</td>' +
       '<td>' + (c.ville || '—') + '</td>' +
       '<td>' + (c.telephone || '—') + '</td>' +
       '<td><span class="badge ' + (inactive ? 'badge-grey' : 'badge-green') + '">' + (inactive ? 'Inactif' : 'Actif') + '</span></td>' +
-      // C-F1 : CA total masqué pour le chef. Cellule conservée (« — ») pour ne
-      // pas décaler les libellés positionnels des cartes mobiles (PR-2b).
-      '<td>' + (isManager() ? '<strong>' + fmt(caTotal) + '</strong> FCFA' : '—') + '</td>' +
+      // C-F1 : CA total (manager) ↔ kg livrés (chef) — conversion, pas masquage.
+      '<td>' + (canSeeFinance() ? '<strong>' + fmt(caTotal) + '</strong> FCFA' : '<strong>' + fmt(kgTotal, 1) + '</strong> kg') + '</td>' +
       '<td class="manager-only"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleClientStatut(\'' + c.client_id + '\')">' + (inactive ? 'Activer' : 'Désactiver') + '</button></td>' +
       '</tr>';
 
@@ -12478,12 +12541,15 @@ function renderClientsList() {
 
       let cmdRows = last5.length === 0
         ? '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);">Aucune commande</td></tr>'
-        : last5.map(cmd => '<tr><td>' + fmtDate(cmd.date_commande) + '</td><td>' + cmdStatutBadge(cmd.statut) + '</td><td>' + fmt(Number(cmd.montant_total_fcfa)) + ' FCFA</td></tr>').join('');
+        : last5.map(cmd => '<tr><td>' + fmtDate(cmd.date_commande) + '</td><td>' + cmdStatutBadge(cmd.statut) + '</td><td>' + (canSeeFinance() ? fmt(Number(cmd.montant_total_fcfa)) + ' FCFA' : commandeKgLabel(cmd)) + '</td></tr>').join('');
 
       html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">' +
         '<div><strong>Email :</strong> ' + (c.email || '—') + '<br><strong>Adresse :</strong> ' + (c.adresse || '—') + '<br><strong>Contact :</strong> ' + (c.contact_nom || '—') + '</div>' +
-        '<div><strong>CA cumulé :</strong> ' + (isManager() ? '<span style="font-weight:700;color:var(--primary-dark);">' + fmt(caTotal) + ' FCFA</span>' : '—') + '<br><strong>Commande moyenne :</strong> ' + (isManager() ? fmt(cmdMoyenne) + ' FCFA' : '—') + '<br><strong>Commandes livrées :</strong> ' + cmdCount + '</div>' +
+        '<div>' + (canSeeFinance()
+          ? '<strong>CA cumulé :</strong> <span style="font-weight:700;color:var(--primary-dark);">' + fmt(caTotal) + ' FCFA</span><br><strong>Commande moyenne :</strong> ' + fmt(cmdMoyenne) + ' FCFA'
+          : '<strong>Kg livrés cumulés :</strong> <span style="font-weight:700;color:var(--primary-dark);">' + fmt(kgTotal, 1) + ' kg</span><br><strong>Kg / commande :</strong> ' + (cmdCount > 0 ? fmt(kgTotal / cmdCount, 1) + ' kg' : '—')) +
+        '<br><strong>Commandes livrées :</strong> ' + cmdCount + '</div>' +
         '</div>' +
         '<h4>5 dernières commandes</h4>' +
         '<table><thead><tr><th>Date</th><th>Statut</th><th>Montant</th></tr></thead><tbody>' + cmdRows + '</tbody></table>' +
@@ -13142,27 +13208,35 @@ async function exportAbattagePDF() {
   doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
   doc.text('Sessions : ' + fmt(r.sessions.length) + '   —   Oiseaux abattus : ' + fmt(a.nbAbattus) + '   —   Saisies sanitaires : ' + fmt(a.nbSaisis), 12, y); y += 5;
   doc.text('Poids vif : ' + fmt(a.vifKg, 1) + ' kg   —   Poids carcasse : ' + fmt(a.carcKg, 1) + ' kg   —   Rendement moyen : ' + (a.rendement != null ? fmt(a.rendement, 1) + ' %' : '—'), 12, y); y += 5;
-  doc.text('Coût total : ' + fmt(a.coutTotal) + ' FCFA   —   Coût / kg carcasse : ' + (a.coutKgCarc != null ? fmt(a.coutKgCarc) + ' FCFA/kg' : '—'), 12, y); y += 9;
+  // C-F1 : lignes/section/colonne de coût réservées au manager.
+  if (canSeeFinance()) {
+    doc.text('Coût total : ' + fmt(a.coutTotal) + ' FCFA   —   Coût / kg carcasse : ' + (a.coutKgCarc != null ? fmt(a.coutKgCarc) + ' FCFA/kg' : '—'), 12, y); y += 9;
 
-  y = reportSectionTitlePDF(doc, 'Décomposition des coûts', y);
-  y = reportTablePDF(doc, y, ['Poste', 'Montant (FCFA)'], [120, 50], [
-    ['Main-d\'œuvre', fmt(a.coutMO)],
-    ['Transport', fmt(a.coutTrans)],
-    ['Emballage', fmt(a.coutEmb)],
-    ['Autres', fmt(a.coutAutres)],
-    ['TOTAL', fmt(a.coutTotal)]
-  ], { emptyMsg: 'Aucun coût.' });
-  y += 2;
+    y = reportSectionTitlePDF(doc, 'Décomposition des coûts', y);
+    y = reportTablePDF(doc, y, ['Poste', 'Montant (FCFA)'], [120, 50], [
+      ['Main-d\'œuvre', fmt(a.coutMO)],
+      ['Transport', fmt(a.coutTrans)],
+      ['Emballage', fmt(a.coutEmb)],
+      ['Autres', fmt(a.coutAutres)],
+      ['TOTAL', fmt(a.coutTotal)]
+    ], { emptyMsg: 'Aucun coût.' });
+    y += 2;
+  } else { y += 4; }
 
   y = reportSectionTitlePDF(doc, 'Détail par session', y);
-  const rows = r.sessions.map(s => [
-    fmtDate(s.date_abattage), r.bandeName(s.bande_id), fmt(Number(s.nb_oiseaux_abattus) || 0),
-    fmt(Number(s.nb_oiseaux_saisis) || 0), fmt(Number(s.poids_vif_total_kg) || 0, 1),
-    fmt(Number(s.poids_carcasse_total_kg) || 0, 1),
-    (Number(s.rendement_carcasse_pct) ? fmt(s.rendement_carcasse_pct, 1) : '—'), fmt(r.sessCost(s))
-  ]);
-  y = reportTablePDF(doc, y, ['Date', 'Bande', 'Abattus', 'Saisis', 'Vif kg', 'Carc. kg', 'Rdt%', 'Coût'],
-    [22, 30, 18, 16, 20, 20, 15, 22], rows, { emptyMsg: 'Aucune session d\'abattage sur la période.' });
+  const rows = r.sessions.map(s => {
+    const base = [
+      fmtDate(s.date_abattage), r.bandeName(s.bande_id), fmt(Number(s.nb_oiseaux_abattus) || 0),
+      fmt(Number(s.nb_oiseaux_saisis) || 0), fmt(Number(s.poids_vif_total_kg) || 0, 1),
+      fmt(Number(s.poids_carcasse_total_kg) || 0, 1),
+      (Number(s.rendement_carcasse_pct) ? fmt(s.rendement_carcasse_pct, 1) : '—')
+    ];
+    if (canSeeFinance()) base.push(fmt(r.sessCost(s)));
+    return base;
+  });
+  y = reportTablePDF(doc, y,
+    canSeeFinance() ? ['Date', 'Bande', 'Abattus', 'Saisis', 'Vif kg', 'Carc. kg', 'Rdt%', 'Coût'] : ['Date', 'Bande', 'Abattus', 'Saisis', 'Vif kg', 'Carc. kg', 'Rdt%'],
+    canSeeFinance() ? [22, 30, 18, 16, 20, 20, 15, 22] : [24, 36, 20, 18, 22, 22, 18], rows, { emptyMsg: 'Aucune session d\'abattage sur la période.' });
 
   reportFooterPDF(doc);
   doc.save('rapport-abattage-' + period + '.pdf');
@@ -13184,23 +13258,25 @@ async function exportAbattageExcel() {
     ['Morts avant abattage', a.nbMorts],
     ['Poids vif total (kg)', Math.round(a.vifKg * 10) / 10],
     ['Poids carcasse total (kg)', Math.round(a.carcKg * 10) / 10],
-    ['Rendement moyen (%)', a.rendement != null ? Math.round(a.rendement * 10) / 10 : '—'],
+    ['Rendement moyen (%)', a.rendement != null ? Math.round(a.rendement * 10) / 10 : '—']
+  // C-F1 : lignes de coût réservées au manager.
+  ]).concat(canSeeFinance() ? [
     ['Coût main-d\'œuvre (FCFA)', Math.round(a.coutMO)],
     ['Coût transport (FCFA)', Math.round(a.coutTrans)],
     ['Coût emballage (FCFA)', Math.round(a.coutEmb)],
     ['Coût autres (FCFA)', Math.round(a.coutAutres)],
     ['COÛT TOTAL (FCFA)', Math.round(a.coutTotal)],
     ['Coût / kg carcasse (FCFA)', a.coutKgCarc != null ? Math.round(a.coutKgCarc) : '—']
-  ]);
+  ] : []);
   const ws0 = XLSX.utils.aoa_to_sheet(synth);
   applyReportSheetBranding(ws0, brand.length, 2);
   XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
 
-  const head = ['Date', 'Bande', 'Responsable', 'Abattus', 'Saisis', 'Morts avant', 'Vif (kg)', 'Carcasse (kg)', 'Rendement (%)', 'Coût (FCFA)'];
+  const head = ['Date', 'Bande', 'Responsable', 'Abattus', 'Saisis', 'Morts avant', 'Vif (kg)', 'Carcasse (kg)', 'Rendement (%)'].concat(canSeeFinance() ? ['Coût (FCFA)'] : []);
   const data = r.sessions.map(s => [s.date_abattage, r.bandeName(s.bande_id), s.responsable || '',
     Number(s.nb_oiseaux_abattus) || 0, Number(s.nb_oiseaux_saisis) || 0, Number(s.nb_oiseaux_morts_avant_abattage) || 0,
     Number(s.poids_vif_total_kg) || 0, Number(s.poids_carcasse_total_kg) || 0,
-    Number(s.rendement_carcasse_pct) || '', r.sessCost(s)]);
+    Number(s.rendement_carcasse_pct) || ''].concat(canSeeFinance() ? [r.sessCost(s)] : []));
   const ws1 = XLSX.utils.aoa_to_sheet([head, ...data]);
   XLSX.utils.book_append_sheet(wb, ws1, 'Sessions');
 
@@ -13254,13 +13330,18 @@ async function exportStocksPDF() {
   y = reportSectionTitlePDF(doc, 'Synthèse', y);
   doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
   doc.text('Articles en stock : ' + fmt(r.items.length) + '   —   Articles en alerte : ' + fmt(r.nbAlerte), 12, y); y += 5;
-  doc.text('Valorisation totale : ' + fmt(r.valorisation) + ' FCFA   —   Péremptions à surveiller : ' + fmt(r.nbPerem), 12, y); y += 9;
+  // C-F1 : valorisation + colonnes prix réservées au manager.
+  doc.text((canSeeFinance() ? 'Valorisation totale : ' + fmt(r.valorisation) + ' FCFA   —   ' : '') + 'Péremptions à surveiller : ' + fmt(r.nbPerem), 12, y); y += 9;
 
   y = reportSectionTitlePDF(doc, 'État des stocks', y);
-  const rows = r.items.map(i => [i.nom, i.cat, fmt(i.qty, 1) + ' ' + i.unite, i.seuil > 0 ? fmt(i.seuil, 1) : '—',
-    i.etat, i.prix != null ? fmt(i.prix) : '—', i.prix != null ? fmt(i.valeur) : '—']);
-  y = reportTablePDF(doc, y, ['Article', 'Catégorie', 'Quantité', 'Seuil', 'État', 'Prix u.', 'Valeur'],
-    [38, 26, 26, 18, 20, 20, 26], rows, { emptyMsg: 'Aucun article en stock.' });
+  const rows = r.items.map(i => {
+    const base = [i.nom, i.cat, fmt(i.qty, 1) + ' ' + i.unite, i.seuil > 0 ? fmt(i.seuil, 1) : '—', i.etat];
+    if (canSeeFinance()) { base.push(i.prix != null ? fmt(i.prix) : '—', i.prix != null ? fmt(i.valeur) : '—'); }
+    return base;
+  });
+  y = reportTablePDF(doc, y,
+    canSeeFinance() ? ['Article', 'Catégorie', 'Quantité', 'Seuil', 'État', 'Prix u.', 'Valeur'] : ['Article', 'Catégorie', 'Quantité', 'Seuil', 'État'],
+    canSeeFinance() ? [38, 26, 26, 18, 20, 20, 26] : [50, 34, 34, 26, 30], rows, { emptyMsg: 'Aucun article en stock.' });
   y += 2;
 
   y = reportSectionTitlePDF(doc, 'Péremptions (lots réceptionnés)', y);
@@ -13289,8 +13370,8 @@ async function exportStocksExcel() {
   applyReportSheetBranding(ws0, brand.length, 2);
   XLSX.utils.book_append_sheet(wb, ws0, 'Synthèse');
 
-  const head = ['Article', 'Catégorie', 'Quantité', 'Unité', 'Seuil', 'État', 'Prix unitaire (FCFA)', 'Valeur (FCFA)'];
-  const data = r.items.map(i => [i.nom, i.cat, i.qty, i.unite, i.seuil, i.etat, i.prix != null ? Math.round(i.prix) : '', i.prix != null ? Math.round(i.valeur) : '']);
+  const head = ['Article', 'Catégorie', 'Quantité', 'Unité', 'Seuil', 'État'].concat(canSeeFinance() ? ['Prix unitaire (FCFA)', 'Valeur (FCFA)'] : []);
+  const data = r.items.map(i => [i.nom, i.cat, i.qty, i.unite, i.seuil, i.etat].concat(canSeeFinance() ? [i.prix != null ? Math.round(i.prix) : '', i.prix != null ? Math.round(i.valeur) : ''] : []));
   const ws1 = XLSX.utils.aoa_to_sheet([head, ...data]);
   XLSX.utils.book_append_sheet(wb, ws1, 'Stocks');
 
@@ -13349,8 +13430,13 @@ async function exportDashboardPDF() {
   y += 2;
 
   y = reportSectionTitlePDF(doc, 'Échéances — livraisons à venir', y);
-  const erows = r.echeances.map(e => [fmtDate(e.date), e.client, e.statut, fmt(e.montant) + ' FCFA']);
-  y = reportTablePDF(doc, y, ['Date', 'Client', 'Statut', 'Montant'], [30, 60, 40, 40], erows,
+  // C-F1 : colonne Montant réservée au manager (Date/Client/Statut restent).
+  const erows = r.echeances.map(e => canSeeFinance()
+    ? [fmtDate(e.date), e.client, e.statut, fmt(e.montant) + ' FCFA']
+    : [fmtDate(e.date), e.client, e.statut]);
+  y = reportTablePDF(doc, y,
+    canSeeFinance() ? ['Date', 'Client', 'Statut', 'Montant'] : ['Date', 'Client', 'Statut'],
+    canSeeFinance() ? [30, 60, 40, 40] : [36, 84, 50], erows,
     { emptyMsg: 'Aucune livraison à venir.' });
   y += 2;
 
@@ -13386,8 +13472,8 @@ async function exportDashboardExcel() {
   const ws1 = XLSX.utils.aoa_to_sheet([bhead, ...bdata]);
   XLSX.utils.book_append_sheet(wb, ws1, 'Par bande');
 
-  const ehead = ['Date livraison', 'Client', 'Statut', 'Montant (FCFA)'];
-  const edata = r.echeances.map(e => [e.date, e.client, e.statut, Math.round(e.montant)]);
+  const ehead = ['Date livraison', 'Client', 'Statut'].concat(canSeeFinance() ? ['Montant (FCFA)'] : []);
+  const edata = r.echeances.map(e => [e.date, e.client, e.statut].concat(canSeeFinance() ? [Math.round(e.montant)] : []));
   const ws2 = XLSX.utils.aoa_to_sheet([ehead, ...edata]);
   XLSX.utils.book_append_sheet(wb, ws2, 'Échéances');
 
@@ -13462,7 +13548,9 @@ function renderAbattageSessions() {
     container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune session d\'abattage enregistrée.</p></div>';
     return;
   }
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Bande</th><th>Nb abattus</th><th>Poids carcasse</th><th>Rendement</th><th>Coût journée</th><th>Statut</th><th></th></tr></thead><tbody>';
+  // C-F1 : colonne 6 = Coût journée (manager) ↔ Poids vif (chef) — même
+  // position, le libellé de carte mobile suit via body.role-chef_bande.
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Bande</th><th>Nb abattus</th><th>Poids carcasse</th><th>Rendement</th><th>' + (canSeeFinance() ? 'Coût journée' : 'Poids vif') + '</th><th>Statut</th><th></th></tr></thead><tbody>';
   list.forEach(a => {
     const bande = STATE.bandes.find(b => b.bande_id === a.bande_id);
     const coutJour = (Number(a.cout_workers_fcfa)||0) + (Number(a.cout_transport_fcfa)||0) + (Number(a.cout_emballage_fcfa)||0) + (Number(a.cout_autres_fcfa)||0);
@@ -13474,7 +13562,7 @@ function renderAbattageSessions() {
       '<td>' + fmt(Number(a.nb_oiseaux_abattus)) + '</td>' +
       '<td>' + fmt(Number(a.poids_carcasse_total_kg), 1) + ' kg</td>' +
       '<td>' + fmt(Number(a.rendement_carcasse_pct), 1) + '%</td>' +
-      '<td>' + fmt(coutJour) + ' FCFA</td>' +
+      '<td>' + (canSeeFinance() ? fmt(coutJour) + ' FCFA' : fmt(Number(a.poids_vif_total_kg), 1) + ' kg') + '</td>' +
       '<td><span class="status-badge ' + statCls + '">' + statLabel + '</span></td>' +
       '<td><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();viewAbattageDetail(\'' + a.abattage_id + '\')">Détail</button></td>' +
       '</tr>';
@@ -13545,13 +13633,18 @@ function renderAbattageDetail() {
     '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-warning-bg);border:1px solid var(--status-warning-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-warning-fg);">' + saisis + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Saisis (' + fmt(saisis / nbVeille * 100, 2) + '%)</div></div>' +
     '<div style="flex:1;text-align:center;padding:0.6rem;background:var(--status-neutral-bg);border:1px solid var(--status-neutral-bd);border-radius:var(--radius-sm);"><div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:var(--status-neutral-fg);">' + echappes + '</div><div style="font-size:0.72rem;color:var(--text-secondary);">Échappés (' + fmt(echappes / nbVeille * 100, 2) + '%)</div></div>' +
     '</div>' +
-    // Impact financier
+    // Impact financier — C-F1 : lignes coût/CA réservées au manager ; le chef
+    // garde une grille complète en unités opérationnelles.
     '<div class="stat-grid" style="margin-bottom:1rem;">' +
     '<div class="stat-item"><div class="label">Poids carcasse total</div><div class="value">' + fmt(poidsCarcasse, 1) + ' kg</div></div>' +
     '<div class="stat-item"><div class="label">Productivité</div><div class="value">' + fmt(productivite) + ' ois./worker</div></div>' +
-    '<div class="stat-item"><div class="label">Coût journée</div><div class="value">' + fmt(coutJour) + ' FCFA</div></div>' +
-    '<div class="stat-item"><div class="label">Coût/kg carcasse</div><div class="value">' + fmt(coutParKg) + ' FCFA/kg</div></div>' +
-    '<div class="stat-item"><div class="label">CA réel possible</div><div class="value">' + fmt(caReelPossible) + ' FCFA</div></div>' +
+    (canSeeFinance()
+      ? '<div class="stat-item"><div class="label">Coût journée</div><div class="value">' + fmt(coutJour) + ' FCFA</div></div>' +
+        '<div class="stat-item"><div class="label">Coût/kg carcasse</div><div class="value">' + fmt(coutParKg) + ' FCFA/kg</div></div>' +
+        '<div class="stat-item"><div class="label">CA réel possible</div><div class="value">' + fmt(caReelPossible) + ' FCFA</div></div>'
+      : '<div class="stat-item"><div class="label">Poids vif total</div><div class="value">' + fmt(Number(a.poids_vif_total_kg), 1) + ' kg</div></div>' +
+        '<div class="stat-item"><div class="label">Workers</div><div class="value">' + fmt(workers) + '</div></div>' +
+        '<div class="stat-item"><div class="label">Morts avant abattage</div><div class="value">' + fmt(morts) + '</div></div>') +
     '<div class="stat-item"><div class="label">Responsable</div><div class="value" style="font-size:0.9rem;">' + (a.responsable || '—') + '</div></div>' +
     '</div>' +
     (a.note ? '<div style="background:none;border-left:2px solid var(--color-border);padding:0.5rem 0.75rem;font-size:0.85rem;color:var(--text-secondary);margin-bottom:1rem;"><strong>Note :</strong> ' + a.note + '</div>' : '');
@@ -13623,11 +13716,22 @@ function renderAbattageStats() {
   }, 0) / validated.length;
   const avgProductivite = validated.reduce((s, a) => s + (Number(a.nb_oiseaux_abattus)||0) / (Number(a.nb_workers_jour)||1), 0) / validated.length;
 
+  // C-F1 : KPI coût réservé au manager ; le chef garde une barre complète
+  // avec le total abattu (opérationnel).
+  const totalAbattus = validated.reduce((s, a) => s + (Number(a.nb_oiseaux_abattus) || 0), 0);
   document.getElementById('ab-stats-kpis').innerHTML =
     '<div class="dash-kpi"><div class="dk-value">' + fmt(avgRendement, 1) + '%</div><div class="dk-label">Rendement carcasse moyen</div></div>' +
     '<div class="dash-kpi"><div class="dk-value">' + fmt(avgPerte, 2) + '%</div><div class="dk-label">Taux de perte moyen</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(avgCoutKg) + '</div><div class="dk-label">Coût abattage moy./kg (FCFA)</div></div>' +
+    (canSeeFinance()
+      ? '<div class="dash-kpi"><div class="dk-value">' + fmt(avgCoutKg) + '</div><div class="dk-label">Coût abattage moy./kg (FCFA)</div></div>'
+      : '<div class="dash-kpi"><div class="dk-value">' + fmt(totalAbattus) + '</div><div class="dk-label">Oiseaux abattus (total validé)</div></div>') +
     '<div class="dash-kpi"><div class="dk-value">' + fmt(avgProductivite) + '</div><div class="dk-label">Productivité moy. (ois./worker)</div></div>';
+
+  // C-F1 : graphique de décomposition des coûts = intrinsèquement financier →
+  // carte masquée pour le chef (le graphe rendement reste).
+  const costsCanvas = document.getElementById('chart-ab-costs');
+  const costsCard = costsCanvas ? costsCanvas.closest('.card') : null;
+  if (costsCard) costsCard.style.display = canSeeFinance() ? '' : 'none';
 
   // Charts
   if (abCharts.rendement) abCharts.rendement.destroy();
