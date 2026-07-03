@@ -10246,13 +10246,11 @@ function exportFicheRegistre(format) {
 function initParametresPage() {
   setSoleilUI();
   const u = currentUser || {};
-  const roleLabel = u.role === 'manager' ? 'Manager' : u.role === 'chef_bande' ? 'Chef de bande' : (u.role || '—');
   const compteEl = document.getElementById('param-compte');
   if (compteEl) {
     compteEl.innerHTML =
       '<div class="param-info-row"><span>Nom</span><strong>' + escHtml(u.name || '—') + '</strong></div>' +
-      '<div class="param-info-row"><span>Matricule</span><strong>' + escHtml(u.matricule || '—') + '</strong></div>' +
-      '<div class="param-info-row"><span>Rôle</span><strong>' + roleLabel + '</strong></div>';
+      '<div class="param-info-row"><span>Matricule</span><strong>' + escHtml(u.matricule || '—') + '</strong></div>';
   }
   const appEl = document.getElementById('param-app');
   if (appEl) {
