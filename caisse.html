@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  SIVA — Caisse / Point de vente (POS V1)                       ║
+  ║  Surface SÉPARÉE de index.html et portail.html. Servie        ║
+  ║  statiquement par Railway à /caisse.html. Même projet         ║
+  ║  Supabase, même auth (matricule + mot de passe).              ║
+  ╚══════════════════════════════════════════════════════════════╝
+
+  RÈGLE D'ARCHITECTURE (sécurité) — ce fichier ne touche QUE :
+    • v_catalogue_client   (catalogue publié : prix de vente, AUCUN coût)
+    • bandes_pos           (vue assainie 3 colonnes : traçabilité bande)
+    • v_client_soldes      (solde client, lecture — gatée manager/vendeur)
+    • clients              (lecture, vente à crédit)
+    • points_de_vente      (sa ligne — ou toutes pour le manager)
+    • pos_transactions / lignes_transaction / paiements /
+      mouvements_stock / cloture_caisse  (écritures + lectures de SON pdv,
+      liées par les policies rls27_* au claim app_metadata.point_de_vente_id)
+  Il n'utilise JAMAIS le chemin de données staff getAll / ALL_TABLES, ni
+  bandes, saisies, paies, commandes ou toute autre table interne. Les prix
+  viennent EXCLUSIVEMENT du catalogue : le vendeur ne peut JAMAIS éditer
+  un prix (le manager les fixe dans index.html, comme aujourd'hui).
+
+  RÔLES ACCEPTÉS : vendeur (lié à son point de vente) et manager (choisit
+  le point de vente). chef_bande et client sont déconnectés poliment.
+
+  OFFLINE-FIRST : réplique le pattern éprouvé d'index.html — file
+  localStorage (caisse_queue_v1), UI optimiste, rejeu à la reconnexion,
+  inserts idempotents (ids métier uuid côté client, doublon au rejeu =
+  déjà passé = retiré de la file). Une vente aboutit ENTIÈREMENT hors
+  ligne (catalogue/bandes/soldes/stock servis depuis le cache local).
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#11181F">
+<title>SIVA — Caisse</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23B84E0A'/%3E%3Ctext%20x='32'%20y='47'%20font-family='Arial,Helvetica,sans-serif'%20font-size='46'%20font-weight='bold'%20fill='%23ffffff'%20text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+
+<!-- CDN (versions épinglées, jamais @latest — même convention que portail.html) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2"></script>
+<script src="https://unpkg.com/lucide@1.21.0"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap');
+
+/* ── Tokens de marque (repris du :root d'index.html pour cohérence) ── */
+:root {
+  --c-orange-50: #FBEADD; --c-orange-200: #F6BD96; --c-orange-400: #EC8340;
+  --c-orange-500: #F0701A; --c-orange-600: #E2640F; --c-orange-700: #B84E0A;
+  --c-forest-50: #E7F4EE; --c-forest-200: #9BD3B6; --c-forest-600: #0E7C4A; --c-forest-700: #0B663C;
+  --c-sand-50: #F4F6F8; --c-sand-100: #EDF1F4; --c-sand-200: #E6EBEF; --c-sand-300: #D4DBE2;
+  --c-sand-400: #8A95A1; --c-sand-500: #6B7884; --c-sand-600: #4A5663; --c-sand-700: #2E3A46;
+  --c-sand-800: #1A2531; --c-sand-900: #0F1822;
+  --c-red-500: #C8332B; --c-red-600: #B22A23; --c-amber-600: #95621A;
+
+  --color-bg: #F4F6F8; --color-surface: #FFFFFF; --color-border: #D4DBE2; --color-border-subtle: #E6EBEF;
+  --color-text: #0F1822; --color-text-secondary: #4A5663; --color-text-muted: #8A95A1;
+  --color-accent: #E2640F; --color-accent-hover: #B84E0A; --color-accent-soft: #FBEADD;
+  --color-success: #0E7C4A; --color-danger: #C8332B;
+  --navbar-bg: #11181F; --navbar-deep: #0B1116; --navbar-active: #1C2730; --navbar-text: #AEB9C4; --navbar-text-active: #FFFFFF;
+
+  --radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 8px; --radius-full: 9999px;
+  --space-1: 4px; --space-2: 6px; --space-3: 10px; --space-4: 14px; --space-5: 18px; --space-6: 22px; --space-8: 30px;
+  --font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --shadow-sm: 0 1px 2px rgba(15,24,34,0.06); --shadow-md: 0 4px 14px rgba(15,24,34,0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.45;
+  color: var(--color-text); background: var(--color-bg);
+  -webkit-font-smoothing: antialiased; overscroll-behavior-y: none;
+}
+[data-lucide], svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; stroke-width: 2; flex: none; }
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: 16px; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.hidden { display: none !important; }
+.muted { color: var(--color-text-muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 0 18px; border: 1px solid transparent; border-radius: var(--radius-md);
+  font-size: 15px; font-weight: 600; line-height: 1; transition: background .15s, opacity .15s;
+}
+.btn-primary { background: var(--c-orange-700); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #9d420a; }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+.btn-block { display: flex; width: 100%; }
+.btn-ghost { background: transparent; color: var(--color-text-secondary); border-color: var(--color-border); }
+.btn-ghost:hover { background: var(--c-sand-100); }
+.btn-danger-ghost { background: transparent; color: var(--color-danger); border-color: var(--color-border); }
+.btn-sm { min-height: 42px; padding: 0 12px; font-size: 14px; }
+
+/* ════════ LOGIN ════════ */
+#screen-login {
+  min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--space-6);
+  background: radial-gradient(1200px 600px at 50% -10%, var(--navbar-active) 0%, var(--navbar-bg) 55%, var(--navbar-deep) 100%);
+}
+.login-card { width: 100%; max-width: 380px; background: var(--color-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-md); padding: var(--space-8) var(--space-6); }
+.brand-name { font-family: 'Orbitron', 'Inter', sans-serif; font-size: 30px; font-weight: 900; letter-spacing: 0.02em; text-align: center; }
+.brand-caisse { display: block; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: 0.28em; text-transform: uppercase; color: var(--c-orange-700); margin-top: 2px; }
+.login-sub { text-align: center; color: var(--color-text-secondary); font-size: 14px; margin: var(--space-3) 0 var(--space-6); }
+.field { margin-bottom: var(--space-4); }
+.field label { display: block; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px; }
+.field input, .field select {
+  width: 100%; min-height: 50px; padding: 0 14px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text);
+}
+.field input:focus, .field select:focus { border-color: var(--color-accent); outline: none; }
+.login-error { background: #F8E9E8; color: var(--c-red-600); border: 1px solid #EBC3C0; border-radius: var(--radius-md); padding: 10px 12px; font-size: 14px; margin-bottom: var(--space-4); }
+.login-foot { text-align: center; font-size: 12px; color: var(--color-text-muted); margin-top: var(--space-5); }
+
+/* ════════ APP SHELL ════════ */
+#screen-app { min-height: 100%; display: flex; flex-direction: column; }
+.app-header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--navbar-bg); color: var(--navbar-text-active);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px var(--space-4); padding-top: max(10px, env(safe-area-inset-top));
+}
+.hd-left { display: flex; flex-direction: column; min-width: 0; }
+.hd-brand { font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 900; }
+.hd-pdv { font-size: 12px; color: var(--navbar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-right { display: flex; align-items: center; gap: 8px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: var(--radius-full);
+}
+#badge-online.on  { background: rgba(14,124,74,.25); color: #7ADFAE; }
+#badge-online.off { background: rgba(200,51,43,.25); color: #F1A09B; }
+#badge-queue { background: var(--c-orange-600); color: #fff; }
+.signout-btn { background: transparent; border: none; color: var(--navbar-text); min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 19px; border-radius: var(--radius-md); }
+.signout-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+.app-main { flex: 1; padding: var(--space-4); padding-bottom: 92px; max-width: 860px; width: 100%; margin: 0 auto; }
+.view-title { font-size: 19px; font-weight: 700; margin-bottom: var(--space-4); }
+
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  background: var(--color-surface); border-top: 1px solid var(--color-border);
+  display: flex; padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 10px rgba(15,24,34,0.05);
+}
+.tab {
+  flex: 1; background: transparent; border: none; min-height: 58px; padding: 8px 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--color-text-muted); font-size: 11px; font-weight: 600;
+}
+.tab svg.lucide, .tab [data-lucide] { width: 22px; height: 22px; }
+.tab.active { color: var(--c-orange-700); }
+
+/* ════════ VENTE ════════ */
+.prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3); }
+.prod-tile {
+  background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); padding: var(--space-3); text-align: left;
+  display: flex; flex-direction: column; gap: 6px; min-height: 108px;
+}
+.prod-tile:active { border-color: var(--c-orange-600); }
+.pt-nom { font-size: 14px; font-weight: 700; }
+.pt-prix { font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
+.pt-prix small { font-size: 11px; font-weight: 500; color: var(--color-text-muted); font-family: var(--font-sans); }
+.pt-stock { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); }
+.pt-stock.low { color: var(--c-amber-600); }
+.pt-stock.out { color: var(--color-danger); }
+
+.vente-card { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-4); margin-top: var(--space-4); }
+.cart-line { display: grid; grid-template-columns: 1fr auto auto; gap: 8px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.cl-nom { font-size: 14px; font-weight: 700; }
+.cl-detail { font-size: 12.5px; color: var(--color-text-secondary); font-family: var(--font-mono); }
+.cl-montant { font-family: var(--font-mono); font-weight: 700; font-size: 15px; white-space: nowrap; }
+.qty-btns { display: inline-flex; gap: 6px; align-items: center; }
+.qty-btns button { min-width: 40px; min-height: 40px; border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-md); font-size: 18px; font-weight: 700; }
+.qty-val { font-family: var(--font-mono); font-weight: 700; min-width: 34px; text-align: center; }
+.total-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: var(--space-4); background: var(--c-sand-800); color: #fff; border-radius: var(--radius-lg); margin-top: var(--space-4);
+}
+.total-row .tl { font-size: 14px; color: #cdd6df; }
+.total-row .tv { font-family: var(--font-mono); font-size: 28px; font-weight: 700; }
+
+/* ════════ MODALES (pesée / paiement) ════════ */
+.overlay { position: fixed; inset: 0; background: rgba(15,24,34,0.55); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
+@media (min-width: 640px) { .overlay { align-items: center; } }
+.sheet {
+  background: var(--color-surface); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto;
+  padding: var(--space-5) var(--space-4); padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+}
+@media (min-width: 640px) { .sheet { border-radius: var(--radius-xl); } }
+.sheet h3 { font-size: 17px; margin-bottom: var(--space-4); }
+.pay-total { text-align: center; margin-bottom: var(--space-4); }
+.pay-total .pt-l { font-size: 13px; color: var(--color-text-muted); }
+.pay-total .pt-v { font-family: var(--font-mono); font-size: 32px; font-weight: 700; }
+.pay-part { border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); padding: var(--space-3); margin-bottom: var(--space-3); }
+.mode-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mode-chip { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-full); padding: 9px 13px; font-size: 13px; font-weight: 600; }
+.mode-chip.sel { background: var(--c-orange-700); color: #fff; border-color: var(--c-orange-700); }
+.pay-row { display: flex; gap: 8px; margin-top: 8px; }
+.pay-row input { flex: 1; min-height: 48px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.pay-reste { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 4px; font-weight: 700; }
+.pay-reste.credit { color: var(--c-amber-600); }
+.pay-reste.err { color: var(--color-danger); }
+.rendu-box { background: var(--c-forest-50); color: var(--c-forest-700); border-radius: var(--radius-md); padding: 10px 12px; font-weight: 700; margin-top: 8px; }
+.solde-box { background: var(--c-sand-100); border-radius: var(--radius-md); padding: 10px 12px; font-size: 13px; margin-top: 8px; }
+
+/* ════════ REÇU ════════ */
+/*
+  Reçu de caisse — DOCUMENT NON FISCAL.
+  L'intégration FNE (Facture Normalisée Électronique, DGI Côte d'Ivoire)
+  est en attente de l'enregistrement DGI de SIVA : tant que
+  l'enregistrement n'est pas obtenu, la caisse n'émet PAS de facture
+  normalisée — uniquement ce reçu interne clairement étiqueté
+  « document non fiscal ». L'intégration FNE est explicitement V2+.
+*/
+.receipt {
+  background: #fff; width: 100%; max-width: 320px; margin: 0 auto;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: #111;
+  padding: 14px 12px; border: 1px dashed var(--color-border);
+}
+.receipt .rc-center { text-align: center; }
+.receipt .rc-brand { font-weight: 700; font-size: 15px; letter-spacing: 0.06em; }
+.receipt .rc-line { border-top: 1px dashed #999; margin: 8px 0; }
+.receipt table { width: 100%; border-collapse: collapse; }
+.receipt td { padding: 1.5px 0; vertical-align: top; }
+.receipt td.r { text-align: right; white-space: nowrap; }
+.receipt .rc-total td { font-weight: 700; font-size: 14px; padding-top: 6px; }
+.receipt .rc-nonfiscal { text-align: center; font-weight: 700; margin-top: 8px; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; }
+.receipt-actions { display: flex; gap: 8px; margin-top: var(--space-4); }
+.receipt-actions .btn { flex: 1; }
+
+@media print {
+  /* Impression 80 mm (imprimante thermique) : seul le reçu s'imprime. */
+  @page { size: 80mm auto; margin: 3mm; }
+  body { background: #fff; }
+  #screen-app, #screen-login, #toast, .receipt-actions, .sheet > h3 { display: none !important; }
+  #receipt-overlay { position: static !important; display: block !important; background: none !important; }
+  #receipt-overlay .sheet { max-width: none; max-height: none; padding: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+  .receipt { max-width: none; width: 74mm; border: none; padding: 0; }
+}
+
+/* ════════ STOCK / CLÔTURE ════════ */
+.list-card { background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-4); margin-bottom: var(--space-4); }
+.list-card h3 { font-size: 15px; margin-bottom: var(--space-3); }
+.stock-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.stock-row:last-child { border-bottom: none; }
+.stock-qty { font-family: var(--font-mono); font-weight: 700; }
+.kv { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; font-size: 14px; }
+.kv .v { font-family: var(--font-mono); font-weight: 700; }
+.ecart-pos { color: var(--c-forest-700); }
+.ecart-neg { color: var(--color-danger); }
+.mvt-row { font-size: 12.5px; color: var(--color-text-secondary); padding: 5px 0; border-bottom: 1px solid var(--color-border-subtle); display: flex; justify-content: space-between; gap: 8px; }
+
+.empty, .loading { text-align: center; color: var(--color-text-muted); padding: var(--space-8) var(--space-4); }
+.spinner { width: 22px; height: 22px; border: 2px solid var(--c-sand-200); border-top-color: var(--c-orange-600); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -4px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#toast {
+  position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%) translateY(20px);
+  background: var(--c-sand-900); color: #fff; padding: 12px 18px; border-radius: var(--radius-md);
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s; z-index: 60; max-width: 90vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.error { background: var(--c-red-600); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ LOGIN ════════════════ -->
+<section id="screen-login">
+  <div class="login-card">
+    <div class="brand-name">SIVA</div>
+    <span class="brand-caisse">Caisse — Point de vente</span>
+    <p class="login-sub">Accès vendeur et manager uniquement.</p>
+    <div id="login-error" class="login-error hidden"></div>
+    <form id="login-form" autocomplete="on">
+      <div class="field">
+        <label for="login-matricule">Matricule</label>
+        <input id="login-matricule" type="text" autocomplete="username" required placeholder="SIVA-050" autocapitalize="characters">
+      </div>
+      <div class="field">
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" type="password" autocomplete="current-password" required placeholder="••••••••">
+      </div>
+      <div class="field hidden" id="pdv-pick-field">
+        <label for="pdv-pick">Point de vente (manager)</label>
+        <select id="pdv-pick"></select>
+      </div>
+      <button id="login-submit" type="submit" class="btn btn-primary btn-block">Ouvrir la caisse</button>
+    </form>
+    <p class="login-foot">Compte créé par le manager SIVA.<br>Chaque vendeur est lié à son point de vente.</p>
+  </div>
+</section>
+
+<!-- ════════════════ APP ════════════════ -->
+<section id="screen-app" class="hidden">
+  <header class="app-header">
+    <div class="hd-left">
+      <span class="hd-brand">SIVA · CAISSE</span>
+      <span class="hd-pdv" id="hd-pdv">—</span>
+    </div>
+    <div class="hd-right">
+      <span id="badge-queue" class="badge hidden"><i data-lucide="upload-cloud"></i><span id="badge-queue-n">0</span></span>
+      <span id="badge-online" class="badge on"><i data-lucide="wifi"></i><span id="badge-online-t">En ligne</span></span>
+      <button id="signout-btn" class="signout-btn" title="Fermer la session" aria-label="Fermer la session"><i data-lucide="log-out"></i></button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- ── VENTE ── -->
+    <div id="view-vente" class="view">
+      <div id="produits-grid" class="prod-grid"><div class="loading"><span class="spinner"></span> Chargement…</div></div>
+
+      <div class="vente-card">
+        <div class="field">
+          <label for="vente-bande">Bande d'origine (traçabilité — obligatoire)</label>
+          <select id="vente-bande"><option value="">— Sélectionner la bande —</option></select>
+        </div>
+        <div id="cart-lines"><p class="muted" style="padding:6px 0;">Panier vide — touchez un produit.</p></div>
+        <div class="total-row"><span class="tl">Total</span><span class="tv" id="cart-total">0 FCFA</span></div>
+        <button id="btn-encaisser" class="btn btn-primary btn-block" style="margin-top:12px;" disabled><i data-lucide="banknote"></i> Encaisser</button>
+      </div>
+    </div>
+
+    <!-- ── STOCK ── -->
+    <div id="view-stock" class="view hidden">
+      <h1 class="view-title">Stock du point de vente</h1>
+      <div class="list-card"><h3>Stock courant</h3><div id="stock-list"></div></div>
+      <div class="list-card">
+        <h3>Réception au point de vente (arrivage ferme)</h3>
+        <div class="field"><label for="recep-produit">Produit</label><select id="recep-produit"></select></div>
+        <div class="field"><label for="recep-qty">Quantité</label><input id="recep-qty" type="number" inputmode="decimal" min="0" step="0.1" placeholder="0"></div>
+        <div class="field"><label for="recep-bande">Bande d'origine</label><select id="recep-bande"></select></div>
+        <button id="btn-reception" class="btn btn-primary btn-block"><i data-lucide="package-plus"></i> Enregistrer la réception</button>
+      </div>
+      <div class="list-card"><h3>Derniers mouvements</h3><div id="mvt-list"></div></div>
+    </div>
+
+    <!-- ── CLÔTURE ── -->
+    <div id="view-cloture" class="view hidden">
+      <h1 class="view-title">Clôture de caisse</h1>
+      <div class="list-card">
+        <div class="kv"><span>Espèces encaissées depuis la dernière clôture</span><span class="v" id="clo-especes">—</span></div>
+        <div class="field" style="margin-top:10px;"><label for="clo-fond">Fond de caisse (FCFA)</label><input id="clo-fond" type="number" inputmode="numeric" min="0" value="0"></div>
+        <div class="kv"><span>Espèces théoriques en caisse</span><span class="v" id="clo-theorique">—</span></div>
+        <div class="field" style="margin-top:10px;"><label for="clo-compte">Espèces comptées (FCFA)</label><input id="clo-compte" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="kv"><span>Écart</span><span class="v" id="clo-ecart">—</span></div>
+        <div class="field" style="margin-top:10px;"><label for="clo-note">Note (optionnel)</label><input id="clo-note" type="text" placeholder="Remarques…"></div>
+        <button id="btn-cloture" class="btn btn-primary btn-block"><i data-lucide="lock"></i> Clôturer la caisse</button>
+      </div>
+      <div class="list-card"><h3>Dernières clôtures</h3><div id="clotures-list"></div></div>
+    </div>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-view="vente"><i data-lucide="shopping-basket"></i><span>Vente</span></button>
+    <button class="tab" data-view="stock"><i data-lucide="boxes"></i><span>Stock</span></button>
+    <button class="tab" data-view="cloture"><i data-lucide="lock"></i><span>Clôture</span></button>
+  </nav>
+</section>
+
+<!-- ── Modale pesée (produit au kg) ── -->
+<div id="poids-overlay" class="overlay hidden">
+  <div class="sheet">
+    <h3 id="poids-titre">Poids</h3>
+    <div class="field"><label for="poids-input">Poids (kg)</label><input id="poids-input" type="number" inputmode="decimal" min="0.05" step="0.05" placeholder="1.5"></div>
+    <div class="receipt-actions">
+      <button class="btn btn-ghost" id="poids-annuler">Annuler</button>
+      <button class="btn btn-primary" id="poids-ok">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modale paiement ── -->
+<div id="pay-overlay" class="overlay hidden">
+  <div class="sheet">
+    <h3>Paiement</h3>
+    <div class="pay-total"><div class="pt-l">Total à encaisser</div><div class="pt-v" id="pay-total">0 FCFA</div></div>
+    <div class="field">
+      <label for="pay-client">Client (obligatoire pour un crédit)</label>
+      <select id="pay-client"><option value="">Vente au comptoir (sans client)</option></select>
+      <div id="pay-solde" class="solde-box hidden"></div>
+    </div>
+    <div id="pay-parts"></div>
+    <button id="pay-add-part" class="btn btn-ghost btn-sm btn-block" style="margin-bottom:10px;"><i data-lucide="plus"></i> Ajouter un paiement (partagé)</button>
+    <div id="pay-reste" class="pay-reste"></div>
+    <div class="receipt-actions">
+      <button class="btn btn-ghost" id="pay-annuler">Annuler</button>
+      <button class="btn btn-primary" id="btn-finaliser">Finaliser la vente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reçu ── -->
+<div id="receipt-overlay" class="overlay hidden">
+  <div class="sheet">
+    <h3>Reçu</h3>
+    <div id="receipt-content"></div>
+    <div class="receipt-actions">
+      <button class="btn btn-ghost" id="receipt-print"><i data-lucide="printer"></i> Imprimer</button>
+      <button class="btn btn-ghost" id="receipt-share"><i data-lucide="share-2"></i> Partager</button>
+      <button class="btn btn-primary" id="receipt-close">Nouvelle vente</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════
+   CONFIG — identifiants PUBLICS (navigateur), identiques à index.html
+   et portail.html. La clé service_role ne doit JAMAIS apparaître ici.
+   ════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL      = 'https://wlcvapssgxqptmeulqdc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_PXMCqNteVUPUBALVjnSxYQ_rogyUk_K';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const AUTH_EMAIL_DOMAIN = '@coqorico.internal';
+function matriculeToEmail(m) { return String(m || '').trim().toLowerCase() + AUTH_EMAIL_DOMAIN; }
+
+const CACHE_KEY = 'caisse_cache_v1';
+const QUEUE_KEY = 'caisse_queue_v1';
+
+/* Modes de paiement (0002 : colonne mode_paiement libre — valeurs affinées
+   par opérateur pour l'analytique ; 'especes' + opérateurs mobile money.
+   Le crédit client n'écrit PAS de ligne paiement : il EST l'absence de
+   paiement sur une transaction portant un client_id (v_client_soldes). */
+const PAY_MODES = [
+  { id: 'especes',      label: 'Espèces',      ref: false },
+  { id: 'orange_money', label: 'Orange Money', ref: true },
+  { id: 'mtn_momo',     label: 'MTN MoMo',     ref: true },
+  { id: 'wave',         label: 'Wave',         ref: true },
+  { id: 'moov',         label: 'Moov',         ref: true }
+];
+
+/* ── État ── */
+let C = {
+  user: null,          // { matricule, name, role }
+  pdv: null,           // ligne points_de_vente
+  catalogue: [],       // v_catalogue_client
+  bandes: [],          // bandes_pos
+  soldes: [],          // v_client_soldes
+  mouvements: [],      // mouvements_stock du pdv (+ optimistes)
+  paiements: [],       // paiements du pdv (+ optimistes)
+  clotures: [],        // cloture_caisse du pdv
+  cart: [],            // [{ produit_id, nom, unite, prix, qty }]
+  payParts: [],        // [{ mode, montant, reference }]
+  payClientId: '',
+  lastSale: null
+};
+let isOnline = navigator.onLine;
+
+/* ── Helpers ── */
+function $(id) { return document.getElementById(id); }
+function icons() { try { window.lucide.createIcons(); } catch (e) {} }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function fmt(n, d = 0) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/[  ]/g, ' ');
+}
+function fcfa(n) { return fmt(n) + ' FCFA'; }
+function uuid() {
+  return (crypto.randomUUID ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      }));
+}
+function toast(msg, type) {
+  const t = $('toast'); t.textContent = msg; t.className = (type === 'error' ? 'error ' : '') + 'show';
+  setTimeout(() => t.classList.remove('show'), 3400);
+}
+function isNetError(e) {
+  return !navigator.onLine || /failed to fetch|network|réseau|load failed|fetch/i.test(String(e && e.message || e));
+}
+function isDupError(e) { return /duplicate key/i.test(String(e && e.message || e)); }
+
+/* ════════════════ CACHE + FILE HORS LIGNE ════════════════ */
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      ts: Date.now(), pdv: C.pdv, catalogue: C.catalogue, bandes: C.bandes,
+      soldes: C.soldes, mouvements: C.mouvements, paiements: C.paiements, clotures: C.clotures
+    }));
+  } catch (e) {}
+}
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return false;
+    const c = JSON.parse(raw);
+    C.pdv = C.pdv || c.pdv;
+    C.catalogue = c.catalogue || []; C.bandes = c.bandes || []; C.soldes = c.soldes || [];
+    C.mouvements = c.mouvements || []; C.paiements = c.paiements || []; C.clotures = c.clotures || [];
+    return true;
+  } catch (e) { return false; }
+}
+function getQueue() { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (e) { return []; } }
+function saveQueue(q) { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch (e) {} }
+function enqueue(item) { const q = getQueue(); q.push(item); saveQueue(q); updateStatusBadges(); }
+
+/* Exécution d'un lot de lignes [{table, row}] dans l'ordre, IDEMPOTENTE :
+   chaque ligne porte un id métier unique généré côté client — au rejeu,
+   « duplicate key » = déjà insérée = on continue (pattern index.html). */
+async function execRows(rows) {
+  for (const r of rows) {
+    const { error } = await sb.from(r.table).insert([r.row]);
+    if (error) {
+      if (isDupError(error)) continue;
+      throw new Error(error.message);
+    }
+  }
+}
+
+/* Rejeu de la file (reconnexion / connexion / minuterie). Un item en
+   échec réseau reste en file ; un item en échec définitif non-doublon
+   reste aussi (visible via le badge) pour diagnostic manager. */
+let queueRunning = false;
+async function processQueue() {
+  if (queueRunning || !navigator.onLine) return;
+  const q = getQueue();
+  if (!q.length) return;
+  queueRunning = true;
+  const remaining = [];
+  let done = 0;
+  for (const item of q) {
+    try { await execRows(item.rows); done++; }
+    catch (e) {
+      remaining.push(item);
+      if (isNetError(e)) { remaining.push(...q.slice(q.indexOf(item) + 1)); break; }
+    }
+  }
+  saveQueue(remaining);
+  queueRunning = false;
+  updateStatusBadges();
+  if (done > 0) toast(done + ' opération(s) synchronisée(s)');
+}
+
+function updateStatusBadges() {
+  const on = navigator.onLine;
+  const b = $('badge-online');
+  if (b) { b.className = 'badge ' + (on ? 'on' : 'off'); $('badge-online-t').textContent = on ? 'En ligne' : 'Hors ligne'; }
+  const n = getQueue().length;
+  const bq = $('badge-queue');
+  if (bq) { bq.classList.toggle('hidden', n === 0); $('badge-queue-n').textContent = n; }
+}
+
+/* ════════════════ AUTH ════════════════ */
+function identityFromSession(session) {
+  const user = (session && session.user) || {};
+  const meta = user.app_metadata || {};
+  return {
+    matricule: meta.matricule ? String(meta.matricule).toUpperCase() : String(user.email || '').split('@')[0].toUpperCase(),
+    name: meta.name || meta.full_name || null,
+    role: meta.role || null,
+    pdvId: meta.point_de_vente_id || null
+  };
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = $('login-submit'), errEl = $('login-error');
+  errEl.classList.add('hidden');
+  const matricule = $('login-matricule').value.trim();
+  const password = $('login-password').value;
+  if (!matricule || !password) return;
+  btn.disabled = true; btn.textContent = 'Connexion…';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email: matriculeToEmail(matricule), password });
+    if (error || !data || !data.session) { showLoginError('Matricule ou mot de passe incorrect.'); return; }
+    await enterFromSession(data.session);
+  } catch (e2) {
+    showLoginError('Erreur de connexion. Réessayez.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ouvrir la caisse';
+  }
+}
+function showLoginError(msg) { const el = $('login-error'); el.textContent = msg; el.classList.remove('hidden'); }
+
+/* Seuls vendeur et manager entrent. chef_bande / client : session fermée
+   avec un message d'orientation (miroir du garde vendeur d'index.html). */
+async function enterFromSession(session) {
+  const id = identityFromSession(session);
+  if (id.role !== 'vendeur' && id.role !== 'manager') {
+    try { await sb.auth.signOut(); } catch (e) {}
+    showLoginError(id.role === 'client'
+      ? 'Compte client — utilisez le portail (portail.html).'
+      : 'La caisse est réservée aux vendeurs et managers. Utilisez l\'application SIVA (index.html).');
+    return;
+  }
+  C.user = id;
+  await resolvePdv();
+}
+
+/* Vendeur : pdv du claim app_metadata.point_de_vente_id (obligatoire).
+   Manager : choisit le point de vente (liste points_de_vente). */
+async function resolvePdv() {
+  if (C.user.role === 'vendeur') {
+    if (!C.user.pdvId) {
+      showLoginError('Compte vendeur sans point de vente (app_metadata.point_de_vente_id manquant) — contactez le manager.');
+      try { await sb.auth.signOut(); } catch (e) {}
+      C.user = null;
+      return;
+    }
+    let row = null;
+    try {
+      const { data } = await sb.from('points_de_vente').select('*').eq('pdv_id', C.user.pdvId).limit(1);
+      row = data && data[0];
+    } catch (e) {}
+    if (!row) { loadCache(); row = C.pdv; }
+    C.pdv = row || { pdv_id: C.user.pdvId, nom: C.user.pdvId };
+    await enterApp();
+    return;
+  }
+  // manager : sélecteur de PDV sur l'écran de login
+  let pdvs = [];
+  try {
+    const { data } = await sb.from('points_de_vente').select('*').order('nom');
+    pdvs = data || [];
+  } catch (e) {}
+  if (!pdvs.length) { loadCache(); if (C.pdv) pdvs = [C.pdv]; }
+  if (!pdvs.length) { showLoginError('Aucun point de vente configuré (table points_de_vente vide — voir migration 0027, seed).'); return; }
+  if (pdvs.length === 1) { C.pdv = pdvs[0]; await enterApp(); return; }
+  const field = $('pdv-pick-field'), sel = $('pdv-pick');
+  sel.innerHTML = pdvs.map(p => '<option value="' + esc(p.pdv_id) + '">' + esc(p.nom) + '</option>').join('');
+  field.classList.remove('hidden');
+  window.__pdvChoices = pdvs;
+  sel.onchange = async () => {
+    C.pdv = pdvs.find(p => p.pdv_id === sel.value) || pdvs[0];
+    field.classList.add('hidden');
+    await enterApp();
+  };
+  showLoginError('Manager : choisissez le point de vente à ouvrir.');
+}
+
+async function handleSignout() {
+  try { await sb.auth.signOut(); } catch (e) {}
+  C.user = null; C.pdv = null; C.cart = []; C.payParts = [];
+  $('screen-app').classList.add('hidden');
+  $('screen-login').classList.remove('hidden');
+}
+
+/* ════════════════ DONNÉES ════════════════ */
+async function loadData() {
+  const pdvId = C.pdv.pdv_id;
+  const since = new Date(Date.now() - 60 * 86400000).toISOString();
+  try {
+    const [cat, bp, sol, mvt, pay, clo] = await Promise.all([
+      sb.from('v_catalogue_client').select('produit_id, nom, categorie, calibre, unite, prix_kg_fcfa, description, ordre_affichage').order('ordre_affichage'),
+      sb.from('bandes_pos').select('bande_id, nom_bande, statut'),
+      sb.from('v_client_soldes').select('client_id, nom, solde_fcfa'),
+      sb.from('mouvements_stock').select('*').or('from_pdv_id.eq.' + pdvId + ',to_pdv_id.eq.' + pdvId).gte('date_mouvement', since).order('date_mouvement', { ascending: false }).limit(1000),
+      sb.from('paiements').select('*').eq('pdv_id', pdvId).gte('date_paiement', since).order('date_paiement', { ascending: false }).limit(1000),
+      sb.from('cloture_caisse').select('*').eq('pdv_id', pdvId).order('date_cloture', { ascending: false }).limit(10)
+    ]);
+    if (cat.error) throw new Error(cat.error.message);
+    C.catalogue = cat.data || [];
+    C.bandes = (bp.data || []);
+    C.soldes = (sol.data || []);
+    C.mouvements = (mvt.data || []);
+    C.paiements = (pay.data || []);
+    C.clotures = (clo.data || []);
+    saveCache();
+  } catch (e) {
+    // Hors ligne (ou 0027 pas encore appliquée) : on sert le cache local.
+    const ok = loadCache();
+    if (!ok) toast('Données indisponibles hors ligne (première connexion requise en ligne)', 'error');
+  }
+}
+
+async function enterApp() {
+  $('screen-login').classList.add('hidden');
+  $('screen-app').classList.remove('hidden');
+  $('hd-pdv').textContent = (C.pdv.nom || C.pdv.pdv_id) + ' — ' + (C.user.name || C.user.matricule);
+  await loadData();
+  renderVente();
+  renderStock();
+  renderCloture();
+  updateStatusBadges();
+  processQueue();
+  icons();
+}
+
+/* ════════════════ STOCK (calcul client, entrées − sorties) ════════════════ */
+function stockParProduit() {
+  const pdvId = C.pdv ? C.pdv.pdv_id : null;
+  const stock = {};
+  for (const m of C.mouvements) {
+    if (m.statut === 'annule') continue;
+    const key = m.type_produit || '?';
+    if (!(key in stock)) stock[key] = 0;
+    const q = Number(m.quantite) || 0;
+    if (m.to_pdv_id === pdvId) stock[key] += q;
+    if (m.from_pdv_id === pdvId) stock[key] -= q;
+  }
+  return stock;
+}
+function stockDe(nomProduit) {
+  const s = stockParProduit();
+  return s[nomProduit] != null ? Math.round(s[nomProduit] * 100) / 100 : 0;
+}
+
+/* ════════════════ VENTE ════════════════ */
+function renderVente() {
+  const grid = $('produits-grid');
+  if (!C.catalogue.length) {
+    grid.innerHTML = '<div class="empty">Aucun produit publié au catalogue.<br>Le manager publie les produits dans l\'application SIVA.</div>';
+  } else {
+    grid.innerHTML = C.catalogue.map(p => {
+      const st = stockDe(p.nom);
+      const stCls = st <= 0 ? 'out' : (st <= 5 ? 'low' : '');
+      const unite = p.unite === 'unite' ? 'unité' : 'kg';
+      return '<button class="prod-tile" data-prod="' + esc(p.produit_id) + '">' +
+        '<span class="pt-nom">' + esc(p.nom) + '</span>' +
+        '<span class="pt-prix">' + fcfa(p.prix_kg_fcfa) + ' <small>/ ' + unite + '</small></span>' +
+        '<span class="pt-stock ' + stCls + '">Stock : ' + fmt(st, p.unite === 'unite' ? 0 : 1) + ' ' + unite + (st <= 0 ? ' !' : '') + '</span>' +
+      '</button>';
+    }).join('');
+  }
+  const sel = $('vente-bande');
+  const cur = sel.value;
+  const actives = C.bandes.filter(b => b.statut === 'en_cours');
+  const ecoulement = C.bandes.filter(b => b.statut !== 'en_cours');
+  sel.innerHTML = '<option value="">— Sélectionner la bande —</option>' +
+    actives.map(b => '<option value="' + esc(b.bande_id) + '">' + esc(b.nom_bande) + ' (active)</option>').join('') +
+    ecoulement.map(b => '<option value="' + esc(b.bande_id) + '">' + esc(b.nom_bande) + ' (écoulement)</option>').join('');
+  if (cur) sel.value = cur;
+  renderCart();
+  icons();
+}
+
+function renderCart() {
+  const box = $('cart-lines');
+  if (!C.cart.length) {
+    box.innerHTML = '<p class="muted" style="padding:6px 0;">Panier vide — touchez un produit.</p>';
+  } else {
+    box.innerHTML = C.cart.map((l, i) => {
+      const montant = ligneMontant(l);
+      const qty = l.unite === 'unite'
+        ? '<span class="qty-btns"><button data-qminus="' + i + '">−</button><span class="qty-val">' + fmt(l.qty) + '</span><button data-qplus="' + i + '">+</button></span>'
+        : '<button class="btn-ghost btn btn-sm mono" data-qpoids="' + i + '">' + fmt(l.qty, 2) + ' kg</button>';
+      return '<div class="cart-line">' +
+        '<div><div class="cl-nom">' + esc(l.nom) + '</div>' +
+        '<div class="cl-detail">' + fmt(l.prix) + ' × ' + fmt(l.qty, l.unite === 'unite' ? 0 : 2) + '</div></div>' +
+        qty +
+        '<div style="display:flex;align-items:center;gap:8px;"><span class="cl-montant">' + fcfa(montant) + '</span>' +
+        '<button class="btn btn-danger-ghost btn-sm" data-qdel="' + i + '" aria-label="Retirer"><i data-lucide="trash-2"></i></button></div>' +
+      '</div>';
+    }).join('');
+  }
+  $('cart-total').textContent = fcfa(cartTotal());
+  $('btn-encaisser').disabled = !(C.cart.length && $('vente-bande').value);
+  icons();
+}
+
+function ligneMontant(l) { return Math.round(l.qty * l.prix); }
+function cartTotal() { return C.cart.reduce((s, l) => s + ligneMontant(l), 0); }
+
+let poidsProdId = null;
+function tapProduit(produitId) {
+  const p = C.catalogue.find(x => x.produit_id === produitId);
+  if (!p) return;
+  if (p.unite === 'unite') {
+    const line = C.cart.find(l => l.produit_id === produitId);
+    if (line) line.qty += 1;
+    else C.cart.push({ produit_id: p.produit_id, nom: p.nom, unite: 'unite', prix: Number(p.prix_kg_fcfa), qty: 1 });
+    renderCart();
+  } else {
+    poidsProdId = produitId;
+    $('poids-titre').textContent = p.nom + ' — ' + fcfa(p.prix_kg_fcfa) + ' / kg';
+    $('poids-input').value = '';
+    $('poids-overlay').classList.remove('hidden');
+    setTimeout(() => $('poids-input').focus(), 60);
+  }
+}
+function confirmPoids() {
+  const p = C.catalogue.find(x => x.produit_id === poidsProdId);
+  const kg = parseFloat($('poids-input').value);
+  if (!p || !(kg > 0)) { toast('Poids invalide', 'error'); return; }
+  C.cart.push({ produit_id: p.produit_id, nom: p.nom, unite: 'kg', prix: Number(p.prix_kg_fcfa), qty: Math.round(kg * 100) / 100 });
+  $('poids-overlay').classList.add('hidden');
+  renderCart();
+}
+
+/* ════════════════ PAIEMENT ════════════════ */
+function openPay() {
+  if (!C.cart.length) return;
+  if (!$('vente-bande').value) { toast('Sélectionnez la bande d\'origine (traçabilité)', 'error'); return; }
+  C.payParts = [{ mode: 'especes', montant: cartTotal(), reference: '', recu: '' }];
+  C.payClientId = '';
+  $('pay-client').innerHTML = '<option value="">Vente au comptoir (sans client)</option>' +
+    C.soldes.map(s => '<option value="' + esc(s.client_id) + '">' + esc(s.nom) + '</option>').join('');
+  $('pay-total').textContent = fcfa(cartTotal());
+  renderPayParts();
+  $('pay-overlay').classList.remove('hidden');
+  icons();
+}
+
+function renderPayParts() {
+  const box = $('pay-parts');
+  box.innerHTML = C.payParts.map((part, i) => {
+    const chips = PAY_MODES.map(m =>
+      '<button class="mode-chip' + (part.mode === m.id ? ' sel' : '') + '" data-pmode="' + i + ':' + m.id + '">' + m.label + '</button>'
+    ).join('');
+    const modeDef = PAY_MODES.find(m => m.id === part.mode);
+    const refInput = modeDef && modeDef.ref
+      ? '<div class="pay-row"><input type="text" placeholder="N° de référence ' + esc(modeDef.label) + '" value="' + esc(part.reference) + '" data-pref="' + i + '"></div>'
+      : '';
+    const renduVisible = part.recu !== '' && Number(part.recu) >= (Number(part.montant) || 0);
+    const renduBlock = part.mode === 'especes'
+      ? '<div class="pay-row"><input type="number" inputmode="numeric" placeholder="Montant reçu (rendu monnaie)" value="' + esc(part.recu) + '" data-precu="' + i + '"></div>' +
+        '<div class="rendu-box mono" id="rendu-box-' + i + '"' + (renduVisible ? '' : ' style="display:none"') + '>' +
+        (renduVisible ? 'Rendu : ' + fcfa(Number(part.recu) - (Number(part.montant) || 0)) : '') + '</div>'
+      : '';
+    return '<div class="pay-part">' +
+      '<div class="mode-chips">' + chips + '</div>' +
+      '<div class="pay-row"><input type="number" inputmode="numeric" min="0" placeholder="Montant (FCFA)" value="' + esc(part.montant) + '" data-pmont="' + i + '" class="mono">' +
+      (C.payParts.length > 1 ? '<button class="btn btn-danger-ghost btn-sm" data-pdel="' + i + '"><i data-lucide="trash-2"></i></button>' : '') +
+      '</div>' + refInput + renduBlock +
+    '</div>';
+  }).join('');
+
+  const total = cartTotal();
+  const paye = C.payParts.reduce((s, p) => s + (Number(p.montant) || 0), 0);
+  const reste = total - paye;
+  const resteEl = $('pay-reste');
+  if (reste === 0) {
+    resteEl.className = 'pay-reste';
+    resteEl.innerHTML = '<span>Payé intégralement</span><span class="mono">' + fcfa(paye) + '</span>';
+  } else if (reste > 0) {
+    resteEl.className = 'pay-reste credit';
+    resteEl.innerHTML = '<span>Reste → crédit client' + (C.payClientId ? '' : ' (choisir un client)') + '</span><span class="mono">' + fcfa(reste) + '</span>';
+  } else {
+    resteEl.className = 'pay-reste err';
+    resteEl.innerHTML = '<span>Trop perçu — corriger les montants</span><span class="mono">' + fcfa(-reste) + '</span>';
+  }
+  renderSoldeBox();
+  icons();
+}
+
+function renderSoldeBox() {
+  const box = $('pay-solde');
+  if (!C.payClientId) { box.classList.add('hidden'); return; }
+  const s = C.soldes.find(x => x.client_id === C.payClientId);
+  if (!s) { box.classList.add('hidden'); return; }
+  const total = cartTotal();
+  const paye = C.payParts.reduce((sm, p) => sm + (Number(p.montant) || 0), 0);
+  const credit = Math.max(0, total - paye);
+  box.classList.remove('hidden');
+  box.innerHTML = 'Solde actuel : <strong class="mono">' + fcfa(s.solde_fcfa) + '</strong>' +
+    (credit > 0 ? ' → après cette vente : <strong class="mono">' + fcfa(Number(s.solde_fcfa || 0) + credit) + '</strong>' : '');
+}
+
+/* Construit et enregistre la vente : en-tête + lignes + paiements +
+   mouvements de stock — un LOT idempotent (ids uuid client). En ligne :
+   insertion directe ; coupure réseau : le lot ENTIER part en file et
+   l'UI continue (vente possible 100% hors ligne). */
+async function finalizeSale() {
+  const total = cartTotal();
+  // Les parts à 0 sont ignorées (ex. vente 100% crédit : la part espèces
+  // pré-remplie est mise à 0 — pas une erreur, juste aucun encaissement).
+  const parts = C.payParts.filter(p => (Number(p.montant) || 0) > 0);
+  const paye = parts.reduce((s, p) => s + (Number(p.montant) || 0), 0);
+  const credit = total - paye;
+  if (credit < 0) { toast('Trop perçu — corrigez les montants', 'error'); return; }
+  if (credit > 0 && !C.payClientId) { toast('Un crédit exige un client — sélectionnez le client', 'error'); return; }
+  if (!parts.length && credit === 0 && total > 0) { toast('Aucun paiement saisi', 'error'); return; }
+  for (const part of parts) {
+    const def = PAY_MODES.find(m => m.id === part.mode);
+    if (def && def.ref && !String(part.reference || '').trim()) {
+      toast('Référence ' + def.label + ' requise', 'error'); return;
+    }
+  }
+
+  const bandeId = $('vente-bande').value;
+  const now = new Date().toISOString();
+  const transactionId = uuid();
+  const modes = parts.map(p => p.mode);
+  const modePaiement = credit === total ? 'credit' : (modes.length > 1 || credit > 0 ? 'mixte' : modes[0]);
+
+  const tx = {
+    transaction_id: transactionId,
+    pdv_id: C.pdv.pdv_id,
+    vendeur_id: C.user.matricule,
+    client_id: C.payClientId || null,
+    date_transaction: now,
+    mode_paiement: modePaiement,
+    reference_paiement: C.payParts.map(p => p.reference).filter(Boolean).join(' / ') || null,
+    remise_fcfa: 0,
+    montant_total_fcfa: total,
+    statut: 'finalisee',
+    bande_id: bandeId,
+    note: null
+  };
+  const lignes = C.cart.map(l => {
+    const base = {
+      ligne_id: uuid(), transaction_id: transactionId,
+      produit: l.nom, description: l.produit_id, bande_id: bandeId,
+      montant_fcfa: ligneMontant(l)
+    };
+    if (l.unite === 'unite') {
+      return Object.assign(base, { quantite: l.qty, unite: 'unite', prix_unitaire_fcfa: l.prix, quantite_kg: 0, prix_kg_fcfa: 0 });
+    }
+    return Object.assign(base, { quantite_kg: l.qty, prix_kg_fcfa: l.prix });
+  });
+  const paiements = parts.map(p => ({
+    paiement_id: uuid(), transaction_id: transactionId,
+    pdv_id: C.pdv.pdv_id, client_id: C.payClientId || null,
+    date_paiement: now, sens: 'encaissement', statut: 'confirme',
+    mode_paiement: p.mode, reference: String(p.reference || '').trim() || null,
+    montant_fcfa: Number(p.montant), encaisse_par: null, note: null
+  }));
+  const mouvements = C.cart.map(l => ({
+    mouvement_id: uuid(), date_mouvement: now, type_mouvement: 'vente',
+    from_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
+    type_produit: l.nom, quantite: l.qty, unite: l.unite,
+    reference: transactionId, statut: 'valide', responsable: C.user.matricule, note: null
+  }));
+
+  const rows = [{ table: 'pos_transactions', row: tx }]
+    .concat(lignes.map(r => ({ table: 'lignes_transaction', row: r })))
+    .concat(paiements.map(r => ({ table: 'paiements', row: r })))
+    .concat(mouvements.map(r => ({ table: 'mouvements_stock', row: r })));
+
+  const btn = $('btn-finaliser');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  let queued = false;
+  try {
+    await execRows(rows);
+  } catch (e) {
+    if (isNetError(e)) { enqueue({ id: transactionId, type: 'vente', rows }); queued = true; }
+    else { btn.disabled = false; btn.textContent = 'Finaliser la vente'; toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  btn.disabled = false; btn.textContent = 'Finaliser la vente';
+
+  // Optimiste : stock + paiements + solde local reflètent la vente tout de suite.
+  C.mouvements = mouvements.concat(C.mouvements);
+  C.paiements = paiements.concat(C.paiements);
+  if (credit > 0 && C.payClientId) {
+    const s = C.soldes.find(x => x.client_id === C.payClientId);
+    if (s) s.solde_fcfa = Number(s.solde_fcfa || 0) + credit;
+  }
+  saveCache();
+
+  C.lastSale = { tx, lignes, paiements, credit, clientNom: (C.soldes.find(x => x.client_id === C.payClientId) || {}).nom || null, queued };
+  C.cart = []; C.payParts = []; C.payClientId = '';
+  $('pay-overlay').classList.add('hidden');
+  renderVente(); renderCloture();
+  showReceipt();
+  toast(queued ? 'Vente enregistrée (hors ligne — sera synchronisée)' : 'Vente enregistrée');
+}
+
+/* ════════════════ REÇU ════════════════ */
+/* Reçu de caisse — DOCUMENT NON FISCAL. L'intégration FNE (Facture
+   Normalisée Électronique) est en attente de l'enregistrement DGI de
+   SIVA : d'ici là, la caisse n'émet que ce reçu interne, clairement
+   étiqueté « Reçu de caisse — document non fiscal ». FNE = V2+. */
+function showReceipt() {
+  if (!C.lastSale) return;
+  const s = C.lastSale;
+  const d = new Date(s.tx.date_transaction);
+  const numero = 'TX-' + s.tx.transaction_id.slice(0, 8).toUpperCase();
+  const lignesHtml = s.lignes.map(l => {
+    const qty = l.unite === 'unite' ? fmt(l.quantite) + ' u' : fmt(l.quantite_kg, 2) + ' kg';
+    const pu = l.unite === 'unite' ? l.prix_unitaire_fcfa : l.prix_kg_fcfa;
+    return '<tr><td>' + esc(l.produit) + '<br><span style="color:#555;">' + qty + ' × ' + fmt(pu) + '</span></td>' +
+      '<td class="r">' + fmt(l.montant_fcfa) + '</td></tr>';
+  }).join('');
+  const paiementsHtml = s.paiements.map(p => {
+    const def = PAY_MODES.find(m => m.id === p.mode_paiement);
+    return '<tr><td>' + esc(def ? def.label : p.mode_paiement) + (p.reference ? ' (' + esc(p.reference) + ')' : '') + '</td>' +
+      '<td class="r">' + fmt(p.montant_fcfa) + '</td></tr>';
+  }).join('') + (s.credit > 0
+    ? '<tr><td>Crédit client' + (s.clientNom ? ' — ' + esc(s.clientNom) : '') + '</td><td class="r">' + fmt(s.credit) + '</td></tr>' : '');
+
+  $('receipt-content').innerHTML =
+    '<div class="receipt" id="receipt-paper">' +
+      '<div class="rc-center rc-brand">SIVA · COQORICO</div>' +
+      '<div class="rc-center">' + esc(C.pdv.nom || C.pdv.pdv_id) + '</div>' +
+      '<div class="rc-center">' + d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR').slice(0, 5) + ' — ' + esc(numero) + '</div>' +
+      '<div class="rc-center">Vendeur : ' + esc(C.user.matricule) + '</div>' +
+      '<div class="rc-line"></div>' +
+      '<table>' + lignesHtml + '</table>' +
+      '<div class="rc-line"></div>' +
+      '<table><tr class="rc-total"><td>TOTAL</td><td class="r">' + fmt(s.tx.montant_total_fcfa) + ' F</td></tr></table>' +
+      '<div class="rc-line"></div>' +
+      '<table>' + paiementsHtml + '</table>' +
+      '<div class="rc-line"></div>' +
+      '<div class="rc-center">Bande d\'origine : ' + esc((C.bandes.find(b => b.bande_id === s.tx.bande_id) || {}).nom_bande || s.tx.bande_id) + '</div>' +
+      '<div class="rc-nonfiscal">Reçu de caisse — document non fiscal</div>' +
+      '<div class="rc-center" style="margin-top:4px;">Merci de votre visite !</div>' +
+    '</div>';
+  $('receipt-overlay').classList.remove('hidden');
+  icons();
+}
+
+/* Partage du reçu (WhatsApp…) : le reçu est repeint sur un canvas
+   (384 px ≈ 80 mm thermique) puis partagé via Web Share API ; repli :
+   téléchargement PNG. Aucune librairie externe. */
+async function shareReceipt() {
+  const paper = $('receipt-paper');
+  if (!paper) return;
+  const lines = [];
+  paper.querySelectorAll('div, td').forEach(el => {
+    if (el.children.length && el.querySelector('table')) return;
+    const t = el.innerText;
+    if (t && el.tagName !== 'TD') lines.push(t);
+  });
+  const flat = paper.innerText.split('\n').map(l => l.trim()).filter(Boolean);
+  const W = 384, LH = 22, PAD = 14;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = PAD * 2 + flat.length * LH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#111'; ctx.textAlign = 'center';
+  flat.forEach((l, i) => {
+    ctx.font = (i === 0 ? '700 18px' : '500 14px') + ' "JetBrains Mono", monospace';
+    ctx.fillText(l.length > 42 ? l.slice(0, 42) : l, W / 2, PAD + (i + 0.8) * LH);
+  });
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const file = new File([blob], 'recu-siva.png', { type: 'image/png' });
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Reçu SIVA' }); return; } catch (e) {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'recu-siva.png'; a.click();
+}
+
+/* ════════════════ STOCK (vue) ════════════════ */
+function renderStock() {
+  const stock = stockParProduit();
+  const keys = Object.keys(stock).sort();
+  $('stock-list').innerHTML = keys.length
+    ? keys.map(k => '<div class="stock-row"><span>' + esc(k) + '</span><span class="stock-qty">' + fmt(stock[k], 1) + '</span></div>').join('')
+    : '<p class="muted">Aucun mouvement de stock — enregistrez une réception.</p>';
+
+  $('recep-produit').innerHTML = C.catalogue.map(p =>
+    '<option value="' + esc(p.produit_id) + '">' + esc(p.nom) + '</option>').join('');
+  $('recep-bande').innerHTML = C.bandes.map(b =>
+    '<option value="' + esc(b.bande_id) + '">' + esc(b.nom_bande) + '</option>').join('');
+
+  $('mvt-list').innerHTML = C.mouvements.slice(0, 20).map(m => {
+    const sens = m.to_pdv_id === C.pdv.pdv_id ? '+' : '−';
+    return '<div class="mvt-row"><span>' + esc(m.type_mouvement) + ' · ' + esc(m.type_produit || '') + '</span>' +
+      '<span class="mono">' + sens + fmt(m.quantite, 1) + '</span></div>';
+  }).join('') || '<p class="muted">—</p>';
+}
+
+/* Réception au point de vente : mouvement ENTRÉE (arrivage ferme),
+   même chemin idempotent + file hors ligne que la vente. */
+async function submitReception() {
+  const prodId = $('recep-produit').value;
+  const p = C.catalogue.find(x => x.produit_id === prodId);
+  const qty = parseFloat($('recep-qty').value);
+  const bandeId = $('recep-bande').value;
+  if (!p || !(qty > 0) || !bandeId) { toast('Produit, quantité et bande requis', 'error'); return; }
+  const mvt = {
+    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+    type_mouvement: 'entree', to_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
+    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+    reference: null, statut: 'valide', responsable: C.user.matricule,
+    note: 'Reception au point de vente'
+  };
+  const rows = [{ table: 'mouvements_stock', row: mvt }];
+  let queued = false;
+  try { await execRows(rows); }
+  catch (e) {
+    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'reception', rows }); queued = true; }
+    else { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  C.mouvements = [mvt].concat(C.mouvements);
+  saveCache();
+  $('recep-qty').value = '';
+  renderStock(); renderVente();
+  toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
+}
+
+/* ════════════════ CLÔTURE DE CAISSE ════════════════ */
+/* Théorique = fond de caisse + somme des paiements ESPÈCES confirmés
+   depuis la dernière clôture (paiements du cache + ventes optimistes,
+   donc juste même hors ligne). */
+function sommeEspecesDepuisCloture() {
+  const last = C.clotures.length ? C.clotures[0].date_cloture : null;
+  return C.paiements.reduce((s, p) => {
+    if (p.mode_paiement !== 'especes') return s;
+    if (p.statut && p.statut !== 'confirme') return s;
+    if (last && String(p.date_paiement) <= String(last)) return s;
+    return s + (Number(p.montant_fcfa) || 0);
+  }, 0);
+}
+
+function renderCloture() {
+  const especes = sommeEspecesDepuisCloture();
+  $('clo-especes').textContent = fcfa(especes);
+  majClotureCalc();
+  $('clotures-list').innerHTML = C.clotures.length
+    ? C.clotures.map(c => {
+        const e = Number(c.ecart_fcfa) || 0;
+        return '<div class="kv"><span>' + new Date(c.date_cloture).toLocaleDateString('fr-FR') + ' — ' + esc(c.vendeur_id || '') + '</span>' +
+          '<span class="v ' + (e === 0 ? '' : (e > 0 ? 'ecart-pos' : 'ecart-neg')) + '">écart ' + fcfa(e) + '</span></div>';
+      }).join('')
+    : '<p class="muted">Aucune clôture enregistrée.</p>';
+}
+
+function majClotureCalc() {
+  const fond = Number($('clo-fond').value) || 0;
+  const theorique = fond + sommeEspecesDepuisCloture();
+  $('clo-theorique').textContent = fcfa(theorique);
+  const compteRaw = $('clo-compte').value;
+  if (compteRaw === '') { $('clo-ecart').textContent = '—'; $('clo-ecart').className = 'v'; return theorique; }
+  const ecart = (Number(compteRaw) || 0) - theorique;
+  $('clo-ecart').textContent = (ecart > 0 ? '+' : '') + fcfa(ecart);
+  $('clo-ecart').className = 'v ' + (ecart === 0 ? '' : (ecart > 0 ? 'ecart-pos' : 'ecart-neg'));
+  return theorique;
+}
+
+async function submitCloture() {
+  const compteRaw = $('clo-compte').value;
+  if (compteRaw === '') { toast('Saisissez les espèces comptées', 'error'); return; }
+  const fond = Number($('clo-fond').value) || 0;
+  const theorique = fond + sommeEspecesDepuisCloture();
+  const compte = Number(compteRaw) || 0;
+  const clo = {
+    cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: new Date().toISOString(),
+    fond_caisse_fcfa: fond, theorique_fcfa: theorique, compte_fcfa: compte,
+    ecart_fcfa: compte - theorique, vendeur_id: C.user.matricule,
+    note: $('clo-note').value.trim() || null
+  };
+  const rows = [{ table: 'cloture_caisse', row: clo }];
+  let queued = false;
+  try { await execRows(rows); }
+  catch (e) {
+    if (isNetError(e)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows }); queued = true; }
+    else { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  C.clotures = [clo].concat(C.clotures);
+  saveCache();
+  $('clo-compte').value = ''; $('clo-note').value = '';
+  renderCloture();
+  toast(queued ? 'Clôture enregistrée (hors ligne — sera synchronisée)' : 'Caisse clôturée');
+}
+
+/* ════════════════ NAVIGATION + ÉVÉNEMENTS ════════════════ */
+function switchView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  $('view-' + view).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  if (view === 'stock') renderStock();
+  if (view === 'cloture') renderCloture();
+  if (view === 'vente') renderVente();
+  window.scrollTo(0, 0);
+}
+
+function wireEvents() {
+  $('login-form').addEventListener('submit', handleLogin);
+  $('signout-btn').addEventListener('click', handleSignout);
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+
+  $('vente-bande').addEventListener('change', renderCart);
+  $('btn-encaisser').addEventListener('click', openPay);
+  $('poids-annuler').addEventListener('click', () => $('poids-overlay').classList.add('hidden'));
+  $('poids-ok').addEventListener('click', confirmPoids);
+  $('pay-annuler').addEventListener('click', () => $('pay-overlay').classList.add('hidden'));
+  $('btn-finaliser').addEventListener('click', finalizeSale);
+  $('pay-add-part').addEventListener('click', () => {
+    const total = cartTotal();
+    const paye = C.payParts.reduce((s, p) => s + (Number(p.montant) || 0), 0);
+    C.payParts.push({ mode: 'orange_money', montant: Math.max(0, total - paye), reference: '', recu: '' });
+    renderPayParts();
+  });
+  $('pay-client').addEventListener('change', () => { C.payClientId = $('pay-client').value; renderPayParts(); });
+  $('receipt-close').addEventListener('click', () => $('receipt-overlay').classList.add('hidden'));
+  $('receipt-print').addEventListener('click', () => window.print());
+  $('receipt-share').addEventListener('click', shareReceipt);
+  $('btn-reception').addEventListener('click', submitReception);
+  $('btn-cloture').addEventListener('click', submitCloture);
+  $('clo-fond').addEventListener('input', majClotureCalc);
+  $('clo-compte').addEventListener('input', majClotureCalc);
+
+  // Délégation : grille produits + panier + parts de paiement
+  document.addEventListener('click', (e) => {
+    const prod = e.target.closest('[data-prod]');
+    if (prod) { tapProduit(prod.dataset.prod); return; }
+    const qp = e.target.closest('[data-qplus]');
+    if (qp) { C.cart[+qp.dataset.qplus].qty += 1; renderCart(); return; }
+    const qm = e.target.closest('[data-qminus]');
+    if (qm) { const l = C.cart[+qm.dataset.qminus]; l.qty -= 1; if (l.qty <= 0) C.cart.splice(+qm.dataset.qminus, 1); renderCart(); return; }
+    const qd = e.target.closest('[data-qdel]');
+    if (qd) { C.cart.splice(+qd.dataset.qdel, 1); renderCart(); return; }
+    const qpoids = e.target.closest('[data-qpoids]');
+    if (qpoids) {
+      const l = C.cart[+qpoids.dataset.qpoids];
+      poidsProdId = l.produit_id;
+      C.cart.splice(+qpoids.dataset.qpoids, 1);
+      $('poids-titre').textContent = l.nom;
+      $('poids-input').value = l.qty;
+      $('poids-overlay').classList.remove('hidden');
+      renderCart();
+      return;
+    }
+    const pm = e.target.closest('[data-pmode]');
+    if (pm) {
+      const [i, mode] = pm.dataset.pmode.split(':');
+      C.payParts[+i].mode = mode;
+      renderPayParts();
+      return;
+    }
+    const pd = e.target.closest('[data-pdel]');
+    if (pd) { C.payParts.splice(+pd.dataset.pdel, 1); renderPayParts(); return; }
+  });
+  document.addEventListener('input', (e) => {
+    const pmont = e.target.closest('[data-pmont]');
+    if (pmont) { C.payParts[+pmont.dataset.pmont].montant = pmont.value; renderPayReste(); updateRendu(+pmont.dataset.pmont); return; }
+    const pref = e.target.closest('[data-pref]');
+    if (pref) { C.payParts[+pref.dataset.pref].reference = pref.value; return; }
+    const precu = e.target.closest('[data-precu]');
+    if (precu) { C.payParts[+precu.dataset.precu].recu = precu.value; updateRendu(+precu.dataset.precu); return; }
+  });
+
+  window.addEventListener('online', () => { updateStatusBadges(); processQueue(); });
+  window.addEventListener('offline', updateStatusBadges);
+  setInterval(() => { if (navigator.onLine) processQueue(); }, 30000);
+}
+
+/* Re-render partiel du bloc reste/rendu SANS reconstruire les inputs
+   (préserve le focus pendant la frappe). */
+function renderPayReste() {
+  const total = cartTotal();
+  const paye = C.payParts.reduce((s, p) => s + (Number(p.montant) || 0), 0);
+  const reste = total - paye;
+  const resteEl = $('pay-reste');
+  if (reste === 0) { resteEl.className = 'pay-reste'; resteEl.innerHTML = '<span>Payé intégralement</span><span class="mono">' + fcfa(paye) + '</span>'; }
+  else if (reste > 0) { resteEl.className = 'pay-reste credit'; resteEl.innerHTML = '<span>Reste → crédit client' + (C.payClientId ? '' : ' (choisir un client)') + '</span><span class="mono">' + fcfa(reste) + '</span>'; }
+  else { resteEl.className = 'pay-reste err'; resteEl.innerHTML = '<span>Trop perçu — corriger les montants</span><span class="mono">' + fcfa(-reste) + '</span>'; }
+  renderSoldeBox();
+}
+
+function updateRendu(i) {
+  const part = C.payParts[i];
+  const box = $('rendu-box-' + i);
+  if (!part || !box) return;
+  const visible = part.recu !== '' && Number(part.recu) >= (Number(part.montant) || 0);
+  box.style.display = visible ? '' : 'none';
+  box.textContent = visible ? 'Rendu : ' + fcfa(Number(part.recu) - (Number(part.montant) || 0)) : '';
+}
+
+/* ── Démarrage ── */
+async function boot() {
+  icons();
+  wireEvents();
+  updateStatusBadges();
+  let session = null;
+  try { const { data } = await sb.auth.getSession(); session = data.session; } catch (e) {}
+  if (session) await enterFromSession(session);
+}
+boot();
+</script>
+</body>
+</html>
