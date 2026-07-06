@@ -3564,6 +3564,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div id="rh-depenses-list"></div>
       </div>
     </div><!-- /treso-tab-rh -->
+
+    <!-- ── Points de vente (caisse POS, migration 0027) — section minimale en
+         LECTURE SEULE : clôtures récentes + totaux du jour par PDV. Chargée à
+         la demande par renderTresoPDV(), tolère l'absence des tables
+         (0002/0027 non appliquées → message neutre, rien ne casse). ── -->
+    <div id="treso-pdv-section"></div>
   </div>
 
   <!-- ═══════════════ PAGE: MONITORING IoT ═══════════════ -->
@@ -4423,9 +4429,24 @@ async function resolveIdentity(session) {
   return { matricule, name: name || matricule, role: role || 'chef_bande' };
 }
 
+// Un compte vendeur n'a rien à faire dans l'app staff : orientation polie
+// vers la caisse (caisse.html), SANS fermer la session — la caisse la
+// reprend telle quelle (même projet Supabase, même auth). Fonction séparée
+// pour rester substituable en test headless.
+function routeVendeurToCaisse() {
+  window.location.replace('caisse.html');
+}
+
 // Entre dans l'app pour une session valide : identité + accès rôle + chargement.
 async function enterSession(session) {
   currentUser = await resolveIdentity(session);
+  if (currentUser && currentUser.role === 'vendeur') {
+    const errV = document.getElementById('login-error');
+    if (errV) errV.textContent = 'Compte vendeur — redirection vers la caisse…';
+    currentUser = null;
+    routeVendeurToCaisse();
+    return;
+  }
   const errEl = document.getElementById('login-error');
   if (errEl) errEl.textContent = '';
   const pwd = document.getElementById('login-password');
@@ -9750,12 +9771,66 @@ function caLivreHorsBande(mois) {
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
 }
 
+// ── Points de vente (caisse POS, migration 0027) — LECTURE SEULE ──
+// Clôtures récentes + total encaissé du jour par PDV. Requêtes directes à
+// la demande (les tables POS ne sont PAS dans getAll/ALL_TABLES : la page
+// Trésorerie est manager-only et ces tables peuvent ne pas exister avant
+// l'application manuelle de 0002 puis 0027 → repli neutre).
+async function renderTresoPDV() {
+  const box = document.getElementById('treso-pdv-section');
+  if (!box) return;
+  try {
+    const since = new Date(Date.now() - 7 * 86400000).toISOString();
+    const [clo, tx] = await Promise.all([
+      sb.from('cloture_caisse').select('*').order('date_cloture', { ascending: false }).limit(10),
+      sb.from('pos_transactions').select('pdv_id, date_transaction, montant_total_fcfa, statut')
+        .gte('date_transaction', since).limit(1000)
+    ]);
+    if (clo.error) throw new Error(clo.error.message);
+    if (tx.error) throw new Error(tx.error.message);
+    const clotures = clo.data || [];
+    const transactions = (tx.data || []).filter(t => t.statut === 'finalisee');
+    const today = todayStr();
+    const parPdv = {};
+    transactions.forEach(t => {
+      if (!String(t.date_transaction || '').startsWith(today)) return;
+      const k = t.pdv_id || '?';
+      parPdv[k] = (parPdv[k] || 0) + (Number(t.montant_total_fcfa) || 0);
+    });
+    const pdvKeys = Object.keys(parPdv);
+    const totauxHtml = pdvKeys.length
+      ? pdvKeys.map(k => '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;">'
+          + '<span>' + escHtml(k) + '</span><strong style="font-family:var(--font-mono);">' + fmt(parPdv[k]) + ' FCFA</strong></div>').join('')
+      : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune vente aujourd\'hui.</p>';
+    const cloHtml = clotures.length
+      ? clotures.map(c => {
+          const e = Number(c.ecart_fcfa) || 0;
+          const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:0.85rem;border-bottom:var(--border-hairline);">'
+            + '<span>' + fmtDate(c.date_cloture) + ' — ' + escHtml(c.pdv_id || '—') + ' · ' + escHtml(c.vendeur_id || '') + '</span>'
+            + '<span style="font-family:var(--font-mono);">compté ' + fmt(c.compte_fcfa) + ' · <strong style="color:' + col + ';">écart ' + (e > 0 ? '+' : '') + fmt(e) + '</strong></span></div>';
+        }).join('')
+      : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>';
+    box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Points de vente (caisse)</h3></div>'
+      + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">Encaissé aujourd\'hui par PDV</div>'
+      + totauxHtml
+      + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.9rem 0 0.5rem;">Dernières clôtures de caisse</div>'
+      + cloHtml + '</div>';
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Points de vente (caisse)</h3></div>'
+      + '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Caisse non activée (migrations 0002/0027 non appliquées) — aucune donnée à afficher.</p></div>';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
 function initTresoreriePage() {
   // Populate hidden select for legacy PDF export
   const select = document.getElementById('export-bande-select');
   select.innerHTML = STATE.bandes.map(b =>
     '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
   ).join('');
+  renderTresoPDV();
 
   const today = todayStr();
   const thisMonth = getBilanPeriod();              // période sélectionnée (#treso-period), défaut mois courant
