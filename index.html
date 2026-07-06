@@ -5191,6 +5191,28 @@ async function processSyncQueue() {
       if (resp && resp.error) throw new Error(resp.error.message);
       processed++;
     } catch (e) {
+      // Repli migration 0024 : une saisie mise en file avec les champs cahier
+      // AVANT l'exécution manuelle du SQL échouerait au rejeu pour toujours
+      // (PostgREST : colonne inconnue). On rejoue UNE fois sans ces champs —
+      // la saisie de base est préservée, la perte est signalée.
+      const saisieColErr = item.action === 'addSaisie' && item.payload
+        && /column|schema cache/i.test(e.message)
+        && /temperature_observee_c|observations|signes_observes/i.test(e.message)
+        && ('temperature_observee_c' in item.payload || 'observations' in item.payload
+            || 'signes_observes' in item.payload);
+      if (saisieColErr) {
+        try {
+          const slim = Object.assign({}, item.payload);
+          delete slim.temperature_observee_c;
+          delete slim.observations;
+          delete slim.signes_observes;
+          const r2 = await sb.from('saisies').insert([slim]);
+          if (r2 && r2.error) throw new Error(r2.error.message);
+          processed++;
+          toast('Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)', 'error');
+          continue;
+        } catch (e2) { /* toujours en échec : reste en file */ }
+      }
       errors++;
       remaining.push(item);
     }
@@ -5530,14 +5552,19 @@ function renderVetOverview() {
 
 // Statut par bande : 1 entrée par ligne ACTIVE du protocole. Date prévue =
 // date_entree + (jour_cible - 1) (convention J1 = jour d'entrée, comme cycleDay).
-function computeVaccinationStatus(bande) {
+// refDateStr (optionnel, 'YYYY-MM-DD') : jour de référence des statuts
+// due/retard/avenir — défaut aujourd'hui, comportement STRICTEMENT INCHANGÉ
+// pour tous les appelants existants (onglet vaccination, alertes dashboard).
+// Utilisé par la ligne « Prophylaxie en cours » du formulaire de saisie pour
+// refléter le jour transcrit (ex. hier) plutôt que le jour de la transcription.
+function computeVaccinationStatus(bande, refDateStr) {
   if (!bande) return [];
   const protos = STATE.protocoleVaccinal
     .filter(p => p.actif !== false)
     .slice()
     .sort((a, b) => (Number(a.jour_cible) - Number(b.jour_cible)) || (Number(a.ordre || 0) - Number(b.ordre || 0)));
   const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id);
-  const today = parseDayLocal(todayStr());
+  const today = parseDayLocal(refDateStr || todayStr());
   const entree = parseDayLocal(bande.date_entree);
   return protos.map(p => {
     const vacc = vaccs.find(v => v.proto_id === p.proto_id) || null;
@@ -8465,15 +8492,6 @@ function hasSaisieOn(bandeId, dateStr) {
     && String(s.date_saisie || '').slice(0, 10) === dateStr);
 }
 
-// Sonde migration 0024 : select('*') renvoie TOUTES les colonnes sur TOUTES
-// les lignes → la première ligne chargée suffit à savoir si les colonnes
-// cahier existent en base. Tableau vide (base neuve, hors-ligne) → inconnu :
-// on renvoie false (« pas connu absent ») et le repli d'insertion tranche.
-function saisiesCahierColsKnownAbsent() {
-  const probe = STATE.saisies.find(s => s && typeof s === 'object');
-  return !!probe && !('signes_observes' in probe);
-}
-
 function applySaisieDatePreselect() {
   const dateEl = document.getElementById('saisie-date');
   if (!dateEl) return;
@@ -8506,10 +8524,19 @@ function refreshSaisieDateMsgs() {
     hintEl.textContent = (val && val === yesterdayStr())
       ? 'Saisie du ' + fmtDate(val) + ' (hier)' : '';
   }
+  // Bande à venir (date_entree future) : la plage min/max est vide, la
+  // validation native bloque — expliquer le blocage plutôt que de laisser
+  // la seule bulle du navigateur.
+  const bandeId = document.getElementById('saisie-bande').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const entree = (bande && bande.date_entree) ? String(bande.date_entree).slice(0, 10) : null;
+  if (entree && entree > todayStr()) {
+    setFieldMsg('date', 'warn', 'Bande pas encore en place (entrée le ' + fmtDate(entree) + ') — saisie possible à partir de ce jour.');
+    return;
+  }
   // Garde une-saisie-par-jour : il n'existe AUCUNE contrainte (client ou base)
   // empêchant deux saisies le même jour — avertissement consultatif seulement,
   // dans le style maison (warn, jamais bloquant).
-  const bandeId = document.getElementById('saisie-bande').value;
   if (bandeId && val && hasSaisieOn(bandeId, val)) {
     setFieldMsg('date', 'warn', 'Une saisie existe déjà pour cette date — doublon possible, vérifier avant d\'enregistrer.');
   } else {
@@ -8652,7 +8679,7 @@ function updateSaisieInfo() {
   // note le type d'aliment, l'app le connaît déjà via CYCLE_PHASES).
   const alimPhaseEl = document.getElementById('saisie-aliment-phase');
   if (alimPhaseEl) alimPhaseEl.textContent = phase.label + ' (J' + jour + ')';
-  renderSaisieProphylaxie(bande);
+  renderSaisieProphylaxie(bande, document.getElementById('saisie-date').value || todayStr());
 
   // Re-évalue les champs déjà remplis (le jour/effectif/normes viennent de changer).
   validateAllSaisieFields();
@@ -8660,37 +8687,43 @@ function updateSaisieInfo() {
 
 // ── (c) Prophylaxie en cours — AFFICHAGE SEUL dans le formulaire de saisie.
 // Le cahier papier la note, l'app la connaît déjà : vaccinations dues / en
-// retard aujourd'hui (computeVaccinationStatus, même logique que les alertes
-// du dashboard) + traitements dont la cure couvre aujourd'hui (fenêtre
+// retard (computeVaccinationStatus, même logique que les alertes du
+// dashboard) + traitements dont la cure couvre le jour (fenêtre
 // [date_traitement, date_traitement + duree_jours - 1], même expression de
-// fin de cure que traitementClearanceDate). Aucune écriture ici. ──
-function renderSaisieProphylaxie(bande) {
+// fin de cure que traitementClearanceDate). Ancré sur le JOUR TRANSCRIT
+// (#saisie-date — ex. hier, flux « hier d'abord »), pas sur le jour de la
+// transcription. Aucune écriture ici. ──
+function renderSaisieProphylaxie(bande, refDateStr) {
   const el = document.getElementById('saisie-prophylaxie');
   if (!el) return;
+  const refStr = refDateStr || todayStr();
+  const isToday = refStr === todayStr();
   const items = [];
-  computeVaccinationStatus(bande).forEach(v => {
+  computeVaccinationStatus(bande, refStr).forEach(v => {
     if (v.status === 'due') {
-      items.push('Vaccin ' + escHtml(v.proto.nom_vaccin) + ' — à faire aujourd\'hui (' + protoJourLabel(v.proto) + ')');
+      items.push('Vaccin ' + escHtml(v.proto.nom_vaccin) + ' — à faire '
+        + (isToday ? 'aujourd\'hui' : 'ce jour') + ' (' + protoJourLabel(v.proto) + ')');
     } else if (v.status === 'retard') {
       items.push('Vaccin ' + escHtml(v.proto.nom_vaccin) + ' — EN RETARD (prévu ' + protoJourLabel(v.proto) + ')');
     }
   });
-  const today = parseDayLocal(todayStr());
+  const ref = parseDayLocal(refStr);
   (STATE.traitements || []).filter(t => t.bande_id === bande.bande_id).forEach(t => {
     const debut = parseDayLocal(t.date_traitement);
-    if (!debut || !today) return;
+    if (!debut || !ref) return;
     const dur = Number(t.duree_jours);
     const fin = new Date(debut.getTime());
     fin.setDate(fin.getDate() + ((dur && dur > 0) ? dur - 1 : 0));
-    if (today >= debut && today <= fin) {
-      const jCure = Math.round((today - debut) / 86400000) + 1;
+    if (ref >= debut && ref <= fin) {
+      const jCure = Math.round((ref - debut) / 86400000) + 1;
       items.push('Traitement ' + escHtml(t.nom_produit) + ' — cure en cours'
         + (dur > 1 ? ' (jour ' + jCure + '/' + dur + ')' : ''));
     }
   });
+  const head = isToday ? '' : '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Au ' + fmtDate(refStr) + '</div>';
   el.innerHTML = items.length
-    ? items.map(i => '<div>• ' + i + '</div>').join('')
-    : '<span style="color:var(--text-muted);">Aucune prophylaxie en cours</span>';
+    ? head + items.map(i => '<div>• ' + i + '</div>').join('')
+    : head + '<span style="color:var(--text-muted);">Aucune prophylaxie en cours</span>';
 }
 
 // ── (5) Signes observés : liste factuelle de signes cliniques + texte libre +
@@ -8760,8 +8793,11 @@ async function submitSaisie() {
 
   // Champs cahier (migration 0024) : Railway auto-déploie main AVANT que le
   // SQL soit exécuté à la main (règle maison : migration mergée ≠ appliquée).
-  // On n'écrit donc ces colonnes que si elles sont détectées sur les lignes
-  // chargées ; en cas de doute on tente, avec repli d'insertion sans elles.
+  // On tente TOUJOURS l'écriture quand l'utilisateur a rempli un champ : en
+  // ligne, le repli d'insertion ci-dessous réessaie sans les colonnes ; hors
+  // ligne, le repli équivalent vit dans processSyncQueue au rejeu. Pas de
+  // sonde préalable : elle resterait figée sur l'état d'avant-migration dans
+  // une session longue et jetterait les valeurs APRÈS l'application du SQL.
   const tempObsRaw = document.getElementById('saisie-temp-observee').value;
   const cahierFields = {
     temperature_observee_c: tempObsRaw !== '' ? Number(tempObsRaw) : null,
@@ -8770,14 +8806,12 @@ async function submitSaisie() {
   };
   const hasCahierValues = Object.keys(cahierFields).some(k => cahierFields[k] !== null);
   let cahierDropped = false;
-  if (hasCahierValues) {
-    if (saisiesCahierColsKnownAbsent()) cahierDropped = true;
-    else Object.assign(saisiePayload, cahierFields);
-  }
+  if (hasCahierValues) Object.assign(saisiePayload, cahierFields);
 
   const btn = document.getElementById('btn-submit-saisie');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
+  let saisiePushed = false;
 
   try {
     const bandeName = bande ? bande.nom_bande : bandeId;
@@ -8790,7 +8824,7 @@ async function submitSaisie() {
       // Colonnes 0024 absentes en prod (PostgREST : « Could not find the
       // '…' column of 'saisies' in the schema cache ») : on réessaie sans
       // les champs cahier plutôt que de perdre toute la saisie.
-      const colErr = hasCahierValues && !cahierDropped
+      const colErr = hasCahierValues
         && /column|schema cache/i.test(err.message)
         && /temperature_observee_c|observations|signes_observes/i.test(err.message);
       if (!colErr) throw err;
@@ -8800,9 +8834,10 @@ async function submitSaisie() {
       cahierDropped = true;
       await apiPost({ action: 'addSaisie', payload: saisiePayload });
     }
-    // Copie locale : toujours porter les 3 clés cahier (valeurs ou null) quand
-    // elles n'ont pas été écartées, pour que la sonde et les rendus les voient.
+    // Copie locale : porter les 3 clés cahier (valeurs ou null) quand elles
+    // n'ont pas été écartées, pour que les rendus (fiche, véto…) les voient.
     STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
+    saisiePushed = true;
     if (currentUser && currentUser.role === 'chef_bande') {
       createNotification('saisie', 'Saisie J' + jourBande + ' — ' + bandeName, bandeId, bandeName, saisiePayload);
     }
@@ -8857,6 +8892,11 @@ async function submitSaisie() {
     resetSaisieForm();
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
+      // La saisie est en file de synchronisation : refléter la copie locale
+      // comme sur le chemin en ligne (saisies récentes, garde doublon,
+      // pré-sélection de date). Garde anti-double-push : le rejet hors ligne
+      // peut aussi venir de l'intrant, APRÈS que la saisie a déjà été poussée.
+      if (!saisiePushed) STATE.saisies.push(Object.assign({}, cahierFields, saisiePayload));
       toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
       resetSaisieForm();
     } else {
@@ -13419,7 +13459,7 @@ async function exportCahierPDF(source) {
   let y = reportHeaderPDF(doc, {
     title: 'Cahier de bâtiment (vierge)',
     subtitle: (bande.nom_bande || '—') + ' — ' + (bande.batiment || 'Bât. A'),
-    period: 'J' + jFrom + ' → J' + jTo
+    period: 'J' + jFrom + ' – J' + jTo
   });
 
   // Bloc d'identification (repris des autres exports officiels).

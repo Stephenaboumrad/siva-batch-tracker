@@ -5,8 +5,9 @@
 -- saisies dans temperature_observee_c / observations / signes_observes
 -- sont perdues. Les colonnes historiques (eau_consommee_l,
 -- temperature_c, humidite_pct) ne sont pas touchees.
--- Le front tolere l'absence des colonnes (sonde + repli d'insertion) :
--- aucun deploiement n'est requis avant ce rollback.
+-- Le front tolere l'absence des colonnes (repli d'insertion en ligne +
+-- repli au rejeu de la file hors ligne) : aucun deploiement n'est requis
+-- avant ce rollback.
 -- Idempotent. ASCII uniquement.
 -- A EXECUTER MANUELLEMENT dans Supabase SQL Editor.
 -- ============================================================

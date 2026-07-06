@@ -16,9 +16,9 @@
 -- changement de policy. Les policies RLS 0021 sur saisies sont des
 -- predicats de role sans liste de colonnes : les nouvelles colonnes
 -- passent automatiquement en SELECT et INSERT pour manager + chef_bande.
--- Le front n'ecrit ces colonnes que s'il les detecte sur les lignes
--- chargees (sonde) avec repli d'insertion sans les champs : l'app reste
--- fonctionnelle AVANT comme APRES l'execution de cette migration.
+-- Le front tente l'ecriture et replie sans ces champs si la base les
+-- refuse (repli a l'insertion en ligne + repli au rejeu de la file hors
+-- ligne) : l'app reste fonctionnelle AVANT comme APRES cette migration.
 -- Idempotent : to_regclass + add column if not exists.
 -- ASCII uniquement, pas de commentaire en fin de ligne d'instruction, pas
 -- de point-virgule en commentaire.
