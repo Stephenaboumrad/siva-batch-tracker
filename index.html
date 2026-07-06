@@ -5179,6 +5179,16 @@ const QUEUE_COLUMN_FALLBACKS = {
   }
 };
 
+// Doublons terminaux au rejeu : par action, message d'information quand la
+// ligne existe déjà côté serveur — contrainte métier (0024 une-saisie-par-
+// jour) ou insert déjà passé dont la réponse s'est perdue (duplicate key
+// sur l'id unique). Le rejeu ne passera JAMAIS → retrait de la file, pas
+// d'erreur brute.
+const QUEUE_DUP_MESSAGES = {
+  addSaisie: 'Saisie hors ligne ignorée : une saisie existait déjà pour ce jour',
+  addBande: 'Bande hors ligne ignorée : déjà enregistrée côté serveur'
+};
+
 async function processSyncQueue() {
   const queue = getSyncQueue();
   if (queue.length === 0) return;
@@ -5207,16 +5217,13 @@ async function processSyncQueue() {
       if (resp && resp.error) throw new Error(resp.error.message);
       processed++;
     } catch (e) {
-      // Doublon jour (contrainte 0024 saisies_bande_date_uniq) : la base a
-      // déjà une saisie pour ce (bande, date) — ex. ressaisie en ligne
-      // pendant que la copie hors ligne attendait, ou rejeu d'un insert déjà
-      // passé (duplicate key sur saisie_id). Le rejeu ne passera JAMAIS :
-      // même chemin que l'avertissement doublon — information, pas erreur
-      // brute, et retrait de l'opération de la file.
-      const isDupSaisie = (x) => item.action === 'addSaisie'
+      // Doublon terminal (cf. QUEUE_DUP_MESSAGES) : la ligne existe déjà —
+      // ex. ressaisie en ligne pendant que la copie hors ligne attendait,
+      // ou insert déjà passé dont la réponse s'est perdue.
+      const isDupDrop = (x) => QUEUE_DUP_MESSAGES[item.action]
         && /duplicate key|saisies_bande_date_uniq/i.test(x.message);
-      if (isDupSaisie(e)) {
-        toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+      if (isDupDrop(e)) {
+        toast(QUEUE_DUP_MESSAGES[item.action]);
         continue;
       }
       // Repli migrations en attente (0024 saisies, 0025 bandes) : un insert
@@ -5239,8 +5246,8 @@ async function processSyncQueue() {
           toast(fb.msg, 'error');
           continue;
         } catch (e2) {
-          if (isDupSaisie(e2)) {
-            toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+          if (isDupDrop(e2)) {
+            toast(QUEUE_DUP_MESSAGES[item.action]);
             continue;
           }
         }
@@ -8272,11 +8279,17 @@ async function createBande() {
     }
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
-      // Offline: update local state anyway
+      // Offline: update local state anyway. Si le repli 0025 a déjà retiré
+      // bâtiment/souche avant la coupure, la perte doit rester signalée
+      // (même discipline que le chemin en ligne).
       STATE.bandes.push(payload);
       closeModal();
       renderBandes();
-      toast('Bande créée (hors ligne — sera synchronisée)', 'success');
+      if (extrasDropped) {
+        toast('Bande créée (hors ligne — sera synchronisée), mais bâtiment/souche NON enregistrés : migration 0025 non appliquée en base.', 'error');
+      } else {
+        toast('Bande créée (hors ligne — sera synchronisée)', 'success');
+      }
     } else {
       toast('Erreur: ' + err.message, 'error');
     }
@@ -8968,8 +8981,14 @@ async function submitSaisie() {
       // comme sur le chemin en ligne (saisies récentes, garde doublon,
       // pré-sélection de date). Garde anti-double-push : le rejet hors ligne
       // peut aussi venir de l'intrant, APRÈS que la saisie a déjà été poussée.
-      if (!saisiePushed) STATE.saisies.push(Object.assign({}, cahierFields, saisiePayload));
-      toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
+      // Si le repli 0024 a déjà retiré les champs cahier avant la coupure,
+      // la perte doit rester signalée (même discipline qu'en ligne).
+      if (!saisiePushed) STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
+      if (cahierDropped) {
+        toast('Saisie enregistrée (hors ligne — sera synchronisée), mais T° observée / observations / signes NON enregistrés : migration 0024 non appliquée en base.', 'error');
+      } else {
+        toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
+      }
       resetSaisieForm();
     } else if (!saisiePushed && /duplicate key|saisies_bande_date_uniq/i.test(err.message)) {
       // Contrainte 0024 (une-saisie-par-jour) refusée par la base : même
