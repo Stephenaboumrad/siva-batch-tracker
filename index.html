@@ -4696,12 +4696,14 @@ function cycleDay(bande, refDate) {
 }
 
 // ── Helper: libellé de bande lisible et non ambigu pour les sélecteurs ──
-// Ex : "B2026-7 · Bât. A · J28" (lot actif) ou "B2026-7 · Bât. A · Terminée".
+// Ex : "B2026-7 · Bât. A · J28" (lot actif) ou "B2026-7 · — · Terminée".
+// Le bâtiment vient de la colonne bandes.batiment (migration 0025) ; repli
+// uniforme « — » quand il est vide — plus AUCUNE valeur fabriquée (ex-'Bât. A').
 // Lève l'ambiguïté quand plusieurs bandes partagent le même nom (préfixe par défaut).
 function bandeLabel(bande, opts) {
   opts = opts || {};
   const parts = [(bande.nom_bande || bande.bande_id || '—')];
-  parts.push(bande.batiment || 'Bât. A');
+  parts.push(bande.batiment || '—');
   if (bande.statut === 'en_cours') {
     const j = cycleDay(bande);
     if (j != null) parts.push('J' + j);
@@ -5163,6 +5165,20 @@ function updateSyncStatus() {
   }
 }
 
+// Replis de rejeu pour colonnes de migrations non encore appliquées : par
+// action, les colonnes optionnelles à retirer pour rejouer un insert refusé
+// « colonne inconnue » (même discipline que le repli d'insertion en ligne).
+const QUEUE_COLUMN_FALLBACKS = {
+  addSaisie: {
+    cols: ['temperature_observee_c', 'observations', 'signes_observes'],
+    msg: 'Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)'
+  },
+  addBande: {
+    cols: ['batiment', 'souche'],
+    msg: 'Bande synchronisée SANS bâtiment/souche (migration 0025 non appliquée en base)'
+  }
+};
+
 async function processSyncQueue() {
   const queue = getSyncQueue();
   if (queue.length === 0) return;
@@ -5203,25 +5219,24 @@ async function processSyncQueue() {
         toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
         continue;
       }
-      // Repli migration 0024 : une saisie mise en file avec les champs cahier
-      // AVANT l'exécution manuelle du SQL échouerait au rejeu pour toujours
-      // (PostgREST : colonne inconnue). On rejoue UNE fois sans ces champs —
-      // la saisie de base est préservée, la perte est signalée.
-      const saisieColErr = item.action === 'addSaisie' && item.payload
+      // Repli migrations en attente (0024 saisies, 0025 bandes) : un insert
+      // mis en file avec des colonnes que la base ne connaît pas encore
+      // (SQL exécuté à la main APRÈS le déploiement Railway) échouerait au
+      // rejeu pour toujours. On rejoue UNE fois sans ces colonnes — la ligne
+      // de base est préservée, la perte est signalée.
+      const fb = QUEUE_COLUMN_FALLBACKS[item.action];
+      const colErr = fb && item.payload
         && /column|schema cache/i.test(e.message)
-        && /temperature_observee_c|observations|signes_observes/i.test(e.message)
-        && ('temperature_observee_c' in item.payload || 'observations' in item.payload
-            || 'signes_observes' in item.payload);
-      if (saisieColErr) {
+        && fb.cols.some(c => e.message.includes(c))
+        && fb.cols.some(c => c in item.payload);
+      if (colErr) {
         try {
           const slim = Object.assign({}, item.payload);
-          delete slim.temperature_observee_c;
-          delete slim.observations;
-          delete slim.signes_observes;
-          const r2 = await sb.from('saisies').insert([slim]);
+          fb.cols.forEach(c => { delete slim[c]; });
+          const r2 = await sb.from(cfg.table).insert([slim]);
           if (r2 && r2.error) throw new Error(r2.error.message);
           processed++;
-          toast('Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)', 'error');
+          toast(fb.msg, 'error');
           continue;
         } catch (e2) {
           if (isDupSaisie(e2)) {
@@ -6352,7 +6367,10 @@ async function exportRegistreDSV() {
     const pw = doc.internal.pageSize.getWidth();
     const ind = computeIndicators(bande);
     const vp = getVetParams();
-    const souche = bande.souche || 'Cobb 500';
+    // Souche réelle de la bande (colonne 0025) — repli « — », plus de
+  // 'Cobb 500' fabriqué sur un document officiel (la norme Cobb reste
+  // utilisée ailleurs comme référence de courbe, jamais comme identité).
+  const souche = bande.souche || '—';
 
     let y = reportHeaderPDF(doc, {
       title: 'Registre sanitaire DSV',
@@ -7897,7 +7915,7 @@ function updateSidebarLotActif() {
   const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
   const pct = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
   document.getElementById('sla-id').textContent = b.nom_bande;
-  document.getElementById('sla-info').textContent = 'J' + jour + '/J' + CYCLE_DURATION_DAYS + ' — ' + (b.batiment || 'Bât. A');
+  document.getElementById('sla-info').textContent = 'J' + jour + '/J' + CYCLE_DURATION_DAYS + ' — ' + (b.batiment || '—');
   document.getElementById('sla-progress').style.width = pct + '%';
   panel.style.display = '';
 }
@@ -8154,6 +8172,16 @@ function showNewBandeModal() {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Bâtiment (optionnel)</label>
+          <input type="text" id="new-bande-batiment" placeholder="Ex : Bât. A">
+        </div>
+        <div class="form-group">
+          <label>Souche (optionnel)</label>
+          <input type="text" id="new-bande-souche" value="Cobb 500" placeholder="Ex : Cobb 500">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
           <label>Prix poussin unitaire (FCFA)</label>
           <input type="number" id="new-bande-prix" min="0" placeholder="350">
         </div>
@@ -8202,6 +8230,18 @@ async function createBande() {
     prix_vente_carcasse_kg: Number(document.getElementById('new-bande-prix-vente').value) || 0
   };
 
+  // Colonnes 0025 (batiment / souche) : même discipline que 0024 — Railway
+  // déploie main avant l'exécution manuelle du SQL. On tente l'écriture
+  // quand un champ est rempli, avec repli d'insertion sans ces colonnes si
+  // la base les refuse (+ repli équivalent au rejeu dans processSyncQueue).
+  const bandeExtras = {
+    batiment: document.getElementById('new-bande-batiment').value.trim() || null,
+    souche: document.getElementById('new-bande-souche').value.trim() || null
+  };
+  const hasExtras = bandeExtras.batiment !== null || bandeExtras.souche !== null;
+  let extrasDropped = false;
+  if (hasExtras) Object.assign(payload, bandeExtras);
+
   if (!payload.nom_bande || !payload.date_entree) {
     toast('Veuillez remplir le nom et la date', 'error');
     return;
@@ -8210,11 +8250,26 @@ async function createBande() {
   const btn = document.querySelector('#modal-overlay .btn-primary');
   btn.disabled = true; btn.textContent = 'Création...';
   try {
-    await apiPost({ action: 'addBande', payload });
-    STATE.bandes.push(payload);
+    try {
+      await apiPost({ action: 'addBande', payload });
+    } catch (err) {
+      const colErr = hasExtras
+        && /column|schema cache/i.test(err.message)
+        && /batiment|souche/i.test(err.message);
+      if (!colErr) throw err;
+      delete payload.batiment;
+      delete payload.souche;
+      extrasDropped = true;
+      await apiPost({ action: 'addBande', payload });
+    }
+    STATE.bandes.push(extrasDropped ? payload : Object.assign({}, bandeExtras, payload));
     closeModal();
     renderBandes();
-    toast('Bande créée avec succès');
+    if (extrasDropped) {
+      toast('Bande créée, mais bâtiment/souche NON enregistrés : migration 0025 non appliquée en base.', 'error');
+    } else {
+      toast('Bande créée avec succès');
+    }
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
       // Offline: update local state anyway
@@ -9938,7 +9993,7 @@ const REPORT_BRAND = {
   acronym: 'S.I.V.A',
   legalName: 'Société Ivoirienne de Volailles et Assimilés',
   entity:  'SIVA — Société Ivoirienne de Volailles et Assimilés',
-  site:    'Les Terres du Sud · Azaguié, Côte d\'Ivoire',
+  site:    'Azaguié, Côte d\'Ivoire',
   tagline: 'Plateforme de pilotage d\'élevage avicole',
   // RGB alignés sur les tokens CSS de la charte
   navy:       [17, 24, 31],    // --navbar-bg #11181F
@@ -10057,7 +10112,7 @@ function reportFooterPDF(doc) {
     doc.line(10, fy - 3.5, pw - 10, fy - 3.5);
     doc.setFont(undefined, 'normal'); doc.setFontSize(7);
     doc.setTextColor.apply(doc, REPORT_BRAND.muted);
-    doc.text('Document confidentiel — SIVA / Les Terres du Sud · ' + REPORT_BRAND.product, 10, fy);
+    doc.text('Document confidentiel — SIVA · ' + REPORT_BRAND.product, 10, fy);
     doc.text('Page ' + p + ' / ' + total, pw - 10, fy, { align: 'right' });
   }
 }
@@ -13483,7 +13538,7 @@ async function exportCahierPDF(source) {
 
   let y = reportHeaderPDF(doc, {
     title: 'Cahier de bâtiment (vierge)',
-    subtitle: (bande.nom_bande || '—') + ' — ' + (bande.batiment || 'Bât. A'),
+    subtitle: (bande.nom_bande || '—') + ' — ' + (bande.batiment || '—'),
     period: 'J' + jFrom + ' – J' + jTo
   });
 
