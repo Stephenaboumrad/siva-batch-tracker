@@ -455,6 +455,13 @@
 #page-saisie input:focus, #page-saisie select:focus, #page-saisie textarea:focus { border-color: var(--color-accent); box-shadow: var(--accent-ring); }
 /* Bandeau résumé : valeurs chiffrées en mono */
 #page-saisie #saisie-info strong { font-family: var(--font-mono); }
+
+/* Signes observés (bloc cahier) : puces à cocher — signes factuels, pas de
+   diagnostic (le diagnostic reste au vétérinaire, flux de validation). */
+#page-saisie #saisie-signes-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+#page-saisie .signe-chip { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; border: var(--border-hairline); border-radius: 20px; padding: 0.3rem 0.75rem; font-size: 0.82rem; font-weight: 500; cursor: pointer; user-select: none; background: var(--card-bg); color: var(--text-primary); }
+#page-saisie .signe-chip:hover { border-color: var(--color-accent); }
+#page-saisie .signe-chip input[type="checkbox"] { width: auto; min-height: 0; margin: 0; accent-color: var(--color-accent); }
 /* Bouton Enregistrer : accent PLAT (sans dégradé ni glow) mais gardé proéminent */
 /* Tableau « Dernière saisie » : filets fins, en-têtes plats, colonnes numériques (2→8) mono à droite */
 #page-saisie .table-wrap { border: var(--border-hairline); box-shadow: none; }
@@ -487,10 +494,11 @@
 #page-fiche td { border-bottom: var(--border-hairline); }
 #page-fiche tbody tr:nth-child(even) td { background: transparent; }
 #page-fiche tbody tr:hover td { background: var(--color-surface-alt); }
-/* Table saisies : colonnes numériques mono à droite (Date / Phase / × restent texte) */
+/* Table saisies : colonnes numériques mono à droite (Date / Phase / Obs. / × restent texte) */
 #page-fiche #fiche-saisies-table th, #page-fiche #fiche-saisies-table td { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
 #page-fiche #fiche-saisies-table th:nth-child(1), #page-fiche #fiche-saisies-table td:nth-child(1),
 #page-fiche #fiche-saisies-table th:nth-child(3), #page-fiche #fiche-saisies-table td:nth-child(3),
+#page-fiche #fiche-saisies-table th:nth-child(14), #page-fiche #fiche-saisies-table td:nth-child(14),
 #page-fiche #fiche-saisies-table th:last-child, #page-fiche #fiche-saisies-table td:last-child { font-family: var(--font-sans); text-align: left; }
 /* Bouton supprimer (×) : neutre-danger (ghost), fini le bloc rouge plein */
 #page-fiche .btn-danger { background: none; color: var(--color-danger); border: 1px solid var(--status-danger-bd); box-shadow: none; }
@@ -2109,9 +2117,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   /* ─── Table 2 — Saisies journalières (#fiche-saisies-table) ───
      Cols : 1 Date · 2 Jour · 3 Phase | 4 Mort. 5 Eff. 6 Alim. 7 Eau 8 Poids
-            9 IC 10 GMQ 11 T°C 12 Hum% | 13 × (suppr, manager-only)
-     Carte : entête « Date · J{n} · Phase » + 9 métriques (2 col), × épinglé
-     en haut à droite. Coloration hors-norme T°/Hum (style inline) conservée. */
+            9 IC 10 GMQ 11 T°C 12 Hum% 13 T° obs. · 14 Obs. (pleine largeur)
+            | 15 × (suppr, manager-only)
+     Carte : entête « Date · J{n} · Phase » + 10 métriques (2 col) + ligne
+     Obs. pleine largeur, × épinglé en haut à droite. Coloration hors-norme
+     T°/Hum (style inline) conservée. */
   #page-fiche #fiche-saisies-table tbody tr { padding-right: var(--space-10); } /* réserve le coin pour × */
   #page-fiche #fiche-saisies-table tbody td:nth-child(1) {       /* Date = titre */
     flex: 0 0 auto; justify-content: flex-start;
@@ -2130,7 +2140,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   #page-fiche #fiche-saisies-table tbody td:nth-child(1)::before,
   #page-fiche #fiche-saisies-table tbody td:nth-child(2)::before,
   #page-fiche #fiche-saisies-table tbody td:nth-child(3)::before { content: none; }
-  #page-fiche #fiche-saisies-table tbody td:nth-child(n+4):nth-child(-n+12) {
+  #page-fiche #fiche-saisies-table tbody td:nth-child(n+4):nth-child(-n+13) {
     flex: 1 1 calc(50% - var(--space-3));
   }
   #page-fiche #fiche-saisies-table tbody td:nth-child(4),
@@ -2146,12 +2156,17 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   #page-fiche #fiche-saisies-table tbody td:nth-child(10)::before { content: "GMQ"; }
   #page-fiche #fiche-saisies-table tbody td:nth-child(11)::before { content: "T°C"; }
   #page-fiche #fiche-saisies-table tbody td:nth-child(12)::before { content: "Hum%"; }
-  #page-fiche #fiche-saisies-table tbody td:nth-child(13) {      /* × épinglé (le bouton garde manager-only) */
+  #page-fiche #fiche-saisies-table tbody td:nth-child(13)::before { content: "T° obs."; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(14) {      /* Obs. = texte pleine largeur */
+    flex: 1 1 100%; text-align: left; justify-content: flex-start;
+  }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(14)::before { content: "Obs."; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(15) {      /* × épinglé (le bouton garde manager-only) */
     position: absolute; top: var(--space-2); right: var(--space-3);
     flex: 0 0 auto; padding: 0;
   }
-  #page-fiche #fiche-saisies-table tbody td:nth-child(13)::before { content: none; }
-  #page-fiche #fiche-saisies-table tbody td:nth-child(13) .btn { min-height: 30px; padding: 4px 8px; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(15)::before { content: none; }
+  #page-fiche #fiche-saisies-table tbody td:nth-child(15) .btn { min-height: 30px; padding: 4px 8px; }
 
   /* ─── Table 3 — Sessions d'abattage (#abattage-list) ───
      Cols : 1 Date · 2 Bande | 3 Nb abattus 4 Poids carc. 5 Rendement 6 Coût j.
@@ -2931,6 +2946,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <input type="month" id="saisie-report-period" title="Période du rapport" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
         <button class="btn btn-outline btn-sm" onclick="exportDailiesPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
         <button class="btn btn-outline btn-sm" onclick="exportDailiesExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('saisie')"><i data-lucide="printer"></i> Cahier vierge (PDF)</button>
       </div>
     </div>
     <form id="saisie-form" onsubmit="event.preventDefault(); if (this.reportValidity()) submitSaisie();">
@@ -2944,32 +2960,85 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Date</label>
           <input type="date" id="saisie-date" required>
-        </div>
-        <div class="form-group">
-          <label>Mortalité du jour</label>
-          <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric" required>
-          <div class="field-msg" id="saisie-msg-mortalite"></div>
+          <div class="field-msg" id="saisie-msg-date"></div>
+          <div id="saisie-date-hint" style="font-size:11px;color:var(--text-muted);font-style:italic;"></div>
         </div>
       </div>
+
+      <!-- Bloc cahier — MIROIR du cahier de bâtiment papier, dans le MÊME ORDRE
+           que ses colonnes : aliment (+ phase), eau, prophylaxie (lecture seule),
+           mortalité (+ signes), température observée, observations. Le chef
+           transcrit le cahier de haut en bas, sans réordonner. -->
       <div class="form-row">
         <div class="form-group">
           <label>Aliment consommé (kg)</label>
           <input type="number" id="saisie-aliment" step="0.1" min="0" placeholder="0.0" inputmode="decimal">
         </div>
         <div class="form-group">
-          <label>Eau consommée (L)</label>
-          <input type="number" id="saisie-eau" step="0.1" min="0" placeholder="0.0" inputmode="decimal">
+          <label>Type / phase d'aliment</label>
+          <div id="saisie-aliment-phase" style="border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.75rem;font-size:0.9rem;color:var(--text-secondary);background:var(--color-surface);">—</div>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Nb oiseaux pesés (échantillon)</label>
-          <input type="number" id="saisie-nb-peses" min="0" placeholder="50" inputmode="numeric">
+          <label>Eau consommée (L)</label>
+          <input type="number" id="saisie-eau" step="0.1" min="0" placeholder="0.0" inputmode="decimal">
         </div>
+      </div>
+      <div class="form-group">
+        <label>Prophylaxie en cours</label>
+        <div id="saisie-prophylaxie" style="border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.75rem;font-size:0.85rem;color:var(--text-secondary);background:var(--color-surface);"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label>Poids vif moyen (g)</label>
-          <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0" inputmode="decimal">
-          <div class="field-msg" id="saisie-msg-poids"></div>
+          <label>Mortalité du jour</label>
+          <input type="number" id="saisie-mortalite" min="0" placeholder="0" inputmode="numeric" required>
+          <div class="field-msg" id="saisie-msg-mortalite"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Signes observés (optionnel)</label>
+        <div id="saisie-signes-chips">
+          <label class="signe-chip"><input type="checkbox" value="abattement"> abattement</label>
+          <label class="signe-chip"><input type="checkbox" value="troubles respiratoires"> troubles respiratoires</label>
+          <label class="signe-chip"><input type="checkbox" value="diarrhée"> diarrhée</label>
+          <label class="signe-chip"><input type="checkbox" value="troubles nerveux"> troubles nerveux</label>
+          <label class="signe-chip"><input type="checkbox" value="boiterie"> boiterie</label>
+          <label class="signe-chip"><input type="checkbox" id="saisie-entassement"> entassement constaté</label>
+        </div>
+        <input type="text" id="saisie-signes-libre" placeholder="Autres signes observés (texte libre)" style="margin-top:0.5rem;">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:0.25rem;font-style:italic;">Signes factuels uniquement — le diagnostic est établi par le vétérinaire (flux de validation existant).</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Température observée (°C)</label>
+          <input type="number" id="saisie-temp-observee" step="0.1" min="0" max="50" placeholder="—" inputmode="decimal">
+          <div class="field-msg" id="saisie-msg-temp-observee"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Observations</label>
+        <textarea id="saisie-observations" rows="2" placeholder="Notes du cahier (comportement, litière, matériel…)" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea>
+      </div>
+
+      <!-- Compléments hors cahier : pesée d'échantillon + ambiance bâtiment.
+           Champs EXISTANTS inchangés (ids, libellés, validation par normes
+           d'âge) — déplacés après le bloc cahier, jamais renommés ni retirés.
+           saisie-temperature = T° d'ambiance (colonne temperature_c, futur
+           pipeline IoT), distincte de saisie-temp-observee (T° relevée sur le
+           cahier → temperature_observee_c, migration 0024). -->
+      <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Compléments (hors cahier)</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nb oiseaux pesés (échantillon)</label>
+            <input type="number" id="saisie-nb-peses" min="0" placeholder="50" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label>Poids vif moyen (g)</label>
+            <input type="number" id="saisie-poids" step="0.1" min="0" placeholder="0" inputmode="decimal">
+            <div class="field-msg" id="saisie-msg-poids"></div>
+          </div>
         </div>
       </div>
 
@@ -3064,6 +3133,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div style="display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('pdf')"><i data-lucide="file-text"></i> Registre de Bande (PDF)</button>
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('excel')"><i data-lucide="sheet"></i> Export Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('fiche')"><i data-lucide="printer"></i> Cahier de bâtiment (vierge)</button>
       </div>
       <!-- Encart Rentabilité (réservé managers SIVA-001 / SIVA-002) — rempli par renderFicheRentabilite() -->
       <div class="card" id="fiche-rentabilite" style="display:none;"></div>
@@ -5121,6 +5191,45 @@ async function processSyncQueue() {
       if (resp && resp.error) throw new Error(resp.error.message);
       processed++;
     } catch (e) {
+      // Doublon jour (contrainte 0024 saisies_bande_date_uniq) : la base a
+      // déjà une saisie pour ce (bande, date) — ex. ressaisie en ligne
+      // pendant que la copie hors ligne attendait, ou rejeu d'un insert déjà
+      // passé (duplicate key sur saisie_id). Le rejeu ne passera JAMAIS :
+      // même chemin que l'avertissement doublon — information, pas erreur
+      // brute, et retrait de l'opération de la file.
+      const isDupSaisie = (x) => item.action === 'addSaisie'
+        && /duplicate key|saisies_bande_date_uniq/i.test(x.message);
+      if (isDupSaisie(e)) {
+        toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+        continue;
+      }
+      // Repli migration 0024 : une saisie mise en file avec les champs cahier
+      // AVANT l'exécution manuelle du SQL échouerait au rejeu pour toujours
+      // (PostgREST : colonne inconnue). On rejoue UNE fois sans ces champs —
+      // la saisie de base est préservée, la perte est signalée.
+      const saisieColErr = item.action === 'addSaisie' && item.payload
+        && /column|schema cache/i.test(e.message)
+        && /temperature_observee_c|observations|signes_observes/i.test(e.message)
+        && ('temperature_observee_c' in item.payload || 'observations' in item.payload
+            || 'signes_observes' in item.payload);
+      if (saisieColErr) {
+        try {
+          const slim = Object.assign({}, item.payload);
+          delete slim.temperature_observee_c;
+          delete slim.observations;
+          delete slim.signes_observes;
+          const r2 = await sb.from('saisies').insert([slim]);
+          if (r2 && r2.error) throw new Error(r2.error.message);
+          processed++;
+          toast('Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)', 'error');
+          continue;
+        } catch (e2) {
+          if (isDupSaisie(e2)) {
+            toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+            continue;
+          }
+        }
+      }
       errors++;
       remaining.push(item);
     }
@@ -5460,14 +5569,19 @@ function renderVetOverview() {
 
 // Statut par bande : 1 entrée par ligne ACTIVE du protocole. Date prévue =
 // date_entree + (jour_cible - 1) (convention J1 = jour d'entrée, comme cycleDay).
-function computeVaccinationStatus(bande) {
+// refDateStr (optionnel, 'YYYY-MM-DD') : jour de référence des statuts
+// due/retard/avenir — défaut aujourd'hui, comportement STRICTEMENT INCHANGÉ
+// pour tous les appelants existants (onglet vaccination, alertes dashboard).
+// Utilisé par la ligne « Prophylaxie en cours » du formulaire de saisie pour
+// refléter le jour transcrit (ex. hier) plutôt que le jour de la transcription.
+function computeVaccinationStatus(bande, refDateStr) {
   if (!bande) return [];
   const protos = STATE.protocoleVaccinal
     .filter(p => p.actif !== false)
     .slice()
     .sort((a, b) => (Number(a.jour_cible) - Number(b.jour_cible)) || (Number(a.ordre || 0) - Number(b.ordre || 0)));
   const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id);
-  const today = parseDayLocal(todayStr());
+  const today = parseDayLocal(refDateStr || todayStr());
   const entree = parseDayLocal(bande.date_entree);
   return protos.map(p => {
     const vacc = vaccs.find(v => v.proto_id === p.proto_id) || null;
@@ -6083,6 +6197,28 @@ function renderVetSante() {
   }
   html += '</div>';
 
+  // Contexte mortalité : signes observés notés à la saisie journalière
+  // (champ signes_observes, migration 0024). Signes FACTUELS uniquement —
+  // le diagnostic reste établi ici, par le vétérinaire.
+  if (bande) {
+    const avecSignes = STATE.saisies
+      .filter(s => s.bande_id === bande.bande_id && (s.signes_observes || s.observations))
+      .sort((a, b) => new Date(b.date_saisie) - new Date(a.date_saisie))
+      .slice(0, 15);
+    html += '<div class="card"><div class="card-header"><h3>Signes observés — saisies récentes</h3></div>';
+    if (avecSignes.length === 0) {
+      html += '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucun signe observé consigné dans les saisies de cette bande.</p>';
+    } else {
+      html += avecSignes.map(s => '<div class="param-info-row" style="align-items:flex-start;">'
+        + '<span style="white-space:nowrap;">' + fmtDate(s.date_saisie) + ' · J' + (s.jour_bande != null ? s.jour_bande : '?')
+        + ' · mort. ' + (s.mortalite_jour || 0) + '</span>'
+        + '<span style="text-align:right;">' + escHtml([s.signes_observes, s.observations].filter(Boolean).join(' · ')) + '</span>'
+        + '</div>').join('');
+      html += '<p style="font-size:0.75rem;color:var(--text-muted);margin:0.5rem 0 0;">Signes factuels saisis par le terrain — diagnostic à valider par le vétérinaire.</p>';
+    }
+    html += '</div>';
+  }
+
   html += '<div class="card"><div class="card-header"><h3>Signes à surveiller quotidiennement</h3></div>'
     + '<ul style="margin:0;padding-left:1.1rem;font-size:0.88rem;color:var(--text-primary);">'
     + VET_MONITORING_SIGNS.map(s => '<li>' + escHtml(s) + '</li>').join('')
@@ -6091,7 +6227,7 @@ function renderVetSante() {
   html += '<div class="card"><div class="card-header"><h3>Causes de mortalité à distinguer</h3></div>'
     + '<ul style="margin:0;padding-left:1.1rem;font-size:0.88rem;color:var(--text-primary);">'
     + VET_MORTALITY_CAUSES.map(c => '<li>' + escHtml(c) + '</li>').join('')
-    + '</ul><div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-neutral-bg);color:var(--text-muted);font-size:0.78rem;"><i data-lucide="info" style="width:15px;height:15px;"></i> La saisie journalière ne comporte pas encore de champ « cause de mortalité ». Cette classification est fournie comme référence ; son enregistrement par mort nécessitera un ajout au formulaire de saisie (suite véto).</div></div>';
+    + '</ul><div style="margin-top:0.6rem;padding:0.55rem 0.8rem;border-radius:6px;background:var(--status-neutral-bg);color:var(--text-muted);font-size:0.78rem;"><i data-lucide="info" style="width:15px;height:15px;"></i> La saisie journalière consigne des <strong>signes observés</strong> (factuels), volontairement sans champ « cause de mortalité » : la cause / le diagnostic est établi ici, par le vétérinaire. Cette classification est fournie comme référence.</div></div>';
   el.innerHTML = html;
 }
 
@@ -7112,7 +7248,7 @@ function formatNotifStatut(s) {
 }
 
 function formatNotifPayload(type, p) {
-  if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g';
+  if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g' + (p.signes_observes ? ' | Signes : ' + escHtml(p.signes_observes) : '');
   if (type === 'intrant') { const m = fmtMoney(p.cout_total_fcfa || 0); return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' — ' + m : ''); }
   if (type === 'reception') { const m = fmtMoney(p.prix_unitaire_fcfa || 0); return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' @ ' + m : ''); }
   if (type === 'abattage') return (p.nb_oiseaux_abattus || 0) + ' oiseaux | ' + (p.poids_vif_total_kg || 0) + ' kg vif';
@@ -7779,6 +7915,7 @@ function openSaisieFor(bandeId) {
   navigate('saisie', document.querySelector('[data-page=saisie]'));
   setTimeout(() => {
     document.getElementById('saisie-bande').value = bandeId;
+    applySaisieDatePreselect();
     updateSaisieInfo();
   }, 50);
 }
@@ -8323,7 +8460,6 @@ function initSaisiePage() {
       ? STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('')
       : '<option value="">Aucune bande</option>';
   }
-  document.getElementById('saisie-date').value = todayStr();
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
   document.getElementById('saisie-eau').value = '';
@@ -8331,6 +8467,9 @@ function initSaisiePage() {
   document.getElementById('saisie-poids').value = '';
   document.getElementById('saisie-temperature').value = '';
   document.getElementById('saisie-humidite').value = '';
+  document.getElementById('saisie-temp-observee').value = '';
+  document.getElementById('saisie-observations').value = '';
+  resetSignesObserves();
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
@@ -8342,14 +8481,88 @@ function initSaisiePage() {
   });
   // Le jour de cycle (donc les normes/effectif) dépend de la date → revalider à son changement.
   const dateEl = document.getElementById('saisie-date');
-  if (dateEl) dateEl.onchange = () => { updateSaisieInfo(); };
+  if (dateEl) dateEl.onchange = () => { refreshSaisieDateMsgs(); updateSaisieInfo(); };
+  // Pré-sélection « hier d'abord » (transcription du cahier le lendemain matin),
+  // recalculée à chaque changement de bande.
+  applySaisieDatePreselect();
   updateSaisieInfo();
-  select.onchange = updateSaisieInfo;
+  select.onchange = () => { applySaisieDatePreselect(); updateSaisieInfo(); };
   renderRecentSaisies();
 }
 
+// ── Date de saisie : « hier d'abord » + garde doublon (consultative) ──
+// Le flux terrain réel : le cahier papier est rempli dans la journée puis
+// transcrit dans l'app en fin de journée OU le lendemain matin. À l'ouverture,
+// si la bande était active hier et qu'aucune saisie n'existe pour hier, on
+// propose hier ; sinon aujourd'hui. La date reste éditable dans la plage
+// active de la bande (min/max natifs) ; jour_bande reste calculé depuis la
+// date (convention existante, inchangée).
+function yesterdayStr() {
+  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+}
+
+// date_saisie est timestamptz côté base : les lignes serveur reviennent en ISO
+// long → comparaison sur les 10 premiers caractères (même idiome que le
+// startsWith(period) du rapport quotidien).
+function hasSaisieOn(bandeId, dateStr) {
+  return STATE.saisies.some(s => s.bande_id === bandeId
+    && String(s.date_saisie || '').slice(0, 10) === dateStr);
+}
+
+function applySaisieDatePreselect() {
+  const dateEl = document.getElementById('saisie-date');
+  if (!dateEl) return;
+  const bandeId = document.getElementById('saisie-bande').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const today = todayStr();
+  if (!bande || !bande.date_entree) {
+    dateEl.removeAttribute('min'); dateEl.removeAttribute('max');
+    dateEl.value = today;
+    refreshSaisieDateMsgs();
+    return;
+  }
+  const entree = String(bande.date_entree).slice(0, 10);
+  const sortie = bande.date_sortie ? String(bande.date_sortie).slice(0, 10) : null;
+  const max = (sortie && sortie < today) ? sortie : today;
+  dateEl.min = entree;
+  dateEl.max = max;
+  const hier = yesterdayStr();
+  const activeHier = entree <= hier && hier <= max;
+  dateEl.value = (activeHier && !hasSaisieOn(bandeId, hier)) ? hier : today;
+  refreshSaisieDateMsgs();
+}
+
+function refreshSaisieDateMsgs() {
+  const dateEl = document.getElementById('saisie-date');
+  const hintEl = document.getElementById('saisie-date-hint');
+  if (!dateEl) return;
+  const val = dateEl.value;
+  if (hintEl) {
+    hintEl.textContent = (val && val === yesterdayStr())
+      ? 'Saisie du ' + fmtDate(val) + ' (hier)' : '';
+  }
+  // Bande à venir (date_entree future) : la plage min/max est vide, la
+  // validation native bloque — expliquer le blocage plutôt que de laisser
+  // la seule bulle du navigateur.
+  const bandeId = document.getElementById('saisie-bande').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const entree = (bande && bande.date_entree) ? String(bande.date_entree).slice(0, 10) : null;
+  if (entree && entree > todayStr()) {
+    setFieldMsg('date', 'warn', 'Bande pas encore en place (entrée le ' + fmtDate(entree) + ') — saisie possible à partir de ce jour.');
+    return;
+  }
+  // Garde une-saisie-par-jour : il n'existe AUCUNE contrainte (client ou base)
+  // empêchant deux saisies le même jour — avertissement consultatif seulement,
+  // dans le style maison (warn, jamais bloquant).
+  if (bandeId && val && hasSaisieOn(bandeId, val)) {
+    setFieldMsg('date', 'warn', 'Une saisie existe déjà pour cette date — doublon possible, vérifier avant d\'enregistrer.');
+  } else {
+    setFieldMsg('date', null);
+  }
+}
+
 // ── Validation de saisie terrain (temps réel, bienveillante : alerter, pas bloquer) ──
-const SAISIE_VALIDATED_FIELDS = ['mortalite', 'temperature', 'humidite', 'poids'];
+const SAISIE_VALIDATED_FIELDS = ['mortalite', 'temperature', 'humidite', 'poids', 'temp-observee'];
 
 function getCobbStandardWeight(jour) {
   const d = Math.max(0, Math.min(CYCLE_DURATION_DAYS, Math.round(jour)));
@@ -8425,6 +8638,14 @@ function validateSaisieField(field) {
       setFieldMsg(field, null); return null;
     }
     setFieldMsg(field, null); return null;
+  } else if (field === 'temp-observee') {
+    // T° du cahier : simple garde de plausibilité fixe (20–40°C), jamais
+    // bloquante — contrairement à la T° d'ambiance, pas de norme d'âge ici.
+    if (val < 20 || val > 40) {
+      setFieldMsg(field, 'warn', 'Température inhabituelle (plausible : 20–40°C) — confirmer ?');
+      return 'warn';
+    }
+    setFieldMsg(field, null); return null;
   }
   return null;
 }
@@ -8471,8 +8692,77 @@ function updateSaisieInfo() {
     hintDiv.innerHTML = `Normes J${jour} : Temp. ${norm.tempMin}–${norm.tempMax}°C | Hum. ${norm.humMin}–${norm.humMax}%`;
   }
 
+  // Bloc cahier : phase d'aliment dérivée du jour (lecture seule — le cahier
+  // note le type d'aliment, l'app le connaît déjà via CYCLE_PHASES).
+  const alimPhaseEl = document.getElementById('saisie-aliment-phase');
+  if (alimPhaseEl) alimPhaseEl.textContent = phase.label + ' (J' + jour + ')';
+  renderSaisieProphylaxie(bande, document.getElementById('saisie-date').value || todayStr());
+
   // Re-évalue les champs déjà remplis (le jour/effectif/normes viennent de changer).
   validateAllSaisieFields();
+}
+
+// ── (c) Prophylaxie en cours — AFFICHAGE SEUL dans le formulaire de saisie.
+// Le cahier papier la note, l'app la connaît déjà : vaccinations dues / en
+// retard (computeVaccinationStatus, même logique que les alertes du
+// dashboard) + traitements dont la cure couvre le jour (fenêtre
+// [date_traitement, date_traitement + duree_jours - 1], même expression de
+// fin de cure que traitementClearanceDate). Ancré sur le JOUR TRANSCRIT
+// (#saisie-date — ex. hier, flux « hier d'abord »), pas sur le jour de la
+// transcription. Aucune écriture ici. ──
+function renderSaisieProphylaxie(bande, refDateStr) {
+  const el = document.getElementById('saisie-prophylaxie');
+  if (!el) return;
+  const refStr = refDateStr || todayStr();
+  const isToday = refStr === todayStr();
+  const items = [];
+  computeVaccinationStatus(bande, refStr).forEach(v => {
+    if (v.status === 'due') {
+      items.push('Vaccin ' + escHtml(v.proto.nom_vaccin) + ' — à faire '
+        + (isToday ? 'aujourd\'hui' : 'ce jour') + ' (' + protoJourLabel(v.proto) + ')');
+    } else if (v.status === 'retard') {
+      items.push('Vaccin ' + escHtml(v.proto.nom_vaccin) + ' — EN RETARD (prévu ' + protoJourLabel(v.proto) + ')');
+    }
+  });
+  const ref = parseDayLocal(refStr);
+  (STATE.traitements || []).filter(t => t.bande_id === bande.bande_id).forEach(t => {
+    const debut = parseDayLocal(t.date_traitement);
+    if (!debut || !ref) return;
+    const dur = Number(t.duree_jours);
+    const fin = new Date(debut.getTime());
+    fin.setDate(fin.getDate() + ((dur && dur > 0) ? dur - 1 : 0));
+    if (ref >= debut && ref <= fin) {
+      const jCure = Math.round((ref - debut) / 86400000) + 1;
+      items.push('Traitement ' + escHtml(t.nom_produit) + ' — cure en cours'
+        + (dur > 1 ? ' (jour ' + jCure + '/' + dur + ')' : ''));
+    }
+  });
+  const head = isToday ? '' : '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Au ' + fmtDate(refStr) + '</div>';
+  el.innerHTML = items.length
+    ? head + items.map(i => '<div>• ' + i + '</div>').join('')
+    : head + '<span style="color:var(--text-muted);">Aucune prophylaxie en cours</span>';
+}
+
+// ── (5) Signes observés : liste factuelle de signes cliniques + texte libre +
+// entassement. PAS de menu de maladies, à dessein : le diagnostic est validé
+// par le vétérinaire via le flux existant. Sérialisé en texte simple dans
+// signes_observes (migration 0024). ──
+function buildSignesObserves() {
+  const parts = [];
+  document.querySelectorAll('#saisie-signes-chips input[type="checkbox"][value]:checked')
+    .forEach(cb => parts.push(cb.value));
+  const ent = document.getElementById('saisie-entassement');
+  if (ent && ent.checked) parts.push('entassement constaté');
+  const libre = document.getElementById('saisie-signes-libre').value.trim();
+  let out = parts.join(', ');
+  if (libre) out = out ? out + ' — ' + libre : libre;
+  return out || null;
+}
+
+function resetSignesObserves() {
+  document.querySelectorAll('#saisie-signes-chips input[type="checkbox"]')
+    .forEach(cb => { cb.checked = false; });
+  document.getElementById('saisie-signes-libre').value = '';
 }
 
 function toggleIntrantForm() {
@@ -8518,17 +8808,53 @@ async function submitSaisie() {
     humidite_pct: Number(document.getElementById('saisie-humidite').value) || null
   };
 
+  // Champs cahier (migration 0024) : Railway auto-déploie main AVANT que le
+  // SQL soit exécuté à la main (règle maison : migration mergée ≠ appliquée).
+  // On tente TOUJOURS l'écriture quand l'utilisateur a rempli un champ : en
+  // ligne, le repli d'insertion ci-dessous réessaie sans les colonnes ; hors
+  // ligne, le repli équivalent vit dans processSyncQueue au rejeu. Pas de
+  // sonde préalable : elle resterait figée sur l'état d'avant-migration dans
+  // une session longue et jetterait les valeurs APRÈS l'application du SQL.
+  const tempObsRaw = document.getElementById('saisie-temp-observee').value;
+  const cahierFields = {
+    temperature_observee_c: tempObsRaw !== '' ? Number(tempObsRaw) : null,
+    observations: document.getElementById('saisie-observations').value.trim() || null,
+    signes_observes: buildSignesObserves()
+  };
+  const hasCahierValues = Object.keys(cahierFields).some(k => cahierFields[k] !== null);
+  let cahierDropped = false;
+  if (hasCahierValues) Object.assign(saisiePayload, cahierFields);
+
   const btn = document.getElementById('btn-submit-saisie');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
+  let saisiePushed = false;
 
   try {
     const bandeName = bande ? bande.nom_bande : bandeId;
     let intrantRejete = null;
 
     // Saisie always goes through (just logged)
-    await apiPost({ action: 'addSaisie', payload: saisiePayload });
-    STATE.saisies.push(saisiePayload);
+    try {
+      await apiPost({ action: 'addSaisie', payload: saisiePayload });
+    } catch (err) {
+      // Colonnes 0024 absentes en prod (PostgREST : « Could not find the
+      // '…' column of 'saisies' in the schema cache ») : on réessaie sans
+      // les champs cahier plutôt que de perdre toute la saisie.
+      const colErr = hasCahierValues
+        && /column|schema cache/i.test(err.message)
+        && /temperature_observee_c|observations|signes_observes/i.test(err.message);
+      if (!colErr) throw err;
+      delete saisiePayload.temperature_observee_c;
+      delete saisiePayload.observations;
+      delete saisiePayload.signes_observes;
+      cahierDropped = true;
+      await apiPost({ action: 'addSaisie', payload: saisiePayload });
+    }
+    // Copie locale : porter les 3 clés cahier (valeurs ou null) quand elles
+    // n'ont pas été écartées, pour que les rendus (fiche, véto…) les voient.
+    STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
+    saisiePushed = true;
     if (currentUser && currentUser.role === 'chef_bande') {
       createNotification('saisie', 'Saisie J' + jourBande + ' — ' + bandeName, bandeId, bandeName, saisiePayload);
     }
@@ -8575,14 +8901,29 @@ async function submitSaisie() {
 
     if (intrantRejete) {
       toast('Saisie enregistrée, mais intrant NON transmis : ' + intrantRejete + ' — ressaisir l\'intrant seul.', 'error');
+    } else if (cahierDropped) {
+      toast('Saisie enregistrée, mais T° observée / observations / signes NON enregistrés : migration 0024 non appliquée en base.', 'error');
     } else {
       toast('Saisie enregistrée');
     }
     resetSaisieForm();
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
+      // La saisie est en file de synchronisation : refléter la copie locale
+      // comme sur le chemin en ligne (saisies récentes, garde doublon,
+      // pré-sélection de date). Garde anti-double-push : le rejet hors ligne
+      // peut aussi venir de l'intrant, APRÈS que la saisie a déjà été poussée.
+      if (!saisiePushed) STATE.saisies.push(Object.assign({}, cahierFields, saisiePayload));
       toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
       resetSaisieForm();
+    } else if (!saisiePushed && /duplicate key|saisies_bande_date_uniq/i.test(err.message)) {
+      // Contrainte 0024 (une-saisie-par-jour) refusée par la base : même
+      // chemin que l'avertissement doublon consultatif — information, pas
+      // erreur brute (convention 0022 paies_employe_mois_uniq). Formulaire
+      // conservé pour corriger la date. Le garde !saisiePushed exclut un
+      // doublon venu du sous-formulaire intrant après saisie déjà écrite.
+      setFieldMsg('date', 'warn', 'Une saisie existe déjà pour cette date — doublon possible, vérifier avant d\'enregistrer.');
+      toast('Saisie non enregistrée : une saisie existe déjà pour cette date');
     } else {
       toast('Erreur: ' + err.message, 'error');
     }
@@ -8600,6 +8941,9 @@ function resetSaisieForm() {
   document.getElementById('saisie-poids').value = '';
   document.getElementById('saisie-temperature').value = '';
   document.getElementById('saisie-humidite').value = '';
+  document.getElementById('saisie-temp-observee').value = '';
+  document.getElementById('saisie-observations').value = '';
+  resetSignesObserves();
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-nom').value = '';
   document.getElementById('intrant-quantite').value = '';
@@ -8608,6 +8952,10 @@ function resetSaisieForm() {
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
   clearSaisieValidation();
+  // La saisie du jour vient d'être écrite : recalcule la date proposée
+  // (ex. hier vient d'être transcrit → on repasse sur aujourd'hui) et la
+  // garde doublon.
+  applySaisieDatePreselect();
   updateSaisieInfo();
   renderRecentSaisies();
 }
@@ -9064,7 +9412,7 @@ function renderFicheSaisiesTable(ind, bande) {
   let html = '<table><thead><tr>' +
     '<th>Date</th><th>Jour</th><th>Phase</th><th>Mort.</th><th>Eff.</th>' +
     '<th>Alim. (kg)</th><th>Eau (L)</th><th>Poids (g)</th><th>IC</th><th>GMQ</th>' +
-    '<th>T°C</th><th>Hum%</th><th></th>' +
+    '<th>T°C</th><th>Hum%</th><th>T° obs.</th><th>Obs.</th><th></th>' +
     '</tr></thead><tbody>';
 
   ind.saisies.forEach(s => {
@@ -9072,6 +9420,9 @@ function renderFicheSaisiesTable(ind, bande) {
     const norm = getAmbianceNorm(s.jour_bande);
     const tempOk = !s.temperature_c || (s.temperature_c >= norm.tempMin && s.temperature_c <= norm.tempMax);
     const humOk = !s.humidite_pct || (s.humidite_pct >= norm.humMin && s.humidite_pct <= norm.humMax);
+    // Champs cahier (0024) : signes observés + observations regroupés en une
+    // colonne texte ; tolère l'absence des colonnes (migration non appliquée).
+    const obsTxt = [s.signes_observes, s.observations].filter(Boolean).join(' · ');
     html += `<tr>
       <td>${fmtDate(s.date_saisie)}</td>
       <td>J${s.jour_bande}</td>
@@ -9085,6 +9436,8 @@ function renderFicheSaisiesTable(ind, bande) {
       <td>${fmt(s.gmq, 1)}</td>
       <td style="color:${tempOk ? 'inherit' : '#EF4444'};font-weight:${tempOk ? '400' : '700'};">${s.temperature_c ? fmt(s.temperature_c, 1) : '—'}</td>
       <td style="color:${humOk ? 'inherit' : '#EF4444'};font-weight:${humOk ? '400' : '700'};">${s.humidite_pct ? fmt(s.humidite_pct, 0) : '—'}</td>
+      <td>${s.temperature_observee_c != null ? fmt(Number(s.temperature_observee_c), 1) : '—'}</td>
+      <td style="max-width:220px;white-space:normal;">${obsTxt ? escHtml(obsTxt) : '—'}</td>
       <td><button class="btn btn-sm btn-danger manager-only" onclick="deleteSaisie('${s.saisie_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
@@ -10073,8 +10426,8 @@ async function exportPDF() {
   y = reportSectionTitlePDF(doc, '4. Tableau journalier', y);
 
   if (ind.saisies.length > 0) {
-    const cols = ['Date', 'Jour', 'Mort.', 'Cum.', 'Effectif', 'Alim.', 'IC', 'Poids', 'GMQ'];
-    const colW = [22, 12, 12, 12, 18, 16, 14, 16, 14];
+    const cols = ['Date', 'Jour', 'Mort.', 'Cum.', 'Effectif', 'Alim.', 'IC', 'Poids', 'GMQ', 'T° obs.', 'Obs.'];
+    const colW = [22, 12, 12, 12, 18, 16, 14, 16, 14, 14, 40];
     let x = 10;
 
     doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
@@ -10088,12 +10441,15 @@ async function exportPDF() {
     ind.saisies.forEach(s => {
       checkPage(5);
       x = 10;
+      const obsTxt = [s.signes_observes, s.observations].filter(Boolean).join(' · ');
       const vals = [
         fmtDate(s.date_saisie), 'J' + s.jour_bande,
         String(s.mortalite_jour), String(s.mort_cum), fmt(s.effectif),
         fmt(Number(s.aliment_consomme_kg), 1),
         s.ic != null ? fmt(s.ic, 2) : '—',
-        fmt(s.poids), fmt(s.gmq, 1)
+        fmt(s.poids), fmt(s.gmq, 1),
+        s.temperature_observee_c != null ? fmt(Number(s.temperature_observee_c), 1) : '—',
+        obsTxt ? obsTxt.substring(0, 28) : '—'
       ];
       vals.forEach((v, i) => { doc.text(v, x + 1, y); x += colW[i]; });
       y += 4;
@@ -10205,7 +10561,8 @@ async function exportExcel() {
   const dailyHeaders = [
     'Date', 'Jour', 'Mortalité jour', 'Mortalité cumulée', 'Taux mortalité %',
     'Effectif', 'Aliment jour (kg)', 'Aliment cumulé (kg)',
-    'Nb pesés', 'Poids vif moyen (g)', 'IC', 'GMQ (g/j)', 'Poids carcasse est. (g)'
+    'Nb pesés', 'Poids vif moyen (g)', 'IC', 'GMQ (g/j)', 'Poids carcasse est. (g)',
+    'T° observée (°C)', 'Signes observés', 'Observations'
   ];
   const dailyData = ind.saisies.map(s => [
     s.date_saisie, 'J' + s.jour_bande,
@@ -10214,7 +10571,9 @@ async function exportExcel() {
     Number(s.nb_oiseaux_peses) || '', s.poids,
     s.ic != null ? Math.round(s.ic * 100) / 100 : '',
     Math.round(s.gmq * 10) / 10,
-    Math.round(s.poids_carcasse)
+    Math.round(s.poids_carcasse),
+    s.temperature_observee_c != null ? Number(s.temperature_observee_c) : '',
+    s.signes_observes || '', s.observations || ''
   ]);
   const ws1 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyData]);
   XLSX.utils.book_append_sheet(wb, ws1, 'Données journalières');
@@ -13070,6 +13429,116 @@ function computeDailiesReport(bandeId, period) {
   const eauP  = rows.reduce((s, r) => s + (Number(r.eau_consommee_l) || 0), 0);
   const eauAlimP = alimP > 0 ? eauP / alimP : null;
   return { bande, ind, rows, mortP, alimP, eauP, eauAlimP };
+}
+
+// ── Cahier de bâtiment (vierge) — modèle papier imprimable ──
+// Boucle papier↔app dans les deux sens : le formulaire de saisie recopie le
+// cahier, et l'app imprime le cahier lui-même. Colonnes STRICTEMENT dans
+// l'ordre du formulaire : Date | Jour | Aliment (kg) | Type aliment | Eau (L)
+// | Prophylaxie | Mortalité | T° | Observations | Visa. A4 PAYSAGE (premier
+// export paysage de l'app : reportHeaderPDF / reportFooterPDF sont dérivés de
+// la taille de page donc sûrs ; reportTablePDF NE l'est PAS — saut de page
+// portrait codé en dur — d'où la grille dédiée ci-dessous), lignes hautes
+// (8,5 mm) pour l'écriture manuscrite ; seules Date et Jour sont préremplies.
+// Accessible aux DEUX rôles (le chef imprime son propre cahier) : aucune
+// donnée financière par construction — uniquement nom / bâtiment / date
+// d'entrée / effectif initial, colonnes opérationnelles présentes aussi dans
+// la vue assainie bandes_ops lue par le chef.
+async function exportCahierPDF(source) {
+  const selId = source === 'fiche' ? 'fiche-bande-select' : 'saisie-report-bande';
+  if (source !== 'fiche') ensureDailiesBandeSelect();
+  const sel = document.getElementById(selId);
+  const bandeId = sel ? sel.value : '';
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) { toast('Sélectionnez une bande', 'error'); return; }
+  if (!bande.date_entree) { toast('Bande sans date d\'entrée — jours non calculables', 'error'); return; }
+
+  // Plage de jours configurable ; défaut = cycle complet attendu (J1 → fin).
+  const rep = prompt('Plage de jours à imprimer (début-fin)', '1-' + CYCLE_DURATION_DAYS);
+  if (rep === null) return;
+  const m = String(rep).trim().match(/^(\d{1,3})\s*[-–]\s*(\d{1,3})$/);
+  const jFrom = m ? Number(m[1]) : NaN;
+  const jTo = m ? Number(m[2]) : NaN;
+  if (!m || jFrom < 1 || jTo < jFrom || jTo - jFrom > 120) {
+    toast('Plage invalide — attendu « début-fin », ex. 1-' + CYCLE_DURATION_DAYS, 'error');
+    return;
+  }
+
+  await ensureJsPDF();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('l', 'mm', 'a4');
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  const X0 = 10, ROW_H = 8.5;
+  const pageBottom = ph - 16;
+
+  // Colonnes = ordre EXACT du formulaire de saisie (bloc cahier) + Visa.
+  const COLS = [
+    { h: 'Date', w: 24 }, { h: 'Jour', w: 12 }, { h: 'Aliment (kg)', w: 24 },
+    { h: 'Type aliment', w: 28 }, { h: 'Eau (L)', w: 20 }, { h: 'Prophylaxie', w: 40 },
+    { h: 'Mortalité', w: 20 }, { h: 'T°', w: 14 }, { h: 'Observations', w: 75 },
+    { h: 'Visa', w: 20 }
+  ];
+  const totalW = COLS.reduce((a, c) => a + c.w, 0);
+
+  let y = reportHeaderPDF(doc, {
+    title: 'Cahier de bâtiment (vierge)',
+    subtitle: (bande.nom_bande || '—') + ' — ' + (bande.batiment || 'Bât. A'),
+    period: 'J' + jFrom + ' – J' + jTo
+  });
+
+  // Bloc d'identification (repris des autres exports officiels).
+  doc.setFontSize(9);
+  doc.setTextColor.apply(doc, REPORT_BRAND.subtle);
+  doc.text('Bande : ' + (bande.nom_bande || '—') + '   ·   Bâtiment : ' + (bande.batiment || '—')
+    + '   ·   Date d\'entrée : ' + fmtDate(bande.date_entree)
+    + '   ·   Effectif initial : ' + fmt(bande.nb_poussins_entree || 0), X0, y);
+  y += 6;
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
+  const drawHead = () => {
+    doc.setFillColor.apply(doc, REPORT_BRAND.surfaceAlt);
+    doc.rect(X0, y, totalW, 7, 'F');
+    doc.setDrawColor.apply(doc, REPORT_BRAND.line);
+    doc.setLineWidth(0.2);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(8);
+    let x = X0;
+    COLS.forEach(c => { doc.rect(x, y, c.w, 7); doc.text(c.h, x + 1.5, y + 4.7); x += c.w; });
+    doc.setFont(undefined, 'normal');
+    y += 7;
+  };
+
+  const entree = parseDayLocal(bande.date_entree);
+  drawHead();
+  doc.setFontSize(8);
+  for (let j = jFrom; j <= jTo; j++) {
+    if (y + ROW_H > pageBottom) {
+      doc.addPage();
+      y = 15;
+      drawHead();
+      doc.setFontSize(8);
+    }
+    // Cases manuscrites : contour de chaque cellule, hauteur 8,5 mm.
+    doc.setDrawColor.apply(doc, REPORT_BRAND.line);
+    doc.setLineWidth(0.2);
+    let x = X0;
+    COLS.forEach(c => { doc.rect(x, y, c.w, ROW_H); x += c.w; });
+    // Préremplissage : Date et Jour uniquement, le reste s'écrit à la main.
+    const d = new Date(entree.getTime());
+    d.setDate(d.getDate() + (j - 1));
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    doc.text(d.toLocaleDateString('fr-FR'), X0 + 1.5, y + 5.4);
+    doc.setFont(undefined, 'bold');
+    doc.text('J' + j, X0 + COLS[0].w + 1.5, y + 5.4);
+    doc.setFont(undefined, 'normal');
+    y += ROW_H;
+  }
+
+  reportFooterPDF(doc);
+  doc.save('cahier-batiment-' + String(bande.nom_bande || 'bande').replace(/\s+/g, '-').toLowerCase()
+    + '-J' + jFrom + '-J' + jTo + '.pdf');
+  toast('Cahier de bâtiment PDF généré');
 }
 
 async function exportDailiesPDF() {
