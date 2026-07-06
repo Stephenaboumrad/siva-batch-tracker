@@ -5191,6 +5191,18 @@ async function processSyncQueue() {
       if (resp && resp.error) throw new Error(resp.error.message);
       processed++;
     } catch (e) {
+      // Doublon jour (contrainte 0024 saisies_bande_date_uniq) : la base a
+      // déjà une saisie pour ce (bande, date) — ex. ressaisie en ligne
+      // pendant que la copie hors ligne attendait, ou rejeu d'un insert déjà
+      // passé (duplicate key sur saisie_id). Le rejeu ne passera JAMAIS :
+      // même chemin que l'avertissement doublon — information, pas erreur
+      // brute, et retrait de l'opération de la file.
+      const isDupSaisie = (x) => item.action === 'addSaisie'
+        && /duplicate key|saisies_bande_date_uniq/i.test(x.message);
+      if (isDupSaisie(e)) {
+        toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+        continue;
+      }
       // Repli migration 0024 : une saisie mise en file avec les champs cahier
       // AVANT l'exécution manuelle du SQL échouerait au rejeu pour toujours
       // (PostgREST : colonne inconnue). On rejoue UNE fois sans ces champs —
@@ -5211,7 +5223,12 @@ async function processSyncQueue() {
           processed++;
           toast('Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)', 'error');
           continue;
-        } catch (e2) { /* toujours en échec : reste en file */ }
+        } catch (e2) {
+          if (isDupSaisie(e2)) {
+            toast('Saisie hors ligne ignorée : une saisie existait déjà pour ce jour');
+            continue;
+          }
+        }
       }
       errors++;
       remaining.push(item);
@@ -8899,6 +8916,14 @@ async function submitSaisie() {
       if (!saisiePushed) STATE.saisies.push(Object.assign({}, cahierFields, saisiePayload));
       toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
       resetSaisieForm();
+    } else if (!saisiePushed && /duplicate key|saisies_bande_date_uniq/i.test(err.message)) {
+      // Contrainte 0024 (une-saisie-par-jour) refusée par la base : même
+      // chemin que l'avertissement doublon consultatif — information, pas
+      // erreur brute (convention 0022 paies_employe_mois_uniq). Formulaire
+      // conservé pour corriger la date. Le garde !saisiePushed exclut un
+      // doublon venu du sous-formulaire intrant après saisie déjà écrite.
+      setFieldMsg('date', 'warn', 'Une saisie existe déjà pour cette date — doublon possible, vérifier avant d\'enregistrer.');
+      toast('Saisie non enregistrée : une saisie existe déjà pour cette date');
     } else {
       toast('Erreur: ' + err.message, 'error');
     }
