@@ -4645,7 +4645,7 @@ const ACTION_MAP = {
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -4994,6 +4994,21 @@ async function sbSelect(table, filters) {
   return all;
 }
 
+// ── parametres (0028) : standard COMMUN clé/valeur ─────────────────────────
+// Config partagée (seuils d'alerte mortalité, réglages sanitaires…) lue par
+// tous les rôles authentifiés, écrite par le manager seul (RLS 0028). Lecture
+// dédiée HORS sbSelect : la table n'a pas de colonne created_at (tri de la
+// pagination) et ne dépassera jamais une page. OPTIONNELLE tant que la
+// migration 0028 n'est pas appliquée en Supabase : repli [] silencieux —
+// l'app retombe alors sur les défauts/cache localStorage (rien ne casse).
+async function fetchParametres() {
+  try {
+    const { data, error } = await sb.from('parametres').select('key, value, updated_at, updated_by');
+    if (error) return [];
+    return data || [];
+  } catch (e) { return []; }
+}
+
 async function apiGet(params) {
   const action = params.action;
   if (action === 'ping') {
@@ -5017,8 +5032,9 @@ async function apiGet(params) {
       // tables tant que la migration n'est pas passée ; elles se peupleront ensuite.
       if (OPTIONAL_TABLES.has(t)) return sbSelect(t).catch(() => []);
       return sbSelect(t);
-    }));
+    }).concat([fetchParametres()]));
     ALL_TABLES.forEach(([, key], i) => { out[key] = results[i]; });
+    out.parametres = results[ALL_TABLES.length];
     return out;
   }
   if (action === 'getAllSupplyChain') {
@@ -5365,8 +5381,14 @@ async function loadAllData() {
     STATE.vaccinations = data.vaccinations || [];
     STATE.protocoleTraitements = data.protocoleTraitements || [];
     STATE.traitements = data.traitements || [];
+    STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
+    // Cache de RELECTURE (0028) : le standard commun fraîchement chargé est
+    // recopié dans le localStorage legacy — jamais l'inverse. La table
+    // parametres reste la source de vérité ; le localStorage ne sert qu'au
+    // repli (hors ligne / table pas encore appliquée).
+    if (getParametre('vet_params') !== undefined) saveVetParams({});
     // Seed matières premières si la table est vide (rarement utilisé : déjà seedé en SQL)
     if (STATE.matieres.length === 0) seedDefaultMatieres();
     // Cache local pour reprise hors ligne.
@@ -5390,6 +5412,7 @@ async function loadAllData() {
         notifications: STATE.notifications, produits: STATE.produits,
         protocoleVaccinal: STATE.protocoleVaccinal, vaccinations: STATE.vaccinations,
         protocoleTraitements: STATE.protocoleTraitements, traitements: STATE.traitements,
+        parametres: STATE.parametres,
         cachedAt: new Date().toISOString()
       };
       for (const k of CACHE_EXCLUDED) delete snapshot[k];
@@ -5429,6 +5452,7 @@ async function loadAllData() {
       STATE.vaccinations = cached.vaccinations || [];
       STATE.protocoleTraitements = cached.protocoleTraitements || [];
       STATE.traitements = cached.traitements || [];
+      STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
       showOfflineBanner(cached.cachedAt);
@@ -5934,7 +5958,12 @@ async function deleteVaccination(vaccId) {
 const VET_MONITORING_SIGNS = ['Diarrhée', 'Symptômes respiratoires', 'Mortalité élevée'];
 const VET_MORTALITY_CAUSES = ['Virale', 'Bactérienne', 'Parasitaire'];
 
-// ── Paramètres vétérinaire (localStorage, comme le mode sombre) ──
+// ── Paramètres vétérinaire — standard COMMUN (table parametres, 0028) ──
+// Le standard doit être COMMUN, pas par appareil : la table `parametres`
+// (clé 'vet_params', jsonb) est la SOURCE DE VÉRITÉ, lue par tous les rôles,
+// écrite par le manager seul (RLS 0028). Le localStorage `coqorico_vet_params`
+// n'est plus qu'un CACHE DE RELECTURE (rafraîchi après chaque chargement) et
+// le repli tant que la migration 0028 n'est pas appliquée.
 // Défaut mortalité CUMULÉE = 3 % (valeur broiler saine, pour qu'un appareil neuf
 // ne soit pas aveugle aux alertes) ; MODIFIABLE dans Paramètres → Santé & véto
 // (mettre à vide y désactive l'alerte). 3% n'est PAS codé en dur dans la logique :
@@ -5946,11 +5975,24 @@ const VET_PARAMS_DEFAULTS = {
   mortDaily: '', mortCumul: '3', videSanitaire: '15', anticoccidien: 'Toltrazuril',
   vetNom: 'Dr Doua T. Privat Camille', vetOnvci: '168', vetStructure: 'Complexe Vétérinaire CI'
 };
+// Valeur d'un paramètre PARTAGÉ (table parametres, 0028), depuis la copie en
+// mémoire chargée au boot (STATE.parametres). undefined si la table n'est pas
+// encore appliquée / la clé absente → l'appelant garde son repli local.
+function getParametre(key) {
+  const row = (STATE.parametres || []).find(p => p && p.key === key);
+  return row ? row.value : undefined;
+}
 function getVetParams() {
+  // Précédence : standard commun (base) > cache/legacy localStorage > défauts.
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('coqorico_vet_params') || '{}') || {}; } catch (e) { saved = {}; }
-  return Object.assign({}, VET_PARAMS_DEFAULTS, saved);
+  const commun = getParametre('vet_params');
+  const communObj = (commun && typeof commun === 'object' && !Array.isArray(commun)) ? commun : {};
+  return Object.assign({}, VET_PARAMS_DEFAULTS, saved, communObj);
 }
+// Écrit le CACHE local (coqorico_vet_params) et renvoie l'objet propre.
+// N'écrit JAMAIS la base : la publication du standard commun passe par
+// saveVetParamsFromUI (upsert parametres, manager seul).
 function saveVetParams(partial) {
   const merged = Object.assign(getVetParams(), partial || {});
   const clean = {};
@@ -10790,23 +10832,42 @@ function initParametresPage() {
   renderVetParamsSettings();
 }
 
-// Réglages sanitaires (localStorage, cet appareil). Aucun seuil médical par
-// défaut : les seuils de mortalité vides = aucune alerte mortalité (cf. checkAlerts).
+// Réglages sanitaires — STANDARD COMMUN (table parametres, 0028). Édition
+// réservée au manager (la RLS refuse de toute façon l'écriture aux autres
+// rôles) ; les autres rôles voient le standard en lecture seule. Tant que la
+// migration 0028 n'est pas appliquée : repli localStorage (cet appareil),
+// comme avant. Aucun seuil médical par défaut : les seuils de mortalité
+// vides = aucune alerte mortalité (cf. checkAlerts).
 function renderVetParamsSettings() {
   const el = document.getElementById('param-vet');
   if (!el) return;
   const vp = getVetParams();
+  const manager = isManager();
+  const communRow = (STATE.parametres || []).find(p => p && p.key === 'vet_params');
+  const dis = manager ? '' : ' disabled';
+  let intro;
+  if (!manager) {
+    intro = 'Standard <strong>commun à toute la ferme</strong>, défini par le manager (lecture seule). <strong>Un champ vide = alerte correspondante désactivée.</strong>';
+  } else if (communRow) {
+    intro = 'Standard <strong>commun à toute la ferme</strong> (enregistré en base, appliqué à tous les appareils'
+      + (communRow.updated_at ? ' — dernière mise à jour ' + new Date(communRow.updated_at).toLocaleString('fr-FR') : '')
+      + '). Seuil de mortalité cumulée par défaut <strong>3 %</strong> ; le seuil journalier est optionnel. <strong>Un champ vidé désactive l\'alerte correspondante.</strong>';
+  } else {
+    intro = 'Standard commun de la ferme. ⚠️ Table <code>parametres</code> pas encore en place (migration 0028) ou aucun standard enregistré : en attendant, les réglages restent <strong>locaux à cet appareil</strong> ; « Enregistrer » les publiera pour tous dès que la table existe.';
+  }
   el.innerHTML =
-    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">Réglages sanitaires locaux (cet appareil). Seuil de mortalité cumulée par défaut <strong>3 %</strong> (modifiable) ; le seuil journalier est optionnel. <strong>Un champ vidé désactive l\'alerte correspondante.</strong></p>'
-    + '<div class="form-row"><div class="form-group"><label>Seuil mortalité journalière (%)</label><input type="number" id="vp-mort-daily" min="0" step="0.1" inputmode="decimal" placeholder="optionnel"></div>'
-    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="vp-mort-cumul" min="0" step="0.1" inputmode="decimal" placeholder="défaut 3"></div></div>'
-    + '<div class="form-row"><div class="form-group"><label>Vide sanitaire minimum (jours)</label><input type="number" id="vp-vide" min="0" step="1" inputmode="numeric"></div>'
-    + '<div class="form-group"><label>Anticoccidien recommandé</label><input type="text" id="vp-anticoc"></div></div>'
-    + '<div class="form-row"><div class="form-group"><label>Vétérinaire référent</label><input type="text" id="vp-vet-nom"></div>'
-    + '<div class="form-group"><label>N° ONVCI</label><input type="text" id="vp-vet-onvci"></div></div>'
-    + '<div class="form-group"><label>Structure vétérinaire</label><input type="text" id="vp-vet-struct"></div>'
-    + '<div id="vp-msg" style="font-size:0.82rem;color:var(--color-success);min-height:1rem;"></div>'
-    + '<button class="btn btn-primary btn-sm" onclick="saveVetParamsFromUI()">Enregistrer</button>';
+    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">' + intro + '</p>'
+    + '<div class="form-row"><div class="form-group"><label>Seuil mortalité journalière (%)</label><input type="number" id="vp-mort-daily" min="0" step="0.1" inputmode="decimal" placeholder="optionnel"' + dis + '></div>'
+    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="vp-mort-cumul" min="0" step="0.1" inputmode="decimal" placeholder="défaut 3"' + dis + '></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Vide sanitaire minimum (jours)</label><input type="number" id="vp-vide" min="0" step="1" inputmode="numeric"' + dis + '></div>'
+    + '<div class="form-group"><label>Anticoccidien recommandé</label><input type="text" id="vp-anticoc"' + dis + '></div></div>'
+    + '<div class="form-row"><div class="form-group"><label>Vétérinaire référent</label><input type="text" id="vp-vet-nom"' + dis + '></div>'
+    + '<div class="form-group"><label>N° ONVCI</label><input type="text" id="vp-vet-onvci"' + dis + '></div></div>'
+    + '<div class="form-group"><label>Structure vétérinaire</label><input type="text" id="vp-vet-struct"' + dis + '></div>'
+    + (manager
+      ? '<div id="vp-msg" style="font-size:0.82rem;color:var(--color-success);min-height:1rem;"></div>'
+        + '<button class="btn btn-primary btn-sm" onclick="saveVetParamsFromUI()">Enregistrer</button>'
+      : '');
   // Valeurs injectées via .value (évite tout échappement d'attribut).
   document.getElementById('vp-mort-daily').value = vp.mortDaily;
   document.getElementById('vp-mort-cumul').value = vp.mortCumul;
@@ -10817,8 +10878,11 @@ function renderVetParamsSettings() {
   document.getElementById('vp-vet-struct').value = vp.vetStructure;
 }
 
-function saveVetParamsFromUI() {
-  saveVetParams({
+async function saveVetParamsFromUI() {
+  if (!isManager()) { toast('Réservé au manager', 'error'); return; }
+  // Écrit d'abord le cache local (repli pré-0028 : le comportement historique),
+  // puis publie le standard COMMUN dans la table parametres (source de vérité).
+  const clean = saveVetParams({
     mortDaily: document.getElementById('vp-mort-daily').value.trim(),
     mortCumul: document.getElementById('vp-mort-cumul').value.trim(),
     videSanitaire: document.getElementById('vp-vide').value.trim(),
@@ -10827,9 +10891,33 @@ function saveVetParamsFromUI() {
     vetOnvci: document.getElementById('vp-vet-onvci').value.trim(),
     vetStructure: document.getElementById('vp-vet-struct').value.trim()
   });
-  const m = document.getElementById('vp-msg'); if (m) m.textContent = 'Enregistré.';
-  toast('Paramètres santé enregistrés');
+  let remoteOk = false;
+  let uid = null;
+  try {
+    try {
+      const { data: s } = await sb.auth.getSession();
+      uid = (s && s.session && s.session.user) ? s.session.user.id : null;
+    } catch (e) { /* uid facultatif */ }
+    const { error } = await sb.from('parametres').upsert({
+      key: 'vet_params', value: clean,
+      updated_at: new Date().toISOString(), updated_by: uid
+    });
+    remoteOk = !error;
+    if (error) console.warn('parametres.upsert refusé (0028 non appliquée ?) :', error.message);
+  } catch (e) { console.warn('parametres.upsert impossible (hors ligne ?) :', e); }
+  if (remoteOk) {
+    // Copie en mémoire alignée : tous les écrans (alertes, KPI) lisent la
+    // nouvelle valeur sans recharger.
+    const row = { key: 'vet_params', value: clean, updated_at: new Date().toISOString(), updated_by: uid };
+    const idx = (STATE.parametres || []).findIndex(p => p && p.key === 'vet_params');
+    if (idx >= 0) STATE.parametres[idx] = row; else STATE.parametres.push(row);
+    toast('Standard commun enregistré (tous les appareils)');
+  } else {
+    toast('⚠️ Enregistré sur CET APPAREIL uniquement — standard commun indisponible (migration 0028 non appliquée ou hors ligne).', 'error');
+  }
   try { checkAlerts(); } catch (e) {}
+  renderVetParamsSettings();
+  const m = document.getElementById('vp-msg'); if (m) m.textContent = remoteOk ? 'Enregistré (standard commun).' : 'Enregistré localement (cet appareil).';
 }
 
 // ── Settings ──
