@@ -458,7 +458,7 @@
 
 /* Signes observés (bloc cahier) : puces à cocher — signes factuels, pas de
    diagnostic (le diagnostic reste au vétérinaire, flux de validation). */
-#page-saisie #saisie-signes-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+#page-saisie #saisie-signes-chips, #page-saisie #saisie-5m-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 #page-saisie .signe-chip { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; border: var(--border-hairline); border-radius: 20px; padding: 0.3rem 0.75rem; font-size: 0.82rem; font-weight: 500; cursor: pointer; user-select: none; background: var(--card-bg); color: var(--text-primary); }
 #page-saisie .signe-chip:hover { border-color: var(--color-accent); }
 #page-saisie .signe-chip input[type="checkbox"] { width: auto; min-height: 0; margin: 0; accent-color: var(--color-accent); }
@@ -2996,6 +2996,22 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div class="field-msg" id="saisie-msg-mortalite"></div>
         </div>
       </div>
+      <!-- 5M (hors cahier, rattaché à la mortalité) : pré-classement OPTIONNEL
+           de la cause probable — un tap par catégorie, zéro obligation, aucun
+           champ du cahier réordonné (les signes ci-dessous restent le bloc
+           « mortalité (+ signes) » du cahier). Clés stables stockées dans
+           saisies.cause_5m (migration 0029) ; libellés = affichage seul. -->
+      <div class="form-group">
+        <label>Cause probable — 5M (optionnel)</label>
+        <div id="saisie-5m-chips">
+          <label class="signe-chip"><input type="checkbox" value="main_doeuvre"> Main-d'œuvre</label>
+          <label class="signe-chip"><input type="checkbox" value="matiere"> Matière</label>
+          <label class="signe-chip"><input type="checkbox" value="materiel"> Matériel</label>
+          <label class="signe-chip"><input type="checkbox" value="methode"> Méthode</label>
+          <label class="signe-chip"><input type="checkbox" value="milieu"> Milieu</label>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:0.25rem;font-style:italic;">Pré-classement pour l'analyse des dérives — une ou plusieurs catégories, ou aucune. Le diagnostic reste au vétérinaire.</div>
+      </div>
       <div class="form-group">
         <label>Signes observés (optionnel)</label>
         <div id="saisie-signes-chips">
@@ -3150,6 +3166,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="card">
         <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Mortalité cumulée (%)</h3>
         <div class="chart-container" style="height:250px;"><canvas id="chart-mortalite"></canvas></div>
+        <!-- Répartition 5M (lecture seule, 0029) — rempli par renderFicheMortalite5m,
+             vide tant qu'aucune saisie de la bande n'est catégorisée. -->
+        <div id="fiche-mortalite-5m"></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
         <div class="card">
@@ -5223,17 +5242,27 @@ function updateSyncStatus() {
 }
 
 // Replis de rejeu pour colonnes de migrations non encore appliquées : par
-// action, les colonnes optionnelles à retirer pour rejouer un insert refusé
-// « colonne inconnue » (même discipline que le repli d'insertion en ligne).
+// action, des GROUPES INDÉPENDANTS de colonnes optionnelles à retirer pour
+// rejouer un insert refusé « colonne inconnue » (même discipline que le repli
+// d'insertion en ligne). Un groupe = une migration : 0024 peut être appliquée
+// sans 0029 (ou l'inverse) — on ne retire que le groupe que l'erreur nomme.
 const QUEUE_COLUMN_FALLBACKS = {
-  addSaisie: {
-    cols: ['temperature_observee_c', 'observations', 'signes_observes'],
-    msg: 'Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)'
-  },
-  addBande: {
-    cols: ['batiment', 'souche'],
-    msg: 'Bande synchronisée SANS bâtiment/souche (migration 0025 non appliquée en base)'
-  }
+  addSaisie: [
+    {
+      cols: ['temperature_observee_c', 'observations', 'signes_observes'],
+      msg: 'Saisie synchronisée SANS T° observée / observations / signes (migration 0024 non appliquée en base)'
+    },
+    {
+      cols: ['cause_5m'],
+      msg: 'Saisie synchronisée SANS cause 5M (migration 0029 non appliquée en base)'
+    }
+  ],
+  addBande: [
+    {
+      cols: ['batiment', 'souche'],
+      msg: 'Bande synchronisée SANS bâtiment/souche (migration 0025 non appliquée en base)'
+    }
+  ]
 };
 
 // Doublons terminaux au rejeu : par action, message d'information quand la
@@ -5283,30 +5312,41 @@ async function processSyncQueue() {
         toast(QUEUE_DUP_MESSAGES[item.action]);
         continue;
       }
-      // Repli migrations en attente (0024 saisies, 0025 bandes) : un insert
-      // mis en file avec des colonnes que la base ne connaît pas encore
-      // (SQL exécuté à la main APRÈS le déploiement Railway) échouerait au
-      // rejeu pour toujours. On rejoue UNE fois sans ces colonnes — la ligne
-      // de base est préservée, la perte est signalée.
-      const fb = QUEUE_COLUMN_FALLBACKS[item.action];
-      const colErr = fb && item.payload
-        && /column|schema cache/i.test(e.message)
-        && fb.cols.some(c => e.message.includes(c))
-        && fb.cols.some(c => c in item.payload);
-      if (colErr) {
-        try {
-          const slim = Object.assign({}, item.payload);
-          fb.cols.forEach(c => { delete slim[c]; });
-          const r2 = await sb.from(cfg.table).insert([slim]);
-          if (r2 && r2.error) throw new Error(r2.error.message);
+      // Repli migrations en attente (0024/0029 saisies, 0025 bandes) : un
+      // insert mis en file avec des colonnes que la base ne connaît pas
+      // encore (SQL exécuté à la main APRÈS le déploiement Railway)
+      // échouerait au rejeu pour toujours. On retire le GROUPE de colonnes
+      // que l'erreur nomme et on rejoue, groupe par groupe (l'erreur
+      // PostgREST ne nomme qu'UNE colonne à la fois) — la ligne de base est
+      // préservée, chaque perte est signalée.
+      const fbGroups = (item.payload && QUEUE_COLUMN_FALLBACKS[item.action]) || [];
+      const isColErr = (x) => /column|schema cache/i.test(x.message);
+      if (fbGroups.length && isColErr(e)) {
+        const slim = Object.assign({}, item.payload);
+        const lostMsgs = [];
+        let lastErr = e;
+        let synced = false;
+        for (let tries = 0; tries < fbGroups.length && !synced; tries++) {
+          const g = fbGroups.find(gr => isColErr(lastErr)
+            && gr.cols.some(c => lastErr.message.includes(c))
+            && gr.cols.some(c => c in slim));
+          if (!g) break;
+          g.cols.forEach(c => { delete slim[c]; });
+          lostMsgs.push(g.msg);
+          try {
+            const r2 = await sb.from(cfg.table).insert([slim]);
+            if (r2 && r2.error) { lastErr = new Error(r2.error.message); continue; }
+            synced = true;
+          } catch (e2) { lastErr = e2; }
+        }
+        if (synced) {
           processed++;
-          toast(fb.msg, 'error');
+          lostMsgs.forEach(m => toast(m, 'error'));
           continue;
-        } catch (e2) {
-          if (isDupDrop(e2)) {
-            toast(QUEUE_DUP_MESSAGES[item.action]);
-            continue;
-          }
+        }
+        if (isDupDrop(lastErr)) {
+          toast(QUEUE_DUP_MESSAGES[item.action]);
+          continue;
         }
       }
       errors++;
@@ -5957,6 +5997,23 @@ async function deleteVaccination(vaccId) {
 // ── Données de référence vétérinaire (libellés uniquement, aucune logique) ──
 const VET_MONITORING_SIGNS = ['Diarrhée', 'Symptômes respiratoires', 'Mortalité élevée'];
 const VET_MORTALITY_CAUSES = ['Virale', 'Bactérienne', 'Parasitaire'];
+
+// ── 5M (axe fonctionnel systémique) : catégories de cause racine pour
+// l'analyse des dérives d'indicateurs (mortalité). Clés STABLES stockées en
+// base (saisies.cause_5m jsonb, migration 0029) — les libellés ne servent
+// qu'à l'affichage, l'analyse se fait sur les clés. Source de vérité unique :
+// chips du formulaire de saisie et répartition fiche lisent CETTE liste.
+const CAUSES_5M = [
+  { key: 'main_doeuvre', label: 'Main-d\'œuvre' },
+  { key: 'matiere',      label: 'Matière' },
+  { key: 'materiel',     label: 'Matériel' },
+  { key: 'methode',      label: 'Méthode' },
+  { key: 'milieu',       label: 'Milieu' }
+];
+function cause5mLabel(key) {
+  const c = CAUSES_5M.find(x => x.key === key);
+  return c ? c.label : key;
+}
 
 // ── Paramètres vétérinaire — standard COMMUN (table parametres, 0028) ──
 // Le standard doit être COMMUN, pas par appareil : la table `parametres`
@@ -7356,7 +7413,7 @@ function formatNotifStatut(s) {
 }
 
 function formatNotifPayload(type, p) {
-  if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g' + (p.signes_observes ? ' | Signes : ' + escHtml(p.signes_observes) : '');
+  if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g' + (Array.isArray(p.cause_5m) && p.cause_5m.length ? ' | 5M : ' + escHtml(p.cause_5m.map(cause5mLabel).join(', ')) : '') + (p.signes_observes ? ' | Signes : ' + escHtml(p.signes_observes) : '');
   if (type === 'intrant') { const m = fmtMoney(p.cout_total_fcfa || 0); return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' — ' + m : ''); }
   if (type === 'reception') { const m = fmtMoney(p.prix_unitaire_fcfa || 0); return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' @ ' + m : ''); }
   if (type === 'abattage') return (p.nb_oiseaux_abattus || 0) + ' oiseaux | ' + (p.poids_vif_total_kg || 0) + ' kg vif';
@@ -8621,6 +8678,7 @@ function initSaisiePage() {
   document.getElementById('saisie-temp-observee').value = '';
   document.getElementById('saisie-observations').value = '';
   resetSignesObserves();
+  resetCause5m();
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
@@ -8916,6 +8974,21 @@ function resetSignesObserves() {
   document.getElementById('saisie-signes-libre').value = '';
 }
 
+// ── 5M : chips cochées → tableau de clés (saisies.cause_5m, migration 0029).
+// null si aucune : la clé est alors ABSENTE du payload — aucun repli colonne
+// inconnue déclenché pour rien tant que 0029 n'est pas appliquée. ──
+function buildCause5m() {
+  const keys = [];
+  document.querySelectorAll('#saisie-5m-chips input[type="checkbox"]:checked')
+    .forEach(cb => keys.push(cb.value));
+  return keys.length ? keys : null;
+}
+
+function resetCause5m() {
+  document.querySelectorAll('#saisie-5m-chips input[type="checkbox"]')
+    .forEach(cb => { cb.checked = false; });
+}
+
 function toggleIntrantForm() {
   const form = document.getElementById('intrant-subform');
   const btn = document.getElementById('toggle-intrant-btn');
@@ -8975,11 +9048,24 @@ async function submitSaisie() {
   const hasCahierValues = Object.keys(cahierFields).some(k => cahierFields[k] !== null);
   let cahierDropped = false;
   if (hasCahierValues) Object.assign(saisiePayload, cahierFields);
+  // Cause 5M (migration 0029) : même discipline que les champs cahier — clé
+  // posée seulement si des catégories sont cochées, repli sans la colonne si
+  // la base ne la connaît pas encore. Groupe INDÉPENDANT de 0024 (l'une peut
+  // être appliquée sans l'autre).
+  const cause5m = buildCause5m();
+  let cause5mDropped = false;
+  if (cause5m) saisiePayload.cause_5m = cause5m;
 
   const btn = document.getElementById('btn-submit-saisie');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enregistrement...';
   let saisiePushed = false;
+  // Libellé des groupes écartés par les replis colonne-inconnue (0024/0029),
+  // évalué au moment du toast (les drops surviennent pendant les réessais).
+  const perduMsg = () => [
+    cahierDropped ? 'T° observée / observations / signes (migration 0024)' : null,
+    cause5mDropped ? 'cause 5M (migration 0029)' : null
+  ].filter(Boolean).join(' + ');
 
   try {
     const bandeName = bande ? bande.nom_bande : bandeId;
@@ -8989,18 +9075,32 @@ async function submitSaisie() {
     try {
       await apiPost({ action: 'addSaisie', payload: saisiePayload });
     } catch (err) {
-      // Colonnes 0024 absentes en prod (PostgREST : « Could not find the
-      // '…' column of 'saisies' in the schema cache ») : on réessaie sans
-      // les champs cahier plutôt que de perdre toute la saisie.
-      const colErr = hasCahierValues
-        && /column|schema cache/i.test(err.message)
-        && /temperature_observee_c|observations|signes_observes/i.test(err.message);
-      if (!colErr) throw err;
-      delete saisiePayload.temperature_observee_c;
-      delete saisiePayload.observations;
-      delete saisiePayload.signes_observes;
-      cahierDropped = true;
-      await apiPost({ action: 'addSaisie', payload: saisiePayload });
+      // Colonnes de migrations non appliquées en prod (PostgREST : « Could
+      // not find the '…' column of 'saisies' in the schema cache ») : on
+      // retire le GROUPE que l'erreur nomme et on réessaie, groupe par
+      // groupe — 0024 (champs cahier) et 0029 (cause_5m) sont indépendantes,
+      // on ne perd que le groupe réellement inconnu, jamais toute la saisie.
+      let lastErr = err;
+      for (let tries = 0; tries < 2 && lastErr; tries++) {
+        const isColErr = /column|schema cache/i.test(lastErr.message);
+        if (isColErr && !cahierDropped && hasCahierValues
+            && /temperature_observee_c|observations|signes_observes/i.test(lastErr.message)) {
+          delete saisiePayload.temperature_observee_c;
+          delete saisiePayload.observations;
+          delete saisiePayload.signes_observes;
+          cahierDropped = true;
+        } else if (isColErr && !cause5mDropped && cause5m && /cause_5m/i.test(lastErr.message)) {
+          delete saisiePayload.cause_5m;
+          cause5mDropped = true;
+        } else {
+          throw lastErr;
+        }
+        try {
+          await apiPost({ action: 'addSaisie', payload: saisiePayload });
+          lastErr = null;
+        } catch (e2) { lastErr = e2; }
+      }
+      if (lastErr) throw lastErr;
     }
     // Copie locale : porter les 3 clés cahier (valeurs ou null) quand elles
     // n'ont pas été écartées, pour que les rendus (fiche, véto…) les voient.
@@ -9052,8 +9152,8 @@ async function submitSaisie() {
 
     if (intrantRejete) {
       toast('Saisie enregistrée, mais intrant NON transmis : ' + intrantRejete + ' — ressaisir l\'intrant seul.', 'error');
-    } else if (cahierDropped) {
-      toast('Saisie enregistrée, mais T° observée / observations / signes NON enregistrés : migration 0024 non appliquée en base.', 'error');
+    } else if (cahierDropped || cause5mDropped) {
+      toast('Saisie enregistrée, mais NON enregistrés : ' + perduMsg() + ' — migration non appliquée en base.', 'error');
     } else {
       toast('Saisie enregistrée');
     }
@@ -9067,8 +9167,8 @@ async function submitSaisie() {
       // Si le repli 0024 a déjà retiré les champs cahier avant la coupure,
       // la perte doit rester signalée (même discipline qu'en ligne).
       if (!saisiePushed) STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
-      if (cahierDropped) {
-        toast('Saisie enregistrée (hors ligne — sera synchronisée), mais T° observée / observations / signes NON enregistrés : migration 0024 non appliquée en base.', 'error');
+      if (cahierDropped || cause5mDropped) {
+        toast('Saisie enregistrée (hors ligne — sera synchronisée), mais NON enregistrés : ' + perduMsg() + ' — migration non appliquée en base.', 'error');
       } else {
         toast('Saisie enregistrée (hors ligne — sera synchronisée)', 'success');
       }
@@ -9101,6 +9201,7 @@ function resetSaisieForm() {
   document.getElementById('saisie-temp-observee').value = '';
   document.getElementById('saisie-observations').value = '';
   resetSignesObserves();
+  resetCause5m();
   document.getElementById('saisie-ambiance-hint').innerHTML = '';
   document.getElementById('intrant-nom').value = '';
   document.getElementById('intrant-quantite').value = '';
@@ -9241,6 +9342,9 @@ function loadFicheBande() {
 
   // Charts
   renderFicheCharts(ind);
+
+  // Répartition 5M de la mortalité (lecture seule)
+  renderFicheMortalite5m(ind);
 
   // Saisies table
   renderFicheSaisiesTable(ind, bande);
@@ -9557,6 +9661,40 @@ function chartOptions(yLabel) {
     plugins: { legend: { position: 'bottom', labels: { color: t.axis } } },
     spanGaps: true
   };
+}
+
+// ── Répartition 5M de la mortalité (lecture seule, bande courante) ──────────
+// Analyse de dérive (axe fonctionnel systémique) : somme des « morts du jour »
+// par catégorie 5M cochée à la saisie (saisies.cause_5m, migration 0029).
+// Une saisie cochée sur PLUSIEURS catégories compte ses morts dans CHACUNE
+// (recouvrement assumé — indiqué sous le bloc) ; les morts sans catégorie
+// restent visibles (« non catégorisé ») pour ne rien masquer. Masqué tant
+// qu'aucune saisie de la bande n'est catégorisée (pré-0029 : rien ne change).
+function renderFicheMortalite5m(ind) {
+  const el = document.getElementById('fiche-mortalite-5m');
+  if (!el) return;
+  const counts = {};
+  CAUSES_5M.forEach(c => { counts[c.key] = 0; });
+  let nonCat = 0;
+  let tagged = false;
+  (ind.saisies || []).forEach(s => {
+    const morts = Number(s.mortalite_jour) || 0;
+    if (!morts) return;
+    const tags = Array.isArray(s.cause_5m) ? s.cause_5m.filter(k => counts[k] !== undefined) : [];
+    if (tags.length) { tagged = true; tags.forEach(k => { counts[k] += morts; }); }
+    else nonCat += morts;
+  });
+  if (!tagged) { el.innerHTML = ''; return; }
+  const badge = (label, n, muted) =>
+    '<span style="display:inline-flex;align-items:center;gap:0.35rem;border:var(--border-hairline);border-radius:20px;padding:0.25rem 0.7rem;font-size:0.8rem;font-weight:500;color:' + (muted ? 'var(--text-muted)' : 'var(--text-primary)') + ';">'
+    + label + ' <strong style="font-family:var(--font-mono);">' + fmt(n) + '</strong></span>';
+  el.innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.75rem;">'
+    + '<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Mortalité par 5M</span>'
+    + CAUSES_5M.filter(c => counts[c.key] > 0).map(c => badge(c.label, counts[c.key], false)).join('')
+    + (nonCat > 0 ? badge('non catégorisé', nonCat, true) : '')
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Morts du jour sommés par catégorie cochée à la saisie — une saisie multi-catégories compte dans chaque catégorie.</div>';
 }
 
 function renderFicheSaisiesTable(ind, bande) {
