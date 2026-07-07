@@ -3151,6 +3151,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('excel')"><i data-lucide="sheet"></i> Export Excel</button>
         <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('fiche')"><i data-lucide="printer"></i> Cahier de bâtiment (vierge)</button>
       </div>
+      <!-- Bilan de bande DMAICS (clôture P6) — manager + bande terminée
+           uniquement, rempli par renderFicheBilanDmaics() ; vide sinon. -->
+      <div id="fiche-bilan-dmaics" style="display:none;"></div>
       <!-- Encart Rentabilité (réservé managers SIVA-001 / SIVA-002) — rempli par renderFicheRentabilite() -->
       <div class="card" id="fiche-rentabilite" style="display:none;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
@@ -6038,6 +6041,46 @@ const VET_PARAMS_DEFAULTS = {
 function getParametre(key) {
   const row = (STATE.parametres || []).find(p => p && p.key === key);
   return row ? row.value : undefined;
+}
+// Écrit un paramètre PARTAGÉ (upsert table parametres, 0028) et aligne la
+// copie mémoire — CHEMIN D'ÉCRITURE UNIQUE des standards communs (Paramètres →
+// Santé & véto ET bilan de bande). Écriture réservée au manager (RLS 0028).
+// Renvoie true si la base a accepté ; false sinon (table absente / hors
+// ligne / RLS) — l'appelant décide du repli et du message.
+async function saveParametre(key, value) {
+  try {
+    let uid = null;
+    try {
+      const { data: s } = await sb.auth.getSession();
+      uid = (s && s.session && s.session.user) ? s.session.user.id : null;
+    } catch (e) { /* uid facultatif */ }
+    const { error } = await sb.from('parametres').upsert({
+      key: key, value: value,
+      updated_at: new Date().toISOString(), updated_by: uid
+    });
+    if (error) {
+      console.warn('parametres.upsert refusé (' + key + ') — 0028 non appliquée ? :', error.message);
+      return false;
+    }
+    const row = { key: key, value: value, updated_at: new Date().toISOString(), updated_by: uid };
+    const idx = (STATE.parametres || []).findIndex(p => p && p.key === key);
+    if (idx >= 0) STATE.parametres[idx] = row; else STATE.parametres.push(row);
+    return true;
+  } catch (e) {
+    console.warn('parametres.upsert impossible (' + key + ', hors ligne ?) :', e);
+    return false;
+  }
+}
+// ── Objectifs de bande (standards de production PARTAGÉS, clé 'objectifs_bande')
+// Cible par défaut : poulet vif ~1 100 g à 30–32 jours (objectif SIVA, affiché
+// et AJUSTABLE au bilan de bande — étape Pérenniser du DMAICS). AUCUNE nouvelle
+// migration : simple clé jsonb supplémentaire de la table parametres (0028).
+// ic_cible optionnel (null = pas de standard IC défini).
+const OBJECTIFS_BANDE_DEFAULTS = { poids_cible_g: 1100, age_cible_min_j: 30, age_cible_max_j: 32, ic_cible: null };
+function getObjectifsBande() {
+  const db = getParametre('objectifs_bande');
+  const obj = (db && typeof db === 'object' && !Array.isArray(db)) ? db : {};
+  return Object.assign({}, OBJECTIFS_BANDE_DEFAULTS, obj);
 }
 function getVetParams() {
   // Précédence : standard commun (base) > cache/legacy localStorage > défauts.
@@ -9337,6 +9380,9 @@ function loadFicheBande() {
     ${withdrawalHtml}
     ${ficheForecast ? '<div class="forecast-chip">' + ficheForecast.text + '</div>' : ''}`;
 
+  // Bilan de bande DMAICS (manager + bande terminée ; vide sinon)
+  renderFicheBilanDmaics(bande, ind);
+
   // Encart Rentabilité (réservé managers SIVA-001 / SIVA-002)
   renderFicheRentabilite(bande);
 
@@ -9670,31 +9716,298 @@ function chartOptions(yLabel) {
 // (recouvrement assumé — indiqué sous le bloc) ; les morts sans catégorie
 // restent visibles (« non catégorisé ») pour ne rien masquer. Masqué tant
 // qu'aucune saisie de la bande n'est catégorisée (pré-0029 : rien ne change).
-function renderFicheMortalite5m(ind) {
-  const el = document.getElementById('fiche-mortalite-5m');
-  if (!el) return;
+// Agrégat 5M d'une liste de saisies : morts du jour sommés par catégorie
+// cochée (une saisie multi-catégories compte dans CHACUNE), + non catégorisé.
+// Partagé entre le bloc fiche (sous le chart mortalité) et le bilan DMAICS.
+function aggregateMortalite5m(saisies) {
   const counts = {};
   CAUSES_5M.forEach(c => { counts[c.key] = 0; });
   let nonCat = 0;
   let tagged = false;
-  (ind.saisies || []).forEach(s => {
+  (saisies || []).forEach(s => {
     const morts = Number(s.mortalite_jour) || 0;
     if (!morts) return;
     const tags = Array.isArray(s.cause_5m) ? s.cause_5m.filter(k => counts[k] !== undefined) : [];
     if (tags.length) { tagged = true; tags.forEach(k => { counts[k] += morts; }); }
     else nonCat += morts;
   });
-  if (!tagged) { el.innerHTML = ''; return; }
+  return { counts, nonCat, tagged };
+}
+
+// Rangée de badges « catégorie → nb de morts » d'un agrégat 5M.
+function mortalite5mBadgesHtml(agg) {
   const badge = (label, n, muted) =>
     '<span style="display:inline-flex;align-items:center;gap:0.35rem;border:var(--border-hairline);border-radius:20px;padding:0.25rem 0.7rem;font-size:0.8rem;font-weight:500;color:' + (muted ? 'var(--text-muted)' : 'var(--text-primary)') + ';">'
     + label + ' <strong style="font-family:var(--font-mono);">' + fmt(n) + '</strong></span>';
+  return CAUSES_5M.filter(c => agg.counts[c.key] > 0).map(c => badge(c.label, agg.counts[c.key], false)).join('')
+    + (agg.nonCat > 0 ? badge('non catégorisé', agg.nonCat, true) : '');
+}
+
+function renderFicheMortalite5m(ind) {
+  const el = document.getElementById('fiche-mortalite-5m');
+  if (!el) return;
+  const agg = aggregateMortalite5m(ind.saisies);
+  if (!agg.tagged) { el.innerHTML = ''; return; }
   el.innerHTML =
     '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-top:0.75rem;">'
     + '<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Mortalité par 5M</span>'
-    + CAUSES_5M.filter(c => counts[c.key] > 0).map(c => badge(c.label, counts[c.key], false)).join('')
-    + (nonCat > 0 ? badge('non catégorisé', nonCat, true) : '')
+    + mortalite5mBadgesHtml(agg)
     + '</div>'
     + '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Morts du jour sommés par catégorie cochée à la saisie — une saisie multi-catégories compte dans chaque catégorie.</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Bilan de bande DMAICS (clôture P6) — manager + bande terminée ──
+// Mesurer (indicateurs finaux, source affichée par ligne) → Analyser (5M
+// des dérives, 0029) → Améliorer / Contrôler-Pérenniser (standards ajustés
+// écrits dans parametres 0028 APRÈS confirmation explicite en deux temps).
+// LECTURE SEULE sauf cette écriture confirmée (saveParametre, chemin unique
+// partagé avec Paramètres → Santé & véto). Sources d'indicateurs (choisies,
+// pas devinées — chacune étiquetée dans le tableau) :
+//  - Mortalité : somme des mortalite_jour saisis (computeIndicators — même
+//    champ que les charts dashboard).
+//  - Poids abattage : poids_vif_moyen_sortie_g FIGÉ à la clôture ; repli
+//    « dernière pesée » (ind.poidsMesure) si la clôture n'en a pas.
+//  - Âge abattage : date_sortie − date_entree + 1 (convention app J1) ;
+//    repli « dernier jour saisi ». Les sessions d'abattage (poids_vif_total
+//    par journée) ne sont PAS agrégées ici : elles peuvent ne couvrir qu'une
+//    partie du lot — choix documenté plutôt que moyenne trompeuse.
+// ══════════════════════════════════════════════════════════════════════
+let pendingBilanStandards = null;
+
+// Bande terminée la plus récente ENTRÉE avant la bande courante (les bandes
+// archivées comptent : la comparaison est historique).
+function findPreviousBande(bande) {
+  return STATE.bandes
+    .filter(b => b.bande_id !== bande.bande_id && b.statut === 'termine'
+      && b.date_entree && bande.date_entree && b.date_entree < bande.date_entree)
+    .sort((a, b) => (a.date_entree < b.date_entree ? 1 : -1))[0] || null;
+}
+
+// Poids vif final et âge d'abattage d'une bande terminée, avec source explicite.
+function bilanFinalMetrics(bande, ind) {
+  let poids = Number(bande.poids_vif_moyen_sortie_g) || null;
+  let poidsSrc = 'figé à la clôture';
+  if (poids == null && ind.hasWeighing) { poids = ind.poidsMesure; poidsSrc = 'dernière pesée (repli)'; }
+  if (poids == null) poidsSrc = null;
+  let age = null;
+  let ageSrc = null;
+  if (bande.date_sortie && bande.date_entree) {
+    age = daysBetween(bande.date_entree, bande.date_sortie) + 1;
+    ageSrc = 'date de sortie';
+  } else if (ind.dernierJour) {
+    age = ind.dernierJour;
+    ageSrc = 'dernier jour saisi (repli)';
+  }
+  return { poids: poids, poidsSrc: poidsSrc, age: age, ageSrc: ageSrc };
+}
+
+function renderFicheBilanDmaics(bande, ind) {
+  const el = document.getElementById('fiche-bilan-dmaics');
+  if (!el) return;
+  if (!isManager() || bande.statut !== 'termine') { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  const obj = getObjectifsBande();
+  const seuilMort = vetParamNum('mortCumul');
+  const cur = bilanFinalMetrics(bande, ind);
+  const prevBande = findPreviousBande(bande);
+  const prevInd = prevBande ? computeIndicators(prevBande) : null;
+  const prev = prevBande ? bilanFinalMetrics(prevBande, prevInd) : null;
+
+  const num = (v, dec, unit) => (v != null && isFinite(v)) ? fmt(v, dec) + (unit || '') : '—';
+  const statutHtml = (st) => st === 'ok'
+    ? '<span style="color:var(--color-success);font-weight:700;">Conforme</span>'
+    : st === 'ko'
+      ? '<span style="color:var(--color-danger);font-weight:700;">Écart</span>'
+      : st === 'warn'
+        ? '<span style="color:var(--color-warning);font-weight:700;">Hors cible</span>'
+        : '<span style="color:var(--text-muted);">—</span>';
+
+  // ── M (Mesurer) + comparaisons : cette bande / précédente / standard ──
+  const rows = [
+    {
+      label: 'Mortalité cumulée',
+      cette: num(ind.tauxMort, 1, ' %'),
+      prec: prevInd ? num(prevInd.tauxMort, 1, ' %') : '—',
+      std: seuilMort != null ? '≤ ' + fmtPct(seuilMort) + ' %' : 'seuil non défini',
+      statut: seuilMort == null ? null : (ind.tauxMort <= seuilMort ? 'ok' : 'ko'),
+      src: 'somme des « morts du jour » saisis'
+    },
+    {
+      label: 'IC (indice de consommation)',
+      cette: num(ind.ic, 2),
+      prec: prevInd ? num(prevInd.ic, 2) : '—',
+      std: obj.ic_cible != null ? '≤ ' + fmt(obj.ic_cible, 2) : 'cible non définie',
+      statut: (obj.ic_cible != null && ind.ic != null) ? (ind.ic <= obj.ic_cible ? 'ok' : 'ko') : null,
+      src: 'aliment total / (poids vif × effectif)'
+    },
+    {
+      label: 'GMQ',
+      cette: num(ind.gmq, 1, ' g/j'),
+      prec: prevInd ? num(prevInd.gmq, 1, ' g/j') : '—',
+      std: 'comparaison seule',
+      statut: null,
+      src: 'gain moyen jusqu\'à la dernière pesée'
+    },
+    {
+      label: 'Poids vif à l\'abattage',
+      cette: num(cur.poids, 0, ' g'),
+      prec: prev ? num(prev.poids, 0, ' g') : '—',
+      std: '≥ ' + fmt(obj.poids_cible_g, 0) + ' g',
+      statut: cur.poids != null ? (cur.poids >= obj.poids_cible_g ? 'ok' : 'ko') : null,
+      src: cur.poidsSrc || 'aucune donnée'
+    },
+    {
+      label: 'Âge à l\'abattage',
+      cette: num(cur.age, 0, ' j'),
+      prec: prev ? num(prev.age, 0, ' j') : '—',
+      std: obj.age_cible_min_j + '–' + obj.age_cible_max_j + ' j',
+      statut: cur.age != null ? ((cur.age >= obj.age_cible_min_j && cur.age <= obj.age_cible_max_j) ? 'ok' : 'warn') : null,
+      src: cur.ageSrc || 'aucune donnée'
+    }
+  ];
+  const mesureRows = rows.map(r =>
+    '<tr><td>' + r.label + '<div style="font-size:10px;color:var(--text-muted);font-style:italic;">source : ' + r.src + '</div></td>'
+    + '<td style="font-family:var(--font-mono);"><strong>' + r.cette + '</strong></td>'
+    + '<td style="font-family:var(--font-mono);">' + r.prec + '</td>'
+    + '<td style="font-family:var(--font-mono);">' + r.std + '</td>'
+    + '<td>' + statutHtml(r.statut) + '</td></tr>').join('');
+
+  // ── A (Analyser) : répartition 5M des morts ──
+  const agg = aggregateMortalite5m(ind.saisies);
+  const analyseHtml = agg.tagged
+    ? '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' + mortalite5mBadgesHtml(agg) + '</div>'
+      + '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Morts du jour sommés par catégorie 5M cochée à la saisie — une saisie multi-catégories compte dans chaque catégorie.</div>'
+    : '<div style="font-size:0.85rem;color:var(--text-muted);">Aucune saisie de cette bande n\'est catégorisée 5M — analyse indisponible. Taguer les mortalités à la saisie journalière (chips 5M) pour alimenter cette section.</div>';
+
+  // ── I + C/S (Améliorer / Pérenniser) : standards ajustés ──
+  const vp = getVetParams();
+  const communDispo = getParametre('vet_params') !== undefined || getParametre('objectifs_bande') !== undefined;
+  const sustainNote = communDispo
+    ? 'Les valeurs confirmées sont écrites dans la table <code>parametres</code> (standard commun, tous les appareils).'
+    : '⚠️ Table <code>parametres</code> pas encore alimentée (migration 0028 non appliquée ou aucun standard écrit) : la confirmation tentera l\'écriture et signalera un échec éventuel.';
+
+  el.innerHTML =
+    '<div class="card">'
+    + '<div class="card-header"><h3>Bilan de bande — DMAICS (clôture)</h3>'
+    + '<span class="badge badge-grey">' + escHtml(bande.nom_bande) + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '') + '</span></div>'
+
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:0.5rem 0 0.4rem;">Mesurer — indicateurs finaux &amp; comparaison</div>'
+    + '<div class="table-wrap"><table><thead><tr><th>Indicateur</th><th>Cette bande</th><th>Bande précédente'
+    + (prevBande ? '<div style="font-size:10px;font-weight:400;text-transform:none;">' + escHtml(prevBande.nom_bande) + '</div>' : '')
+    + '</th><th>Standard / cible</th><th>Statut</th></tr></thead><tbody>' + mesureRows + '</tbody></table></div>'
+    + (prevBande ? '' : '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Aucune bande terminée antérieure — pas de comparaison possible.</div>')
+
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:1rem 0 0.4rem;">Analyser — causes racines 5M des mortalités</div>'
+    + analyseHtml
+
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:1rem 0 0.4rem;">Améliorer &amp; Pérenniser — standards ajustés</div>'
+    + '<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.6rem;">' + sustainNote + '</div>'
+    + '<div class="form-row">'
+    + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="bilan-std-mort" min="0" step="0.1" inputmode="decimal" placeholder="vide = alerte désactivée"></div>'
+    + '<div class="form-group"><label>Poids vif cible (g)</label><input type="number" id="bilan-std-poids" min="1" step="10" inputmode="numeric"></div>'
+    + '</div>'
+    + '<div class="form-row">'
+    + '<div class="form-group"><label>Âge cible min (j)</label><input type="number" id="bilan-std-age-min" min="1" step="1" inputmode="numeric"></div>'
+    + '<div class="form-group"><label>Âge cible max (j)</label><input type="number" id="bilan-std-age-max" min="1" step="1" inputmode="numeric"></div>'
+    + '<div class="form-group"><label>IC cible (optionnel)</label><input type="number" id="bilan-std-ic" min="0" step="0.01" inputmode="decimal" placeholder="vide = pas de cible"></div>'
+    + '</div>'
+    + '<div id="bilan-std-recap"></div>'
+    + '<button class="btn btn-outline btn-sm" onclick="proposeBilanStandards(\'' + bande.bande_id + '\')">Proposer l\'ajustement</button>'
+    + '</div>';
+
+  // Valeurs injectées via .value (mêmes règles que le formulaire Paramètres).
+  document.getElementById('bilan-std-mort').value = vp.mortCumul;
+  document.getElementById('bilan-std-poids').value = obj.poids_cible_g;
+  document.getElementById('bilan-std-age-min').value = obj.age_cible_min_j;
+  document.getElementById('bilan-std-age-max').value = obj.age_cible_max_j;
+  document.getElementById('bilan-std-ic').value = obj.ic_cible != null ? obj.ic_cible : '';
+}
+
+// Étape 1 (Proposer) : compare les valeurs éditées aux standards courants et
+// affiche le récapitulatif ancien → nouveau. AUCUNE écriture ici.
+function proposeBilanStandards(bandeId) {
+  const recap = document.getElementById('bilan-std-recap');
+  const readNum = (id) => {
+    const v = document.getElementById(id).value.trim();
+    return v === '' ? null : Number(v);
+  };
+  const mortRaw = document.getElementById('bilan-std-mort').value.trim();
+  const poids = readNum('bilan-std-poids');
+  const ageMin = readNum('bilan-std-age-min');
+  const ageMax = readNum('bilan-std-age-max');
+  const ic = readNum('bilan-std-ic');
+  if (mortRaw !== '' && (!isFinite(Number(mortRaw)) || Number(mortRaw) < 0)) { toast('Seuil mortalité invalide', 'error'); return; }
+  if (poids == null || !isFinite(poids) || poids <= 0) { toast('Poids cible invalide', 'error'); return; }
+  if (ageMin == null || ageMax == null || !isFinite(ageMin) || !isFinite(ageMax) || ageMin <= 0 || ageMax < ageMin) { toast('Fenêtre d\'âge cible invalide (min ≤ max requis)', 'error'); return; }
+  if (ic != null && (!isFinite(ic) || ic <= 0)) { toast('IC cible invalide', 'error'); return; }
+
+  const vp = getVetParams();
+  const obj = getObjectifsBande();
+  const changes = [];
+  const vetChanged = String(vp.mortCumul) !== mortRaw;
+  if (vetChanged) changes.push({ label: 'Seuil mortalité cumulée', from: vp.mortCumul === '' ? 'désactivé' : vp.mortCumul + ' %', to: mortRaw === '' ? 'désactivé' : mortRaw + ' %' });
+  if (Number(obj.poids_cible_g) !== poids) changes.push({ label: 'Poids vif cible', from: fmt(obj.poids_cible_g, 0) + ' g', to: fmt(poids, 0) + ' g' });
+  if (Number(obj.age_cible_min_j) !== ageMin || Number(obj.age_cible_max_j) !== ageMax) changes.push({ label: 'Fenêtre d\'âge cible', from: obj.age_cible_min_j + '–' + obj.age_cible_max_j + ' j', to: ageMin + '–' + ageMax + ' j' });
+  const icCur = obj.ic_cible != null ? Number(obj.ic_cible) : null;
+  if (icCur !== ic) changes.push({ label: 'IC cible', from: icCur != null ? fmt(icCur, 2) : 'non définie', to: ic != null ? fmt(ic, 2) : 'non définie' });
+  const objChanged = changes.some(c => c.label !== 'Seuil mortalité cumulée');
+
+  if (!changes.length) {
+    pendingBilanStandards = null;
+    if (recap) recap.innerHTML = '<div style="font-size:0.82rem;color:var(--text-muted);margin:0.5rem 0;">Aucun changement par rapport aux standards courants.</div>';
+    return;
+  }
+  pendingBilanStandards = {
+    bandeId: bandeId,
+    mortRaw: mortRaw,
+    vetChanged: vetChanged,
+    objChanged: objChanged,
+    objectifs: { poids_cible_g: poids, age_cible_min_j: ageMin, age_cible_max_j: ageMax, ic_cible: ic }
+  };
+  if (recap) recap.innerHTML =
+    '<div style="border:var(--border-hairline);border-left:2px solid var(--color-accent);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;margin:0.5rem 0;">'
+    + '<div style="font-size:0.82rem;font-weight:700;margin-bottom:0.35rem;">Ajustement proposé (étape Pérenniser) :</div>'
+    + changes.map(c => '<div style="font-size:0.82rem;">• ' + c.label + ' : <span style="color:var(--text-muted);">' + escHtml(String(c.from)) + '</span> → <strong>' + escHtml(String(c.to)) + '</strong></div>').join('')
+    + '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;">'
+    + '<button class="btn btn-primary btn-sm" onclick="confirmBilanStandards()">Confirmer et écrire le standard commun</button>'
+    + '<button class="btn btn-outline btn-sm" onclick="cancelBilanStandards()">Annuler</button>'
+    + '</div></div>';
+}
+
+// Étape 2 (Confirmer) : SEULE écriture de l'écran — standards communs via
+// saveParametre (chemin 0028 partagé avec Paramètres → Santé & véto).
+async function confirmBilanStandards() {
+  if (!pendingBilanStandards) return;
+  const p = pendingBilanStandards;
+  pendingBilanStandards = null;
+  let okVet = true;
+  let okObj = true;
+  if (p.vetChanged) {
+    // saveVetParams = cache local + objet propre complet (comportement
+    // identique au formulaire Paramètres), puis publication commune.
+    const clean = saveVetParams({ mortCumul: p.mortRaw });
+    okVet = await saveParametre('vet_params', clean);
+  }
+  if (p.objChanged) okObj = await saveParametre('objectifs_bande', p.objectifs);
+  if (okVet && okObj) {
+    toast('Standards ajustés — écrits dans parametres (tous les appareils)');
+    try { checkAlerts(); } catch (e) { /* alertes recalculées au mieux */ }
+  } else {
+    const echecs = [];
+    if (p.vetChanged && !okVet) echecs.push('seuil mortalité (vet_params)');
+    if (p.objChanged && !okObj) echecs.push('objectifs de bande');
+    toast('⚠️ Écriture NON aboutie pour : ' + echecs.join(' + ') + ' — migration 0028 non appliquée ou hors ligne. Standards communs inchangés.', 'error');
+  }
+  const bande = STATE.bandes.find(b => b.bande_id === p.bandeId);
+  if (bande) renderFicheBilanDmaics(bande, computeIndicators(bande));
+}
+
+function cancelBilanStandards() {
+  pendingBilanStandards = null;
+  const recap = document.getElementById('bilan-std-recap');
+  if (recap) recap.innerHTML = '';
 }
 
 function renderFicheSaisiesTable(ind, bande) {
@@ -11029,26 +11342,10 @@ async function saveVetParamsFromUI() {
     vetOnvci: document.getElementById('vp-vet-onvci').value.trim(),
     vetStructure: document.getElementById('vp-vet-struct').value.trim()
   });
-  let remoteOk = false;
-  let uid = null;
-  try {
-    try {
-      const { data: s } = await sb.auth.getSession();
-      uid = (s && s.session && s.session.user) ? s.session.user.id : null;
-    } catch (e) { /* uid facultatif */ }
-    const { error } = await sb.from('parametres').upsert({
-      key: 'vet_params', value: clean,
-      updated_at: new Date().toISOString(), updated_by: uid
-    });
-    remoteOk = !error;
-    if (error) console.warn('parametres.upsert refusé (0028 non appliquée ?) :', error.message);
-  } catch (e) { console.warn('parametres.upsert impossible (hors ligne ?) :', e); }
+  // Chemin d'écriture unique des standards communs (saveParametre : upsert +
+  // copie mémoire) — partagé avec le bilan de bande DMAICS.
+  const remoteOk = await saveParametre('vet_params', clean);
   if (remoteOk) {
-    // Copie en mémoire alignée : tous les écrans (alertes, KPI) lisent la
-    // nouvelle valeur sans recharger.
-    const row = { key: 'vet_params', value: clean, updated_at: new Date().toISOString(), updated_by: uid };
-    const idx = (STATE.parametres || []).findIndex(p => p && p.key === 'vet_params');
-    if (idx >= 0) STATE.parametres[idx] = row; else STATE.parametres.push(row);
     toast('Standard commun enregistré (tous les appareils)');
   } else {
     toast('⚠️ Enregistré sur CET APPAREIL uniquement — standard commun indisponible (migration 0028 non appliquée ou hors ligne).', 'error');
