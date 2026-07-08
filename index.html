@@ -5265,6 +5265,10 @@ const QUEUE_COLUMN_FALLBACKS = {
     {
       cols: ['batiment', 'souche'],
       msg: 'Bande synchronisée SANS bâtiment/souche (migration 0025 non appliquée en base)'
+    },
+    {
+      cols: ['surface_m2'],
+      msg: 'Bande synchronisée SANS surface (migration 0030 non appliquée en base)'
     }
   ]
 };
@@ -7080,6 +7084,12 @@ function computeIndicators(bande) {
 
   const effectifActuel = nbEntree - mortCum;
   const tauxMort = nbEntree > 0 ? (mortCum / nbEntree) * 100 : 0;
+  // Densité d'élevage (0030) : oiseaux/m² si la surface est renseignée (>0).
+  // surface_m2 absent (colonne pas en base, vue bandes_ops pas rejouée, ou
+  // champ non rempli) → null : l'UI dit « non calculable », jamais un 0 fabriqué.
+  const surfaceM2 = Number(bande.surface_m2) || 0;
+  const densiteInitiale = (surfaceM2 > 0 && nbEntree > 0) ? nbEntree / surfaceM2 : null;
+  const densiteActuelle = surfaceM2 > 0 ? effectifActuel / surfaceM2 : null;
   const ic = (effectifActuel > 0 && dernierPoids > 0)
     ? alimentTotal / ((dernierPoids / 1000) * effectifActuel)
     : null;
@@ -7130,6 +7140,7 @@ function computeIndicators(bande) {
     ic, gmq, dernierPoids, dernierJour, jourActuel, poidsMesure, jourPesee, hasWeighing,
     poidsCarcasse, lastSaisieDate,
     ip, viabilite, carcasseEstimee, pctCible, phase,
+    surfaceM2: surfaceM2 > 0 ? surfaceM2 : null, densiteInitiale, densiteActuelle,
     lastTemp, lastHumidite,
     earliestSlaughterDate, withdrawalBinding,
     coutPoussins, coutAliment, coutIntrants, produitBrut, margeBrute, margeParKg,
@@ -8373,6 +8384,13 @@ function showNewBandeModal() {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Surface du bâtiment (m²) (optionnel)</label>
+          <input type="number" id="new-bande-surface" min="0" step="0.1" inputmode="decimal" placeholder="Ex : 1200">
+          <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Renseigner la surface active l'indicateur de densité (oiseaux/m²).</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
           <label>Prix poussin unitaire (FCFA)</label>
           <input type="number" id="new-bande-prix" min="0" placeholder="350">
         </div>
@@ -8433,10 +8451,29 @@ async function createBande() {
   let extrasDropped = false;
   if (hasExtras) Object.assign(payload, bandeExtras);
 
+  // Surface (0030) : groupe INDÉPENDANT de 0025 (l'une peut être appliquée
+  // sans l'autre) — clé posée seulement si le champ est rempli et valide.
+  const surfaceRaw = document.getElementById('new-bande-surface').value.trim();
+  let surfaceDropped = false;
+  if (surfaceRaw !== '') {
+    const surfaceVal = Number(surfaceRaw);
+    if (!isFinite(surfaceVal) || surfaceVal <= 0) {
+      toast('Surface invalide : nombre de m² strictement positif attendu (ou laisser vide)', 'error');
+      return;
+    }
+    payload.surface_m2 = surfaceVal;
+  }
+
   if (!payload.nom_bande || !payload.date_entree) {
     toast('Veuillez remplir le nom et la date', 'error');
     return;
   }
+
+  // Libellé des groupes écartés (0025/0030), évalué au moment du toast.
+  const perduMsg = () => [
+    extrasDropped ? 'bâtiment/souche (migration 0025)' : null,
+    surfaceDropped ? 'surface (migration 0030)' : null
+  ].filter(Boolean).join(' + ');
 
   const btn = document.querySelector('#modal-overlay .btn-primary');
   btn.disabled = true; btn.textContent = 'Création...';
@@ -8444,33 +8481,48 @@ async function createBande() {
     try {
       await apiPost({ action: 'addBande', payload });
     } catch (err) {
-      const colErr = hasExtras
-        && /column|schema cache/i.test(err.message)
-        && /batiment|souche/i.test(err.message);
-      if (!colErr) throw err;
-      delete payload.batiment;
-      delete payload.souche;
-      extrasDropped = true;
-      await apiPost({ action: 'addBande', payload });
+      // Colonnes de migrations non appliquées : on retire le GROUPE que
+      // l'erreur nomme et on réessaie, groupe par groupe (PostgREST ne
+      // nomme qu'une colonne à la fois) — même discipline que la saisie
+      // (0024/0029) : on ne perd que le groupe réellement inconnu.
+      let lastErr = err;
+      for (let tries = 0; tries < 2 && lastErr; tries++) {
+        const isColErr = /column|schema cache/i.test(lastErr.message);
+        if (isColErr && !extrasDropped && hasExtras && /batiment|souche/i.test(lastErr.message)) {
+          delete payload.batiment;
+          delete payload.souche;
+          extrasDropped = true;
+        } else if (isColErr && !surfaceDropped && payload.surface_m2 != null && /surface_m2/i.test(lastErr.message)) {
+          delete payload.surface_m2;
+          surfaceDropped = true;
+        } else {
+          throw lastErr;
+        }
+        try {
+          await apiPost({ action: 'addBande', payload });
+          lastErr = null;
+        } catch (e2) { lastErr = e2; }
+      }
+      if (lastErr) throw lastErr;
     }
     STATE.bandes.push(extrasDropped ? payload : Object.assign({}, bandeExtras, payload));
     closeModal();
     renderBandes();
-    if (extrasDropped) {
-      toast('Bande créée, mais bâtiment/souche NON enregistrés : migration 0025 non appliquée en base.', 'error');
+    if (extrasDropped || surfaceDropped) {
+      toast('Bande créée, mais NON enregistrés : ' + perduMsg() + ' — migration non appliquée en base.', 'error');
     } else {
       toast('Bande créée avec succès');
     }
   } catch (err) {
     if (err.message.includes('file d\'attente')) {
-      // Offline: update local state anyway. Si le repli 0025 a déjà retiré
-      // bâtiment/souche avant la coupure, la perte doit rester signalée
+      // Offline: update local state anyway. Si un repli (0025/0030) a déjà
+      // retiré des colonnes avant la coupure, la perte doit rester signalée
       // (même discipline que le chemin en ligne).
       STATE.bandes.push(payload);
       closeModal();
       renderBandes();
-      if (extrasDropped) {
-        toast('Bande créée (hors ligne — sera synchronisée), mais bâtiment/souche NON enregistrés : migration 0025 non appliquée en base.', 'error');
+      if (extrasDropped || surfaceDropped) {
+        toast('Bande créée (hors ligne — sera synchronisée), mais NON enregistrés : ' + perduMsg() + ' — migration non appliquée en base.', 'error');
       } else {
         toast('Bande créée (hors ligne — sera synchronisée)', 'success');
       }
@@ -9376,6 +9428,10 @@ function loadFicheBande() {
       <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
       <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${ind.hasWeighing ? fmt(carcEst) + ' g' : '—'}</div></div>
       <div class="stat-item"><div class="label">Eau totale</div><div class="value">${ind.eauTotal > 0 ? fmt(ind.eauTotal,0) + ' L' : '—'}</div></div>
+      <div class="stat-item"><div class="label">Densité</div>${ind.densiteActuelle != null
+        ? '<div class="value">' + fmt(ind.densiteActuelle, 1) + ' oiseaux/m²</div>'
+          + (ind.densiteInitiale != null ? '<div style="font-size:10px;color:var(--text-muted);">initiale : ' + fmt(ind.densiteInitiale, 1) + ' oiseaux/m² — surface ' + fmt(ind.surfaceM2, 0) + ' m²</div>' : '')
+        : '<div class="value">—</div><div style="font-size:10px;color:var(--text-muted);font-style:italic;">densité non calculable — renseigner la surface (m²)</div>'}</div>
       <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
     ${withdrawalHtml}
@@ -11490,13 +11546,16 @@ function exportBandeCSV() {
   // En-têtes alignées sur les colonnes de la base (snake_case) — la T°
   // d'ambiance (colonne temperature_c) est renommée temperature_ambiance_c
   // pour lever l'ambiguïté avec temperature_observee_c (cahier, 0024).
-  const HEAD = ['date', 'jour_bande', 'effectif_fin_jour', 'mortalite_jour', 'mortalite_cumulee',
+  const HEAD = ['date', 'jour_bande', 'effectif_fin_jour', 'densite_oiseaux_m2', 'mortalite_jour', 'mortalite_cumulee',
     'taux_mortalite_cumulee_pct', 'cause_5m', 'aliment_consomme_kg', 'eau_consommee_l',
     'temperature_observee_c', 'temperature_ambiance_c', 'humidite_pct',
     'nb_oiseaux_peses', 'poids_vif_moyen_g', 'signes_observes', 'observations'];
   const lines = [HEAD.join(';')];
 
   const nbEntree = Number(bande.nb_poussins_entree) || 0;
+  // Densité journalière (0030) : effectif fin de jour / surface — colonne
+  // vide si la surface n'est pas renseignée (jamais un 0 fabriqué).
+  const surfaceM2 = Number(bande.surface_m2) || 0;
   const byDate = {};
   saisies.forEach(s => {
     const k = String(s.date_saisie || '').slice(0, 10);
@@ -11536,6 +11595,7 @@ function exportBandeCSV() {
       dateStr,
       jour,
       effectif,
+      surfaceM2 > 0 ? Math.round((effectif / surfaceM2) * 100) / 100 : '',
       mortJour == null ? '' : mortJour,
       mortCum,
       taux,
