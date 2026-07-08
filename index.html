@@ -9802,35 +9802,36 @@ function bilanFinalMetrics(bande, ind) {
   return { poids: poids, poidsSrc: poidsSrc, age: age, ageSrc: ageSrc };
 }
 
-function renderFicheBilanDmaics(bande, ind) {
-  const el = document.getElementById('fiche-bilan-dmaics');
-  if (!el) return;
-  if (!isManager() || bande.statut !== 'termine') { el.innerHTML = ''; el.style.display = 'none'; return; }
-  el.style.display = '';
+// Légende DMAICS « en clair » — SOURCE UNIQUE : la carte fiche ET l'export
+// PDF se rendent depuis cette liste (aucune formulation dupliquée). Libellés
+// volontairement sans jargon, phrasés pour l'élevage (Abbas, Mounir…).
+const DMAICS_STEPS = [
+  { label: 'Définir',                desc: 'cadrer l\'objectif de la bande' },
+  { label: 'Mesurer',                desc: 'relever les indicateurs réels (mortalité, IC, GMQ, poids, âge)' },
+  { label: 'Analyser',               desc: 'comprendre les causes des écarts (les 5M)' },
+  { label: 'Améliorer',              desc: 'décider des ajustements' },
+  { label: 'Contrôler / Pérenniser', desc: 'fixer le nouveau standard pour les prochaines bandes' }
+];
+const BILAN_STATUT_LABELS = { ok: 'Conforme', ko: 'Écart', warn: 'Hors cible' };
 
+// Modèle du bilan — SOURCE UNIQUE carte + PDF : lignes Mesurer (source par
+// ligne), agrégat 5M, standards courants. Standards en toutes lettres
+// (« Max / Min », pas ≤/≥ : glyphes hors WinAnsi des polices standard jsPDF —
+// ils rendraient mal dans le PDF, et la carte doit dire la même chose).
+function buildBilanDmaicsModel(bande, ind) {
   const obj = getObjectifsBande();
   const seuilMort = vetParamNum('mortCumul');
   const cur = bilanFinalMetrics(bande, ind);
   const prevBande = findPreviousBande(bande);
   const prevInd = prevBande ? computeIndicators(prevBande) : null;
   const prev = prevBande ? bilanFinalMetrics(prevBande, prevInd) : null;
-
   const num = (v, dec, unit) => (v != null && isFinite(v)) ? fmt(v, dec) + (unit || '') : '—';
-  const statutHtml = (st) => st === 'ok'
-    ? '<span style="color:var(--color-success);font-weight:700;">Conforme</span>'
-    : st === 'ko'
-      ? '<span style="color:var(--color-danger);font-weight:700;">Écart</span>'
-      : st === 'warn'
-        ? '<span style="color:var(--color-warning);font-weight:700;">Hors cible</span>'
-        : '<span style="color:var(--text-muted);">—</span>';
-
-  // ── M (Mesurer) + comparaisons : cette bande / précédente / standard ──
   const rows = [
     {
       label: 'Mortalité cumulée',
       cette: num(ind.tauxMort, 1, ' %'),
       prec: prevInd ? num(prevInd.tauxMort, 1, ' %') : '—',
-      std: seuilMort != null ? '≤ ' + fmtPct(seuilMort) + ' %' : 'seuil non défini',
+      std: seuilMort != null ? 'Max ' + fmtPct(seuilMort) + ' %' : 'seuil non défini',
       statut: seuilMort == null ? null : (ind.tauxMort <= seuilMort ? 'ok' : 'ko'),
       src: 'somme des « morts du jour » saisis'
     },
@@ -9838,7 +9839,7 @@ function renderFicheBilanDmaics(bande, ind) {
       label: 'IC (indice de consommation)',
       cette: num(ind.ic, 2),
       prec: prevInd ? num(prevInd.ic, 2) : '—',
-      std: obj.ic_cible != null ? '≤ ' + fmt(obj.ic_cible, 2) : 'cible non définie',
+      std: obj.ic_cible != null ? 'Max ' + fmt(obj.ic_cible, 2) : 'cible non définie',
       statut: (obj.ic_cible != null && ind.ic != null) ? (ind.ic <= obj.ic_cible ? 'ok' : 'ko') : null,
       src: 'aliment total / (poids vif × effectif)'
     },
@@ -9854,7 +9855,7 @@ function renderFicheBilanDmaics(bande, ind) {
       label: 'Poids vif à l\'abattage',
       cette: num(cur.poids, 0, ' g'),
       prec: prev ? num(prev.poids, 0, ' g') : '—',
-      std: '≥ ' + fmt(obj.poids_cible_g, 0) + ' g',
+      std: 'Min ' + fmt(obj.poids_cible_g, 0) + ' g',
       statut: cur.poids != null ? (cur.poids >= obj.poids_cible_g ? 'ok' : 'ko') : null,
       src: cur.poidsSrc || 'aucune donnée'
     },
@@ -9867,7 +9868,30 @@ function renderFicheBilanDmaics(bande, ind) {
       src: cur.ageSrc || 'aucune donnée'
     }
   ];
-  const mesureRows = rows.map(r =>
+  return {
+    obj: obj, seuilMort: seuilMort, cur: cur, prevBande: prevBande, prevInd: prevInd,
+    prev: prev, rows: rows, agg: aggregateMortalite5m(ind.saisies), vp: getVetParams()
+  };
+}
+
+function renderFicheBilanDmaics(bande, ind) {
+  const el = document.getElementById('fiche-bilan-dmaics');
+  if (!el) return;
+  if (!isManager() || bande.statut !== 'termine') { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  const m = buildBilanDmaicsModel(bande, ind);
+  const obj = m.obj;
+  const vp = m.vp;
+  const statutHtml = (st) => st === 'ok'
+    ? '<span style="color:var(--color-success);font-weight:700;">' + BILAN_STATUT_LABELS.ok + '</span>'
+    : st === 'ko'
+      ? '<span style="color:var(--color-danger);font-weight:700;">' + BILAN_STATUT_LABELS.ko + '</span>'
+      : st === 'warn'
+        ? '<span style="color:var(--color-warning);font-weight:700;">' + BILAN_STATUT_LABELS.warn + '</span>'
+        : '<span style="color:var(--text-muted);">—</span>';
+
+  const mesureRows = m.rows.map(r =>
     '<tr><td>' + r.label + '<div style="font-size:10px;color:var(--text-muted);font-style:italic;">source : ' + r.src + '</div></td>'
     + '<td style="font-family:var(--font-mono);"><strong>' + r.cette + '</strong></td>'
     + '<td style="font-family:var(--font-mono);">' + r.prec + '</td>'
@@ -9875,29 +9899,40 @@ function renderFicheBilanDmaics(bande, ind) {
     + '<td>' + statutHtml(r.statut) + '</td></tr>').join('');
 
   // ── A (Analyser) : répartition 5M des morts ──
-  const agg = aggregateMortalite5m(ind.saisies);
-  const analyseHtml = agg.tagged
-    ? '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' + mortalite5mBadgesHtml(agg) + '</div>'
+  const analyseHtml = m.agg.tagged
+    ? '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' + mortalite5mBadgesHtml(m.agg) + '</div>'
       + '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Morts du jour sommés par catégorie 5M cochée à la saisie — une saisie multi-catégories compte dans chaque catégorie.</div>'
     : '<div style="font-size:0.85rem;color:var(--text-muted);">Aucune saisie de cette bande n\'est catégorisée 5M — analyse indisponible. Taguer les mortalités à la saisie journalière (chips 5M) pour alimenter cette section.</div>';
 
   // ── I + C/S (Améliorer / Pérenniser) : standards ajustés ──
-  const vp = getVetParams();
   const communDispo = getParametre('vet_params') !== undefined || getParametre('objectifs_bande') !== undefined;
   const sustainNote = communDispo
     ? 'Les valeurs confirmées sont écrites dans la table <code>parametres</code> (standard commun, tous les appareils).'
     : '⚠️ Table <code>parametres</code> pas encore alimentée (migration 0028 non appliquée ou aucun standard écrit) : la confirmation tentera l\'écriture et signalera un échec éventuel.';
 
+  // Légende « DMAICS en clair » — rendue depuis DMAICS_STEPS (source unique
+  // partagée avec l'export PDF).
+  const legendeHtml =
+    '<div style="border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;margin:0.5rem 0 0.75rem;">'
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem;">DMAICS en clair</div>'
+    + DMAICS_STEPS.map(s => '<div style="font-size:0.8rem;"><strong>' + s.label + '</strong> — ' + s.desc + '</div>').join('')
+    + '</div>';
+
   el.innerHTML =
     '<div class="card">'
     + '<div class="card-header"><h3>Bilan de bande — DMAICS (clôture)</h3>'
-    + '<span class="badge badge-grey">' + escHtml(bande.nom_bande) + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '') + '</span></div>'
+    + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+    + '<span class="badge badge-grey">' + escHtml(bande.nom_bande) + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '') + '</span>'
+    + '<button class="btn btn-outline btn-sm" onclick="exportBilanDmaicsPDF(\'' + bande.bande_id + '\')"><i data-lucide="file-text"></i> Export PDF</button>'
+    + '</div></div>'
+
+    + legendeHtml
 
     + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:0.5rem 0 0.4rem;">Mesurer — indicateurs finaux &amp; comparaison</div>'
     + '<div class="table-wrap"><table><thead><tr><th>Indicateur</th><th>Cette bande</th><th>Bande précédente'
-    + (prevBande ? '<div style="font-size:10px;font-weight:400;text-transform:none;">' + escHtml(prevBande.nom_bande) + '</div>' : '')
+    + (m.prevBande ? '<div style="font-size:10px;font-weight:400;text-transform:none;">' + escHtml(m.prevBande.nom_bande) + '</div>' : '')
     + '</th><th>Standard / cible</th><th>Statut</th></tr></thead><tbody>' + mesureRows + '</tbody></table></div>'
-    + (prevBande ? '' : '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Aucune bande terminée antérieure — pas de comparaison possible.</div>')
+    + (m.prevBande ? '' : '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Aucune bande terminée antérieure — pas de comparaison possible.</div>')
 
     + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:1rem 0 0.4rem;">Analyser — causes racines 5M des mortalités</div>'
     + analyseHtml
@@ -9923,6 +9958,87 @@ function renderFicheBilanDmaics(bande, ind) {
   document.getElementById('bilan-std-age-min').value = obj.age_cible_min_j;
   document.getElementById('bilan-std-age-max').value = obj.age_cible_max_j;
   document.getElementById('bilan-std-ic').value = obj.ic_cible != null ? obj.ic_cible : '';
+  refreshIcons();
+}
+
+// ── Export PDF du bilan DMAICS — MÊME charte que les autres rapports :
+// reportHeaderPDF (bandeau orange S.I.V.A) + reportSectionTitlePDF +
+// reportTablePDF + reportFooterPDF, strictement comme exportStocksPDF /
+// exportAbattagePDF / exportDashboardPDF. Aucune mise en page maison. ──
+async function exportBilanDmaicsPDF(bandeId) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande || !isManager() || bande.statut !== 'termine') {
+    toast('Export réservé au manager, pour une bande terminée', 'error');
+    return;
+  }
+  await ensureJsPDF();
+  const ind = computeIndicators(bande);
+  const m = buildBilanDmaicsModel(bande, ind);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  let y = reportHeaderPDF(doc, {
+    title: 'Bilan de bande — DMAICS',
+    subtitle: bande.nom_bande + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '')
+  });
+
+  // Légende « DMAICS en clair » — rendue depuis DMAICS_STEPS (même source que la carte).
+  y = reportSectionTitlePDF(doc, 'DMAICS en clair', y);
+  doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  DMAICS_STEPS.forEach(s => {
+    doc.setFont(undefined, 'bold');
+    doc.text(s.label, 12, y);
+    const w = doc.getTextWidth(s.label);
+    doc.setFont(undefined, 'normal');
+    doc.text('— ' + s.desc, 12 + w + 2, y);
+    y += 4.8;
+  });
+  y += 4;
+
+  // Mesurer : mêmes lignes que la carte (buildBilanDmaicsModel), sources incluses.
+  y = reportSectionTitlePDF(doc, 'Mesurer — indicateurs finaux et comparaison', y);
+  const tRows = m.rows.map(r => [r.label, r.cette, r.prec, r.std, r.statut ? BILAN_STATUT_LABELS[r.statut] : '—']);
+  y = reportTablePDF(doc, y,
+    ['Indicateur', 'Cette bande', 'Bande précédente', 'Standard / cible', 'Statut'],
+    [52, 32, 36, 40, 26], tRows, { emptyMsg: 'Aucun indicateur disponible.' });
+  doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('Bande précédente : ' + (m.prevBande ? m.prevBande.nom_bande : 'aucune bande terminée antérieure — pas de comparaison possible'), 12, y); y += 3.6;
+  m.rows.forEach(r => { doc.text('Source ' + r.label + ' : ' + r.src, 12, y); y += 3.6; });
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  y += 5;
+
+  // Analyser : répartition 5M (mêmes agrégats que la carte).
+  y = reportSectionTitlePDF(doc, 'Analyser — causes racines 5M des mortalités', y);
+  if (m.agg.tagged) {
+    const aRows = CAUSES_5M.filter(c => m.agg.counts[c.key] > 0)
+      .map(c => [c.label, fmt(m.agg.counts[c.key])]);
+    if (m.agg.nonCat > 0) aRows.push(['Non catégorisé', fmt(m.agg.nonCat)]);
+    y = reportTablePDF(doc, y, ['Catégorie 5M', 'Morts'], [60, 26], aRows, { emptyMsg: 'Aucune catégorie.' });
+    doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text('Morts du jour sommés par catégorie cochée à la saisie — une saisie multi-catégories compte dans chaque catégorie.', 12, y); y += 3.6;
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    y += 5;
+  } else {
+    doc.setFontSize(8); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+    doc.text('Aucune saisie catégorisée 5M pour cette bande — analyse indisponible.', 12, y); y += 6;
+    doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+    y += 3;
+  }
+
+  // Standards en vigueur (Pérenniser) : état COURANT après d'éventuels ajustements.
+  y = reportSectionTitlePDF(doc, 'Standards en vigueur (Pérenniser)', y);
+  const sRows = [
+    ['Seuil mortalité cumulée', m.vp.mortCumul === '' ? 'désactivé' : m.vp.mortCumul + ' %'],
+    ['Poids vif cible', fmt(m.obj.poids_cible_g, 0) + ' g'],
+    ['Fenêtre d\'âge cible', m.obj.age_cible_min_j + '–' + m.obj.age_cible_max_j + ' j'],
+    ['IC cible', m.obj.ic_cible != null ? fmt(m.obj.ic_cible, 2) : 'non définie']
+  ];
+  y = reportTablePDF(doc, y, ['Standard', 'Valeur'], [60, 40], sRows, { emptyMsg: 'Aucun standard.' });
+
+  reportFooterPDF(doc);
+  const slug = String(bande.nom_bande || bande.bande_id).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  doc.save('bilan-dmaics-' + slug + '.pdf');
+  toast('Bilan DMAICS PDF généré');
 }
 
 // Étape 1 (Proposer) : compare les valeurs éditées aux standards courants et
