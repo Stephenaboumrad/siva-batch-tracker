@@ -9805,13 +9805,24 @@ function bilanFinalMetrics(bande, ind) {
 // Légende DMAICS « en clair » — SOURCE UNIQUE : la carte fiche ET l'export
 // PDF se rendent depuis cette liste (aucune formulation dupliquée). Libellés
 // volontairement sans jargon, phrasés pour l'élevage (Abbas, Mounir…).
+// `desc` = ligne de légende ; `gloss` = sous-titre concret accolé à CHAQUE
+// en-tête de section (carte ET PDF) pour enseigner la méthode au point
+// d'usage, pas seulement dans la légende.
 const DMAICS_STEPS = [
-  { label: 'Définir',                desc: 'cadrer l\'objectif de la bande' },
-  { label: 'Mesurer',                desc: 'relever les indicateurs réels (mortalité, IC, GMQ, poids, âge)' },
-  { label: 'Analyser',               desc: 'comprendre les causes des écarts (les 5M)' },
-  { label: 'Améliorer',              desc: 'décider des ajustements' },
-  { label: 'Contrôler / Pérenniser', desc: 'fixer le nouveau standard pour les prochaines bandes' }
+  { key: 'definir',    label: 'Définir',                desc: 'cadrer l\'objectif de la bande',                                  gloss: 'ce que cette bande visait' },
+  { key: 'mesurer',    label: 'Mesurer',                desc: 'relever les indicateurs réels (mortalité, IC, GMQ, poids, âge)', gloss: 'les chiffres réels de la bande' },
+  { key: 'analyser',   label: 'Analyser',               desc: 'comprendre les causes des écarts (les 5M)',                      gloss: 'pourquoi ça a dérivé (les 5M)' },
+  { key: 'ameliorer',  label: 'Améliorer',              desc: 'décider des ajustements',                                        gloss: 'ce qu\'on ajuste' },
+  { key: 'perenniser', label: 'Contrôler / Pérenniser', desc: 'fixer le nouveau standard pour les prochaines bandes',           gloss: 'le nouveau standard pour les prochaines bandes' }
 ];
+// Phrase d'intention du bilan, une seule ligne — carte (sous le titre) ET PDF.
+const DMAICS_INTRO = 'Comparer chaque bande à son objectif pour s\'améliorer d\'une bande à la suivante.';
+function dmaicsStep(key) { return DMAICS_STEPS.find(s => s.key === key) || { label: key, desc: '', gloss: '' }; }
+// En-tête de section « Étape — gloss » : MÊME libellé carte et PDF.
+function dmaicsSectionLabel(key) {
+  const s = dmaicsStep(key);
+  return s.label + ' — ' + s.gloss;
+}
 const BILAN_STATUT_LABELS = { ok: 'Conforme', ko: 'Écart', warn: 'Hors cible' };
 
 // Modèle du bilan — SOURCE UNIQUE carte + PDF : lignes Mesurer (source par
@@ -9868,9 +9879,21 @@ function buildBilanDmaicsModel(bande, ind) {
       src: cur.ageSrc || 'aucune donnée'
     }
   ];
+  // ── Définir (DÉRIVÉ, aucun stockage) : l'objectif que CETTE bande visait,
+  // relu directement depuis les standards courants (objectifs_bande +
+  // vet_params.mortCumul). Repli neutre « cible non définie », jamais de vide.
+  // IC : ligne présente seulement si une cible est définie (rester minimal).
+  const definir = [
+    { label: 'Poids vif à l\'abattage', txt: 'atteindre au moins ' + fmt(obj.poids_cible_g, 0) + ' g' },
+    { label: 'Âge d\'abattage', txt: 'abattre entre ' + obj.age_cible_min_j + ' et ' + obj.age_cible_max_j + ' jours' },
+    { label: 'Mortalité cumulée', txt: seuilMort != null ? 'rester sous ' + fmtPct(seuilMort) + ' %' : 'cible non définie' }
+  ];
+  if (obj.ic_cible != null) definir.push({ label: 'IC', txt: 'rester sous ' + fmt(obj.ic_cible, 2) });
+
   return {
     obj: obj, seuilMort: seuilMort, cur: cur, prevBande: prevBande, prevInd: prevInd,
-    prev: prev, rows: rows, agg: aggregateMortalite5m(ind.saisies), vp: getVetParams()
+    prev: prev, rows: rows, agg: aggregateMortalite5m(ind.saisies), vp: getVetParams(),
+    definir: definir
   };
 }
 
@@ -9913,10 +9936,30 @@ function renderFicheBilanDmaics(bande, ind) {
   // Légende « DMAICS en clair » — rendue depuis DMAICS_STEPS (source unique
   // partagée avec l'export PDF).
   const legendeHtml =
-    '<div style="border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;margin:0.5rem 0 0.75rem;">'
+    '<div style="border:var(--border-hairline);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;margin:0.25rem 0 0.75rem;">'
     + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem;">DMAICS en clair</div>'
     + DMAICS_STEPS.map(s => '<div style="font-size:0.8rem;"><strong>' + s.label + '</strong> — ' + s.desc + '</div>').join('')
     + '</div>';
+
+  // En-tête de section « ÉTAPE — gloss » : libellé strictement partagé avec le
+  // PDF via dmaicsSectionLabel (le gloss reste en minuscules pour lire comme
+  // une explication, pas comme un cri).
+  const sectionHeader = (key, first) => {
+    const s = dmaicsStep(key);
+    return '<div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;margin:' + (first ? '0.5rem' : '1rem') + ' 0 0.4rem;">'
+      + '<span style="font-weight:700;text-transform:uppercase;">' + escHtml(s.label) + '</span>'
+      + '<span style="font-weight:500;font-style:italic;letter-spacing:0;"> — ' + escHtml(s.gloss) + '</span></div>';
+  };
+
+  // ── D (Définir) : objectif DÉRIVÉ des standards courants — lecture seule,
+  // aucun stockage. La boucle est explicitée : l'objectif vient du standard
+  // fixé à la clôture précédente (étape Pérenniser de la bande d'avant).
+  const definirHtml =
+    sectionHeader('definir', true)
+    + '<div style="border:var(--border-hairline);border-left:2px solid var(--color-accent);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;">'
+    + m.definir.map(d => '<div style="font-size:0.85rem;">' + d.label + ' : <strong>' + d.txt + '</strong></div>').join('')
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Objectif hérité du standard fixé à la clôture de la bande précédente.</div>';
 
   el.innerHTML =
     '<div class="card">'
@@ -9925,19 +9968,22 @@ function renderFicheBilanDmaics(bande, ind) {
     + '<span class="badge badge-grey">' + escHtml(bande.nom_bande) + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '') + '</span>'
     + '<button class="btn btn-outline btn-sm" onclick="exportBilanDmaicsPDF(\'' + bande.bande_id + '\')"><i data-lucide="file-text"></i> Export PDF</button>'
     + '</div></div>'
+    + '<div style="font-size:0.85rem;color:var(--text-secondary);margin:0.25rem 0 0.5rem;">' + DMAICS_INTRO + '</div>'
 
     + legendeHtml
 
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:0.5rem 0 0.4rem;">Mesurer — indicateurs finaux &amp; comparaison</div>'
+    + definirHtml
+
+    + sectionHeader('mesurer', false)
     + '<div class="table-wrap"><table><thead><tr><th>Indicateur</th><th>Cette bande</th><th>Bande précédente'
     + (m.prevBande ? '<div style="font-size:10px;font-weight:400;text-transform:none;">' + escHtml(m.prevBande.nom_bande) + '</div>' : '')
     + '</th><th>Standard / cible</th><th>Statut</th></tr></thead><tbody>' + mesureRows + '</tbody></table></div>'
     + (m.prevBande ? '' : '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Aucune bande terminée antérieure — pas de comparaison possible.</div>')
 
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:1rem 0 0.4rem;">Analyser — causes racines 5M des mortalités</div>'
+    + sectionHeader('analyser', false)
     + analyseHtml
 
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin:1rem 0 0.4rem;">Améliorer &amp; Pérenniser — standards ajustés</div>'
+    + sectionHeader('ameliorer', false)
     + '<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.6rem;">' + sustainNote + '</div>'
     + '<div class="form-row">'
     + '<div class="form-group"><label>Seuil mortalité cumulée (%)</label><input type="number" id="bilan-std-mort" min="0" step="0.1" inputmode="decimal" placeholder="vide = alerte désactivée"></div>'
@@ -9982,6 +10028,11 @@ async function exportBilanDmaicsPDF(bandeId) {
     subtitle: bande.nom_bande + (bande.date_sortie ? ' — sortie ' + fmtDate(bande.date_sortie) : '')
   });
 
+  // Phrase d'intention — même DMAICS_INTRO que la carte.
+  doc.setFontSize(9); doc.setFont(undefined, 'italic'); doc.setTextColor.apply(doc, REPORT_BRAND.subtle);
+  doc.text(DMAICS_INTRO, 12, y); y += 6;
+  doc.setFont(undefined, 'normal'); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+
   // Légende « DMAICS en clair » — rendue depuis DMAICS_STEPS (même source que la carte).
   y = reportSectionTitlePDF(doc, 'DMAICS en clair', y);
   doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
@@ -9995,8 +10046,21 @@ async function exportBilanDmaicsPDF(bandeId) {
   });
   y += 4;
 
+  // Définir : objectif dérivé des standards courants — mêmes lignes que la
+  // carte (buildBilanDmaicsModel.definir) + ligne d'héritage de la boucle.
+  y = reportSectionTitlePDF(doc, dmaicsSectionLabel('definir'), y);
+  doc.setFontSize(9); doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  m.definir.forEach(d => {
+    doc.text(d.label + ' : ' + d.txt, 12, y);
+    y += 4.8;
+  });
+  doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
+  doc.text('Objectif hérité du standard fixé à la clôture de la bande précédente.', 12, y); y += 3.6;
+  doc.setTextColor.apply(doc, REPORT_BRAND.ink);
+  y += 5;
+
   // Mesurer : mêmes lignes que la carte (buildBilanDmaicsModel), sources incluses.
-  y = reportSectionTitlePDF(doc, 'Mesurer — indicateurs finaux et comparaison', y);
+  y = reportSectionTitlePDF(doc, dmaicsSectionLabel('mesurer'), y);
   const tRows = m.rows.map(r => [r.label, r.cette, r.prec, r.std, r.statut ? BILAN_STATUT_LABELS[r.statut] : '—']);
   y = reportTablePDF(doc, y,
     ['Indicateur', 'Cette bande', 'Bande précédente', 'Standard / cible', 'Statut'],
@@ -10008,7 +10072,7 @@ async function exportBilanDmaicsPDF(bandeId) {
   y += 5;
 
   // Analyser : répartition 5M (mêmes agrégats que la carte).
-  y = reportSectionTitlePDF(doc, 'Analyser — causes racines 5M des mortalités', y);
+  y = reportSectionTitlePDF(doc, dmaicsSectionLabel('analyser'), y);
   if (m.agg.tagged) {
     const aRows = CAUSES_5M.filter(c => m.agg.counts[c.key] > 0)
       .map(c => [c.label, fmt(m.agg.counts[c.key])]);
@@ -10025,8 +10089,9 @@ async function exportBilanDmaicsPDF(bandeId) {
     y += 3;
   }
 
-  // Standards en vigueur (Pérenniser) : état COURANT après d'éventuels ajustements.
-  y = reportSectionTitlePDF(doc, 'Standards en vigueur (Pérenniser)', y);
+  // Contrôler / Pérenniser : standards en vigueur (état COURANT, après
+  // d'éventuels ajustements) — même en-tête que la carte via dmaicsSectionLabel.
+  y = reportSectionTitlePDF(doc, dmaicsSectionLabel('perenniser'), y);
   const sRows = [
     ['Seuil mortalité cumulée', m.vp.mortCumul === '' ? 'désactivé' : m.vp.mortCumul + ' %'],
     ['Poids vif cible', fmt(m.obj.poids_cible_g, 0) + ' g'],
@@ -10084,7 +10149,7 @@ function proposeBilanStandards(bandeId) {
   };
   if (recap) recap.innerHTML =
     '<div style="border:var(--border-hairline);border-left:2px solid var(--color-accent);border-radius:var(--radius-sm);padding:0.6rem 0.8rem;margin:0.5rem 0;">'
-    + '<div style="font-size:0.82rem;font-weight:700;margin-bottom:0.35rem;">Ajustement proposé (étape Pérenniser) :</div>'
+    + '<div style="font-size:0.82rem;font-weight:700;margin-bottom:0.35rem;">' + escHtml(dmaicsSectionLabel('perenniser')) + ' :</div>'
     + changes.map(c => '<div style="font-size:0.82rem;">• ' + c.label + ' : <span style="color:var(--text-muted);">' + escHtml(String(c.from)) + '</span> → <strong>' + escHtml(String(c.to)) + '</strong></div>').join('')
     + '<div style="margin-top:0.5rem;display:flex;gap:0.5rem;">'
     + '<button class="btn btn-primary btn-sm" onclick="confirmBilanStandards()">Confirmer et écrire le standard commun</button>'
