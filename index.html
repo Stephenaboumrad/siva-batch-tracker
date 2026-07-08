@@ -10062,9 +10062,17 @@ async function exportBilanDmaicsPDF(bandeId) {
   // Mesurer : mêmes lignes que la carte (buildBilanDmaicsModel), sources incluses.
   y = reportSectionTitlePDF(doc, dmaicsSectionLabel('mesurer'), y);
   const tRows = m.rows.map(r => [r.label, r.cette, r.prec, r.std, r.statut ? BILAN_STATUT_LABELS[r.statut] : '—']);
+  // Management visuel : fond de ligne PLEINE LARGEUR par conformité —
+  // Conforme = vert pâle, Écart = rouge pâle ; « Hors cible » (warn) et sans
+  // standard (null) restent NEUTRES (une dérive douce ou une ligne sans cible
+  // ne doit jamais se lire comme un échec dur).
+  const rowFills = m.rows.map(r =>
+    r.statut === 'ok' ? REPORT_BRAND.successPale
+    : r.statut === 'ko' ? REPORT_BRAND.dangerPale
+    : null);
   y = reportTablePDF(doc, y,
     ['Indicateur', 'Cette bande', 'Bande précédente', 'Standard / cible', 'Statut'],
-    [52, 32, 36, 40, 26], tRows, { emptyMsg: 'Aucun indicateur disponible.' });
+    [52, 32, 36, 40, 26], tRows, { emptyMsg: 'Aucun indicateur disponible.', rowFills: rowFills });
   doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
   doc.text('Bande précédente : ' + (m.prevBande ? m.prevBande.nom_bande : 'aucune bande terminée antérieure — pas de comparaison possible'), 12, y); y += 3.6;
   m.rows.forEach(r => { doc.text('Source ' + r.label + ' : ' + r.src, 12, y); y += 3.6; });
@@ -10790,7 +10798,12 @@ const REPORT_BRAND = {
   subtle:     [74, 86, 99],    // --color-text-secondary #4A5663
   muted:      [138, 149, 161], // --color-text-muted #8A95A1
   line:       [212, 219, 226], // --color-border #D4DBE2
-  surfaceAlt: [237, 241, 244]  // --color-surface-alt #EDF1F4
+  surfaceAlt: [237, 241, 244], // --color-surface-alt #EDF1F4
+  // Teintes PÂLES de statut (fonds de ligne, management visuel) : tokens
+  // clair --color-success #0E7C4A / --color-danger #C8332B éclaircis de 85 %
+  // vers le blanc — le texte encre reste pleinement lisible dessus.
+  successPale: [219, 235, 228],
+  dangerPale:  [247, 224, 223]
 };
 
 const FR_MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -10942,8 +10955,17 @@ function reportTablePDF(doc, y, headers, widths, rows, opts) {
     return y;
   }
   doc.setFontSize(7);
-  rows.forEach(row => {
+  rows.forEach((row, ri) => {
     if (y > 280) { doc.addPage(); y = 20; drawHead(); doc.setFontSize(7); }
+    // Fond de ligne OPTIONNEL (opts.rowFills[ri] = [r,g,b], sinon null/absent =
+    // aucun fond). Ajout RÉTRO-COMPATIBLE : aucun appelant existant ne passe
+    // rowFills → leur rendu est identique au bit près (seul un test falsy est
+    // ajouté). setFillColor n'affecte pas la couleur du texte.
+    const fill = opts.rowFills && opts.rowFills[ri];
+    if (fill) {
+      doc.setFillColor(fill[0], fill[1], fill[2]);
+      doc.rect(10, y - 3, totalW, 4.2, 'F');
+    }
     let x = 10;
     row.forEach((v, i) => { doc.text(String(v == null ? '' : v).substring(0, 30), x + 1, y); x += widths[i]; });
     y += 4.2;
