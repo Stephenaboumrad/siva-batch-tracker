@@ -3150,6 +3150,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('pdf')"><i data-lucide="file-text"></i> Registre de Bande (PDF)</button>
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('excel')"><i data-lucide="sheet"></i> Export Excel</button>
         <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('fiche')"><i data-lucide="printer"></i> Cahier de bâtiment (vierge)</button>
+        <button class="btn btn-outline btn-sm manager-only" onclick="exportBandeCSV()"><i data-lucide="table"></i> Export bande (CSV)</button>
       </div>
       <!-- Bilan de bande DMAICS (clôture P6) — manager + bande terminée
            uniquement, rempli par renderFicheBilanDmaics() ; vide sinon. -->
@@ -11445,6 +11446,125 @@ async function exportExcel() {
 
   XLSX.writeFile(wb, `COQORICO_${(bande.nom_bande || bande.bande_id || 'bande')}.xlsx`);
   toast('Excel généré');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Export bande CSV « par jour » (fondation de la couche data) ──
+// Manager uniquement. UNE LIGNE PAR JOUR CALENDAIRE de la bande (entrée →
+// sortie si clôturée, sinon aujourd'hui), y compris les jours SANS saisie :
+// mesures vides = trou de collecte VISIBLE, jamais masqué ni inventé (une
+// absence de saisie n'est PAS un zéro).
+// Format : séparateur ';' (Excel fr ouvre en colonnes), décimales '.'
+// (analyse aval sans ambiguïté), BOM UTF-8 (accents propres dans Excel),
+// échappement RFC 4180 (guillemets doublés). cause_5m : clés jointes par '|'.
+// Doublons de date possibles tant que la contrainte une-saisie-par-jour
+// (0024) n'est pas appliquée : flux SOMMÉS (mortalité, aliment, eau),
+// états = dernière valeur renseignée, textes concaténés par ' / '.
+// Client pur : chaîne construite en mémoire → Blob → téléchargement.
+// Aucune table nouvelle, aucune dépendance.
+// ══════════════════════════════════════════════════════════════════════
+function csvField(v) {
+  if (v == null) return '';
+  const s = String(v);
+  return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportBandeCSV() {
+  if (!isManager()) { toast('Export réservé au manager', 'error'); return; }
+  const bandeId = document.getElementById('fiche-bande-select').value;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande || !bande.date_entree) { toast('Sélectionnez une bande', 'error'); return; }
+
+  const saisies = STATE.saisies.filter(s => s.bande_id === bandeId);
+  // Borne de fin : sortie si clôturée, sinon aujourd'hui — étendue à la
+  // dernière saisie si une date la dépasse (défensif, données importées).
+  let endStr = bande.date_sortie || todayStr();
+  saisies.forEach(s => {
+    const ds = String(s.date_saisie || '').slice(0, 10);
+    if (ds > endStr) endStr = ds;
+  });
+  const start = parseDayLocal(bande.date_entree);
+  const end = parseDayLocal(endStr);
+  if (!start || !end || end < start) { toast('Dates de bande invalides', 'error'); return; }
+
+  // En-têtes alignées sur les colonnes de la base (snake_case) — la T°
+  // d'ambiance (colonne temperature_c) est renommée temperature_ambiance_c
+  // pour lever l'ambiguïté avec temperature_observee_c (cahier, 0024).
+  const HEAD = ['date', 'jour_bande', 'effectif_fin_jour', 'mortalite_jour', 'mortalite_cumulee',
+    'taux_mortalite_cumulee_pct', 'cause_5m', 'aliment_consomme_kg', 'eau_consommee_l',
+    'temperature_observee_c', 'temperature_ambiance_c', 'humidite_pct',
+    'nb_oiseaux_peses', 'poids_vif_moyen_g', 'signes_observes', 'observations'];
+  const lines = [HEAD.join(';')];
+
+  const nbEntree = Number(bande.nb_poussins_entree) || 0;
+  const byDate = {};
+  saisies.forEach(s => {
+    const k = String(s.date_saisie || '').slice(0, 10);
+    if (!k) return;
+    (byDate[k] = byDate[k] || []).push(s);
+  });
+
+  let mortCum = 0;
+  let jour = 0;
+  for (let d = new Date(start.getTime()); d <= end && jour < 400; d.setDate(d.getDate() + 1)) {
+    jour += 1;
+    const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const rows = byDate[dateStr] || [];
+    const has = rows.length > 0;
+    const sum = k => rows.reduce((t, s) => t + (Number(s[k]) || 0), 0);
+    // État « dernière valeur renseignée » : le formulaire stocke 0/null pour
+    // « non rempli » (poids, nb pesés, T°, humidité) → cellule vide, pas 0.
+    const lastSet = k => {
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const v = Number(rows[i][k]);
+        if (isFinite(v) && v !== 0) return v;
+      }
+      return '';
+    };
+    const texts = k => rows.map(s => s[k]).filter(v => v != null && String(v).trim() !== '').join(' / ');
+    const causes = [];
+    rows.forEach(s => {
+      if (Array.isArray(s.cause_5m)) s.cause_5m.forEach(c => { if (causes.indexOf(c) < 0) causes.push(c); });
+    });
+
+    const mortJour = has ? sum('mortalite_jour') : null;
+    if (mortJour != null) mortCum += mortJour;
+    const effectif = nbEntree - mortCum;
+    const taux = nbEntree > 0 ? Math.round((mortCum / nbEntree) * 10000) / 100 : '';
+
+    lines.push([
+      dateStr,
+      jour,
+      effectif,
+      mortJour == null ? '' : mortJour,
+      mortCum,
+      taux,
+      causes.join('|'),
+      has ? sum('aliment_consomme_kg') : '',
+      has ? sum('eau_consommee_l') : '',
+      has ? lastSet('temperature_observee_c') : '',
+      has ? lastSet('temperature_c') : '',
+      has ? lastSet('humidite_pct') : '',
+      has ? lastSet('nb_oiseaux_peses') : '',
+      has ? lastSet('poids_vif_moyen_g') : '',
+      has ? texts('signes_observes') : '',
+      has ? texts('observations') : ''
+    ].map(csvField).join(';'));
+  }
+
+  // BOM UTF-8 explicite : Excel (fr) détecte l'encodage et affiche les accents.
+  const csv = String.fromCharCode(0xFEFF) + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const slug = String(bande.nom_bande || bande.bande_id).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  a.download = 'export-bande-' + slug + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Export CSV généré — ' + (lines.length - 1) + ' jour(s)');
 }
 
 // ── Registre de Bande depuis la fiche ──
