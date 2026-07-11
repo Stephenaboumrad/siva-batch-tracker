@@ -4132,7 +4132,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div class="modal" style="max-width:640px;">
     <h3><i data-lucide="shield-check"></i> <span id="vs-modal-title">Nouveau vide sanitaire</span></h3>
     <div class="form-row">
-      <div class="form-group"><label>Bâtiment *</label><input type="text" id="vs-batiment" list="vs-batiment-list" placeholder="Ex : Bât. A"><datalist id="vs-batiment-list"></datalist></div>
+      <div class="form-group"><label>Bâtiment *</label><div id="vs-batiment-wrap"></div><div id="vs-batiment-hint" style="display:none;font-size:0.72rem;color:var(--text-muted);margin-top:0.25rem;">Aucun bâtiment déclaré sur les bandes — saisie libre pour ce premier cycle.</div></div>
       <div class="form-group"><label>Opérateur (nettoyage/désinfection)</label><input type="text" id="vs-operateur" placeholder="Nom de l'opérateur"></div>
     </div>
     <div class="form-row">
@@ -4145,7 +4145,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div class="form-row">
       <div class="form-group"><label>Mise en place suivante</label><input type="date" id="vs-date-entree" oninput="updateVideSanitaireDuree()"></div>
-      <div class="form-group"><label>Durée du vide (calculée)</label><div id="vs-duree" style="padding:0.6rem 0.75rem;border:1px dashed var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-weight:700;color:var(--text-primary);">—</div></div>
+      <div class="form-group"><label>Durée du vide (sortie → mise en place)</label><div id="vs-duree" style="padding:0.6rem 0.75rem;border:1px dashed var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-weight:700;color:var(--text-primary);">—</div></div>
     </div>
     <div id="vs-warn" style="display:none;margin-bottom:var(--space-4);padding:0.55rem 0.8rem;border-radius:var(--radius-sm);background:var(--status-warning-bg);border:1px solid var(--status-warning-bd);color:var(--status-warning-fg);font-size:0.8rem;font-weight:600;"></div>
 
@@ -7035,12 +7035,14 @@ function updateIoTSyncTime() {
 }
 
 // ══════════════════════════════════════════
-// ── Vide sanitaire (0031) ──
+// ── Vide sanitaire (0031/0032) ──
 // ══════════════════════════════════════════
 // Sanitary downtime register between two batches in the same building.
-// chef_bande records (INSERT) ; the manager completes/corrects (UPDATE) and
-// deletes — mirroring the RLS of migration 0031, the UI gating is comfort
-// only. VIDE_SANITAIRE_MIN_JOURS (config block) is a WARNING threshold :
+// chef_bande records (INSERT, 0031) and COMPLETES a record while it is
+// still open — UPDATE gated on date_entree null, identity (batiment /
+// date_sortie) frozen (0032). The manager corrects anything and deletes
+// (0031). The UI gating mirrors the RLS and is comfort only.
+// VIDE_SANITAIRE_MIN_JOURS (config block) is a WARNING threshold :
 // saving is NEVER blocked, whatever the dates say.
 
 let vsEditingId = null;
@@ -7057,8 +7059,9 @@ function videSanitaireStatut(v) {
 
 // Downtime duration, computed CLIENT-SIDE (works before migration 0031 is
 // applied and for open records). Closed = next placement known : duration is
-// final (mirrors the DB generated column duree_jours). Open : days elapsed
-// since the last bird out, still counting.
+// final (mirrors the DB generated column duree_jours). Open : the duration is
+// UNKNOWN, not zero — show the days elapsed since the last bird out, clearly
+// labelled as still counting.
 function videSanitaireDureeInfo(v) {
   if (!v || !v.date_sortie) return { days: null, label: '—', closed: false };
   if (v.date_entree) {
@@ -7066,7 +7069,7 @@ function videSanitaireDureeInfo(v) {
     return { days: d, label: fmt(d) + ' j', closed: true };
   }
   const d = daysBetween(v.date_sortie, todayStr());
-  return { days: d, label: fmt(d) + ' j (en cours)', closed: false };
+  return { days: d, label: fmt(d) + ' j écoulés — en cours', closed: false };
 }
 
 function initVideSanitairePage() {
@@ -7090,7 +7093,12 @@ function renderVideSanitaireList() {
     const sortante = v.bande_sortante_id ? STATE.bandes.find(b => b.id === v.bande_sortante_id) : null;
     const st = videSanitaireStatut(v);
     const duree = videSanitaireDureeInfo(v);
+    // Warning badge ONLY on closed records : an open downtime is still
+    // counting, flagging it "too short" would be noise.
     const court = duree.closed && duree.days != null && duree.days < VIDE_SANITAIRE_MIN_JOURS;
+    // Open record : the chef completes it too (RLS 0032) — the edit button
+    // is visible to both roles. Closed : back to manager-only.
+    const ouvert = !v.date_entree;
     html += '<tr>' +
       '<td><strong>' + escHtml(v.batiment || '—') + '</strong></td>' +
       '<td>' + (sortante ? escHtml(sortante.nom_bande || sortante.bande_id) : '<span style="color:var(--text-muted);">Premier cycle</span>') + '</td>' +
@@ -7100,7 +7108,7 @@ function renderVideSanitaireList() {
       '<td>' + duree.label + (court ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:8.5px;padding:1px 6px;">⚠ &lt; ' + VIDE_SANITAIRE_MIN_JOURS + ' j</span>' : '') + '</td>' +
       '<td><span class="status-badge" style="background:' + st.bg + ';color:' + st.fg + ';">' + st.label + '</span></td>' +
       '<td style="white-space:nowrap;">' +
-        '<button class="btn btn-outline btn-sm manager-only" onclick="openVideSanitaireModal(\'' + v.id + '\')">Modifier</button> ' +
+        '<button class="btn btn-outline btn-sm' + (ouvert ? '' : ' manager-only') + '" onclick="openVideSanitaireModal(\'' + v.id + '\')">' + (ouvert ? 'Compléter' : 'Modifier') + '</button> ' +
         '<button class="btn btn-outline btn-sm manager-only" onclick="deleteVideSanitaire(\'' + v.id + '\')" title="Supprimer"><i data-lucide="x"></i></button>' +
       '</td>' +
       '</tr>';
@@ -7110,10 +7118,12 @@ function renderVideSanitaireList() {
 }
 
 function openVideSanitaireModal(id) {
-  if (id && !isManager()) { toast('Modification réservée au manager', 'error'); return; }
-  vsEditingId = id || null;
   const v = id ? STATE.videsSanitaires.find(x => x.id === id) : null;
   if (id && !v) { toast('Enregistrement introuvable', 'error'); return; }
+  // 0032 : the chef may complete a record while it is still OPEN ; once the
+  // building is re-occupied (date_entree set) it is manager-only again.
+  if (id && !isManager() && v.date_entree) { toast('Vide sanitaire clôturé — modification réservée au manager', 'error'); return; }
+  vsEditingId = id || null;
 
   // Batch selects : value = bandes.id (uuid PK referenced by 0031), most
   // recent placements first. Both are optional (first cycle / not yet known).
@@ -7123,12 +7133,32 @@ function openVideSanitaireModal(id) {
   document.getElementById('vs-bande-sortante').innerHTML = bandeOpts('— Premier cycle (aucune) —');
   document.getElementById('vs-bande-entrante').innerHTML = bandeOpts('— Pas encore connue —');
 
-  // Building datalist : distinct values already used on batches (0025) —
-  // free text stays possible, this only helps keep spellings consistent.
-  const batiments = [...new Set(STATE.bandes.map(b => (b.batiment || '').trim()).filter(Boolean))].sort();
-  document.getElementById('vs-batiment-list').innerHTML = batiments.map(x => '<option value="' + escHtml(x) + '"></option>').join('');
+  // Building picker : <select> over the DISTINCT non-null bandes.batiment
+  // values (real column since 0025), sorted — free text would drift
+  // (Bât. A / Bat A / bâtiment A) and silently break UNIQUE (batiment,
+  // date_sortie) and any future join. Fallback when NO batch declares a
+  // building yet : free text input, so the very first cycle is never
+  // blocked (hint shown). Both controls share id="vs-batiment" — the rest
+  // of the module reads .value regardless of the control type.
+  const batiments = [...new Set(STATE.bandes.map(b => (b.batiment || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const batWrap = document.getElementById('vs-batiment-wrap');
+  const batHint = document.getElementById('vs-batiment-hint');
+  if (batiments.length) {
+    let batOpts = '<option value="">— Choisir un bâtiment —</option>' +
+      batiments.map(x => '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>').join('');
+    // Legacy record whose free-text value is not in the list : keep it
+    // selectable so editing does not silently rename the building.
+    if (v && v.batiment && !batiments.includes(v.batiment)) {
+      batOpts += '<option value="' + escHtml(v.batiment) + '">' + escHtml(v.batiment) + ' (hors liste)</option>';
+    }
+    batWrap.innerHTML = '<select id="vs-batiment">' + batOpts + '</select>';
+    if (batHint) batHint.style.display = 'none';
+  } else {
+    batWrap.innerHTML = '<input type="text" id="vs-batiment" placeholder="Ex : Bât. A">';
+    if (batHint) batHint.style.display = '';
+  }
 
-  document.getElementById('vs-modal-title').textContent = v ? 'Modifier le vide sanitaire' : 'Nouveau vide sanitaire';
+  document.getElementById('vs-modal-title').textContent = v ? (isManager() ? 'Modifier le vide sanitaire' : 'Compléter le vide sanitaire') : 'Nouveau vide sanitaire';
   document.getElementById('vs-batiment').value = v ? (v.batiment || '') : '';
   document.getElementById('vs-operateur').value = v ? (v.operateur || '') : '';
   document.getElementById('vs-bande-sortante').value = (v && v.bande_sortante_id) || '';
@@ -7145,6 +7175,13 @@ function openVideSanitaireModal(id) {
   const produits = (v && Array.isArray(v.produits)) ? v.produits : [];
   produits.forEach(p => vsAddProduitRow(p));
   if (produits.length === 0) vsAddProduitRow();
+
+  // Mirror the 0032 WITH CHECK client-side : a chef completing an open
+  // record cannot re-key its identity (batiment / date_sortie). The DB
+  // would reject the save anyway — freezing the fields explains it better.
+  const chefEdit = !!(id && !isManager());
+  document.getElementById('vs-batiment').disabled = chefEdit;
+  document.getElementById('vs-date-sortie').disabled = chefEdit;
 
   updateVideSanitaireDuree();
   document.getElementById('vide-sanitaire-modal').style.display = 'flex';
@@ -7207,7 +7244,7 @@ function updateVideSanitaireDuree() {
       warnEl.style.display = '';
     }
   } else if (s) {
-    dureeEl.textContent = fmt(daysBetween(s, todayStr())) + ' j (en cours)';
+    dureeEl.textContent = fmt(daysBetween(s, todayStr())) + ' j écoulés — en cours';
   } else {
     dureeEl.textContent = '—';
   }
