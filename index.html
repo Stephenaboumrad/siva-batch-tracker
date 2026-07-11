@@ -2702,6 +2702,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this)">
       <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
     </a>
+    <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
+      <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
+    </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon"><i data-lucide="package"></i></span> Transformation
     </a>
@@ -2760,6 +2763,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </a>
   <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
+  </a>
+  <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="package"></i></span> Transformation
@@ -2823,6 +2829,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="sheet-handle"></div>
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
+    <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
@@ -3274,6 +3281,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="vet-tab-traitements" style="display:none;"></div>
     <div id="vet-tab-mortalite" style="display:none;"></div>
     <div id="vet-tab-biosecurite" style="display:none;"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: VIDE SANITAIRE ═══════════════ -->
+  <div id="page-vide-sanitaire" class="page">
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="shield-check"></i> Vide sanitaire</h2>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des vides sanitaires — nettoyage &amp; désinfection entre deux bandes d'un même bâtiment.</p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+      <span id="vs-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+      <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
+    </div>
+    <div id="vs-list"></div>
   </div>
 
   <div id="page-supply" class="page">
@@ -4108,6 +4127,49 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: vide sanitaire (create for both roles ; edit is manager-only, RLS-enforced) -->
+<div id="vide-sanitaire-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:640px;">
+    <h3><i data-lucide="shield-check"></i> <span id="vs-modal-title">Nouveau vide sanitaire</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Bâtiment *</label><input type="text" id="vs-batiment" list="vs-batiment-list" placeholder="Ex : Bât. A"><datalist id="vs-batiment-list"></datalist></div>
+      <div class="form-group"><label>Opérateur (nettoyage/désinfection)</label><input type="text" id="vs-operateur" placeholder="Nom de l'opérateur"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Bande sortante</label><select id="vs-bande-sortante"></select></div>
+      <div class="form-group"><label>Bande entrante</label><select id="vs-bande-entrante"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Sortie du dernier oiseau *</label><input type="date" id="vs-date-sortie" oninput="updateVideSanitaireDuree()"></div>
+      <div class="form-group"><label>Fin nettoyage / désinfection</label><input type="date" id="vs-date-fin" oninput="updateVideSanitaireDuree()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Mise en place suivante</label><input type="date" id="vs-date-entree" oninput="updateVideSanitaireDuree()"></div>
+      <div class="form-group"><label>Durée du vide (calculée)</label><div id="vs-duree" style="padding:0.6rem 0.75rem;border:1px dashed var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-weight:700;color:var(--text-primary);">—</div></div>
+    </div>
+    <div id="vs-warn" style="display:none;margin-bottom:var(--space-4);padding:0.55rem 0.8rem;border-radius:var(--radius-sm);background:var(--status-warning-bg);border:1px solid var(--status-warning-bd);color:var(--status-warning-fg);font-size:0.8rem;font-weight:600;"></div>
+
+    <div style="border-top:1px solid var(--border);margin-top:0.5rem;padding-top:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <strong style="font-size:0.95rem;">Produits utilisés</strong>
+        <button class="btn btn-outline btn-sm" onclick="vsAddProduitRow()">+ Ajouter un produit</button>
+      </div>
+      <div id="vs-produits-rows"></div>
+    </div>
+
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem;">
+      <input type="checkbox" id="vs-controle" style="width:auto;">
+      <label for="vs-controle" style="margin:0;">Contrôle visuel de propreté effectué</label>
+    </div>
+    <div class="form-group"><label>Observations (optionnel)</label><textarea id="vs-obs" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div id="vs-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeVideSanitaireModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitVideSanitaire()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -4397,8 +4459,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4579,6 +4641,13 @@ function commandeKgLabel(c) {
   return fmt(kg, 1) + ' kg';
 }
 
+// ── Config (business rules) ──
+// Minimum recommended sanitary downtime (days) between two batches in the same
+// building. WARNING threshold only — saving is NEVER blocked. Single named
+// constant so it can later move to the `parametres` table (0028) without
+// touching the logic that reads it.
+const VIDE_SANITAIRE_MIN_JOURS = 14;
+
 // ── Config (Supabase) ──
 // NB : on évite d'écrire `const supabase = ...` au top-level. Le bundle UMD
 // `@supabase/supabase-js@2` déclare `var supabase = ...` sur le scope global,
@@ -4664,11 +4733,15 @@ const ACTION_MAP = {
   deleteProtocoleTraitement: { table: 'protocole_traitements', op: 'delete', idField: 'proto_trait_id' },
   addTraitement:         { table: 'traitements',        op: 'insert' },
   updateTraitement:      { table: 'traitements',        op: 'update', idField: 'traitement_id' },
-  deleteTraitement:      { table: 'traitements',        op: 'delete', idField: 'traitement_id' }
+  deleteTraitement:      { table: 'traitements',        op: 'delete', idField: 'traitement_id' },
+  // Vides sanitaires — sanitary downtime register between two batches (0031)
+  addVideSanitaire:      { table: 'vides_sanitaires',   op: 'insert' },
+  updateVideSanitaire:   { table: 'vides_sanitaires',   op: 'update', idField: 'id' },
+  deleteVideSanitaire:   { table: 'vides_sanitaires',   op: 'delete', idField: 'id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], parametres: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -4817,6 +4890,20 @@ function uuid() {
   return 'xxxx-xxxx'.replace(/x/g, () => ((Math.random()*16)|0).toString(16));
 }
 
+// RFC 4122 v4 uuid generated CLIENT-SIDE, for tables whose primary key is a
+// real uuid column (vides_sanitaires, 0031). The DB default gen_random_uuid()
+// only covers rows created without an id ; generating it here keeps offline
+// inserts (sync queue) idempotent — a replayed insert whose response was lost
+// hits the duplicate-key guard instead of creating a second row.
+function uuidv4() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+}
+
 function fmt(n, decimals = 0) {
   if (n == null || isNaN(n)) return '—';
   // toLocaleString('fr-FR') groups thousands with U+202F (narrow no-break space;
@@ -4946,13 +5033,14 @@ const ALL_TABLES = [
   ['protocole_vaccinal', 'protocoleVaccinal'],
   ['vaccinations',    'vaccinations'],
   ['protocole_traitements', 'protocoleTraitements'],
-  ['traitements',     'traitements']
+  ['traitements',     'traitements'],
+  ['vides_sanitaires', 'videsSanitaires']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires']);
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
 // colonnes financières) ; les managers lisent les tables complètes.
@@ -5429,6 +5517,7 @@ async function loadAllData() {
     STATE.vaccinations = data.vaccinations || [];
     STATE.protocoleTraitements = data.protocoleTraitements || [];
     STATE.traitements = data.traitements || [];
+    STATE.videsSanitaires = data.videsSanitaires || [];
     STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
@@ -5460,6 +5549,7 @@ async function loadAllData() {
         notifications: STATE.notifications, produits: STATE.produits,
         protocoleVaccinal: STATE.protocoleVaccinal, vaccinations: STATE.vaccinations,
         protocoleTraitements: STATE.protocoleTraitements, traitements: STATE.traitements,
+        videsSanitaires: STATE.videsSanitaires,
         parametres: STATE.parametres,
         cachedAt: new Date().toISOString()
       };
@@ -5500,6 +5590,7 @@ async function loadAllData() {
       STATE.vaccinations = cached.vaccinations || [];
       STATE.protocoleTraitements = cached.protocoleTraitements || [];
       STATE.traitements = cached.traitements || [];
+      STATE.videsSanitaires = cached.videsSanitaires || [];
       STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
@@ -5537,6 +5628,7 @@ const PAGE_TITLES = {
   saisie: 'Saisie Terrain',
   fiche: 'Bandes',
   veterinaire: 'Vétérinaire & Santé',
+  'vide-sanitaire': 'Vide sanitaire',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
@@ -6942,6 +7034,240 @@ function updateIoTSyncTime() {
   el.textContent = 'Simulation générée à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+// ══════════════════════════════════════════
+// ── Vide sanitaire (0031) ──
+// ══════════════════════════════════════════
+// Sanitary downtime register between two batches in the same building.
+// chef_bande records (INSERT) ; the manager completes/corrects (UPDATE) and
+// deletes — mirroring the RLS of migration 0031, the UI gating is comfort
+// only. VIDE_SANITAIRE_MIN_JOURS (config block) is a WARNING threshold :
+// saving is NEVER blocked, whatever the dates say.
+
+let vsEditingId = null;
+let vsProdCount = 0;
+
+// Status of a downtime record — the three lifecycle steps shown as a badge.
+// date_entree set -> building occupied again ; date_fin_nettoyage set ->
+// cleaning done, building waiting ; otherwise cleaning still in progress.
+function videSanitaireStatut(v) {
+  if (v.date_entree) return { label: 'Bâtiment réoccupé', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
+  if (v.date_fin_nettoyage) return { label: 'Terminé', bg: 'var(--status-success-bg)', fg: 'var(--status-success-fg)' };
+  return { label: 'En cours', bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' };
+}
+
+// Downtime duration, computed CLIENT-SIDE (works before migration 0031 is
+// applied and for open records). Closed = next placement known : duration is
+// final (mirrors the DB generated column duree_jours). Open : days elapsed
+// since the last bird out, still counting.
+function videSanitaireDureeInfo(v) {
+  if (!v || !v.date_sortie) return { days: null, label: '—', closed: false };
+  if (v.date_entree) {
+    const d = daysBetween(v.date_sortie, v.date_entree);
+    return { days: d, label: fmt(d) + ' j', closed: true };
+  }
+  const d = daysBetween(v.date_sortie, todayStr());
+  return { days: d, label: fmt(d) + ' j (en cours)', closed: false };
+}
+
+function initVideSanitairePage() {
+  renderVideSanitaireList();
+}
+
+function renderVideSanitaireList() {
+  const container = document.getElementById('vs-list');
+  if (!container) return;
+  const seuilEl = document.getElementById('vs-seuil-info');
+  if (seuilEl) seuilEl.textContent = 'Durée minimale recommandée : ' + VIDE_SANITAIRE_MIN_JOURS + ' jours — seuil indicatif, jamais bloquant.';
+
+  const list = [...STATE.videsSanitaires].sort((a, b) => (b.date_sortie || '').localeCompare(a.date_sortie || ''));
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun vide sanitaire enregistré.<br>Enregistrez le nettoyage &amp; la désinfection entre deux bandes d\'un même bâtiment.</p></div>';
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Bâtiment</th><th>Bande sortante</th><th>Sortie</th><th>Fin nettoyage</th><th>Réoccupation</th><th>Durée</th><th>Statut</th><th></th></tr></thead><tbody>';
+  list.forEach(v => {
+    const sortante = v.bande_sortante_id ? STATE.bandes.find(b => b.id === v.bande_sortante_id) : null;
+    const st = videSanitaireStatut(v);
+    const duree = videSanitaireDureeInfo(v);
+    const court = duree.closed && duree.days != null && duree.days < VIDE_SANITAIRE_MIN_JOURS;
+    html += '<tr>' +
+      '<td><strong>' + escHtml(v.batiment || '—') + '</strong></td>' +
+      '<td>' + (sortante ? escHtml(sortante.nom_bande || sortante.bande_id) : '<span style="color:var(--text-muted);">Premier cycle</span>') + '</td>' +
+      '<td>' + fmtDate(v.date_sortie) + '</td>' +
+      '<td>' + fmtDate(v.date_fin_nettoyage) + '</td>' +
+      '<td>' + fmtDate(v.date_entree) + '</td>' +
+      '<td>' + duree.label + (court ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:8.5px;padding:1px 6px;">⚠ &lt; ' + VIDE_SANITAIRE_MIN_JOURS + ' j</span>' : '') + '</td>' +
+      '<td><span class="status-badge" style="background:' + st.bg + ';color:' + st.fg + ';">' + st.label + '</span></td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="btn btn-outline btn-sm manager-only" onclick="openVideSanitaireModal(\'' + v.id + '\')">Modifier</button> ' +
+        '<button class="btn btn-outline btn-sm manager-only" onclick="deleteVideSanitaire(\'' + v.id + '\')" title="Supprimer"><i data-lucide="x"></i></button>' +
+      '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function openVideSanitaireModal(id) {
+  if (id && !isManager()) { toast('Modification réservée au manager', 'error'); return; }
+  vsEditingId = id || null;
+  const v = id ? STATE.videsSanitaires.find(x => x.id === id) : null;
+  if (id && !v) { toast('Enregistrement introuvable', 'error'); return; }
+
+  // Batch selects : value = bandes.id (uuid PK referenced by 0031), most
+  // recent placements first. Both are optional (first cycle / not yet known).
+  const bandes = [...STATE.bandes].sort((a, b) => (b.date_entree || '').localeCompare(a.date_entree || ''));
+  const bandeOpts = (placeholder) => '<option value="">' + placeholder + '</option>' +
+    bandes.map(b => '<option value="' + b.id + '">' + escHtml(b.nom_bande || b.bande_id) + (b.batiment ? ' — ' + escHtml(b.batiment) : '') + '</option>').join('');
+  document.getElementById('vs-bande-sortante').innerHTML = bandeOpts('— Premier cycle (aucune) —');
+  document.getElementById('vs-bande-entrante').innerHTML = bandeOpts('— Pas encore connue —');
+
+  // Building datalist : distinct values already used on batches (0025) —
+  // free text stays possible, this only helps keep spellings consistent.
+  const batiments = [...new Set(STATE.bandes.map(b => (b.batiment || '').trim()).filter(Boolean))].sort();
+  document.getElementById('vs-batiment-list').innerHTML = batiments.map(x => '<option value="' + escHtml(x) + '"></option>').join('');
+
+  document.getElementById('vs-modal-title').textContent = v ? 'Modifier le vide sanitaire' : 'Nouveau vide sanitaire';
+  document.getElementById('vs-batiment').value = v ? (v.batiment || '') : '';
+  document.getElementById('vs-operateur').value = v ? (v.operateur || '') : '';
+  document.getElementById('vs-bande-sortante').value = (v && v.bande_sortante_id) || '';
+  document.getElementById('vs-bande-entrante').value = (v && v.bande_entrante_id) || '';
+  document.getElementById('vs-date-sortie').value = v ? dateOnly(v.date_sortie) : todayStr();
+  document.getElementById('vs-date-fin').value = v ? dateOnly(v.date_fin_nettoyage) : '';
+  document.getElementById('vs-date-entree').value = v ? dateOnly(v.date_entree) : '';
+  document.getElementById('vs-controle').checked = !!(v && v.controle_visuel);
+  document.getElementById('vs-obs').value = v ? (v.observations || '') : '';
+  document.getElementById('vs-msg').textContent = '';
+
+  const rows = document.getElementById('vs-produits-rows');
+  rows.innerHTML = '';
+  const produits = (v && Array.isArray(v.produits)) ? v.produits : [];
+  produits.forEach(p => vsAddProduitRow(p));
+  if (produits.length === 0) vsAddProduitRow();
+
+  updateVideSanitaireDuree();
+  document.getElementById('vide-sanitaire-modal').style.display = 'flex';
+}
+
+function closeVideSanitaireModal() {
+  vsEditingId = null;
+  document.getElementById('vide-sanitaire-modal').style.display = 'none';
+}
+
+// One repeatable product row (nom / dose / lot number / application date) —
+// same .ligne-row chrome as the order-line rows.
+function vsAddProduitRow(p) {
+  vsProdCount++;
+  const container = document.getElementById('vs-produits-rows');
+  const div = document.createElement('div');
+  div.className = 'ligne-row';
+  div.id = 'vs-prod-row-' + vsProdCount;
+  div.innerHTML =
+    '<div class="form-group wide"><label>Produit</label><input type="text" class="vsp-nom" placeholder="Ex : désinfectant" value="' + escHtml((p && p.nom) || '') + '"></div>' +
+    '<div class="form-group"><label>Dose</label><input type="text" class="vsp-dose" placeholder="Ex : 2%" value="' + escHtml((p && p.dose) || '') + '"></div>' +
+    '<div class="form-group"><label>N° lot</label><input type="text" class="vsp-lot" placeholder="N° lot" value="' + escHtml((p && p.numero_lot) || '') + '"></div>' +
+    '<div class="form-group"><label>Date application</label><input type="date" class="vsp-date" value="' + escHtml((p && p.date_application) || '') + '"></div>' +
+    '<div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button class="btn btn-danger btn-sm" onclick="document.getElementById(\'vs-prod-row-' + vsProdCount + '\').remove()"><i data-lucide="x"></i></button></div>';
+  container.appendChild(div);
+}
+
+function collectVsProduits() {
+  const out = [];
+  document.querySelectorAll('#vs-produits-rows .ligne-row').forEach(row => {
+    const nom = row.querySelector('.vsp-nom').value.trim();
+    const dose = row.querySelector('.vsp-dose').value.trim();
+    const lot = row.querySelector('.vsp-lot').value.trim();
+    const dateApp = row.querySelector('.vsp-date').value;
+    if (!nom && !dose && !lot && !dateApp) return;
+    out.push({ nom: nom || null, dose: dose || null, numero_lot: lot || null, date_application: dateApp || null });
+  });
+  return out;
+}
+
+// Live downtime duration while the dates are being typed. The < threshold
+// case (and inconsistent dates) show a WARNING banner only — the save button
+// is never disabled.
+function updateVideSanitaireDuree() {
+  const s = document.getElementById('vs-date-sortie').value;
+  const e = document.getElementById('vs-date-entree').value;
+  const dureeEl = document.getElementById('vs-duree');
+  const warnEl = document.getElementById('vs-warn');
+  if (!dureeEl || !warnEl) return;
+  warnEl.style.display = 'none';
+  warnEl.textContent = '';
+  if (s && e) {
+    const d = daysBetween(s, e);
+    dureeEl.textContent = fmt(d) + ' jours';
+    if (d < 0) {
+      warnEl.textContent = '⚠ La mise en place précède la sortie — vérifiez les dates (enregistrement possible, à corriger).';
+      warnEl.style.display = '';
+    } else if (d < VIDE_SANITAIRE_MIN_JOURS) {
+      warnEl.textContent = '⚠ Vide sanitaire de ' + fmt(d) + ' j, inférieur aux ' + VIDE_SANITAIRE_MIN_JOURS + ' jours recommandés. Avertissement biosécurité — l\'enregistrement reste possible.';
+      warnEl.style.display = '';
+    }
+  } else if (s) {
+    dureeEl.textContent = fmt(daysBetween(s, todayStr())) + ' j (en cours)';
+  } else {
+    dureeEl.textContent = '—';
+  }
+}
+
+async function submitVideSanitaire() {
+  const msg = document.getElementById('vs-msg');
+  if (msg) msg.textContent = '';
+  const batiment = document.getElementById('vs-batiment').value.trim();
+  const dateSortie = document.getElementById('vs-date-sortie').value;
+  if (!batiment) { if (msg) msg.textContent = 'Le bâtiment est requis.'; return; }
+  if (!dateSortie) { if (msg) msg.textContent = 'La date de sortie du dernier oiseau est requise.'; return; }
+
+  const editingId = vsEditingId;
+  const produits = collectVsProduits();
+  // duree_jours is intentionally ABSENT : generated column (0031), Postgres
+  // rejects any write to it. created_by/created_at come from the DB defaults.
+  const payload = {
+    id: editingId || uuidv4(),
+    batiment: batiment,
+    bande_sortante_id: emptyToNull(document.getElementById('vs-bande-sortante').value),
+    bande_entrante_id: emptyToNull(document.getElementById('vs-bande-entrante').value),
+    date_sortie: dateSortie,
+    date_fin_nettoyage: dateOrNull(document.getElementById('vs-date-fin').value),
+    date_entree: dateOrNull(document.getElementById('vs-date-entree').value),
+    produits: produits.length ? produits : null,
+    operateur: document.getElementById('vs-operateur').value.trim() || null,
+    controle_visuel: document.getElementById('vs-controle').checked,
+    observations: document.getElementById('vs-obs').value.trim() || null
+  };
+
+  const btn = document.querySelector('#vide-sanitaire-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    const r = await saveRemote({ action: editingId ? 'updateVideSanitaire' : 'addVideSanitaire', payload: payload });
+    if (!r.ok) return;
+    if (editingId) {
+      const v = STATE.videsSanitaires.find(x => x.id === editingId);
+      if (v) Object.assign(v, payload);
+    } else {
+      STATE.videsSanitaires.push(payload);
+    }
+    closeVideSanitaireModal();
+    renderVideSanitaireList();
+    toast(r.queued ? 'Enregistré (hors ligne)' : (editingId ? 'Vide sanitaire mis à jour' : 'Vide sanitaire enregistré'));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+}
+
+async function deleteVideSanitaire(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer ce vide sanitaire du registre ?')) return;
+  const r = await saveRemote({ action: 'deleteVideSanitaire', payload: { id: id } });
+  if (!r.ok) return;
+  STATE.videsSanitaires = STATE.videsSanitaires.filter(v => v.id !== id);
+  renderVideSanitaireList();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Vide sanitaire supprimé');
+}
+
 // ── Navigation ──
 function navigate(page, el) {
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
@@ -6978,6 +7304,7 @@ function navigate(page, el) {
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
     case 'veterinaire': initVeterinairePage(); break;
+    case 'vide-sanitaire': initVideSanitairePage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
