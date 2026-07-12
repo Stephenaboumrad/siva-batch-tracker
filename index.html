@@ -2705,6 +2705,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
       <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
     </a>
+    <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this)">
+      <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
+    </a>
     <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
       <span class="icon"><i data-lucide="package"></i></span> Transformation
     </a>
@@ -2766,6 +2769,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </a>
   <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire
+  </a>
+  <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="package"></i></span> Transformation
@@ -2830,6 +2836,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
     <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
+    <a href="#" data-page="non-conformites" onclick="navigateFromSheet('non-conformites')"><span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
@@ -3293,6 +3300,17 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
     </div>
     <div id="vs-list"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: NON-CONFORMITÉS ═══════════════ -->
+  <div id="page-non-conformites" class="page">
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="triangle-alert"></i> Non-conformités</h2>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des écarts — constat, action corrective, vérification d'efficacité.</p>
+
+    <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+      <button class="btn btn-primary" onclick="openNonConformiteModal()">+ Nouvelle non-conformité</button>
+    </div>
+    <div id="nc-list"></div>
   </div>
 
   <div id="page-supply" class="page">
@@ -4170,6 +4188,44 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: non-conformite (create for both roles ; chef edits non-closed rows
+     with frozen identity, closing + effectiveness check are manager surfaces
+     - RLS 0033 enforced, the UI gating is comfort only) -->
+<div id="non-conformite-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:640px;">
+    <h3><i data-lucide="triangle-alert"></i> <span id="nc-modal-title">Nouvelle non-conformité</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Source</label><select id="nc-source"></select></div>
+      <div class="form-group"><label>Bande concernée (optionnel)</label><select id="nc-bande"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Date du constat *</label><input type="date" id="nc-date-constat"></div>
+      <div class="form-group"><label>Gravité</label><select id="nc-gravite"></select></div>
+    </div>
+    <div class="form-group"><label>Description du constat *</label><textarea id="nc-description" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;" placeholder="Écart observé, où, sur quoi…"></textarea></div>
+    <div class="form-group"><label>Action corrective</label><textarea id="nc-action" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;" placeholder="Mesure décidée pour corriger l'écart…"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Responsable</label><input type="text" id="nc-responsable" placeholder="Qui mène l'action"></div>
+      <div class="form-group"><label>Échéance</label><input type="date" id="nc-echeance"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Statut</label><select id="nc-statut"></select></div>
+    </div>
+    <div class="manager-only" style="border-top:1px solid var(--border);margin-top:0.5rem;padding-top:1rem;">
+      <strong style="font-size:0.95rem;display:block;margin-bottom:0.75rem;">Vérification d'efficacité</strong>
+      <div class="form-group"><label>Constat d'efficacité</label><textarea id="nc-verification" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;" placeholder="L'action a-t-elle corrigé l'écart ? Preuves…"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Date de vérification</label><input type="date" id="nc-date-verification"></div>
+      </div>
+    </div>
+    <div id="nc-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeNonConformiteModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitNonConformite()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -4459,8 +4515,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4737,11 +4793,15 @@ const ACTION_MAP = {
   // Vides sanitaires — sanitary downtime register between two batches (0031)
   addVideSanitaire:      { table: 'vides_sanitaires',   op: 'insert' },
   updateVideSanitaire:   { table: 'vides_sanitaires',   op: 'update', idField: 'id' },
-  deleteVideSanitaire:   { table: 'vides_sanitaires',   op: 'delete', idField: 'id' }
+  deleteVideSanitaire:   { table: 'vides_sanitaires',   op: 'delete', idField: 'id' },
+  // Non-conformités — deviation / corrective action register (0033)
+  addNonConformite:      { table: 'non_conformites',    op: 'insert' },
+  updateNonConformite:   { table: 'non_conformites',    op: 'update', idField: 'id' },
+  deleteNonConformite:   { table: 'non_conformites',    op: 'delete', idField: 'id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], parametres: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -5034,13 +5094,14 @@ const ALL_TABLES = [
   ['vaccinations',    'vaccinations'],
   ['protocole_traitements', 'protocoleTraitements'],
   ['traitements',     'traitements'],
-  ['vides_sanitaires', 'videsSanitaires']
+  ['vides_sanitaires', 'videsSanitaires'],
+  ['non_conformites', 'nonConformites']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites']);
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
 // colonnes financières) ; les managers lisent les tables complètes.
@@ -5518,6 +5579,7 @@ async function loadAllData() {
     STATE.protocoleTraitements = data.protocoleTraitements || [];
     STATE.traitements = data.traitements || [];
     STATE.videsSanitaires = data.videsSanitaires || [];
+    STATE.nonConformites = data.nonConformites || [];
     STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
@@ -5550,6 +5612,7 @@ async function loadAllData() {
         protocoleVaccinal: STATE.protocoleVaccinal, vaccinations: STATE.vaccinations,
         protocoleTraitements: STATE.protocoleTraitements, traitements: STATE.traitements,
         videsSanitaires: STATE.videsSanitaires,
+        nonConformites: STATE.nonConformites,
         parametres: STATE.parametres,
         cachedAt: new Date().toISOString()
       };
@@ -5591,6 +5654,7 @@ async function loadAllData() {
       STATE.protocoleTraitements = cached.protocoleTraitements || [];
       STATE.traitements = cached.traitements || [];
       STATE.videsSanitaires = cached.videsSanitaires || [];
+      STATE.nonConformites = cached.nonConformites || [];
       STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
@@ -5629,6 +5693,7 @@ const PAGE_TITLES = {
   fiche: 'Bandes',
   veterinaire: 'Vétérinaire & Santé',
   'vide-sanitaire': 'Vide sanitaire',
+  'non-conformites': 'Non-conformités',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
@@ -7305,6 +7370,193 @@ async function deleteVideSanitaire(id) {
   toast(r.queued ? 'Supprimé (hors ligne)' : 'Vide sanitaire supprimé');
 }
 
+// ══════════════════════════════════════════
+// ── Non-conformités (0033) ──
+// ══════════════════════════════════════════
+// Deviation register : finding -> corrective action -> effectiveness check.
+// chef_bande reports (INSERT) and progresses NON-CLOSED rows — UPDATE with
+// identity frozen (id / source / date_constat) and no power to close ;
+// closing and the effectiveness check are manager surfaces (RLS 0033, the
+// UI gating is comfort only). REGISTER ONLY : nothing here auto-creates
+// rows from mortality thresholds — detection is a separate decision.
+
+let ncEditingId = null;
+
+// UI vocabularies — keys are the DB enum values (CHECK constraints, 0033).
+const NC_SOURCES = {
+  saisie: 'Saisie terrain',
+  traitement: 'Traitement',
+  vide_sanitaire: 'Vide sanitaire',
+  audit: 'Audit',
+  autre: 'Autre'
+};
+const NC_GRAVITES = {
+  mineure:  { label: 'Mineure',  bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' },
+  majeure:  { label: 'Majeure',  bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' },
+  critique: { label: 'Critique', bg: 'var(--status-danger-bg)',  fg: 'var(--status-danger-fg)' }
+};
+const NC_STATUTS = {
+  ouverte:  { label: 'Ouverte',  bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' },
+  en_cours: { label: 'En cours', bg: 'var(--status-info-bg)',    fg: 'var(--status-info-fg)' },
+  cloturee: { label: 'Clôturée', bg: 'var(--status-success-bg)', fg: 'var(--status-success-fg)' }
+};
+
+// Overdue = corrective action past its deadline while the record is still
+// open. String compare on 'YYYY-MM-DD' (dateOnly / todayStr convention).
+function nonConformiteEnRetard(n) {
+  return !!(n.echeance && n.statut !== 'cloturee' && dateOnly(n.echeance) < todayStr());
+}
+
+function initNonConformitesPage() {
+  renderNonConformitesList();
+}
+
+function renderNonConformitesList() {
+  const container = document.getElementById('nc-list');
+  if (!container) return;
+
+  const list = [...STATE.nonConformites].sort((a, b) => (b.date_constat || '').localeCompare(a.date_constat || ''));
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune non-conformité enregistrée.<br>Consignez les écarts constatés (terrain, traitements, vide sanitaire, audits) et leur action corrective.</p></div>';
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Source</th><th>Bande</th><th>Gravité</th><th>Statut</th><th>Responsable</th><th>Échéance</th><th></th></tr></thead><tbody>';
+  list.forEach(n => {
+    const bande = n.bande_id ? STATE.bandes.find(b => b.id === n.bande_id) : null;
+    const grav = NC_GRAVITES[n.gravite] || { label: n.gravite || '—', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
+    const st = NC_STATUTS[n.statut] || { label: n.statut || '—', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
+    const retard = nonConformiteEnRetard(n);
+    // Open record : the chef progresses it too (RLS 0033) — closed rows are
+    // manager-only. Same UI mirror as the vide sanitaire module.
+    const ouverte = n.statut !== 'cloturee';
+    html += '<tr>' +
+      '<td>' + fmtDate(n.date_constat) + '</td>' +
+      '<td>' + escHtml(NC_SOURCES[n.source] || n.source || '—') + '</td>' +
+      '<td>' + (bande ? escHtml(bande.nom_bande || bande.bande_id) : '<span style="color:var(--text-muted);">—</span>') + '</td>' +
+      '<td><span class="status-badge" style="background:' + grav.bg + ';color:' + grav.fg + ';">' + grav.label + '</span></td>' +
+      '<td><span class="status-badge" style="background:' + st.bg + ';color:' + st.fg + ';">' + st.label + '</span></td>' +
+      '<td>' + escHtml(n.responsable || '—') + '</td>' +
+      '<td>' + fmtDate(n.echeance) + (retard ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:8.5px;padding:1px 6px;">⚠ retard</span>' : '') + '</td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="btn btn-outline btn-sm' + (ouverte ? '' : ' manager-only') + '" onclick="openNonConformiteModal(\'' + n.id + '\')">' + (ouverte ? 'Traiter' : 'Modifier') + '</button> ' +
+        '<button class="btn btn-outline btn-sm manager-only" onclick="deleteNonConformite(\'' + n.id + '\')" title="Supprimer"><i data-lucide="x"></i></button>' +
+      '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+function openNonConformiteModal(id) {
+  const n = id ? STATE.nonConformites.find(x => x.id === id) : null;
+  if (id && !n) { toast('Enregistrement introuvable', 'error'); return; }
+  // 0033 : the chef may progress a record while it is not closed ; once
+  // closed it is manager-only.
+  if (id && !isManager() && n.statut === 'cloturee') { toast('Non-conformité clôturée — modification réservée au manager', 'error'); return; }
+  ncEditingId = id || null;
+
+  document.getElementById('nc-source').innerHTML = Object.keys(NC_SOURCES)
+    .map(k => '<option value="' + k + '">' + NC_SOURCES[k] + '</option>').join('');
+  document.getElementById('nc-gravite').innerHTML = Object.keys(NC_GRAVITES)
+    .map(k => '<option value="' + k + '">' + NC_GRAVITES[k].label + '</option>').join('');
+  // Closing is MANAGER-ONLY (mirrors the 0033 policies) : the 'cloturee'
+  // option simply does not exist for the chef.
+  const statuts = isManager() ? ['ouverte', 'en_cours', 'cloturee'] : ['ouverte', 'en_cours'];
+  document.getElementById('nc-statut').innerHTML = statuts
+    .map(k => '<option value="' + k + '">' + NC_STATUTS[k].label + '</option>').join('');
+
+  // Batch select : value = bandes.id (uuid PK referenced by 0033), most
+  // recent placements first. Optional — a deviation can be site-wide.
+  const bandes = [...STATE.bandes].sort((a, b) => (b.date_entree || '').localeCompare(a.date_entree || ''));
+  document.getElementById('nc-bande').innerHTML = '<option value="">— Aucune (site / bâtiment) —</option>' +
+    bandes.map(b => '<option value="' + b.id + '">' + escHtml(b.nom_bande || b.bande_id) + (b.batiment ? ' — ' + escHtml(b.batiment) : '') + '</option>').join('');
+
+  document.getElementById('nc-modal-title').textContent = n ? (isManager() ? 'Modifier la non-conformité' : 'Traiter la non-conformité') : 'Nouvelle non-conformité';
+  document.getElementById('nc-source').value = n ? (n.source || 'autre') : 'saisie';
+  document.getElementById('nc-bande').value = (n && n.bande_id) || '';
+  document.getElementById('nc-date-constat').value = n ? dateOnly(n.date_constat) : todayStr();
+  document.getElementById('nc-gravite').value = n ? (n.gravite || 'mineure') : 'mineure';
+  document.getElementById('nc-description').value = n ? (n.description || '') : '';
+  document.getElementById('nc-action').value = n ? (n.action_corrective || '') : '';
+  document.getElementById('nc-responsable').value = n ? (n.responsable || '') : '';
+  document.getElementById('nc-echeance').value = n ? dateOnly(n.echeance) : '';
+  document.getElementById('nc-statut').value = (n && n.statut) || 'ouverte';
+  document.getElementById('nc-verification').value = n ? (n.verification_efficacite || '') : '';
+  document.getElementById('nc-date-verification').value = n ? dateOnly(n.date_verification) : '';
+  document.getElementById('nc-msg').textContent = '';
+
+  // Mirror the 0033 WITH CHECK client-side : a chef progressing a record
+  // cannot re-key its identity (source / date_constat). The DB would
+  // reject the save anyway — freezing the fields explains it better.
+  const chefEdit = !!(id && !isManager());
+  document.getElementById('nc-source').disabled = chefEdit;
+  document.getElementById('nc-date-constat').disabled = chefEdit;
+
+  document.getElementById('non-conformite-modal').style.display = 'flex';
+}
+
+function closeNonConformiteModal() {
+  ncEditingId = null;
+  document.getElementById('non-conformite-modal').style.display = 'none';
+}
+
+async function submitNonConformite() {
+  const msg = document.getElementById('nc-msg');
+  if (msg) msg.textContent = '';
+  const dateConstat = document.getElementById('nc-date-constat').value;
+  const description = document.getElementById('nc-description').value.trim();
+  if (!dateConstat) { if (msg) msg.textContent = 'La date du constat est requise.'; return; }
+  if (!description) { if (msg) msg.textContent = 'La description du constat est requise.'; return; }
+
+  const editingId = ncEditingId;
+  // created_by/created_at come from the DB defaults. The verification
+  // fields are hidden from the chef (manager-only block) but keep their
+  // loaded values, so a chef update resends them unchanged.
+  const payload = {
+    id: editingId || uuidv4(),
+    source: document.getElementById('nc-source').value,
+    bande_id: emptyToNull(document.getElementById('nc-bande').value),
+    date_constat: dateConstat,
+    description: description,
+    gravite: document.getElementById('nc-gravite').value,
+    action_corrective: document.getElementById('nc-action').value.trim() || null,
+    responsable: document.getElementById('nc-responsable').value.trim() || null,
+    echeance: dateOrNull(document.getElementById('nc-echeance').value),
+    verification_efficacite: document.getElementById('nc-verification').value.trim() || null,
+    date_verification: dateOrNull(document.getElementById('nc-date-verification').value),
+    statut: document.getElementById('nc-statut').value
+  };
+
+  const btn = document.querySelector('#non-conformite-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    const r = await saveRemote({ action: editingId ? 'updateNonConformite' : 'addNonConformite', payload: payload });
+    if (!r.ok) return;
+    if (editingId) {
+      const n = STATE.nonConformites.find(x => x.id === editingId);
+      if (n) Object.assign(n, payload);
+    } else {
+      STATE.nonConformites.push(payload);
+    }
+    closeNonConformiteModal();
+    renderNonConformitesList();
+    toast(r.queued ? 'Enregistré (hors ligne)' : (editingId ? 'Non-conformité mise à jour' : 'Non-conformité enregistrée'));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+}
+
+async function deleteNonConformite(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer cette non-conformité du registre ?')) return;
+  const r = await saveRemote({ action: 'deleteNonConformite', payload: { id: id } });
+  if (!r.ok) return;
+  STATE.nonConformites = STATE.nonConformites.filter(n => n.id !== id);
+  renderNonConformitesList();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Non-conformité supprimée');
+}
+
 // ── Navigation ──
 function navigate(page, el) {
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
@@ -7342,6 +7594,7 @@ function navigate(page, el) {
     case 'fiche': initFichePage(); break;
     case 'veterinaire': initVeterinairePage(); break;
     case 'vide-sanitaire': initVideSanitairePage(); break;
+    case 'non-conformites': initNonConformitesPage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
