@@ -16,7 +16,8 @@
 --                     (gravite : 'mineure' | 'majeure' | 'critique')
 --   - action_corrective / responsable / echeance : the response
 --   - verification_efficacite / date_verification : the effectiveness
---                     check (manager surface in the UI)
+--                     check - MANAGER-ONLY, enforced by RLS (frozen in
+--                     the chef UPDATE policy), not just hidden in the UI
 --   - statut        : 'ouverte' | 'en_cours' | 'cloturee'
 --   - created_by    : defaults to auth.uid() (null from SQL Editor)
 --
@@ -31,8 +32,14 @@
 -- 0021/0031/0032). chef_bande : SELECT + INSERT (reports what he sees on
 -- the ground) + UPDATE of NON-CLOSED rows with identity frozen (id,
 -- source, date_constat - same EXISTS-on-stored-row technique as 0032)
--- and WITHOUT the power to close (new statut may not be 'cloturee').
--- Closing is MANAGER-ONLY, enforced HERE, not only in the UI.
+-- AND the effectiveness check frozen (verification_efficacite,
+-- date_verification) : the check is only worth anything if it is
+-- INDEPENDENT - whoever reports the deviation and takes the corrective
+-- action cannot be the one certifying the action worked. Self-validation
+-- is impossible AT THE DATABASE LEVEL ; the manager-only block in the UI
+-- is defence in depth, not the barrier. The chef also has NO power to
+-- close (new statut may not be 'cloturee').
+-- Closing and the effectiveness check are MANAGER-ONLY, enforced HERE.
 -- manager : full access ; anon : no policy + revoke = no access.
 --
 -- STRICTLY ADDITIVE : one new table only, no existing table/column/policy
@@ -118,11 +125,18 @@ begin
     with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'manager');
 
   -- chef_bande UPDATE : only rows not yet closed (USING) ; the NEW row
-  -- must keep the stored identity - id / source / date_constat - via the
-  -- 0032 EXISTS-on-stored-row technique (the subquery runs on the
-  -- statement snapshot = pre-update tuple ; the SELECT policy above makes
-  -- it visible and holds no subquery itself, so no policy recursion) -
-  -- and must NOT be closed : statut -> 'cloturee' is manager-only.
+  -- must keep the stored identity - id / source / date_constat - AND the
+  -- stored effectiveness check - verification_efficacite /
+  -- date_verification (independence : no self-validation) - via the 0032
+  -- EXISTS-on-stored-row technique (the subquery runs on the statement
+  -- snapshot = pre-update tuple ; the SELECT policy above makes it
+  -- visible and holds no subquery itself, so no policy recursion) - and
+  -- must NOT be closed : statut -> 'cloturee' is manager-only.
+  -- NULLABILITY : the two verification columns are nullable and are null
+  -- on precisely the rows the chef works on, so the comparison MUST be
+  -- null-safe ("is not distinct from") - a plain "=" would evaluate to
+  -- null on (null, null) and silently reject EVERY chef update. The
+  -- identity columns are not null, plain "=" is correct there.
   drop policy if exists "rls33_non_conformites_update_chef" on public.non_conformites;
   create policy "rls33_non_conformites_update_chef" on public.non_conformites
     for update to authenticated
@@ -139,6 +153,8 @@ begin
         where prev.id = non_conformites.id
           and prev.source = non_conformites.source
           and prev.date_constat = non_conformites.date_constat
+          and prev.verification_efficacite is not distinct from non_conformites.verification_efficacite
+          and prev.date_verification is not distinct from non_conformites.date_verification
       )
     );
 
@@ -198,6 +214,18 @@ end $$;
 --   c) re-key the identity (expected : same RLS error) :
 --     sb.from('non_conformites')
 --       .update({date_constat:'2020-01-01'}).eq('id','<ID>').select()
---   d) as MANAGER, close it (expected : accepted), then as chef try any
---      update on the closed row (expected : 0 rows affected).
+--   d) write the effectiveness check as chef on an OPEN row (expected :
+--      same RLS error - self-validation blocked at the DB level) :
+--     sb.from('non_conformites')
+--       .update({verification_efficacite:'action efficace',
+--                date_verification:'2026-07-12'})
+--       .eq('id','<ID>').select()
+--   e) progress the SAME open row again as chef WITHOUT touching the
+--      verification fields (expected : accepted - the null-safe freeze
+--      must not block normal chef updates) :
+--     sb.from('non_conformites')
+--       .update({responsable:'z'}).eq('id','<ID>').select()
+--   f) as MANAGER, write the verification and close it (expected :
+--      accepted), then as chef try any update on the closed row
+--      (expected : 0 rows affected).
 -- ============================================================
