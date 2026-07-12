@@ -1001,6 +1001,26 @@ body::before {
 }
 #top-header .hdr-nav a.active .icon { color:var(--sidebar-accent); }
 
+/* ── Collapsible nav group « Biosécurité & Contrôles » ──────────────────
+   The parent is a pure TOGGLE (no page of its own) ; children keep their
+   normal link styling — including the active bar — just indented. The
+   collapse applies to the header nav and the mobile menu ; the plus-sheet
+   uses a FLAT section label instead (.sheet-group-label, with the sheet
+   CSS below) : a bottom sheet fits badly with a second interaction level.
+   Existing tokens only, text caret (no new icon). */
+#top-header .hdr-nav .nav-group { display:flex; flex-direction:column; gap:6px; }
+#top-header .hdr-nav .nav-group-children { display:none; flex-direction:column; gap:6px; }
+#top-header .hdr-nav .nav-group.open .nav-group-children { display:flex; }
+#top-header .hdr-nav .nav-group-children a { padding-left:34px; }
+#mobile-menu .nav-group-children { display:none; }
+#mobile-menu .nav-group.open .nav-group-children { display:block; }
+#mobile-menu .nav-group-children a { padding-left:52px; }
+.nav-group-toggle .nav-caret {
+  margin-left:auto; font-size:9px; color:var(--sidebar-icon);
+  display:inline-block; transition:transform .15s var(--ease);
+}
+.nav-group.open .nav-group-toggle .nav-caret { transform:rotate(90deg); }
+
 /* ── Sidebar Footer ── */
 #top-header .hdr-right {
   display:flex; flex-direction:column; gap:var(--space-2); flex-shrink:0;
@@ -1744,6 +1764,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 #plus-sheet a:hover,
 #plus-sheet a:active { background:var(--color-surface-alt); }
 #plus-sheet a .icon { font-size:20px; width:32px; text-align:center; }
+/* Flat section label of the plus-sheet nav group (same chrome family as
+   .saisie-sheet-title — the sheet variant of the collapsible group). */
+#plus-sheet .sheet-group-label {
+  font-family:var(--sans); font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.08em; color:var(--text-muted); padding:var(--space-2) 16px 4px;
+}
 /* Sélecteur de bande du FAB Saisie (réutilise le chrome du plus-sheet) */
 #saisie-sheet .saisie-sheet-title {
   font-family:var(--sans); font-size:12px; font-weight:700; text-transform:uppercase;
@@ -2702,15 +2728,22 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this)">
       <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
     </a>
-    <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
-      <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
-    </a>
-    <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this)">
-      <span class="icon"><i data-lucide="scale"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
-    </a>
-    <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this)">
-      <span class="icon"><i data-lucide="map-pin"></i></span> <span class="nav-full">Nuisibles</span><span class="nav-short">Nuis.</span>
-    </a>
+    <div class="nav-group" data-group="biosecurite">
+      <a href="#" class="nav-group-toggle" onclick="return toggleNavGroupBiosec()">
+        <span class="icon"><i data-lucide="clipboard-list"></i></span> <span class="nav-full">Biosécurité &amp; Contrôles</span><span class="nav-short">Bioséc.</span> <span class="nav-caret">▸</span>
+      </a>
+      <div class="nav-group-children">
+        <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
+          <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
+        </a>
+        <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this)">
+          <span class="icon"><i data-lucide="map-pin"></i></span> <span class="nav-full">Nuisibles</span><span class="nav-short">Nuis.</span>
+        </a>
+        <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this)">
+          <span class="icon"><i data-lucide="scale"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
+        </a>
+      </div>
+    </div>
     <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this)">
       <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
     </a>
@@ -2773,15 +2806,22 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
   </a>
-  <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire
-  </a>
-  <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="scale"></i></span> Étalonnage
-  </a>
-  <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles
-  </a>
+  <div class="nav-group" data-group="biosecurite">
+    <a href="#" class="nav-group-toggle" onclick="return toggleNavGroupBiosec()">
+      <span class="icon"><i data-lucide="clipboard-list"></i></span> Biosécurité &amp; Contrôles <span class="nav-caret">▸</span>
+    </a>
+    <div class="nav-group-children">
+      <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
+        <span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire
+      </a>
+      <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this);closeMobileMenu()">
+        <span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles
+      </a>
+      <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this);closeMobileMenu()">
+        <span class="icon"><i data-lucide="scale"></i></span> Étalonnage
+      </a>
+    </div>
+  </div>
   <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités
   </a>
@@ -2847,9 +2887,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="sheet-handle"></div>
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
-    <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
-    <a href="#" data-page="etalonnage" onclick="navigateFromSheet('etalonnage')"><span class="icon"><i data-lucide="scale"></i></span> Étalonnage</a>
-    <a href="#" data-page="nuisibles" onclick="navigateFromSheet('nuisibles')"><span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles</a>
+    <div class="nav-group">
+      <div class="sheet-group-label">Biosécurité &amp; Contrôles</div>
+      <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
+      <a href="#" data-page="nuisibles" onclick="navigateFromSheet('nuisibles')"><span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles</a>
+      <a href="#" data-page="etalonnage" onclick="navigateFromSheet('etalonnage')"><span class="icon"><i data-lucide="scale"></i></span> Étalonnage</a>
+    </div>
     <a href="#" data-page="non-conformites" onclick="navigateFromSheet('non-conformites')"><span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
@@ -4775,6 +4818,15 @@ function applyRoleAccess() {
   if (!IOT_ENABLED) {
     document.querySelectorAll('[data-page="iot"]').forEach(el => { el.style.display = 'none'; });
   }
+
+  // Grouped nav containers (header collapsible group, mobile-menu group,
+  // flat plus-sheet section) : hide the whole PARENT when the role can see
+  // none of its children — per-child visibility stays driven by the loop
+  // above, each child keeps the exact roles it has today.
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const anyVisible = Array.from(g.querySelectorAll('a[data-page]')).some(a => a.style.display !== 'none');
+    g.style.display = anyVisible ? '' : 'none';
+  });
 
   // Show user badge
   const badge = document.getElementById('user-badge');
@@ -8287,6 +8339,28 @@ async function submitPoste() {
   }
 }
 
+// ── Collapsible nav group « Biosécurité & Contrôles » ──────────────────────
+// Pure NAVIGATION grouping of three low-frequency registers (vide sanitaire,
+// nuisibles, étalonnage) — their pages, routes, roles and ids are untouched.
+// The parent is a toggle, not a page. Collapse state lives IN MEMORY only
+// (per session, per spec : no localStorage, no parametres). Navigating to a
+// child force-opens the group so the active link is never hidden ; any other
+// navigation keeps the manual state.
+const NAV_GROUP_BIOSECURITE_PAGES = ['vide-sanitaire', 'nuisibles', 'etalonnage'];
+let navGroupBiosecOpen = false;
+
+function applyNavGroupBiosec() {
+  document.querySelectorAll('.nav-group[data-group="biosecurite"]').forEach(g => {
+    g.classList.toggle('open', navGroupBiosecOpen);
+  });
+}
+
+function toggleNavGroupBiosec() {
+  navGroupBiosecOpen = !navGroupBiosecOpen;
+  applyNavGroupBiosec();
+  return false;
+}
+
 // ── Navigation ──
 function navigate(page, el) {
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
@@ -8316,6 +8390,10 @@ function navigate(page, el) {
   closeMobileMenu();
   closePlusSheet();
   updateBottomBar(page);
+  // Nav group : landing on one of its children force-opens it (the active
+  // link must be visible) ; other navigations keep the manual state.
+  if (NAV_GROUP_BIOSECURITE_PAGES.includes(page)) navGroupBiosecOpen = true;
+  applyNavGroupBiosec();
 
   switch (page) {
     case 'dashboard': renderDashboard(); break;
