@@ -30,8 +30,11 @@
 --
 -- ROLE MODEL : auth.jwt() -> 'app_metadata' ->> 'role' (convention
 -- 0021/0031/0032). chef_bande : SELECT + INSERT (reports what he sees on
--- the ground) + UPDATE of NON-CLOSED rows with identity frozen (id,
--- source, date_constat - same EXISTS-on-stored-row technique as 0032)
+-- the ground - but the effectiveness check must be EMPTY at creation and
+-- the row cannot be born already 'cloturee' : the same two manager-only
+-- surfaces as on UPDATE, blocked one verb earlier) + UPDATE of NON-CLOSED
+-- rows with identity frozen (id, source, date_constat - same
+-- EXISTS-on-stored-row technique as 0032)
 -- AND the effectiveness check frozen (verification_efficacite,
 -- date_verification) : the check is only worth anything if it is
 -- INDEPENDENT - whoever reports the deviation and takes the corrective
@@ -113,10 +116,32 @@ begin
     for select to authenticated
     using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('manager','chef_bande'));
 
+  -- INSERT split per role (0018 precedent). Manager : free. chef_bande :
+  -- reports everything EXCEPT the two manager-only surfaces, blocked one
+  -- verb earlier than the UPDATE freeze below :
+  --   - the effectiveness check must be EMPTY at creation (independence :
+  --     no self-validation on INSERT either),
+  --   - the row cannot be born already 'cloturee' (closing is
+  --     manager-only - NEW enforcement : the pre-amendment shared policy
+  --     did not restrict statut on INSERT at all).
+  -- The legacy shared policy name is dropped too, in case a pre-amendment
+  -- version of this file was ever applied (idempotence across versions).
   drop policy if exists "rls33_non_conformites_insert" on public.non_conformites;
-  create policy "rls33_non_conformites_insert" on public.non_conformites
+
+  drop policy if exists "rls33_non_conformites_insert_manager" on public.non_conformites;
+  create policy "rls33_non_conformites_insert_manager" on public.non_conformites
     for insert to authenticated
-    with check ((auth.jwt() -> 'app_metadata' ->> 'role') in ('manager','chef_bande'));
+    with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'manager');
+
+  drop policy if exists "rls33_non_conformites_insert_chef" on public.non_conformites;
+  create policy "rls33_non_conformites_insert_chef" on public.non_conformites
+    for insert to authenticated
+    with check (
+      (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
+      and statut <> 'cloturee'
+      and verification_efficacite is null
+      and date_verification is null
+    );
 
   drop policy if exists "rls33_non_conformites_update_manager" on public.non_conformites;
   create policy "rls33_non_conformites_update_manager" on public.non_conformites
@@ -185,13 +210,15 @@ end $$;
 --    where oid = 'public.non_conformites'::regclass;
 --   -- expected : true.
 --
--- 4. Policies (expected : exactly 5 rows, all rls33_*) :
+-- 4. Policies (expected : exactly 6 rows, all rls33_* - the legacy shared
+--    name rls33_non_conformites_insert must NOT appear) :
 --   select policyname, cmd from pg_policies
 --    where schemaname = 'public' and tablename = 'non_conformites'
 --    order by policyname;
 --   -- expected :
 --   --   rls33_non_conformites_delete         | DELETE
---   --   rls33_non_conformites_insert         | INSERT
+--   --   rls33_non_conformites_insert_chef    | INSERT
+--   --   rls33_non_conformites_insert_manager | INSERT
 --   --   rls33_non_conformites_select         | SELECT
 --   --   rls33_non_conformites_update_chef    | UPDATE
 --   --   rls33_non_conformites_update_manager | UPDATE
@@ -228,4 +255,17 @@ end $$;
 --   f) as MANAGER, write the verification and close it (expected :
 --      accepted), then as chef try any update on the closed row
 --      (expected : 0 rows affected).
+--   g) chef INSERTs a row with the verification already filled
+--      (expected : RLS error - self-validation blocked on INSERT too) :
+--     sb.from('non_conformites')
+--       .insert([{source:'autre', date_constat:'2026-07-12',
+--                 description:'t', gravite:'mineure',
+--                 verification_efficacite:'ok'}])
+--   h) chef INSERTs a row born 'cloturee' (expected : RLS error) :
+--     sb.from('non_conformites')
+--       .insert([{source:'autre', date_constat:'2026-07-12',
+--                 description:'t', gravite:'mineure',
+--                 statut:'cloturee'}])
+--   (a plain chef INSERT without those fields is already exercised by
+--    creating the row used in probes a-e - it must stay accepted)
 -- ============================================================
