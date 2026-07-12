@@ -2708,6 +2708,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this)">
       <span class="icon"><i data-lucide="scale"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
     </a>
+    <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this)">
+      <span class="icon"><i data-lucide="map-pin"></i></span> <span class="nav-full">Nuisibles</span><span class="nav-short">Nuis.</span>
+    </a>
     <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this)">
       <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
     </a>
@@ -2776,6 +2779,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="scale"></i></span> Étalonnage
   </a>
+  <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles
+  </a>
   <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités
   </a>
@@ -2843,6 +2849,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
     <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
     <a href="#" data-page="etalonnage" onclick="navigateFromSheet('etalonnage')"><span class="icon"><i data-lucide="scale"></i></span> Étalonnage</a>
+    <a href="#" data-page="nuisibles" onclick="navigateFromSheet('nuisibles')"><span class="icon"><i data-lucide="map-pin"></i></span> Nuisibles</a>
     <a href="#" data-page="non-conformites" onclick="navigateFromSheet('non-conformites')"><span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
@@ -3320,6 +3327,38 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div id="etal-list"></div>
     <div id="etal-historique"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: NUISIBLES ═══════════════ -->
+  <div id="page-nuisibles" class="page">
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="map-pin"></i> Lutte contre les nuisibles</h2>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des postes d'appâtage &amp; pièges — rongeurs, insectes, oiseaux sauvages. Suivi périodique, indépendant des bandes.</p>
+
+    <div id="nuisibles-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" data-nui-tab="postes" onclick="switchNuisiblesTab('postes',this)">Postes</button>
+      <button class="tab-btn" data-nui-tab="tournee" onclick="switchNuisiblesTab('tournee',this)">Tournée</button>
+    </div>
+
+    <!-- Tab 1: stations -->
+    <div id="nui-tab-postes">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <span id="nui-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+        <button class="btn btn-primary manager-only" onclick="openPosteModal()">+ Nouveau poste</button>
+      </div>
+      <div id="nui-postes-list"></div>
+    </div>
+
+    <!-- Tab 2: the round — every active station recorded in sequence -->
+    <div id="nui-tab-tournee" style="display:none;">
+      <div style="display:flex;align-items:flex-end;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <div class="form-group" style="max-width:220px;margin:0;">
+          <label>Date de la tournée</label>
+          <input type="date" id="nui-tournee-date" onchange="renderNuisiblesTournee()">
+        </div>
+        <span id="nui-tournee-progress" style="font-size:0.82rem;color:var(--text-muted);padding-bottom:0.6rem;"></span>
+      </div>
+      <div id="nui-tournee-list"></div>
+    </div>
   </div>
 
   <!-- ═══════════════ PAGE: NON-CONFORMITÉS ═══════════════ -->
@@ -4300,6 +4339,28 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: poste d'appatage (manager-only ; no delete button - stations are
+     deactivated via "actif" so their check history survives audits) -->
+<div id="poste-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3><i data-lucide="map-pin"></i> <span id="np-modal-title">Nouveau poste</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Numéro *</label><input type="text" id="np-numero" placeholder="Ex : P1"></div>
+      <div class="form-group"><label>Type</label><select id="np-type"></select></div>
+    </div>
+    <div class="form-group"><label>Localisation *</label><input type="text" id="np-localisation" placeholder="Ex : Angle nord bât. A"></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="np-actif" checked style="width:auto;">
+      <label for="np-actif" style="margin:0;">Actif (décocher pour retirer le poste de la tournée sans perdre son historique)</label>
+    </div>
+    <div id="np-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closePosteModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitPoste()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -4589,8 +4650,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'nuisibles', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'nuisibles', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4782,6 +4843,11 @@ const VIDE_SANITAIRE_MIN_JOURS = 14;
 // Same single-named-constant discipline as above, ready to move to the
 // `parametres` table (0028).
 const ETALONNAGE_ALERTE_JOURS = 30;
+// Maximum days between two checks of a pest-control bait station (0035) : a
+// station whose last check is older flips to "En retard". DISPLAY threshold
+// only — nothing is ever blocked. Same discipline as above, ready to move to
+// the `parametres` table (0028).
+const NUISIBLES_INTERVALLE_JOURS = 30;
 
 // ── Config (Supabase) ──
 // NB : on évite d'écrire `const supabase = ...` au top-level. Le bundle UMD
@@ -4881,11 +4947,17 @@ const ACTION_MAP = {
   addEquipement:         { table: 'equipements',        op: 'insert' },
   updateEquipement:      { table: 'equipements',        op: 'update', idField: 'id' },
   addEtalonnage:         { table: 'etalonnages',        op: 'insert' },
-  deleteEtalonnage:      { table: 'etalonnages',        op: 'delete', idField: 'id' }
+  deleteEtalonnage:      { table: 'etalonnages',        op: 'delete', idField: 'id' },
+  // Nuisibles — bait-station inventory + periodic check log (0035)
+  addPosteAppatage:      { table: 'postes_appatage',    op: 'insert' },
+  updatePosteAppatage:   { table: 'postes_appatage',    op: 'update', idField: 'id' },
+  addReleveNuisible:     { table: 'releves_nuisibles',  op: 'insert' },
+  updateReleveNuisible:  { table: 'releves_nuisibles',  op: 'update', idField: 'id' },
+  deleteReleveNuisible:  { table: 'releves_nuisibles',  op: 'delete', idField: 'id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], equipements: [], etalonnages: [], parametres: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], equipements: [], etalonnages: [], postesAppatage: [], relevesNuisibles: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -5181,13 +5253,15 @@ const ALL_TABLES = [
   ['vides_sanitaires', 'videsSanitaires'],
   ['non_conformites', 'nonConformites'],
   ['equipements',     'equipements'],
-  ['etalonnages',     'etalonnages']
+  ['etalonnages',     'etalonnages'],
+  ['postes_appatage', 'postesAppatage'],
+  ['releves_nuisibles', 'relevesNuisibles']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles']);
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
 // colonnes financières) ; les managers lisent les tables complètes.
@@ -5668,6 +5742,8 @@ async function loadAllData() {
     STATE.nonConformites = data.nonConformites || [];
     STATE.equipements = data.equipements || [];
     STATE.etalonnages = data.etalonnages || [];
+    STATE.postesAppatage = data.postesAppatage || [];
+    STATE.relevesNuisibles = data.relevesNuisibles || [];
     STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
@@ -5702,6 +5778,7 @@ async function loadAllData() {
         videsSanitaires: STATE.videsSanitaires,
         nonConformites: STATE.nonConformites,
         equipements: STATE.equipements, etalonnages: STATE.etalonnages,
+        postesAppatage: STATE.postesAppatage, relevesNuisibles: STATE.relevesNuisibles,
         parametres: STATE.parametres,
         cachedAt: new Date().toISOString()
       };
@@ -5746,6 +5823,8 @@ async function loadAllData() {
       STATE.nonConformites = cached.nonConformites || [];
       STATE.equipements = cached.equipements || [];
       STATE.etalonnages = cached.etalonnages || [];
+      STATE.postesAppatage = cached.postesAppatage || [];
+      STATE.relevesNuisibles = cached.relevesNuisibles || [];
       STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
@@ -5785,6 +5864,7 @@ const PAGE_TITLES = {
   veterinaire: 'Vétérinaire & Santé',
   'vide-sanitaire': 'Vide sanitaire',
   etalonnage: 'Étalonnage',
+  nuisibles: 'Nuisibles',
   'non-conformites': 'Non-conformités',
   abattage: 'Transformation',
   supply: 'Supply Chain',
@@ -7913,6 +7993,300 @@ async function deleteEtalonnage(id) {
   toast(r.queued ? 'Supprimé (hors ligne)' : 'Étalonnage supprimé');
 }
 
+// ══════════════════════════════════════════
+// ── Nuisibles (0035) ──
+// ══════════════════════════════════════════
+// Pest-control register : bait stations / traps (manager-curated) + the
+// periodic checks (chef does the rounds). PERIODIC, not per-batch — kept
+// deliberately separate from the vide sanitaire module. The "Tournée" tab
+// mirrors the field workflow : pick a date, every ACTIVE station is listed
+// with an inline form, recorded one after another (never one modal at a
+// time). RLS 0035 : chef INSERTs checks and UPDATEs only his own same-day
+// rows ; the UI gating is comfort only. NUISIBLES_INTERVALLE_JOURS
+// (config block) is a DISPLAY threshold : nothing here blocks any saving.
+
+let npEditingId = null;
+let nuiEditPostes = new Set();
+
+const NUI_TYPES = {
+  rongeurs: 'Rongeurs',
+  insectes: 'Insectes',
+  oiseaux: 'Oiseaux'
+};
+// Check verdicts — keys are the DB enum values (CHECK constraint, 0035).
+// Anything other than 'ras' is highlighted by its badge colour.
+const NUI_CONSTATS = {
+  ras:            { label: 'RAS',             bg: 'var(--status-success-bg)', fg: 'var(--status-success-fg)' },
+  traces:         { label: 'Traces',          bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' },
+  capture:        { label: 'Capture',         bg: 'var(--status-danger-bg)',  fg: 'var(--status-danger-fg)' },
+  appat_consomme: { label: 'Appât consommé',  bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' }
+};
+
+function nuiConstatBadge(constat) {
+  const c = NUI_CONSTATS[constat] || { label: constat || '—', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
+  return '<span class="status-badge" style="background:' + c.bg + ';color:' + c.fg + ';">' + c.label + '</span>';
+}
+
+// Latest check and display status of one station. Status vocabulary
+// (existing --status-* tokens only) : Inactif / Jamais relevé / En retard
+// (last check older than NUISIBLES_INTERVALLE_JOURS) / À jour.
+function posteReleveInfo(p) {
+  const hist = STATE.relevesNuisibles
+    .filter(r => r.poste_id === p.id)
+    .sort((a, b) => (b.date_releve || '').localeCompare(a.date_releve || ''));
+  const dernier = hist[0] || null;
+  const base = { dernier: dernier };
+  if (p.actif === false) return Object.assign(base, { statut: 'Inactif', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' });
+  if (!dernier) return Object.assign(base, { statut: 'Jamais relevé', bg: 'var(--status-danger-bg)', fg: 'var(--status-danger-fg)' });
+  const jours = daysBetween(dateOnly(dernier.date_releve), todayStr());
+  if (jours > NUISIBLES_INTERVALLE_JOURS) return Object.assign(base, { statut: 'En retard', bg: 'var(--status-danger-bg)', fg: 'var(--status-danger-fg)' });
+  return Object.assign(base, { statut: 'À jour', bg: 'var(--status-success-bg)', fg: 'var(--status-success-fg)' });
+}
+
+// Client mirror of the 0035 chef UPDATE window. auth.uid() is not kept in
+// STATE, so ownership is approximated by the created-today check — the DB
+// rejects the rest cleanly (error toast). Manager edits anything.
+function canEditReleve(r) {
+  return isManager() || dateOnly(r.created_at) === todayStr();
+}
+
+function initNuisiblesPage() {
+  renderNuisiblesPostes();
+  renderNuisiblesTournee();
+}
+
+function switchNuisiblesTab(tab, btn) {
+  ['postes', 'tournee'].forEach(t => {
+    const el = document.getElementById('nui-tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  document.querySelectorAll('#nuisibles-tabs .tab-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-nui-tab') === tab);
+  });
+  if (tab === 'postes') renderNuisiblesPostes();
+  if (tab === 'tournee') renderNuisiblesTournee();
+}
+
+// ── Tab 1 : stations, last check, overdue warning ──
+function renderNuisiblesPostes() {
+  const container = document.getElementById('nui-postes-list');
+  if (!container) return;
+  const seuilEl = document.getElementById('nui-seuil-info');
+  if (seuilEl) seuilEl.textContent = 'Intervalle de relevé : ' + NUISIBLES_INTERVALLE_JOURS + ' jours — au-delà, le poste passe « En retard » (seuil indicatif).';
+
+  const list = [...STATE.postesAppatage].sort((a, b) =>
+    ((b.actif === false ? 0 : 1) - (a.actif === false ? 0 : 1))
+    || (a.numero || '').localeCompare(b.numero || '', 'fr', { numeric: true }));
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun poste d\'appâtage enregistré.<br>Le manager crée les postes (P1, P2…), puis chaque tournée y consigne un relevé.</p></div>';
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>N°</th><th>Localisation</th><th>Type</th><th>Dernier relevé</th><th>Constat</th><th>Statut</th><th></th></tr></thead><tbody>';
+  list.forEach(p => {
+    const info = posteReleveInfo(p);
+    html += '<tr>' +
+      '<td><strong>' + escHtml(p.numero || '—') + '</strong></td>' +
+      '<td>' + escHtml(p.localisation || '—') + '</td>' +
+      '<td>' + escHtml(NUI_TYPES[p.type] || p.type || '—') + '</td>' +
+      '<td>' + (info.dernier ? fmtDate(info.dernier.date_releve) : '—') + '</td>' +
+      '<td>' + (info.dernier
+        ? nuiConstatBadge(info.dernier.constat) + (Number(info.dernier.quantite) > 0 ? ' <span style="font-size:0.75rem;color:var(--text-muted);">× ' + fmt(Number(info.dernier.quantite)) + '</span>' : '')
+        : '—') + '</td>' +
+      '<td><span class="status-badge" style="background:' + info.bg + ';color:' + info.fg + ';">' + info.statut + '</span></td>' +
+      '<td style="white-space:nowrap;"><button class="btn btn-outline btn-sm manager-only" onclick="openPosteModal(\'' + p.id + '\')">Modifier</button></td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+// ── Tab 2 : the round — one inline form per active station ──
+function renderNuisiblesTournee() {
+  const container = document.getElementById('nui-tournee-list');
+  if (!container) return;
+  const dateEl = document.getElementById('nui-tournee-date');
+  if (dateEl && !dateEl.value) dateEl.value = todayStr();
+  const date = dateEl ? dateEl.value : todayStr();
+
+  const postes = STATE.postesAppatage.filter(p => p.actif !== false)
+    .sort((a, b) => (a.numero || '').localeCompare(b.numero || '', 'fr', { numeric: true }));
+  const progressEl = document.getElementById('nui-tournee-progress');
+
+  if (postes.length === 0) {
+    if (progressEl) progressEl.textContent = '';
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun poste actif — le manager doit d\'abord créer les postes d\'appâtage.</p></div>';
+    return;
+  }
+
+  const releveFor = (p) => STATE.relevesNuisibles.find(r => r.poste_id === p.id && dateOnly(r.date_releve) === date);
+  const faits = postes.filter(p => releveFor(p)).length;
+  if (progressEl) progressEl.textContent = faits + ' / ' + postes.length + ' postes relevés';
+
+  let html = '';
+  postes.forEach(p => {
+    const releve = releveFor(p);
+    const header = '<strong>' + escHtml(p.numero || '—') + '</strong> — ' + escHtml(p.localisation || '—') +
+      ' <span style="font-size:0.75rem;color:var(--text-muted);">(' + escHtml(NUI_TYPES[p.type] || p.type || '—') + ')</span>';
+
+    if (releve && !nuiEditPostes.has(p.id)) {
+      // Done state : summary of the recorded check for that date.
+      html += '<div class="card" style="margin-bottom:0.6rem;"><div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;">' +
+        '<div>' + header + '<div style="margin-top:0.35rem;">' + nuiConstatBadge(releve.constat) +
+        (Number(releve.quantite) > 0 ? ' <span style="font-size:0.78rem;color:var(--text-muted);">× ' + fmt(Number(releve.quantite)) + '</span>' : '') +
+        (releve.appat_remplace ? ' <span style="font-size:0.78rem;color:var(--text-muted);">· appât remplacé' + (releve.produit ? ' (' + escHtml(releve.produit) + ')' : '') + '</span>' : '') +
+        (releve.action ? ' <span style="font-size:0.78rem;color:var(--text-muted);">· action : ' + escHtml(releve.action) + '</span>' : '') +
+        (releve.releve_par ? ' <span style="font-size:0.78rem;color:var(--text-muted);">· par ' + escHtml(releve.releve_par) + '</span>' : '') +
+        '</div></div>' +
+        '<div style="white-space:nowrap;">' +
+        (canEditReleve(releve) ? '<button class="btn btn-outline btn-sm" onclick="toggleNuiEdit(\'' + p.id + '\')">Modifier</button> ' : '') +
+        '<button class="btn btn-outline btn-sm manager-only" onclick="deleteReleveNuisible(\'' + releve.id + '\')" title="Supprimer"><i data-lucide="x"></i></button>' +
+        '</div></div></div>';
+      return;
+    }
+
+    // Inline form (new check, or same-day edit of an existing one).
+    const v = releve || {};
+    const constatOpts = Object.keys(NUI_CONSTATS)
+      .map(k => '<option value="' + k + '"' + ((v.constat || 'ras') === k ? ' selected' : '') + '>' + NUI_CONSTATS[k].label + '</option>').join('');
+    html += '<div class="card" style="margin-bottom:0.6rem;">' +
+      '<div style="margin-bottom:0.5rem;">' + header + '</div>' +
+      '<div class="ligne-row">' +
+      '<div class="form-group"><label>Constat</label><select id="nui-constat-' + p.id + '">' + constatOpts + '</select></div>' +
+      '<div class="form-group"><label>Quantité</label><input type="number" id="nui-quantite-' + p.id + '" min="0" step="1" inputmode="numeric" value="' + (v.quantite != null ? escHtml(String(v.quantite)) : '') + '"></div>' +
+      '<div class="form-group"><label>Appât remplacé</label><input type="checkbox" id="nui-remplace-' + p.id + '"' + (v.appat_remplace ? ' checked' : '') + ' style="width:auto;margin-top:0.6rem;"></div>' +
+      '<div class="form-group"><label>Produit</label><input type="text" id="nui-produit-' + p.id + '" placeholder="Nom du produit" value="' + escHtml(v.produit || '') + '"></div>' +
+      '<div class="form-group"><label>N° lot</label><input type="text" id="nui-lot-' + p.id + '" value="' + escHtml(v.numero_lot || '') + '"></div>' +
+      '<div class="form-group wide"><label>Action (si infestation)</label><input type="text" id="nui-action-' + p.id + '" value="' + escHtml(v.action || '') + '"></div>' +
+      '<div class="form-group wide"><label>Observations</label><input type="text" id="nui-obs-' + p.id + '" value="' + escHtml(v.observations || '') + '"></div>' +
+      '<div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button class="btn btn-primary btn-sm" id="nui-save-' + p.id + '" onclick="submitReleveTournee(\'' + p.id + '\')">Enregistrer</button></div>' +
+      '</div></div>';
+  });
+  container.innerHTML = html;
+}
+
+function toggleNuiEdit(posteId) {
+  if (nuiEditPostes.has(posteId)) nuiEditPostes.delete(posteId);
+  else nuiEditPostes.add(posteId);
+  renderNuisiblesTournee();
+}
+
+async function submitReleveTournee(posteId) {
+  const dateEl = document.getElementById('nui-tournee-date');
+  const date = dateEl ? dateEl.value : '';
+  if (!date) { toast('Choisissez une date de tournée', 'error'); return; }
+  const existing = STATE.relevesNuisibles.find(r => r.poste_id === posteId && dateOnly(r.date_releve) === date);
+
+  // created_by/created_at come from the DB defaults on INSERT and are NOT
+  // resent on UPDATE (the 0035 chef policy freezes them). releve_par is kept
+  // as originally recorded when editing.
+  const payload = {
+    id: existing ? existing.id : uuidv4(),
+    poste_id: posteId,
+    date_releve: date,
+    constat: document.getElementById('nui-constat-' + posteId).value,
+    quantite: numOrNull(document.getElementById('nui-quantite-' + posteId).value),
+    appat_remplace: document.getElementById('nui-remplace-' + posteId).checked,
+    produit: document.getElementById('nui-produit-' + posteId).value.trim() || null,
+    numero_lot: document.getElementById('nui-lot-' + posteId).value.trim() || null,
+    action: document.getElementById('nui-action-' + posteId).value.trim() || null,
+    releve_par: existing ? (existing.releve_par || null) : currentUserLabel(),
+    observations: document.getElementById('nui-obs-' + posteId).value.trim() || null
+  };
+
+  const btn = document.getElementById('nui-save-' + posteId);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const r = await saveRemote({ action: existing ? 'updateReleveNuisible' : 'addReleveNuisible', payload: payload });
+    if (!r.ok) return;
+    if (existing) {
+      Object.assign(existing, payload);
+    } else {
+      // Local created_at mirror (NOT sent to the DB) : lets the chef re-open
+      // his just-recorded check the same day (canEditReleve) without a reload.
+      STATE.relevesNuisibles.push(Object.assign({}, payload, { created_at: new Date().toISOString() }));
+    }
+    nuiEditPostes.delete(posteId);
+    renderNuisiblesTournee();
+    renderNuisiblesPostes();
+    toast(r.queued ? 'Enregistré (hors ligne)' : 'Relevé ' + (existing ? 'mis à jour' : 'enregistré'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer'; }
+  }
+}
+
+async function deleteReleveNuisible(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer ce relevé du registre ?')) return;
+  const r = await saveRemote({ action: 'deleteReleveNuisible', payload: { id: id } });
+  if (!r.ok) return;
+  STATE.relevesNuisibles = STATE.relevesNuisibles.filter(x => x.id !== id);
+  renderNuisiblesTournee();
+  renderNuisiblesPostes();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Relevé supprimé');
+}
+
+// ── Station form (manager-only : the station map is curated) ──
+function openPosteModal(id) {
+  if (!isManager()) { toast('Postes d\'appâtage réservés au manager', 'error'); return; }
+  const p = id ? STATE.postesAppatage.find(x => x.id === id) : null;
+  if (id && !p) { toast('Poste introuvable', 'error'); return; }
+  npEditingId = id || null;
+
+  document.getElementById('np-type').innerHTML = Object.keys(NUI_TYPES)
+    .map(k => '<option value="' + k + '">' + NUI_TYPES[k] + '</option>').join('');
+
+  document.getElementById('np-modal-title').textContent = p ? 'Modifier le poste' : 'Nouveau poste';
+  document.getElementById('np-numero').value = p ? (p.numero || '') : '';
+  document.getElementById('np-type').value = p ? (p.type || 'rongeurs') : 'rongeurs';
+  document.getElementById('np-localisation').value = p ? (p.localisation || '') : '';
+  document.getElementById('np-actif').checked = p ? p.actif !== false : true;
+  document.getElementById('np-msg').textContent = '';
+  document.getElementById('poste-modal').style.display = 'flex';
+}
+
+function closePosteModal() {
+  npEditingId = null;
+  document.getElementById('poste-modal').style.display = 'none';
+}
+
+async function submitPoste() {
+  const msg = document.getElementById('np-msg');
+  if (msg) msg.textContent = '';
+  const numero = document.getElementById('np-numero').value.trim();
+  const localisation = document.getElementById('np-localisation').value.trim();
+  if (!numero) { if (msg) msg.textContent = 'Le numéro du poste est requis.'; return; }
+  if (!localisation) { if (msg) msg.textContent = 'La localisation est requise.'; return; }
+
+  const editingId = npEditingId;
+  const payload = {
+    id: editingId || uuidv4(),
+    numero: numero,
+    localisation: localisation,
+    type: document.getElementById('np-type').value,
+    actif: document.getElementById('np-actif').checked
+  };
+
+  const btn = document.querySelector('#poste-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    const r = await saveRemote({ action: editingId ? 'updatePosteAppatage' : 'addPosteAppatage', payload: payload });
+    if (!r.ok) return;
+    if (editingId) {
+      const p = STATE.postesAppatage.find(x => x.id === editingId);
+      if (p) Object.assign(p, payload);
+    } else {
+      STATE.postesAppatage.push(payload);
+    }
+    closePosteModal();
+    renderNuisiblesPostes();
+    renderNuisiblesTournee();
+    toast(r.queued ? 'Enregistré (hors ligne)' : (editingId ? 'Poste mis à jour' : 'Poste enregistré'));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+}
+
 // ── Navigation ──
 function navigate(page, el) {
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
@@ -7951,6 +8325,7 @@ function navigate(page, el) {
     case 'veterinaire': initVeterinairePage(); break;
     case 'vide-sanitaire': initVideSanitairePage(); break;
     case 'etalonnage': initEtalonnagePage(); break;
+    case 'nuisibles': initNuisiblesPage(); break;
     case 'non-conformites': initNonConformitesPage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
