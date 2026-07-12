@@ -3349,7 +3349,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: VIDE SANITAIRE ═══════════════ -->
   <div id="page-vide-sanitaire" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="shield-check"></i> Vide sanitaire</h2>
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="spray-can"></i> Vide sanitaire</h2>
     <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des vides sanitaires — nettoyage &amp; désinfection entre deux bandes d'un même bâtiment.</p>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
@@ -3361,7 +3361,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: ÉTALONNAGE ═══════════════ -->
   <div id="page-etalonnage" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="scale"></i> Étalonnage</h2>
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="gauge"></i> Étalonnage</h2>
     <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre d'étalonnage des instruments de mesure — thermomètres, balances.</p>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
@@ -3374,7 +3374,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: NUISIBLES ═══════════════ -->
   <div id="page-nuisibles" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="map-pin"></i> Lutte contre les nuisibles</h2>
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="bug-off"></i> Lutte contre les nuisibles</h2>
     <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des postes d'appâtage &amp; pièges — rongeurs, insectes, oiseaux sauvages. Suivi périodique, indépendant des bandes.</p>
 
     <div id="nuisibles-tabs" class="tabs" style="margin-bottom:1.25rem;">
@@ -4250,7 +4250,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: vide sanitaire (create for both roles ; edit is manager-only, RLS-enforced) -->
 <div id="vide-sanitaire-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:640px;">
-    <h3><i data-lucide="shield-check"></i> <span id="vs-modal-title">Nouveau vide sanitaire</span></h3>
+    <h3><i data-lucide="spray-can"></i> <span id="vs-modal-title">Nouveau vide sanitaire</span></h3>
     <div class="form-row">
       <div class="form-group"><label>Bâtiment *</label><div id="vs-batiment-wrap"></div><div id="vs-batiment-hint" style="display:none;font-size:0.72rem;color:var(--text-muted);margin-top:0.25rem;">Aucun bâtiment déclaré sur les bandes — saisie libre pour ce premier cycle.</div></div>
       <div class="form-group"><label>Opérateur (nettoyage/désinfection)</label><input type="text" id="vs-operateur" placeholder="Nom de l'opérateur"></div>
@@ -4332,7 +4332,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
      is deactivated via "actif" so its calibration history survives audits) -->
 <div id="equipement-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:560px;">
-    <h3><i data-lucide="scale"></i> <span id="eq-modal-title">Nouvel équipement</span></h3>
+    <h3><i data-lucide="gauge"></i> <span id="eq-modal-title">Nouvel équipement</span></h3>
     <div class="form-row">
       <div class="form-group"><label>Nom *</label><input type="text" id="eq-nom" placeholder="Ex : Thermomètre bât. A"></div>
       <div class="form-group"><label>Type</label><select id="eq-type"></select></div>
@@ -4359,7 +4359,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <!-- Modal: etalonnage (both roles - the chef performs the periodic checks) -->
 <div id="etalonnage-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:560px;">
-    <h3><i data-lucide="scale"></i> <span id="et-modal-title">Nouvel étalonnage</span></h3>
+    <h3><i data-lucide="gauge"></i> <span id="et-modal-title">Nouvel étalonnage</span></h3>
     <div class="form-row">
       <div class="form-group"><label>Équipement *</label><select id="et-equipement"></select></div>
       <div class="form-group"><label>Date *</label><input type="date" id="et-date"></div>
@@ -4386,7 +4386,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
      deactivated via "actif" so their check history survives audits) -->
 <div id="poste-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:560px;">
-    <h3><i data-lucide="map-pin"></i> <span id="np-modal-title">Nouveau poste</span></h3>
+    <h3><i data-lucide="bug-off"></i> <span id="np-modal-title">Nouveau poste</span></h3>
     <div class="form-row">
       <div class="form-group"><label>Numéro *</label><input type="text" id="np-numero" placeholder="Ex : P1"></div>
       <div class="form-group"><label>Type</label><select id="np-type"></select></div>
