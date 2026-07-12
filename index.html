@@ -2705,6 +2705,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
       <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
     </a>
+    <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this)">
+      <span class="icon"><i data-lucide="scale"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
+    </a>
     <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this)">
       <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
     </a>
@@ -2769,6 +2772,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </a>
   <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire
+  </a>
+  <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="scale"></i></span> Étalonnage
   </a>
   <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités
@@ -2836,6 +2842,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
     <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="shield-check"></i></span> Vide sanitaire</a>
+    <a href="#" data-page="etalonnage" onclick="navigateFromSheet('etalonnage')"><span class="icon"><i data-lucide="scale"></i></span> Étalonnage</a>
     <a href="#" data-page="non-conformites" onclick="navigateFromSheet('non-conformites')"><span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
@@ -3300,6 +3307,19 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
     </div>
     <div id="vs-list"></div>
+  </div>
+
+  <!-- ═══════════════ PAGE: ÉTALONNAGE ═══════════════ -->
+  <div id="page-etalonnage" class="page">
+    <h2 style="margin:0 0 0.25rem;"><i data-lucide="scale"></i> Étalonnage</h2>
+    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre d'étalonnage des instruments de mesure — thermomètres, balances.</p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+      <span id="etal-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+      <button class="btn btn-primary manager-only" onclick="openEquipementModal()">+ Nouvel équipement</button>
+    </div>
+    <div id="etal-list"></div>
+    <div id="etal-historique"></div>
   </div>
 
   <!-- ═══════════════ PAGE: NON-CONFORMITÉS ═══════════════ -->
@@ -4226,6 +4246,60 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modal: equipement (manager-only inventory ; no delete button - equipment
+     is deactivated via "actif" so its calibration history survives audits) -->
+<div id="equipement-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3><i data-lucide="scale"></i> <span id="eq-modal-title">Nouvel équipement</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Nom *</label><input type="text" id="eq-nom" placeholder="Ex : Thermomètre bât. A"></div>
+      <div class="form-group"><label>Type</label><select id="eq-type"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>N° de série</label><input type="text" id="eq-serie" placeholder="Optionnel"></div>
+      <div class="form-group"><label>Localisation</label><input type="text" id="eq-localisation" placeholder="Ex : Bât. A"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fréquence d'étalonnage (mois)</label><input type="number" id="eq-frequence" min="1" step="1" inputmode="numeric" placeholder="12"></div>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="eq-actif" checked style="width:auto;">
+      <label for="eq-actif" style="margin:0;">Actif (décocher pour retirer l'équipement sans perdre son historique)</label>
+    </div>
+    <div id="eq-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEquipementModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitEquipement()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: etalonnage (both roles - the chef performs the periodic checks) -->
+<div id="etalonnage-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3><i data-lucide="scale"></i> <span id="et-modal-title">Nouvel étalonnage</span></h3>
+    <div class="form-row">
+      <div class="form-group"><label>Équipement *</label><select id="et-equipement"></select></div>
+      <div class="form-group"><label>Date *</label><input type="date" id="et-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Réalisé par</label><input type="text" id="et-realise-par" placeholder="Nom interne ou organisme externe"></div>
+      <div class="form-group"><label>Méthode</label><input type="text" id="et-methode" placeholder="Ex : thermomètre de référence, poids test"></div>
+    </div>
+    <div class="form-group"><label>Écart constaté</label><input type="text" id="et-ecart" placeholder="Ex : +0,4 °C vs référence"></div>
+    <div class="form-group" style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="checkbox" id="et-conforme" checked style="width:auto;">
+      <label for="et-conforme" style="margin:0;">Conforme (dans la tolérance)</label>
+    </div>
+    <div class="form-group"><label>Observations (optionnel)</label><textarea id="et-obs" rows="2" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea></div>
+    <div id="et-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEtalonnageModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitEtalonnage()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle commande -->
 <div id="commande-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:700px;">
@@ -4515,8 +4589,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4703,6 +4777,11 @@ function commandeKgLabel(c) {
 // constant so it can later move to the `parametres` table (0028) without
 // touching the logic that reads it.
 const VIDE_SANITAIRE_MIN_JOURS = 14;
+// Days before an equipment's calibration due date at which its status flips
+// to "Bientôt dû" (0034). DISPLAY threshold only — nothing is ever blocked.
+// Same single-named-constant discipline as above, ready to move to the
+// `parametres` table (0028).
+const ETALONNAGE_ALERTE_JOURS = 30;
 
 // ── Config (Supabase) ──
 // NB : on évite d'écrire `const supabase = ...` au top-level. Le bundle UMD
@@ -4797,11 +4876,16 @@ const ACTION_MAP = {
   // Non-conformités — deviation / corrective action register (0033)
   addNonConformite:      { table: 'non_conformites',    op: 'insert' },
   updateNonConformite:   { table: 'non_conformites',    op: 'update', idField: 'id' },
-  deleteNonConformite:   { table: 'non_conformites',    op: 'delete', idField: 'id' }
+  deleteNonConformite:   { table: 'non_conformites',    op: 'delete', idField: 'id' },
+  // Étalonnage — instrument inventory + calibration log (0034)
+  addEquipement:         { table: 'equipements',        op: 'insert' },
+  updateEquipement:      { table: 'equipements',        op: 'update', idField: 'id' },
+  addEtalonnage:         { table: 'etalonnages',        op: 'insert' },
+  deleteEtalonnage:      { table: 'etalonnages',        op: 'delete', idField: 'id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], parametres: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], equipements: [], etalonnages: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -5095,13 +5179,15 @@ const ALL_TABLES = [
   ['protocole_traitements', 'protocoleTraitements'],
   ['traitements',     'traitements'],
   ['vides_sanitaires', 'videsSanitaires'],
-  ['non_conformites', 'nonConformites']
+  ['non_conformites', 'nonConformites'],
+  ['equipements',     'equipements'],
+  ['etalonnages',     'etalonnages']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages']);
 
 // Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
 // colonnes financières) ; les managers lisent les tables complètes.
@@ -5580,6 +5666,8 @@ async function loadAllData() {
     STATE.traitements = data.traitements || [];
     STATE.videsSanitaires = data.videsSanitaires || [];
     STATE.nonConformites = data.nonConformites || [];
+    STATE.equipements = data.equipements || [];
+    STATE.etalonnages = data.etalonnages || [];
     STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
@@ -5613,6 +5701,7 @@ async function loadAllData() {
         protocoleTraitements: STATE.protocoleTraitements, traitements: STATE.traitements,
         videsSanitaires: STATE.videsSanitaires,
         nonConformites: STATE.nonConformites,
+        equipements: STATE.equipements, etalonnages: STATE.etalonnages,
         parametres: STATE.parametres,
         cachedAt: new Date().toISOString()
       };
@@ -5655,6 +5744,8 @@ async function loadAllData() {
       STATE.traitements = cached.traitements || [];
       STATE.videsSanitaires = cached.videsSanitaires || [];
       STATE.nonConformites = cached.nonConformites || [];
+      STATE.equipements = cached.equipements || [];
+      STATE.etalonnages = cached.etalonnages || [];
       STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
@@ -5693,6 +5784,7 @@ const PAGE_TITLES = {
   fiche: 'Bandes',
   veterinaire: 'Vétérinaire & Santé',
   'vide-sanitaire': 'Vide sanitaire',
+  etalonnage: 'Étalonnage',
   'non-conformites': 'Non-conformités',
   abattage: 'Transformation',
   supply: 'Supply Chain',
@@ -7557,6 +7649,270 @@ async function deleteNonConformite(id) {
   toast(r.queued ? 'Supprimé (hors ligne)' : 'Non-conformité supprimée');
 }
 
+// ══════════════════════════════════════════
+// ── Étalonnage (0034) ──
+// ══════════════════════════════════════════
+// Instrument inventory + calibration log. The manager curates the inventory
+// (equipements) ; both roles log calibrations (etalonnages) — mirroring the
+// RLS of 0034, the UI gating is comfort only. "Next due" = last calibration
+// + frequence_etalonnage_mois ; ETALONNAGE_ALERTE_JOURS (config block) sets
+// the "Bientôt dû" window. DISPLAY only : nothing here blocks any saving.
+// Equipment has NO delete button on purpose : it is deactivated (actif) so
+// its calibration history survives audits.
+
+let eqEditingId = null;
+let etalHistEquipId = null;
+
+const EQUIPEMENT_TYPES = {
+  thermometre: 'Thermomètre',
+  balance: 'Balance',
+  autre: 'Autre'
+};
+
+// 'YYYY-MM-DD' + n months -> 'YYYY-MM-DD' (local calendar, JS end-of-month
+// overflow accepted : Jan 31 + 1 month lands early March).
+function addMonthsStr(dayStr, months) {
+  const d = parseDayLocal(dayStr);
+  if (!d) return null;
+  d.setMonth(d.getMonth() + months);
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+// Last calibration, computed next-due date and display status of one
+// equipment. Status vocabulary (existing --status-* tokens only) :
+// inactif / jamais (never calibrated) / sans_frequence / retard / bientot /
+// a_jour.
+function equipementEtalonnageInfo(eq) {
+  const hist = STATE.etalonnages
+    .filter(e => e.equipement_id === eq.id)
+    .sort((a, b) => (b.date_etalonnage || '').localeCompare(a.date_etalonnage || ''));
+  const dernier = hist[0] || null;
+  const base = { dernier: dernier, prochain: null, hist: hist };
+  if (eq.actif === false) return Object.assign(base, { statut: 'Inactif', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' });
+  if (!dernier) return Object.assign(base, { statut: 'Jamais étalonné', bg: 'var(--status-danger-bg)', fg: 'var(--status-danger-fg)' });
+  const freq = Number(eq.frequence_etalonnage_mois);
+  if (!freq || freq <= 0) return Object.assign(base, { statut: 'Fréquence non définie', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' });
+  const prochain = addMonthsStr(dateOnly(dernier.date_etalonnage), freq);
+  base.prochain = prochain;
+  const joursRestants = daysBetween(todayStr(), prochain);
+  if (joursRestants < 0) return Object.assign(base, { statut: 'En retard', bg: 'var(--status-danger-bg)', fg: 'var(--status-danger-fg)' });
+  if (joursRestants < ETALONNAGE_ALERTE_JOURS) return Object.assign(base, { statut: 'Bientôt dû', bg: 'var(--status-warning-bg)', fg: 'var(--status-warning-fg)' });
+  return Object.assign(base, { statut: 'À jour', bg: 'var(--status-success-bg)', fg: 'var(--status-success-fg)' });
+}
+
+function initEtalonnagePage() {
+  renderEtalonnageList();
+}
+
+function renderEtalonnageList() {
+  const container = document.getElementById('etal-list');
+  if (!container) return;
+  const seuilEl = document.getElementById('etal-seuil-info');
+  if (seuilEl) seuilEl.textContent = 'Alerte « Bientôt dû » : ' + ETALONNAGE_ALERTE_JOURS + ' jours avant l\'échéance — seuil indicatif.';
+
+  const list = [...STATE.equipements].sort((a, b) =>
+    ((b.actif === false ? 0 : 1) - (a.actif === false ? 0 : 1))
+    || (a.nom || '').localeCompare(b.nom || '', 'fr'));
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun équipement enregistré.<br>Le manager crée les instruments (thermomètres, balances), puis chaque étalonnage y est consigné.</p></div>';
+    renderEtalonnageHistorique();
+    return;
+  }
+
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Équipement</th><th>Type</th><th>Localisation</th><th>Fréquence</th><th>Dernier étalonnage</th><th>Prochain dû</th><th>Statut</th><th></th></tr></thead><tbody>';
+  list.forEach(eq => {
+    const info = equipementEtalonnageInfo(eq);
+    const nonConforme = info.dernier && info.dernier.conforme === false;
+    html += '<tr>' +
+      '<td><strong>' + escHtml(eq.nom || '—') + '</strong>' + (eq.numero_serie ? '<br><span style="font-size:0.72rem;color:var(--text-muted);">n° ' + escHtml(eq.numero_serie) + '</span>' : '') + '</td>' +
+      '<td>' + escHtml(EQUIPEMENT_TYPES[eq.type] || eq.type || '—') + '</td>' +
+      '<td>' + escHtml(eq.localisation || '—') + '</td>' +
+      '<td>' + (Number(eq.frequence_etalonnage_mois) > 0 ? fmt(Number(eq.frequence_etalonnage_mois)) + ' mois' : '—') + '</td>' +
+      '<td>' + (info.dernier ? fmtDate(info.dernier.date_etalonnage) : '—') +
+        (nonConforme ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:8.5px;padding:1px 6px;">Non conforme</span>' : '') + '</td>' +
+      '<td>' + (info.prochain ? fmtDate(info.prochain) : '—') + '</td>' +
+      '<td><span class="status-badge" style="background:' + info.bg + ';color:' + info.fg + ';">' + info.statut + '</span></td>' +
+      '<td style="white-space:nowrap;">' +
+        (eq.actif === false ? '' : '<button class="btn btn-outline btn-sm" onclick="openEtalonnageModal(\'' + eq.id + '\')">+ Étalonnage</button> ') +
+        '<button class="btn btn-outline btn-sm" onclick="toggleEtalonnageHistorique(\'' + eq.id + '\')">Historique</button> ' +
+        '<button class="btn btn-outline btn-sm manager-only" onclick="openEquipementModal(\'' + eq.id + '\')">Modifier</button>' +
+      '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+  renderEtalonnageHistorique();
+}
+
+function toggleEtalonnageHistorique(equipId) {
+  etalHistEquipId = (etalHistEquipId === equipId) ? null : equipId;
+  renderEtalonnageHistorique();
+}
+
+function renderEtalonnageHistorique() {
+  const container = document.getElementById('etal-historique');
+  if (!container) return;
+  const eq = etalHistEquipId ? STATE.equipements.find(x => x.id === etalHistEquipId) : null;
+  if (!eq) { container.innerHTML = ''; return; }
+  const info = equipementEtalonnageInfo(eq);
+
+  let html = '<div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Historique — ' + escHtml(eq.nom || '—') + '</h3>' +
+    '<button class="btn btn-outline btn-sm" onclick="toggleEtalonnageHistorique(\'' + eq.id + '\')">Fermer</button></div>';
+  if (info.hist.length === 0) {
+    html += '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucun étalonnage consigné pour cet équipement.</p>';
+  } else {
+    html += '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Réalisé par</th><th>Méthode</th><th>Écart constaté</th><th>Conforme</th><th>Observations</th><th></th></tr></thead><tbody>';
+    info.hist.forEach(e => {
+      html += '<tr>' +
+        '<td>' + fmtDate(e.date_etalonnage) + '</td>' +
+        '<td>' + escHtml(e.realise_par || '—') + '</td>' +
+        '<td>' + escHtml(e.methode || '—') + '</td>' +
+        '<td>' + escHtml(e.ecart_constate || '—') + '</td>' +
+        '<td>' + (e.conforme === false
+          ? '<span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);">Non conforme</span>'
+          : '<span class="status-badge" style="background:var(--status-success-bg);color:var(--status-success-fg);">Conforme</span>') + '</td>' +
+        '<td>' + escHtml(e.observations || '—') + '</td>' +
+        '<td><button class="btn btn-outline btn-sm manager-only" onclick="deleteEtalonnage(\'' + e.id + '\')" title="Supprimer"><i data-lucide="x"></i></button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ── Equipment form (manager-only : the inventory is curated) ──
+function openEquipementModal(id) {
+  if (!isManager()) { toast('Inventaire des équipements réservé au manager', 'error'); return; }
+  const eq = id ? STATE.equipements.find(x => x.id === id) : null;
+  if (id && !eq) { toast('Équipement introuvable', 'error'); return; }
+  eqEditingId = id || null;
+
+  document.getElementById('eq-type').innerHTML = Object.keys(EQUIPEMENT_TYPES)
+    .map(k => '<option value="' + k + '">' + EQUIPEMENT_TYPES[k] + '</option>').join('');
+
+  document.getElementById('eq-modal-title').textContent = eq ? 'Modifier l\'équipement' : 'Nouvel équipement';
+  document.getElementById('eq-nom').value = eq ? (eq.nom || '') : '';
+  document.getElementById('eq-type').value = eq ? (eq.type || 'autre') : 'thermometre';
+  document.getElementById('eq-serie').value = eq ? (eq.numero_serie || '') : '';
+  document.getElementById('eq-localisation').value = eq ? (eq.localisation || '') : '';
+  document.getElementById('eq-frequence').value = (eq && eq.frequence_etalonnage_mois != null) ? eq.frequence_etalonnage_mois : 12;
+  document.getElementById('eq-actif').checked = eq ? eq.actif !== false : true;
+  document.getElementById('eq-msg').textContent = '';
+  document.getElementById('equipement-modal').style.display = 'flex';
+}
+
+function closeEquipementModal() {
+  eqEditingId = null;
+  document.getElementById('equipement-modal').style.display = 'none';
+}
+
+async function submitEquipement() {
+  const msg = document.getElementById('eq-msg');
+  if (msg) msg.textContent = '';
+  const nom = document.getElementById('eq-nom').value.trim();
+  if (!nom) { if (msg) msg.textContent = 'Le nom de l\'équipement est requis.'; return; }
+
+  const editingId = eqEditingId;
+  const payload = {
+    id: editingId || uuidv4(),
+    nom: nom,
+    type: document.getElementById('eq-type').value,
+    numero_serie: document.getElementById('eq-serie').value.trim() || null,
+    localisation: document.getElementById('eq-localisation').value.trim() || null,
+    frequence_etalonnage_mois: numOrNull(document.getElementById('eq-frequence').value),
+    actif: document.getElementById('eq-actif').checked
+  };
+
+  const btn = document.querySelector('#equipement-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    const r = await saveRemote({ action: editingId ? 'updateEquipement' : 'addEquipement', payload: payload });
+    if (!r.ok) return;
+    if (editingId) {
+      const eq = STATE.equipements.find(x => x.id === editingId);
+      if (eq) Object.assign(eq, payload);
+    } else {
+      STATE.equipements.push(payload);
+    }
+    closeEquipementModal();
+    renderEtalonnageList();
+    toast(r.queued ? 'Enregistré (hors ligne)' : (editingId ? 'Équipement mis à jour' : 'Équipement enregistré'));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+}
+
+// ── Calibration form (both roles : the chef performs the periodic checks) ──
+function openEtalonnageModal(equipId) {
+  const actifs = STATE.equipements.filter(e => e.actif !== false)
+    .sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr'));
+  if (actifs.length === 0) { toast('Aucun équipement actif — le manager doit d\'abord créer l\'inventaire.', 'error'); return; }
+
+  document.getElementById('et-equipement').innerHTML = actifs
+    .map(e => '<option value="' + e.id + '">' + escHtml(e.nom || '—') + (e.localisation ? ' — ' + escHtml(e.localisation) : '') + '</option>').join('');
+
+  document.getElementById('et-modal-title').textContent = 'Nouvel étalonnage';
+  if (equipId) document.getElementById('et-equipement').value = equipId;
+  document.getElementById('et-date').value = todayStr();
+  document.getElementById('et-realise-par').value = currentUserLabel() || '';
+  document.getElementById('et-methode').value = '';
+  document.getElementById('et-ecart').value = '';
+  document.getElementById('et-conforme').checked = true;
+  document.getElementById('et-obs').value = '';
+  document.getElementById('et-msg').textContent = '';
+  document.getElementById('etalonnage-modal').style.display = 'flex';
+}
+
+function closeEtalonnageModal() {
+  document.getElementById('etalonnage-modal').style.display = 'none';
+}
+
+async function submitEtalonnage() {
+  const msg = document.getElementById('et-msg');
+  if (msg) msg.textContent = '';
+  const equipId = document.getElementById('et-equipement').value;
+  const date = document.getElementById('et-date').value;
+  if (!equipId) { if (msg) msg.textContent = 'L\'équipement est requis.'; return; }
+  if (!date) { if (msg) msg.textContent = 'La date d\'étalonnage est requise.'; return; }
+
+  // created_by/created_at come from the DB defaults (0034).
+  const payload = {
+    id: uuidv4(),
+    equipement_id: equipId,
+    date_etalonnage: date,
+    realise_par: document.getElementById('et-realise-par').value.trim() || null,
+    methode: document.getElementById('et-methode').value.trim() || null,
+    ecart_constate: document.getElementById('et-ecart').value.trim() || null,
+    conforme: document.getElementById('et-conforme').checked,
+    observations: document.getElementById('et-obs').value.trim() || null
+  };
+
+  const btn = document.querySelector('#etalonnage-modal .btn-primary');
+  btn.disabled = true; btn.textContent = 'Enregistrement...';
+  try {
+    const r = await saveRemote({ action: 'addEtalonnage', payload: payload });
+    if (!r.ok) return;
+    STATE.etalonnages.push(payload);
+    closeEtalonnageModal();
+    renderEtalonnageList();
+    toast(r.queued ? 'Enregistré (hors ligne)' : 'Étalonnage enregistré');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+}
+
+async function deleteEtalonnage(id) {
+  if (!isManager()) return;
+  if (!confirm('Supprimer cet étalonnage du registre ?')) return;
+  const r = await saveRemote({ action: 'deleteEtalonnage', payload: { id: id } });
+  if (!r.ok) return;
+  STATE.etalonnages = STATE.etalonnages.filter(e => e.id !== id);
+  renderEtalonnageList();
+  toast(r.queued ? 'Supprimé (hors ligne)' : 'Étalonnage supprimé');
+}
+
 // ── Navigation ──
 function navigate(page, el) {
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
@@ -7594,6 +7950,7 @@ function navigate(page, el) {
     case 'fiche': initFichePage(); break;
     case 'veterinaire': initVeterinairePage(); break;
     case 'vide-sanitaire': initVideSanitairePage(); break;
+    case 'etalonnage': initEtalonnagePage(); break;
     case 'non-conformites': initNonConformitesPage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
