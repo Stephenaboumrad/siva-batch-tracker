@@ -11964,13 +11964,20 @@ function caLivreHorsBande(mois) {
 
 // ── Caisse PDV (POS 0027) — onglet Trésorerie, LECTURE SEULE ───────────────
 // Les tables POS restent volontairement HORS getAll/ALL_TABLES : requêtes à
-// la demande, bornées par période (un seul PDV, faible volume — les .limit
-// sont des plafonds de sûreté, pas de la pagination). Triple garde : la page
+// la demande, bornées par période (faible volume — les .limit sont des
+// plafonds de sûreté, pas de la pagination). Triple garde : la page
 // tresorerie est absente de CHEF_BANDE_PAGES (navigate redirige), le bouton
 // d'onglet est .manager-only, et le rendu s'ouvre sur le gate de BLOC
 // canSee('finance') (C-F1). Le stock PDV reste local à la caisse (phase
 // supply d'août) : mouvements_stock n'est pas lu ici.
-let caisseJour = null;   // jour affiché dans la liste des transactions (défaut : aujourd'hui)
+//
+// PRINCIPE MULTI-PDV : le CODE groupe tout par pdv_id ; l'UI s'adapte au
+// nombre réel de PDV actifs. Un seul PDV (aujourd'hui) → pas de sélecteur,
+// pas de colonne PDV, pas de chrome. Dès 2 PDV actifs, les puces de filtre
+// et les colonnes PDV apparaissent automatiquement. Le bandeau du haut
+// reste TOUJOURS consolidé (tous PDV), quel que soit le filtre.
+let caisseJour = null;         // jour affiché (défaut : aujourd'hui)
+let caissePdvFiltre = 'tous';  // puce PDV active ('tous' ou un pdv_id)
 
 const CAISSE_MODE_LABELS = {
   especes: 'Espèces', orange_money: 'Orange Money', mtn_momo: 'MTN MoMo',
@@ -11996,21 +12003,42 @@ function caisseErrMessage(err) {
   return 'Erreur de chargement de la caisse : ' + msg;
 }
 
+// Dernière clôture par pdv_id depuis une liste triée date_cloture DESC :
+// la première rencontrée par PDV est la plus récente. Un PDV désactivé
+// garde son écart visible (l'argent manque toujours).
+function caisseDernieresClotures(clotures) {
+  const derniere = {};
+  (clotures || []).forEach(c => {
+    const k = c.pdv_id || '?';
+    if (!(k in derniere)) derniere[k] = c;
+  });
+  return derniere;
+}
+
 // Badge d'écart sur le bouton d'onglet (Trésorerie uniquement, rien sur le
-// Dashboard en v1) : dernière clôture avec ecart_fcfa ≠ 0 → montant en rouge.
+// Dashboard en v1) : écarts NON RÉSOLUS = dernière clôture de chaque PDV
+// avec ecart_fcfa ≠ 0. Un seul → montant signé (comportement mono-PDV
+// inchangé) ; plusieurs → compteur. Le .limit(200) couvre ~6 mois à une
+// clôture/jour/PDV : le tri DESC garantit que les plus récentes sont là.
 async function updateCaisseEcartBadge() {
   const el = document.getElementById('caisse-ecart-badge');
   if (!el) return;
   if (!canSee('finance')) { el.style.display = 'none'; return; }
   try {
     const { data, error } = await sb.from('cloture_caisse')
-      .select('ecart_fcfa, date_cloture')
-      .order('date_cloture', { ascending: false }).limit(1);
+      .select('pdv_id, ecart_fcfa, date_cloture')
+      .order('date_cloture', { ascending: false }).limit(200);
     if (error) throw error;
-    const ecart = data && data.length ? (Number(data[0].ecart_fcfa) || 0) : 0;
-    if (ecart !== 0) {
-      el.textContent = (ecart > 0 ? '+' : '') + fmt(ecart);
-      el.title = 'Dernière clôture de caisse : écart de ' + (ecart > 0 ? '+' : '') + fmt(ecart) + ' FCFA';
+    const ecarts = Object.values(caisseDernieresClotures(data))
+      .map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+    if (ecarts.length === 1) {
+      el.textContent = (ecarts[0] > 0 ? '+' : '') + fmt(ecarts[0]);
+      el.title = 'Dernière clôture de caisse : écart de ' + (ecarts[0] > 0 ? '+' : '') + fmt(ecarts[0]) + ' FCFA';
+      el.style.display = '';
+    } else if (ecarts.length > 1) {
+      const somme = ecarts.reduce((s, e) => s + e, 0);
+      el.textContent = ecarts.length + ' écarts';
+      el.title = ecarts.length + ' PDV avec écart de clôture non résolu (somme : ' + (somme > 0 ? '+' : '') + fmt(somme) + ' FCFA)';
       el.style.display = '';
     } else {
       el.style.display = 'none';
@@ -12027,6 +12055,11 @@ function changeCaisseJour(v) {
   renderCaissePdv();
 }
 
+function changeCaissePdvFiltre(p) {
+  caissePdvFiltre = p || 'tous';
+  renderCaissePdv();
+}
+
 async function renderCaissePdv() {
   const box = document.getElementById('treso-tab-caisse');
   if (!box) return;
@@ -12038,22 +12071,47 @@ async function renderCaissePdv() {
   const moisDebut = mois + '-01';
   const moisFin = new Date(Date.UTC(+mois.slice(0, 4), +mois.slice(5, 7), 1)).toISOString().slice(0, 10);
   try {
-    const [txJourR, txMoisR, paiJourR, cloR] = await Promise.all([
+    // Clôtures SANS borne de date (tri DESC, plafond 200 ≈ 6 mois à une
+    // clôture/jour/PDV) : la dernière clôture PAR PDV doit être trouvée
+    // même si elle est plus vieille que la fenêtre d'affichage de 30 jours.
+    const [pdvR, txJourR, txMoisR, paiJourR, cloR] = await Promise.all([
+      sb.from('points_de_vente').select('*').order('nom').limit(100),
       sb.from('pos_transactions').select('*')
         .gte('date_transaction', jour).lt('date_transaction', jourFin)
         .order('date_transaction', { ascending: false }).limit(500),
-      sb.from('pos_transactions').select('montant_total_fcfa, statut')
+      sb.from('pos_transactions').select('montant_total_fcfa, statut, pdv_id')
         .gte('date_transaction', moisDebut).lt('date_transaction', moisFin).limit(5000),
       sb.from('paiements').select('mode_paiement, montant_fcfa, sens, statut, transaction_id, pdv_id')
         .gte('date_paiement', jour).lt('date_paiement', jourFin)
         .not('pdv_id', 'is', null).limit(1000),
       sb.from('cloture_caisse').select('*')
-        .gte('date_cloture', new Date(Date.now() - 30 * 86400000).toISOString())
-        .order('date_cloture', { ascending: false }).limit(60)
+        .order('date_cloture', { ascending: false }).limit(200)
     ]);
-    for (const r of [txJourR, txMoisR, paiJourR, cloR]) { if (r.error) throw r.error; }
+    for (const r of [pdvR, txJourR, txMoisR, paiJourR, cloR]) { if (r.error) throw r.error; }
+
+    // Tous les PDV servent à résoudre les noms ; seuls les ACTIFS pilotent
+    // puces et cartes (statut null = actif, valeur par défaut de 0002).
+    const pdvTous = pdvR.data || [];
+    const pdvActifs = pdvTous.filter(p => !p.statut || p.statut === 'actif');
+    const pdvNom = (id) => {
+      const p = pdvTous.find(x => x.pdv_id === id);
+      return (p && p.nom) || id || '—';
+    };
+    const multi = pdvActifs.length > 1;
+    if (!multi || (caissePdvFiltre !== 'tous' && !pdvActifs.some(p => p.pdv_id === caissePdvFiltre))) {
+      caissePdvFiltre = 'tous';
+    }
+    const filtre = (multi && caissePdvFiltre !== 'tous') ? caissePdvFiltre : null;
 
     const txJour = txJourR.data || [];
+    const clotures = cloR.data || [];
+    const derniereCloture = caisseDernieresClotures(clotures);
+
+    const sub = 'font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.9rem 0 0.5rem;';
+    const kv = 'display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;';
+    const mono = 'font-family:var(--font-mono);';
+
+    // ── 1) Bandeau consolidé — TOUS les PDV, jamais filtré par les puces ──
     const finalisees = txJour.filter(t => t.statut === 'finalisee');
     const caJour = finalisees.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
     const panierMoyen = finalisees.length ? caJour / finalisees.length : 0;
@@ -12077,26 +12135,28 @@ async function renderCaissePdv() {
       .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
     const creditJour = Math.max(0, caJour - encaisseVentesJour);
 
-    const caMois = (txMoisR.data || [])
-      .filter(t => t.statut === 'finalisee')
-      .reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+    // Écarts non résolus : dernière clôture de chaque PDV avec écart ≠ 0
+    // (même logique que le badge d'onglet — un PDV désactivé reste compté).
+    const ecartsOuverts = Object.values(derniereCloture)
+      .map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+    const ecartsSomme = ecartsOuverts.reduce((s, e) => s + e, 0);
 
-    const sub = 'font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.9rem 0 0.5rem;';
-    const kv = 'display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;';
-    const mono = 'font-family:var(--font-mono);';
-
-    // ── Carte 1 : le jour sélectionné ──
     const modesHtml = Object.keys(parMode).length
       ? Object.keys(parMode).sort().map(k =>
           '<div style="' + kv + '"><span>' + escHtml(caisseModeLabel(k)) + '</span>'
           + '<strong style="' + mono + '">' + fmt(parMode[k]) + ' FCFA</strong></div>').join('')
       : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucun encaissement ce jour.</p>';
-    const jourHtml =
+    const stripHtml =
       '<div class="card" style="margin-bottom:1.5rem;">'
       + '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">'
-      + '<h3><i data-lucide="store"></i> Caisse — journée</h3>'
+      + '<h3><i data-lucide="store"></i> Caisse — journée' + (multi ? ' (tous PDV)' : '') + '</h3>'
       + '<input type="date" id="caisse-jour" value="' + escHtml(jour) + '" onchange="changeCaisseJour(this.value)" '
       + 'style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);"></div>'
+      + '<div style="' + kv + '"><span><strong>Écarts de clôture non résolus</strong></span>'
+      + (ecartsOuverts.length
+        ? '<strong style="' + mono + 'color:var(--color-danger);">' + ecartsOuverts.length + ' PDV · ' + (ecartsSomme > 0 ? '+' : '') + fmt(ecartsSomme) + ' FCFA</strong>'
+        : '<strong style="' + mono + 'color:var(--color-success);">Aucun</strong>')
+      + '</div>'
       + '<div style="' + kv + '"><span>CA (ventes finalisées)</span><strong style="' + mono + '">' + fmt(caJour) + ' FCFA</strong></div>'
       + '<div style="' + kv + '"><span>Ventes finalisées</span><strong style="' + mono + '">' + finalisees.length + '</strong></div>'
       + '<div style="' + kv + '"><span>Panier moyen</span><strong style="' + mono + '">' + fmt(panierMoyen) + ' FCFA</strong></div>'
@@ -12106,16 +12166,52 @@ async function renderCaissePdv() {
       + '<strong style="' + mono + '">' + fmt(encaisseJour) + ' FCFA</strong></div>'
       + '</div>';
 
-    // ── Carte 2 : le mois de la période du bilan (#treso-period) ──
-    const moisHtml =
-      '<div class="card" style="margin-bottom:1.5rem;">'
-      + '<div class="card-header"><h3><i data-lucide="calendar"></i> CA caisse — ' + escHtml(frMonthLabel(mois) || mois) + '</h3></div>'
-      + '<div style="' + kv + '"><span>CA (ventes finalisées)</span><strong style="' + mono + '">' + fmt(caMois) + ' FCFA</strong></div>'
-      + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Chiffre caisse seul — non intégré au bilan/flux (décision v1). Période pilotée par le sélecteur en haut de page.</p>'
-      + '</div>';
+    // ── 2) Puces de filtre PDV — rendues UNIQUEMENT à partir de 2 PDV actifs ──
+    const chipsHtml = multi
+      ? '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;">'
+        + [{ pdv_id: 'tous', nom: 'Tous' }].concat(pdvActifs).map(p => {
+            const actif = (caissePdvFiltre === p.pdv_id);
+            return '<button class="btn btn-sm ' + (actif ? 'btn-primary' : 'btn-outline') + '" '
+              + 'onclick="changeCaissePdvFiltre(\'' + escHtml(p.pdv_id) + '\')">' + escHtml(p.nom || p.pdv_id) + '</button>';
+          }).join('')
+        + '</div>'
+      : '';
 
-    // ── Carte 3 : transactions du jour (toutes, annulées/remboursées grisées) ──
-    const txRows = txJour.map(t => {
+    // ── 3) Une carte par PDV actif (la puce réduit l'affichage à un seul) ──
+    // Pastille « Non clôturé aujourd'hui » : uniquement sur le jour courant —
+    // sur un jour historique elle n'aurait pas de sens.
+    const estAujourdhui = (jour === todayStr());
+    const pill = 'display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--radius-full);background:#FFFBEB;color:#854D0E;border:1px solid var(--accent-amber);';
+    const cartesPdv = (filtre ? pdvActifs.filter(p => p.pdv_id === filtre) : pdvActifs).map(p => {
+      const txPdv = finalisees.filter(t => t.pdv_id === p.pdv_id);
+      const caPdv = txPdv.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+      const derniere = derniereCloture[p.pdv_id];
+      const e = derniere ? (Number(derniere.ecart_fcfa) || 0) : 0;
+      const colE = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+      const clotureCeJour = clotures.some(c => c.pdv_id === p.pdv_id && String(c.date_cloture || '').startsWith(jour));
+      const nonCloture = estAujourdhui && txPdv.length > 0 && !clotureCeJour;
+      return '<div class="card">'
+        + '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">'
+        + '<h3>' + escHtml(p.nom || p.pdv_id) + '</h3>'
+        + (nonCloture ? '<span style="' + pill + '">Non clôturé aujourd\'hui</span>' : '')
+        + '</div>'
+        + '<div style="' + kv + '"><span>CA du jour (finalisées)</span><strong style="' + mono + '">' + fmt(caPdv) + ' FCFA</strong></div>'
+        + '<div style="' + kv + '"><span>Dernière clôture</span>'
+        + (derniere
+          ? '<span style="' + mono + '">' + escHtml(fmtDate(derniere.date_cloture)) + ' · <strong style="color:' + colE + ';">écart ' + (e > 0 ? '+' : '') + fmt(e) + '</strong></span>'
+          : '<span style="color:var(--text-muted);">Jamais clôturé</span>')
+        + '</div>'
+        + '</div>';
+    }).join('');
+    const cartesHtml = cartesPdv
+      ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:1rem;margin-bottom:1.5rem;">' + cartesPdv + '</div>'
+      : '';
+
+    // ── 4) Transactions du jour (filtrées par la puce ; colonne PDV
+    //       seulement en vue « Tous » avec 2+ PDV) ──
+    const txAffichees = filtre ? txJour.filter(t => t.pdv_id === filtre) : txJour;
+    const colPdv = multi && !filtre;
+    const txRows = txAffichees.map(t => {
       const fin = t.statut === 'finalisee';
       const b = STATE.bandes.find(x => x.bande_id === t.bande_id);
       const client = t.client_id
@@ -12126,6 +12222,7 @@ async function renderCaissePdv() {
         : t.statut === 'remboursee' ? 'Remboursée' : (t.statut || '—');
       return '<tr' + (fin ? '' : ' style="opacity:.55;"') + '>'
         + '<td>' + escHtml(String(t.date_transaction || '').slice(11, 16)) + '</td>'
+        + (colPdv ? '<td>' + escHtml(pdvNom(t.pdv_id)) + '</td>' : '')
         + '<td class="num">' + fmt(t.montant_total_fcfa) + '</td>'
         + '<td>' + escHtml(caisseModeLabel(t.mode_paiement)) + '</td>'
         + '<td>' + escHtml(t.vendeur_id || '—') + '</td>'
@@ -12135,21 +12232,47 @@ async function renderCaissePdv() {
     }).join('');
     const txHtml =
       '<div class="card" style="margin-bottom:1.5rem;">'
-      + '<div class="card-header"><h3><i data-lucide="receipt"></i> Transactions du ' + escHtml(fmtDate(jour)) + '</h3></div>'
-      + (txJour.length
-        ? '<div class="table-wrap"><table><thead><tr><th>Heure</th><th class="num">Montant (FCFA)</th><th>Mode</th><th>Vendeur</th><th>Bande</th><th>Client</th><th>Statut</th></tr></thead>'
+      + '<div class="card-header"><h3><i data-lucide="receipt"></i> Transactions du ' + escHtml(fmtDate(jour))
+      + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
+      + (txAffichees.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Heure</th>' + (colPdv ? '<th>PDV</th>' : '')
+          + '<th class="num">Montant (FCFA)</th><th>Mode</th><th>Vendeur</th><th>Bande</th><th>Client</th><th>Statut</th></tr></thead>'
           + '<tbody>' + txRows + '</tbody></table></div>'
           + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Les ventes annulées/remboursées sont grisées et exclues du CA.</p>'
         : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune transaction ce jour.</p>')
       + '</div>';
 
-    // ── Carte 4 : clôtures des 30 derniers jours ──
-    const clotures = cloR.data || [];
-    const cloRows = clotures.map(c => {
+    // ── 5) CA du mois : total + ventilation par PDV (une seule ligne
+    //       aujourd'hui ; jamais filtré — c'est la vue d'ensemble) ──
+    const txMois = (txMoisR.data || []).filter(t => t.statut === 'finalisee');
+    const caMois = txMois.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+    const parPdvMois = {};
+    txMois.forEach(t => {
+      const k = t.pdv_id || '?';
+      parPdvMois[k] = (parPdvMois[k] || 0) + (Number(t.montant_total_fcfa) || 0);
+    });
+    const moisRows = Object.keys(parPdvMois).sort((x, y) => parPdvMois[y] - parPdvMois[x])
+      .map(k => '<tr><td>' + escHtml(pdvNom(k)) + '</td><td class="num">' + fmt(parPdvMois[k]) + '</td></tr>').join('');
+    const moisHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header"><h3><i data-lucide="calendar"></i> CA caisse — ' + escHtml(frMonthLabel(mois) || mois) + '</h3></div>'
+      + '<div style="' + kv + '"><span>CA total (ventes finalisées)</span><strong style="' + mono + '">' + fmt(caMois) + ' FCFA</strong></div>'
+      + (Object.keys(parPdvMois).length
+        ? '<div class="table-wrap"><table><thead><tr><th>PDV</th><th class="num">CA (FCFA)</th></tr></thead><tbody>' + moisRows + '</tbody></table></div>'
+        : '')
+      + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Chiffre caisse seul — non intégré au bilan/flux (décision v1). Période pilotée par le sélecteur en haut de page.</p>'
+      + '</div>';
+
+    // ── 6) Clôtures des 30 derniers jours (filtrées par la puce) ──
+    const depuis30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const cloVisibles = clotures.filter(c =>
+      String(c.date_cloture || '') >= depuis30 && (!filtre || c.pdv_id === filtre));
+    const cloRows = cloVisibles.map(c => {
       const e = Number(c.ecart_fcfa) || 0;
       const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
       return '<tr>'
         + '<td>' + escHtml(fmtDate(c.date_cloture)) + '</td>'
+        + (colPdv ? '<td>' + escHtml(pdvNom(c.pdv_id)) + '</td>' : '')
         + '<td>' + escHtml(c.vendeur_id || '—') + '</td>'
         + '<td class="num">' + fmt(c.fond_caisse_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.theorique_fcfa) + '</td>'
@@ -12158,14 +12281,16 @@ async function renderCaissePdv() {
     }).join('');
     const cloHtml =
       '<div class="card">'
-      + '<div class="card-header"><h3><i data-lucide="lock"></i> Clôtures de caisse (30 derniers jours)</h3></div>'
-      + (clotures.length
-        ? '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th></tr></thead>'
+      + '<div class="card-header"><h3><i data-lucide="lock"></i> Clôtures de caisse (30 derniers jours)'
+      + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
+      + (cloVisibles.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Date</th>' + (colPdv ? '<th>PDV</th>' : '')
+          + '<th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th></tr></thead>'
           + '<tbody>' + cloRows + '</tbody></table></div>'
         : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>')
       + '</div>';
 
-    box.innerHTML = jourHtml + moisHtml + txHtml + cloHtml;
+    box.innerHTML = stripHtml + chipsHtml + cartesHtml + txHtml + moisHtml + cloHtml;
     if (window.lucide) lucide.createIcons();
   } catch (e) {
     box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Caisse PDV</h3></div>'
