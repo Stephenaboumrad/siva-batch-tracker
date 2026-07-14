@@ -61,6 +61,10 @@ working rules for every task in this repository.
 - Reuse existing design tokens. No new colours, no new fonts.
 - Verify lucide icon names exist in the pinned bundle (`lucide@1.21.0`)
   before using them — an unknown name renders as an empty box.
+- PDV stock is aggregated by `type_produit` (the product NAME) in
+  `mouvements_stock`: renaming a product in the catalogue splits its stock
+  history in two. Do not rename; create a new product and deactivate the
+  old one instead.
 - Flag any deviation from the brief in the PR body rather than silently
   adopting it.
 
