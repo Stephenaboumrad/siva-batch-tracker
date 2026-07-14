@@ -386,8 +386,36 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
     <!-- ── CLÔTURE ── -->
     <div id="view-cloture" class="view hidden">
       <h1 class="view-title">Clôture de caisse</h1>
+
+      <!-- ── Sorties de caisse (POS-1 item 2) : menues dépenses + versements
+           du cash à la ferme. Chaque sortie = ligne paiements sens='depense'
+           ou 'versement' (espèces uniquement en V1) ; le théorique de clôture
+           les déduit — sans elles, tout cash sorti légitimement fabrique un
+           faux écart et noie les écarts réels. AUCUN montant bloqué : saisie
+           libre, l'écart parle. -->
+      <div class="list-card">
+        <h3>Sorties de caisse</h3>
+        <div class="mode-chips" id="sortie-type-chips">
+          <button class="mode-chip sel" data-sortie-type="depense">Dépense</button>
+          <button class="mode-chip" data-sortie-type="versement">Versement ferme</button>
+        </div>
+        <div class="field"><label for="sortie-montant">Montant (FCFA)</label><input id="sortie-montant" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="field">
+          <label for="sortie-motif" id="sortie-motif-label">Motif (obligatoire)</label>
+          <input id="sortie-motif" type="text" placeholder="Sachets, glace, transport…">
+          <div class="mode-chips" style="margin-top:6px;">
+            <button class="mode-chip" data-sortie-motif="Sachets">Sachets</button>
+            <button class="mode-chip" data-sortie-motif="Glace">Glace</button>
+            <button class="mode-chip" data-sortie-motif="Transport">Transport</button>
+          </div>
+        </div>
+        <button id="btn-sortie" class="btn btn-primary btn-block"><i data-lucide="hand-coins"></i> Enregistrer la sortie</button>
+        <div id="sorties-list" style="margin-top:10px;"></div>
+      </div>
+
       <div class="list-card">
         <div class="kv"><span>Espèces encaissées depuis la dernière clôture</span><span class="v" id="clo-especes">—</span></div>
+        <div class="kv"><span>Sorties de caisse (dépenses + versements)</span><span class="v" id="clo-sorties">—</span></div>
         <div class="field" style="margin-top:10px;"><label for="clo-fond">Fond de caisse (FCFA)</label><input id="clo-fond" type="number" inputmode="numeric" min="0" value="0"></div>
         <div class="kv"><span>Espèces théoriques en caisse</span><span class="v" id="clo-theorique">—</span></div>
         <div class="field" style="margin-top:10px;"><label for="clo-compte">Espèces comptées (FCFA)</label><input id="clo-compte" type="number" inputmode="numeric" min="0" placeholder="0"></div>
@@ -603,11 +631,13 @@ function addFailed(item, e) {
 function failedMontant(item) {
   const head = (item.rows && item.rows[0] && item.rows[0].row) || {};
   if (item.type === 'vente') return Number(head.montant_total_fcfa) || 0;
+  if (item.type === 'sortie') return Number(head.montant_fcfa) || 0;
   return null;
 }
 function failedLabel(item) {
   const m = failedMontant(item);
   if (item.type === 'vente') return 'Vente de ' + fmt(m) + ' F NON enregistrée';
+  if (item.type === 'sortie') return 'Sortie de caisse de ' + fmt(m) + ' F NON enregistrée';
   if (item.type === 'cloture') return 'Clôture de caisse NON enregistrée';
   if (item.type === 'reception') return 'Réception de stock NON enregistrée';
   return 'Opération NON enregistrée';
@@ -1295,24 +1325,88 @@ async function submitReception() {
   toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
 }
 
+/* ════════════════ SORTIES DE CAISSE (POS-1 item 2) ════════════════ */
+/* Dépense (motif obligatoire) ou versement du cash à la ferme. Ligne
+   paiements avec sens='depense' | 'versement' — la colonne sens est du
+   texte libre (0002, pas de CHECK) et v_client_soldes ne compte que
+   sens='encaissement' : aucun effet de bord sur les soldes clients.
+   CONVENTION : reference porte le MATRICULE de l'opérateur (encaisse_par
+   est une FK employes(employe_id) inutilisable pour un matricule — même
+   impasse d'identité que vendeur_id avant 0036). Espèces uniquement en
+   V1 : c'est du cash qui sort du tiroir. */
+let sortieType = 'depense';
+
+function sortiesDepuisCloture() {
+  const last = C.clotures.length ? C.clotures[0].date_cloture : null;
+  return C.paiements.filter(p =>
+    (p.sens === 'depense' || p.sens === 'versement')
+    && (!p.statut || p.statut === 'confirme')
+    && (!last || String(p.date_paiement) > String(last)));
+}
+function sommeSortiesDepuisCloture() {
+  return sortiesDepuisCloture().reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+}
+
+async function submitSortie() {
+  const montant = Number($('sortie-montant').value);
+  const motif = $('sortie-motif').value.trim();
+  if (!(montant > 0)) { toast('Montant requis', 'error'); return; }
+  if (sortieType === 'depense' && !motif) { toast('Motif requis pour une dépense', 'error'); return; }
+  const p = {
+    paiement_id: uuid(), date_paiement: new Date().toISOString(),
+    pdv_id: C.pdv.pdv_id, sens: sortieType, mode_paiement: 'especes',
+    reference: C.user.matricule, montant_fcfa: montant,
+    encaisse_par: null, statut: 'confirme',
+    note: motif || 'Versement ferme'
+  };
+  const rows = [{ table: 'paiements', row: p }];
+  let queued = false;
+  try { await execRows(rows); }
+  catch (e) {
+    if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'sortie', rows }); queued = true; }
+    else { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  C.paiements = [p].concat(C.paiements);
+  saveCache();
+  $('sortie-montant').value = ''; $('sortie-motif').value = '';
+  renderCloture();
+  toast(queued
+    ? 'Sortie enregistrée (hors ligne — sera synchronisée)'
+    : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
+}
+
 /* ════════════════ CLÔTURE DE CAISSE ════════════════ */
-/* Théorique = fond de caisse + somme des paiements ESPÈCES confirmés
-   depuis la dernière clôture (paiements du cache + ventes optimistes,
-   donc juste même hors ligne). */
+/* Théorique ESPÈCES = fond + encaissements espèces − sorties de caisse
+   (dépenses + versements) depuis la dernière clôture. Calculé sur les
+   paiements du cache + optimistes, donc juste même hors ligne. Item 3
+   (clôture élargie) consomme cette même formule via theoriqueEspeces(). */
 function sommeEspecesDepuisCloture() {
   const last = C.clotures.length ? C.clotures[0].date_cloture : null;
   return C.paiements.reduce((s, p) => {
     if (p.mode_paiement !== 'especes') return s;
+    if (p.sens && p.sens !== 'encaissement') return s;
     if (p.statut && p.statut !== 'confirme') return s;
     if (last && String(p.date_paiement) <= String(last)) return s;
     return s + (Number(p.montant_fcfa) || 0);
   }, 0);
 }
+function theoriqueEspeces(fond) {
+  return fond + sommeEspecesDepuisCloture() - sommeSortiesDepuisCloture();
+}
 
 function renderCloture() {
-  const especes = sommeEspecesDepuisCloture();
-  $('clo-especes').textContent = fcfa(especes);
+  $('clo-especes').textContent = fcfa(sommeEspecesDepuisCloture());
+  $('clo-sorties').textContent = '− ' + fcfa(sommeSortiesDepuisCloture());
   majClotureCalc();
+  const sorties = sortiesDepuisCloture();
+  $('sorties-list').innerHTML = sorties.length
+    ? sorties.map(p => {
+        const d = new Date(p.date_paiement);
+        const lbl = p.sens === 'versement' ? 'Versement ferme' : (p.note || 'Dépense');
+        return '<div class="kv"><span>' + esc(lbl) + ' · ' + d.toLocaleTimeString('fr-FR').slice(0, 5) + '</span>' +
+          '<span class="v">− ' + fcfa(p.montant_fcfa) + '</span></div>';
+      }).join('')
+    : '<p class="muted">Aucune sortie depuis la dernière clôture.</p>';
   $('clotures-list').innerHTML = C.clotures.length
     ? C.clotures.map(c => {
         const e = Number(c.ecart_fcfa) || 0;
@@ -1324,7 +1418,7 @@ function renderCloture() {
 
 function majClotureCalc() {
   const fond = Number($('clo-fond').value) || 0;
-  const theorique = fond + sommeEspecesDepuisCloture();
+  const theorique = theoriqueEspeces(fond);
   $('clo-theorique').textContent = fcfa(theorique);
   const compteRaw = $('clo-compte').value;
   if (compteRaw === '') { $('clo-ecart').textContent = '—'; $('clo-ecart').className = 'v'; return theorique; }
@@ -1338,7 +1432,7 @@ async function submitCloture() {
   const compteRaw = $('clo-compte').value;
   if (compteRaw === '') { toast('Saisissez les espèces comptées', 'error'); return; }
   const fond = Number($('clo-fond').value) || 0;
-  const theorique = fond + sommeEspecesDepuisCloture();
+  const theorique = theoriqueEspeces(fond);
   const compte = Number(compteRaw) || 0;
   const clo = {
     cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: new Date().toISOString(),
@@ -1395,6 +1489,7 @@ function wireEvents() {
   $('receipt-print').addEventListener('click', () => window.print());
   $('receipt-share').addEventListener('click', shareReceipt);
   $('btn-reception').addEventListener('click', submitReception);
+  $('btn-sortie').addEventListener('click', submitSortie);
   $('btn-cloture').addEventListener('click', submitCloture);
   $('clo-fond').addEventListener('input', majClotureCalc);
   $('clo-compte').addEventListener('input', majClotureCalc);
@@ -1431,6 +1526,16 @@ function wireEvents() {
     if (pd) { C.payParts.splice(+pd.dataset.pdel, 1); renderPayParts(); return; }
     const fr = e.target.closest('[data-fresolve]');
     if (fr) { resolveFailed(fr.dataset.fresolve); return; }
+    const st = e.target.closest('[data-sortie-type]');
+    if (st) {
+      sortieType = st.dataset.sortieType;
+      document.querySelectorAll('#sortie-type-chips .mode-chip').forEach(b =>
+        b.classList.toggle('sel', b.dataset.sortieType === sortieType));
+      $('sortie-motif-label').textContent = sortieType === 'depense' ? 'Motif (obligatoire)' : 'Note (optionnel)';
+      return;
+    }
+    const sm = e.target.closest('[data-sortie-motif]');
+    if (sm) { $('sortie-motif').value = sm.dataset.sortieMotif; return; }
   });
   document.addEventListener('input', (e) => {
     const pmont = e.target.closest('[data-pmont]');
