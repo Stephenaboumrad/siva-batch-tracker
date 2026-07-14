@@ -11978,6 +11978,7 @@ function caLivreHorsBande(mois) {
 // reste TOUJOURS consolidé (tous PDV), quel que soit le filtre.
 let caisseJour = null;         // jour affiché (défaut : aujourd'hui)
 let caissePdvFiltre = 'tous';  // puce PDV active ('tous' ou un pdv_id)
+let fondEditClotureId = null;  // clôture en cours de correction de fond (0037)
 
 const CAISSE_MODE_LABELS = {
   especes: 'Espèces', orange_money: 'Orange Money', mtn_momo: 'MTN MoMo',
@@ -12057,6 +12058,35 @@ function changeCaisseJour(v) {
 
 function changeCaissePdvFiltre(p) {
   caissePdvFiltre = p || 'tous';
+  renderCaissePdv();
+}
+
+/* ── Correction du fond de la prochaine période (0037, amendement item 3)
+   SEULE écriture de cet onglet par ailleurs en lecture seule — mandatée :
+   le fond est verrouillé côté caisse (le vendeur n'a aucun UPDATE sur
+   cloture_caisse, RLS 0027), seul un manager peut le corriger, avec une
+   note OBLIGATOIRE (audit). L'override se pose sur la DERNIÈRE clôture du
+   PDV : la caisse calcule fond = fond_suivant_fcfa − versements depuis. */
+function editFondSuivant(id) { fondEditClotureId = id; renderCaissePdv(); }
+function annuleFondSuivant() { fondEditClotureId = null; renderCaissePdv(); }
+async function saveFondSuivant() {
+  const montant = Number(document.getElementById('fond-suivant-montant').value);
+  const note = document.getElementById('fond-suivant-note').value.trim();
+  if (!(montant >= 0) || document.getElementById('fond-suivant-montant').value === '') {
+    toast('Montant du fond requis (0 accepté)', 'error'); return;
+  }
+  if (!note) { toast('Note obligatoire pour corriger le fond (audit)', 'error'); return; }
+  const { error } = await sb.from('cloture_caisse')
+    .update({ fond_suivant_fcfa: montant, fond_suivant_note: note })
+    .eq('cloture_id', fondEditClotureId);
+  if (error) {
+    toast(/column|schema cache/i.test(String(error.message))
+      ? 'Migration 0037 non appliquée en base — correction du fond indisponible'
+      : 'Erreur : ' + error.message, 'error');
+    return;
+  }
+  toast('Fond de la prochaine période corrigé');
+  fondEditClotureId = null;
   renderCaissePdv();
 }
 
@@ -12263,13 +12293,17 @@ async function renderCaissePdv() {
       + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Chiffre caisse seul — non intégré au bilan/flux (décision v1). Période pilotée par le sélecteur en haut de page.</p>'
       + '</div>';
 
-    // ── 6) Clôtures des 30 derniers jours (filtrées par la puce) ──
+    // ── 6) Clôtures des 30 derniers jours (filtrées par la puce).
+    //       « Corriger le fond » (0037) : uniquement sur la DERNIÈRE
+    //       clôture de chaque PDV — c'est elle que la caisse lit pour
+    //       verrouiller le fond d'ouverture de la période suivante. ──
     const depuis30 = new Date(Date.now() - 30 * 86400000).toISOString();
     const cloVisibles = clotures.filter(c =>
       String(c.date_cloture || '') >= depuis30 && (!filtre || c.pdv_id === filtre));
     const cloRows = cloVisibles.map(c => {
       const e = Number(c.ecart_fcfa) || 0;
       const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+      const derniere = derniereCloture[c.pdv_id] && derniereCloture[c.pdv_id].cloture_id === c.cloture_id;
       return '<tr>'
         + '<td>' + escHtml(fmtDate(c.date_cloture)) + '</td>'
         + (colPdv ? '<td>' + escHtml(pdvNom(c.pdv_id)) + '</td>' : '')
@@ -12277,16 +12311,33 @@ async function renderCaissePdv() {
         + '<td class="num">' + fmt(c.fond_caisse_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.theorique_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.compte_fcfa) + '</td>'
-        + '<td class="num" style="color:' + col + ';font-weight:700;">' + (e > 0 ? '+' : '') + fmt(e) + '</td></tr>';
+        + '<td class="num" style="color:' + col + ';font-weight:700;">' + (e > 0 ? '+' : '') + fmt(e) + '</td>'
+        + '<td class="num"' + (c.fond_suivant_note ? ' title="' + escHtml(c.fond_suivant_note) + '"' : '') + '>'
+          + (c.fond_suivant_fcfa != null ? fmt(c.fond_suivant_fcfa) : '—') + '</td>'
+        + '<td>' + (derniere
+          ? '<button class="btn btn-outline btn-sm" onclick="editFondSuivant(\'' + escHtml(c.cloture_id) + '\')">Corriger le fond</button>'
+          : '') + '</td></tr>';
     }).join('');
+    const fondForm = fondEditClotureId
+      ? '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.75rem;padding:0.75rem;background:var(--color-surface-alt);border-radius:var(--radius-md);">'
+        + '<div><label style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Fond de la prochaine période (FCFA)</label>'
+        + '<input id="fond-suivant-montant" type="number" min="0" style="padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);width:160px;"></div>'
+        + '<div style="flex:1;min-width:220px;"><label style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Note obligatoire (audit)</label>'
+        + '<input id="fond-suivant-note" type="text" placeholder="Ex. : fond initial remis en main propre" style="width:100%;padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);"></div>'
+        + '<button class="btn btn-primary btn-sm" onclick="saveFondSuivant()">Enregistrer</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="annuleFondSuivant()">Annuler</button>'
+        + '</div>'
+      : '';
     const cloHtml =
       '<div class="card">'
       + '<div class="card-header"><h3><i data-lucide="lock"></i> Clôtures de caisse (30 derniers jours)'
       + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
       + (cloVisibles.length
         ? '<div class="table-wrap"><table><thead><tr><th>Date</th>' + (colPdv ? '<th>PDV</th>' : '')
-          + '<th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th></tr></thead>'
+          + '<th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th><th class="num">Fond suivant</th><th></th></tr></thead>'
           + '<tbody>' + cloRows + '</tbody></table></div>'
+          + fondForm
+          + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Le fond d\'ouverture de la caisse est verrouillé côté vendeur : espèces comptées de la dernière clôture − versements ferme, ou la correction posée ici (note obligatoire).</p>'
         : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>')
       + '</div>';
 
