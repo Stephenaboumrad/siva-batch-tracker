@@ -3642,10 +3642,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Select caché : alimente exportPDF()/exportExcel() (Registre de Bande) -->
     <select id="export-bande-select" style="display:none;"></select>
 
-    <!-- Onglets Trésorerie | RH & Paie (module RH restauré — audit A-F1) -->
+    <!-- Onglets Trésorerie | RH & Paie | Caisse PDV. Le badge d'écart signale
+         une dernière clôture de caisse non équilibrée (ecart_fcfa ≠ 0) —
+         côté Trésorerie uniquement, rien sur le Dashboard (v1). -->
     <div id="treso-tabs" class="tabs" style="margin-bottom:1.25rem;">
       <button class="tab-btn active" onclick="switchTresoTab('general',this)">Trésorerie</button>
       <button class="tab-btn" onclick="switchTresoTab('rh',this)">RH &amp; Paie</button>
+      <button class="tab-btn manager-only" onclick="switchTresoTab('caisse',this)">Caisse PDV <span id="caisse-ecart-badge" class="sidebar-badge" style="display:none;"></span></button>
     </div>
 
     <!-- Tab 1: Trésorerie — contenu Phase 3 INCHANGÉ, simplement enveloppé -->
@@ -3727,11 +3730,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
     </div><!-- /treso-tab-rh -->
 
-    <!-- ── Points de vente (caisse POS, migration 0027) — section minimale en
-         LECTURE SEULE : clôtures récentes + totaux du jour par PDV. Chargée à
-         la demande par renderTresoPDV(), tolère l'absence des tables
-         (0002/0027 non appliquées → message neutre, rien ne casse). ── -->
-    <div id="treso-pdv-section"></div>
+    <!-- Tab 3: Caisse PDV (POS 0027) — LECTURE SEULE, manager-only. Les
+         tables POS restent volontairement HORS getAll/ALL_TABLES : requêtes
+         à la demande, bornées par période, rendues par renderCaissePdv().
+         Remplace l'ancienne section bas-de-page treso-pdv-section. -->
+    <div id="treso-tab-caisse" style="display:none;"></div>
   </div>
 
   <!-- ═══════════════ PAGE: MONITORING IoT ═══════════════ -->
@@ -11789,18 +11792,20 @@ let expandedEmployeId = null;
 function initExportsPage() { initTresoreriePage(); }
 
 // Phase 3 a fusionné les anciens onglets bandes/flux dans la page Trésorerie :
-// il ne reste que deux onglets réels (general | rh). La liste ci-dessous doit
+// trois onglets réels (general | rh | caisse). La liste ci-dessous doit
 // correspondre aux boutons de #treso-tabs (correspondance PAR INDEX).
+const TRESO_TABS = ['general', 'rh', 'caisse'];
 function switchTresoTab(tab, btn) {
   currentTresoTab = tab;
-  ['general','rh'].forEach(t => {
+  TRESO_TABS.forEach(t => {
     const el = document.getElementById('treso-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#treso-tabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['general','rh'][i] === tab);
+    b.classList.toggle('active', TRESO_TABS[i] === tab);
   });
   if (tab === 'rh') renderRHEmployes();
+  if (tab === 'caisse') renderCaissePdv();
 }
 
 function switchRHSubTab(tab, btn) {
@@ -11957,55 +11962,214 @@ function caLivreHorsBande(mois) {
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
 }
 
-// ── Points de vente (caisse POS, migration 0027) — LECTURE SEULE ──
-// Clôtures récentes + total encaissé du jour par PDV. Requêtes directes à
-// la demande (les tables POS ne sont PAS dans getAll/ALL_TABLES : la page
-// Trésorerie est manager-only et ces tables peuvent ne pas exister avant
-// l'application manuelle de 0002 puis 0027 → repli neutre).
-async function renderTresoPDV() {
-  const box = document.getElementById('treso-pdv-section');
-  if (!box) return;
+// ── Caisse PDV (POS 0027) — onglet Trésorerie, LECTURE SEULE ───────────────
+// Les tables POS restent volontairement HORS getAll/ALL_TABLES : requêtes à
+// la demande, bornées par période (un seul PDV, faible volume — les .limit
+// sont des plafonds de sûreté, pas de la pagination). Triple garde : la page
+// tresorerie est absente de CHEF_BANDE_PAGES (navigate redirige), le bouton
+// d'onglet est .manager-only, et le rendu s'ouvre sur le gate de BLOC
+// canSee('finance') (C-F1). Le stock PDV reste local à la caisse (phase
+// supply d'août) : mouvements_stock n'est pas lu ici.
+let caisseJour = null;   // jour affiché dans la liste des transactions (défaut : aujourd'hui)
+
+const CAISSE_MODE_LABELS = {
+  especes: 'Espèces', orange_money: 'Orange Money', mtn_momo: 'MTN MoMo',
+  wave: 'Wave', moov: 'Moov', credit: 'Crédit', mixte: 'Mixte'
+};
+function caisseModeLabel(m) { return CAISSE_MODE_LABELS[m] || m || '—'; }
+
+// Distinction d'erreur EXIGÉE (critère d'acceptation) : table absente
+// (migrations non exécutées) ≠ refus RLS (politique manager manquante) ≠
+// hors ligne — trois remèdes différents, donc trois messages différents.
+function caisseErrMessage(err) {
+  const msg = String(err && err.message || err);
+  const code = String(err && err.code || '');
+  if (code === '42P01' || /does not exist|schema cache/i.test(msg)) {
+    return 'Caisse non activée : migrations 0002/0027 non exécutées dans Supabase — aucune donnée à afficher.';
+  }
+  if (code === '42501' || /permission denied|row-level security/i.test(msg)) {
+    return 'Accès refusé par la RLS : une politique rls27_*_manager manque probablement en base. Lancer la sonde pg_policies du bloc VERIFICATION de la migration 0027.';
+  }
+  if (!navigator.onLine || /failed to fetch|network|load failed/i.test(msg)) {
+    return 'Hors ligne — les données de caisse ne sont pas mises en cache. Réessayez une fois reconnecté.';
+  }
+  return 'Erreur de chargement de la caisse : ' + msg;
+}
+
+// Badge d'écart sur le bouton d'onglet (Trésorerie uniquement, rien sur le
+// Dashboard en v1) : dernière clôture avec ecart_fcfa ≠ 0 → montant en rouge.
+async function updateCaisseEcartBadge() {
+  const el = document.getElementById('caisse-ecart-badge');
+  if (!el) return;
+  if (!canSee('finance')) { el.style.display = 'none'; return; }
   try {
-    const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    const [clo, tx] = await Promise.all([
-      sb.from('cloture_caisse').select('*').order('date_cloture', { ascending: false }).limit(10),
-      sb.from('pos_transactions').select('pdv_id, date_transaction, montant_total_fcfa, statut')
-        .gte('date_transaction', since).limit(1000)
+    const { data, error } = await sb.from('cloture_caisse')
+      .select('ecart_fcfa, date_cloture')
+      .order('date_cloture', { ascending: false }).limit(1);
+    if (error) throw error;
+    const ecart = data && data.length ? (Number(data[0].ecart_fcfa) || 0) : 0;
+    if (ecart !== 0) {
+      el.textContent = (ecart > 0 ? '+' : '') + fmt(ecart);
+      el.title = 'Dernière clôture de caisse : écart de ' + (ecart > 0 ? '+' : '') + fmt(ecart) + ' FCFA';
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  } catch (e) {
+    // Table absente / RLS / hors ligne : pas de badge — le détail de l'erreur
+    // s'affiche dans l'onglet lui-même (caisseErrMessage).
+    el.style.display = 'none';
+  }
+}
+
+function changeCaisseJour(v) {
+  caisseJour = v || todayStr();
+  renderCaissePdv();
+}
+
+async function renderCaissePdv() {
+  const box = document.getElementById('treso-tab-caisse');
+  if (!box) return;
+  if (!canSee('finance')) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="card"><p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Chargement de la caisse…</p></div>';
+  const jour = caisseJour || todayStr();
+  const jourFin = new Date(new Date(jour + 'T00:00:00Z').getTime() + 86400000).toISOString().slice(0, 10);
+  const mois = getBilanPeriod();
+  const moisDebut = mois + '-01';
+  const moisFin = new Date(Date.UTC(+mois.slice(0, 4), +mois.slice(5, 7), 1)).toISOString().slice(0, 10);
+  try {
+    const [txJourR, txMoisR, paiJourR, cloR] = await Promise.all([
+      sb.from('pos_transactions').select('*')
+        .gte('date_transaction', jour).lt('date_transaction', jourFin)
+        .order('date_transaction', { ascending: false }).limit(500),
+      sb.from('pos_transactions').select('montant_total_fcfa, statut')
+        .gte('date_transaction', moisDebut).lt('date_transaction', moisFin).limit(5000),
+      sb.from('paiements').select('mode_paiement, montant_fcfa, sens, statut, transaction_id, pdv_id')
+        .gte('date_paiement', jour).lt('date_paiement', jourFin)
+        .not('pdv_id', 'is', null).limit(1000),
+      sb.from('cloture_caisse').select('*')
+        .gte('date_cloture', new Date(Date.now() - 30 * 86400000).toISOString())
+        .order('date_cloture', { ascending: false }).limit(60)
     ]);
-    if (clo.error) throw new Error(clo.error.message);
-    if (tx.error) throw new Error(tx.error.message);
-    const clotures = clo.data || [];
-    const transactions = (tx.data || []).filter(t => t.statut === 'finalisee');
-    const today = todayStr();
-    const parPdv = {};
-    transactions.forEach(t => {
-      if (!String(t.date_transaction || '').startsWith(today)) return;
-      const k = t.pdv_id || '?';
-      parPdv[k] = (parPdv[k] || 0) + (Number(t.montant_total_fcfa) || 0);
+    for (const r of [txJourR, txMoisR, paiJourR, cloR]) { if (r.error) throw r.error; }
+
+    const txJour = txJourR.data || [];
+    const finalisees = txJour.filter(t => t.statut === 'finalisee');
+    const caJour = finalisees.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+    const panierMoyen = finalisees.length ? caJour / finalisees.length : 0;
+
+    // Encaissé par mode = TOUS les encaissements caisse confirmés du jour
+    // (pdv_id non nul), y compris les règlements de crédits antérieurs :
+    // c'est la position de caisse réelle, celle que la clôture compte.
+    const encaissements = (paiJourR.data || [])
+      .filter(p => p.sens === 'encaissement' && p.statut === 'confirme');
+    const parMode = {};
+    encaissements.forEach(p => {
+      const k = p.mode_paiement || '?';
+      parMode[k] = (parMode[k] || 0) + (Number(p.montant_fcfa) || 0);
     });
-    const pdvKeys = Object.keys(parPdv);
-    const totauxHtml = pdvKeys.length
-      ? pdvKeys.map(k => '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;">'
-          + '<span>' + escHtml(k) + '</span><strong style="font-family:var(--font-mono);">' + fmt(parPdv[k]) + ' FCFA</strong></div>').join('')
-      : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune vente aujourd\'hui.</p>';
-    const cloHtml = clotures.length
-      ? clotures.map(c => {
-          const e = Number(c.ecart_fcfa) || 0;
-          const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
-          return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:0.85rem;border-bottom:var(--border-hairline);">'
-            + '<span>' + fmtDate(c.date_cloture) + ' — ' + escHtml(c.pdv_id || '—') + ' · ' + escHtml(c.vendeur_id || '') + '</span>'
-            + '<span style="font-family:var(--font-mono);">compté ' + fmt(c.compte_fcfa) + ' · <strong style="color:' + col + ';">écart ' + (e > 0 ? '+' : '') + fmt(e) + '</strong></span></div>';
-        }).join('')
-      : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>';
-    box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Points de vente (caisse)</h3></div>'
-      + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;">Encaissé aujourd\'hui par PDV</div>'
-      + totauxHtml
-      + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.9rem 0 0.5rem;">Dernières clôtures de caisse</div>'
-      + cloHtml + '</div>';
+    const encaisseJour = Object.values(parMode).reduce((s, v) => s + v, 0);
+    // Crédit consenti du jour = CA finalisé − encaissements liés aux ventes
+    // du jour (un règlement de crédit ancien ne réduit pas le crédit du jour).
+    const txIds = new Set(finalisees.map(t => t.transaction_id));
+    const encaisseVentesJour = encaissements
+      .filter(p => p.transaction_id && txIds.has(p.transaction_id))
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const creditJour = Math.max(0, caJour - encaisseVentesJour);
+
+    const caMois = (txMoisR.data || [])
+      .filter(t => t.statut === 'finalisee')
+      .reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+
+    const sub = 'font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin:0.9rem 0 0.5rem;';
+    const kv = 'display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;';
+    const mono = 'font-family:var(--font-mono);';
+
+    // ── Carte 1 : le jour sélectionné ──
+    const modesHtml = Object.keys(parMode).length
+      ? Object.keys(parMode).sort().map(k =>
+          '<div style="' + kv + '"><span>' + escHtml(caisseModeLabel(k)) + '</span>'
+          + '<strong style="' + mono + '">' + fmt(parMode[k]) + ' FCFA</strong></div>').join('')
+      : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucun encaissement ce jour.</p>';
+    const jourHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">'
+      + '<h3><i data-lucide="store"></i> Caisse — journée</h3>'
+      + '<input type="date" id="caisse-jour" value="' + escHtml(jour) + '" onchange="changeCaisseJour(this.value)" '
+      + 'style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);"></div>'
+      + '<div style="' + kv + '"><span>CA (ventes finalisées)</span><strong style="' + mono + '">' + fmt(caJour) + ' FCFA</strong></div>'
+      + '<div style="' + kv + '"><span>Ventes finalisées</span><strong style="' + mono + '">' + finalisees.length + '</strong></div>'
+      + '<div style="' + kv + '"><span>Panier moyen</span><strong style="' + mono + '">' + fmt(panierMoyen) + ' FCFA</strong></div>'
+      + '<div style="' + kv + '"><span>Crédit consenti (jour)</span><strong style="' + mono + '">' + fmt(creditJour) + ' FCFA</strong></div>'
+      + '<div style="' + sub + '">Encaissé par mode (caisse)</div>' + modesHtml
+      + '<div style="' + kv + 'border-top:var(--border-hairline);margin-top:4px;"><span>Total encaissé</span>'
+      + '<strong style="' + mono + '">' + fmt(encaisseJour) + ' FCFA</strong></div>'
+      + '</div>';
+
+    // ── Carte 2 : le mois de la période du bilan (#treso-period) ──
+    const moisHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header"><h3><i data-lucide="calendar"></i> CA caisse — ' + escHtml(frMonthLabel(mois) || mois) + '</h3></div>'
+      + '<div style="' + kv + '"><span>CA (ventes finalisées)</span><strong style="' + mono + '">' + fmt(caMois) + ' FCFA</strong></div>'
+      + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Chiffre caisse seul — non intégré au bilan/flux (décision v1). Période pilotée par le sélecteur en haut de page.</p>'
+      + '</div>';
+
+    // ── Carte 3 : transactions du jour (toutes, annulées/remboursées grisées) ──
+    const txRows = txJour.map(t => {
+      const fin = t.statut === 'finalisee';
+      const b = STATE.bandes.find(x => x.bande_id === t.bande_id);
+      const client = t.client_id
+        ? escHtml((STATE.clients.find(x => x.client_id === t.client_id) || {}).nom || t.client_id)
+        : '—';
+      const statutLbl = t.statut === 'finalisee' ? 'Finalisée'
+        : t.statut === 'annulee' ? 'Annulée'
+        : t.statut === 'remboursee' ? 'Remboursée' : (t.statut || '—');
+      return '<tr' + (fin ? '' : ' style="opacity:.55;"') + '>'
+        + '<td>' + escHtml(String(t.date_transaction || '').slice(11, 16)) + '</td>'
+        + '<td class="num">' + fmt(t.montant_total_fcfa) + '</td>'
+        + '<td>' + escHtml(caisseModeLabel(t.mode_paiement)) + '</td>'
+        + '<td>' + escHtml(t.vendeur_id || '—') + '</td>'
+        + '<td>' + escHtml((b && b.nom_bande) || t.bande_id || '—') + '</td>'
+        + '<td>' + client + '</td>'
+        + '<td>' + statutLbl + '</td></tr>';
+    }).join('');
+    const txHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header"><h3><i data-lucide="receipt"></i> Transactions du ' + escHtml(fmtDate(jour)) + '</h3></div>'
+      + (txJour.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Heure</th><th class="num">Montant (FCFA)</th><th>Mode</th><th>Vendeur</th><th>Bande</th><th>Client</th><th>Statut</th></tr></thead>'
+          + '<tbody>' + txRows + '</tbody></table></div>'
+          + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Les ventes annulées/remboursées sont grisées et exclues du CA.</p>'
+        : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune transaction ce jour.</p>')
+      + '</div>';
+
+    // ── Carte 4 : clôtures des 30 derniers jours ──
+    const clotures = cloR.data || [];
+    const cloRows = clotures.map(c => {
+      const e = Number(c.ecart_fcfa) || 0;
+      const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+      return '<tr>'
+        + '<td>' + escHtml(fmtDate(c.date_cloture)) + '</td>'
+        + '<td>' + escHtml(c.vendeur_id || '—') + '</td>'
+        + '<td class="num">' + fmt(c.fond_caisse_fcfa) + '</td>'
+        + '<td class="num">' + fmt(c.theorique_fcfa) + '</td>'
+        + '<td class="num">' + fmt(c.compte_fcfa) + '</td>'
+        + '<td class="num" style="color:' + col + ';font-weight:700;">' + (e > 0 ? '+' : '') + fmt(e) + '</td></tr>';
+    }).join('');
+    const cloHtml =
+      '<div class="card">'
+      + '<div class="card-header"><h3><i data-lucide="lock"></i> Clôtures de caisse (30 derniers jours)</h3></div>'
+      + (clotures.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th></tr></thead>'
+          + '<tbody>' + cloRows + '</tbody></table></div>'
+        : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>')
+      + '</div>';
+
+    box.innerHTML = jourHtml + moisHtml + txHtml + cloHtml;
     if (window.lucide) lucide.createIcons();
   } catch (e) {
-    box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Points de vente (caisse)</h3></div>'
-      + '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Caisse non activée (migrations 0002/0027 non appliquées) — aucune donnée à afficher.</p></div>';
+    box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Caisse PDV</h3></div>'
+      + '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">' + escHtml(caisseErrMessage(e)) + '</p></div>';
     if (window.lucide) lucide.createIcons();
   }
 }
@@ -12016,7 +12180,10 @@ function initTresoreriePage() {
   select.innerHTML = STATE.bandes.map(b =>
     '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
   ).join('');
-  renderTresoPDV();
+  // Badge d'écart dès l'arrivée sur la page (sans ouvrir l'onglet Caisse) ;
+  // si l'onglet Caisse est actif, re-rendre (le CA mensuel suit #treso-period).
+  updateCaisseEcartBadge();
+  if (currentTresoTab === 'caisse') renderCaissePdv();
 
   const today = todayStr();
   const thisMonth = getBilanPeriod();              // période sélectionnée (#treso-period), défaut mois courant
