@@ -413,13 +413,34 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
         <div id="sorties-list" style="margin-top:10px;"></div>
       </div>
 
+      <!-- ── Comptage du stock (POS-1 item 3) : produits à stock théorique
+           non nul. Champ laissé vide = non compté (aucun ajustement) ;
+           champ rempli et différent = mouvement 'ajustement' rattaché à la
+           clôture (reference = cloture_id). Rien n'est bloqué : l'écart
+           stock parle, comme l'écart espèces. -->
+      <div class="list-card">
+        <h3>Comptage du stock</h3>
+        <p class="muted" style="font-size:12.5px;margin-bottom:8px;">Comptez le stock physique restant. Champ vide = non compté.</p>
+        <div id="cloture-stock-list"></div>
+      </div>
+
       <div class="list-card">
         <div class="kv"><span>Espèces encaissées depuis la dernière clôture</span><span class="v" id="clo-especes">—</span></div>
-        <div class="kv"><span>Sorties de caisse (dépenses + versements)</span><span class="v" id="clo-sorties">—</span></div>
-        <div class="field" style="margin-top:10px;"><label for="clo-fond">Fond de caisse (FCFA)</label><input id="clo-fond" type="number" inputmode="numeric" min="0" value="0"></div>
+        <div class="kv"><span>Dépenses depuis la dernière clôture</span><span class="v" id="clo-depenses">—</span></div>
+        <!-- Fond VERROUILLÉ (amendement item 3) : espèces comptées à la
+             dernière clôture − versements ferme depuis (ou override manager
+             fond_suivant_fcfa, 0037). Éditable UNIQUEMENT en amorçage
+             (aucune clôture existante). Correction : gérant, app SIVA. -->
+        <div class="field" style="margin-top:10px;">
+          <label for="clo-fond">Fond de caisse (FCFA)</label>
+          <input id="clo-fond" type="number" inputmode="numeric" min="0" value="0">
+          <small id="clo-fond-note" class="muted" style="display:block;margin-top:4px;font-size:11.5px;"></small>
+        </div>
         <div class="kv"><span>Espèces théoriques en caisse</span><span class="v" id="clo-theorique">—</span></div>
         <div class="field" style="margin-top:10px;"><label for="clo-compte">Espèces comptées (FCFA)</label><input id="clo-compte" type="number" inputmode="numeric" min="0" placeholder="0"></div>
         <div class="kv"><span>Écart</span><span class="v" id="clo-ecart">—</span></div>
+        <div class="kv"><span>Mobile money encaissé (période)</span><span class="v" id="clo-mm">—</span></div>
+        <div class="kv"><span>Crédit consenti (période)</span><span class="v" id="clo-credit">—</span></div>
         <div class="field" style="margin-top:10px;"><label for="clo-note">Note (optionnel)</label><input id="clo-note" type="text" placeholder="Remarques…"></div>
         <button id="btn-cloture" class="btn btn-primary btn-block"><i data-lucide="lock"></i> Clôturer la caisse</button>
       </div>
@@ -538,7 +559,8 @@ let C = {
   payParts: [],        // [{ mode, montant, reference }]
   payClientId: '',
   lastSale: null,
-  legal: {}            // { rccm, ncc } depuis parametres (0028) — pied du reçu
+  legal: {},           // { rccm, ncc } depuis parametres (0028) — pied du reçu
+  transactions: []     // pos_transactions du pdv (+ optimistes) — crédit consenti à la clôture
 };
 let isOnline = navigator.onLine;
 
@@ -588,7 +610,7 @@ function saveCache() {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       ts: Date.now(), pdv: C.pdv, catalogue: C.catalogue, bandes: C.bandes,
       soldes: C.soldes, mouvements: C.mouvements, paiements: C.paiements, clotures: C.clotures,
-      legal: C.legal
+      legal: C.legal, transactions: C.transactions
     }));
   } catch (e) {}
 }
@@ -600,7 +622,7 @@ function loadCache() {
     C.pdv = C.pdv || c.pdv;
     C.catalogue = c.catalogue || []; C.bandes = c.bandes || []; C.soldes = c.soldes || [];
     C.mouvements = c.mouvements || []; C.paiements = c.paiements || []; C.clotures = c.clotures || [];
-    C.legal = c.legal || {};
+    C.legal = c.legal || {}; C.transactions = c.transactions || [];
     return true;
   } catch (e) { return false; }
 }
@@ -658,6 +680,28 @@ async function execRows(rows) {
   }
 }
 
+/* ── Repli migration 0037 (clôture élargie) ──────────────────────────
+   Railway déploie le front AVANT l'exécution manuelle du SQL : une
+   clôture composée AVEC l'instantané par mode serait rejetée (42703,
+   colonne inconnue) tant que 0037 n'est pas passée. On retire alors les
+   colonnes d'instantané et on rejoue — la clôture de base n'est jamais
+   bloquée par une migration en attente (même discipline que les
+   QUEUE_COLUMN_FALLBACKS d'index.html). */
+const COLS_0037 = ['total_mm_fcfa', 'total_credit_fcfa', 'total_depenses_fcfa', 'total_versements_fcfa'];
+function isColErr0037(e) {
+  const msg = String(e && e.message || e);
+  return (String(e && e.code || '') === '42703' || /column|schema cache/i.test(msg))
+    && COLS_0037.some(c => msg.indexOf(c) !== -1);
+}
+function strip0037(rows) {
+  return rows.map(r => {
+    if (r.table !== 'cloture_caisse') return r;
+    const row = Object.assign({}, r.row);
+    COLS_0037.forEach(c => { delete row[c]; });
+    return { table: r.table, row: row };
+  });
+}
+
 /* Rejeu de la file (reconnexion / connexion / minuterie). Deux classes
    d'échec, traitées différemment :
    - TRANSITOIRE (réseau, 5xx, inconnu) : l'item reste en file, le lot
@@ -680,6 +724,16 @@ async function processQueue() {
     const item = q[i];
     try { await execRows(item.rows); done++; }
     catch (e) {
+      // Clôture mise en file AVEC instantané avant l'exécution de 0037 :
+      // rejouée sans les colonnes plutôt que perdue au store des rejets.
+      if (item.type === 'cloture' && isColErr0037(e)) {
+        try {
+          await execRows(strip0037(item.rows));
+          done++;
+          toast('Clôture synchronisée SANS instantané par mode (migration 0037 non appliquée)', 'error');
+          continue;
+        } catch (e2) { e = e2; }
+      }
       if (isPermError(e)) { addFailed(item, e); rejets.push(item); continue; }
       remaining.push(item, ...q.slice(i + 1));
       break;
@@ -869,13 +923,15 @@ async function loadData() {
   const pdvId = C.pdv.pdv_id;
   const since = new Date(Date.now() - 60 * 86400000).toISOString();
   try {
-    const [cat, bp, sol, mvt, pay, clo] = await Promise.all([
+    const [cat, bp, sol, mvt, pay, clo, tx] = await Promise.all([
       sb.from('v_catalogue_client').select('produit_id, nom, categorie, calibre, unite, prix_kg_fcfa, description, ordre_affichage').order('ordre_affichage'),
       sb.from('bandes_pos').select('bande_id, nom_bande, statut'),
       sb.from('v_client_soldes').select('client_id, nom, solde_fcfa'),
       sb.from('mouvements_stock').select('*').or('from_pdv_id.eq.' + pdvId + ',to_pdv_id.eq.' + pdvId).gte('date_mouvement', since).order('date_mouvement', { ascending: false }).limit(1000),
       sb.from('paiements').select('*').eq('pdv_id', pdvId).gte('date_paiement', since).order('date_paiement', { ascending: false }).limit(1000),
-      sb.from('cloture_caisse').select('*').eq('pdv_id', pdvId).order('date_cloture', { ascending: false }).limit(10)
+      sb.from('cloture_caisse').select('*').eq('pdv_id', pdvId).order('date_cloture', { ascending: false }).limit(10),
+      sb.from('pos_transactions').select('transaction_id, montant_total_fcfa, mode_paiement, statut, date_transaction')
+        .eq('pdv_id', pdvId).gte('date_transaction', since).order('date_transaction', { ascending: false }).limit(2000)
     ]);
     if (cat.error) throw new Error(cat.error.message);
     C.catalogue = cat.data || [];
@@ -884,6 +940,7 @@ async function loadData() {
     C.mouvements = (mvt.data || []);
     C.paiements = (pay.data || []);
     C.clotures = (clo.data || []);
+    C.transactions = (tx.data || []);
     saveCache();
   } catch (e) {
     // Hors ligne (ou 0027 pas encore appliquée) : on sert le cache local.
@@ -1175,9 +1232,11 @@ async function finalizeSale() {
   }
   btn.disabled = false; btn.textContent = 'Finaliser la vente';
 
-  // Optimiste : stock + paiements + solde local reflètent la vente tout de suite.
+  // Optimiste : stock + paiements + transactions + solde local reflètent la
+  // vente tout de suite (transactions : crédit consenti à la clôture).
   C.mouvements = mouvements.concat(C.mouvements);
   C.paiements = paiements.concat(C.paiements);
+  C.transactions = [tx].concat(C.transactions);
   if (credit > 0 && C.payClientId) {
     const s = C.soldes.find(x => x.client_id === C.payClientId);
     if (s) s.solde_fcfa = Number(s.solde_fcfa || 0) + credit;
@@ -1375,29 +1434,140 @@ async function submitSortie() {
     : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
 }
 
-/* ════════════════ CLÔTURE DE CAISSE ════════════════ */
-/* Théorique ESPÈCES = fond + encaissements espèces − sorties de caisse
-   (dépenses + versements) depuis la dernière clôture. Calculé sur les
-   paiements du cache + optimistes, donc juste même hors ligne. Item 3
-   (clôture élargie) consomme cette même formule via theoriqueEspeces(). */
-function sommeEspecesDepuisCloture() {
+/* ════════════════ CLÔTURE DE CAISSE (élargie — POS-1 item 3) ═══════ */
+/* Depuis la dernière clôture :
+   - les encaissements ESPÈCES (+) et les DÉPENSES (−) entrent dans le
+     théorique ;
+   - les VERSEMENTS ferme sont soustraits du FOND : le fond verrouillé =
+     espèces comptées à la dernière clôture − versements depuis (ou
+     l'override manager fond_suivant_fcfa, 0037). Même résultat net, mais
+     le fond affiché correspond au tiroir réel à l'ouverture.
+   théorique = fond + espèces − dépenses = cash physique attendu.
+   Amorçage (aucune clôture) : fond saisissable une seule fois, et les
+   versements sont alors soustraits du théorique directement.
+   Tout est calculé sur cache + optimistes : juste même hors ligne. */
+
+function paiementsDepuisCloture(pred) {
   const last = C.clotures.length ? C.clotures[0].date_cloture : null;
-  return C.paiements.reduce((s, p) => {
-    if (p.mode_paiement !== 'especes') return s;
-    if (p.sens && p.sens !== 'encaissement') return s;
-    if (p.statut && p.statut !== 'confirme') return s;
-    if (last && String(p.date_paiement) <= String(last)) return s;
-    return s + (Number(p.montant_fcfa) || 0);
-  }, 0);
+  return C.paiements.filter(p =>
+    (!p.statut || p.statut === 'confirme')
+    && (!last || String(p.date_paiement) > String(last))
+    && pred(p));
+}
+function sommePaiements(rows) { return rows.reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0); }
+function sommeEspecesDepuisCloture() {
+  return sommePaiements(paiementsDepuisCloture(p =>
+    p.mode_paiement === 'especes' && (!p.sens || p.sens === 'encaissement')));
+}
+function sommeDepensesDepuisCloture() {
+  return sommePaiements(paiementsDepuisCloture(p => p.sens === 'depense'));
+}
+function sommeVersementsDepuisCloture() {
+  return sommePaiements(paiementsDepuisCloture(p => p.sens === 'versement'));
+}
+function sommeMMDepuisCloture() {
+  return sommePaiements(paiementsDepuisCloture(p =>
+    p.mode_paiement !== 'especes' && (!p.sens || p.sens === 'encaissement')));
+}
+/* Crédit consenti sur la période = ventes finalisées − encaissements liés
+   à CES ventes (un remboursement de crédit ancien, sans transaction_id,
+   ne le réduit pas). */
+function sommeCreditDepuisCloture() {
+  const last = C.clotures.length ? C.clotures[0].date_cloture : null;
+  const ventes = C.transactions.filter(t =>
+    t.statut === 'finalisee' && (!last || String(t.date_transaction) > String(last)));
+  const ids = new Set(ventes.map(t => t.transaction_id));
+  const lies = paiementsDepuisCloture(p =>
+    (!p.sens || p.sens === 'encaissement') && p.transaction_id && ids.has(p.transaction_id));
+  const ca = ventes.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+  return Math.max(0, ca - sommePaiements(lies));
+}
+
+/* Fond VERROUILLÉ (amendement item 3) : null seulement en amorçage.
+   Le verrou est réel côté RLS : le vendeur n'a aucun UPDATE sur
+   cloture_caisse (0027) — seul le manager peut poser fond_suivant_fcfa. */
+function fondVerrouille() {
+  if (!C.clotures.length) return null;
+  const d = C.clotures[0];
+  const base = (d.fond_suivant_fcfa != null) ? (Number(d.fond_suivant_fcfa) || 0) : (Number(d.compte_fcfa) || 0);
+  return base - sommeVersementsDepuisCloture();
 }
 function theoriqueEspeces(fond) {
-  return fond + sommeEspecesDepuisCloture() - sommeSortiesDepuisCloture();
+  const t = fond + sommeEspecesDepuisCloture() - sommeDepensesDepuisCloture();
+  return C.clotures.length ? t : t - sommeVersementsDepuisCloture();
+}
+
+/* Comptage du stock : un input par produit à stock théorique non nul.
+   Champ vide = non compté. Les saisies en cours survivent au re-render. */
+function renderClotureStock() {
+  const stock = stockParProduit();
+  const noms = Object.keys(stock).filter(k => Math.abs(stock[k]) > 0.001).sort();
+  const saisies = {};
+  document.querySelectorAll('[data-compte-prod]').forEach(i => {
+    if (i.value !== '') saisies[i.dataset.compteProd] = i.value;
+  });
+  $('cloture-stock-list').innerHTML = noms.length
+    ? noms.map(k =>
+        '<div class="kv"><span>' + esc(k) + ' <span class="muted">(théorique ' + fmt(stock[k], 1) + ')</span></span>' +
+        '<input type="number" inputmode="decimal" min="0" step="0.1" placeholder="' + fmt(stock[k], 1) + '"' +
+        ' data-compte-prod="' + esc(k) + '"' + (saisies[k] != null ? ' value="' + esc(saisies[k]) + '"' : '') +
+        ' style="width:110px;min-height:44px;padding:0 10px;border:1px solid var(--color-border);border-radius:var(--radius-md);text-align:right;font-family:var(--font-mono);"></div>')
+      .join('')
+    : '<p class="muted">Aucun stock théorique à compter.</p>';
+}
+
+/* Écarts de comptage → mouvements 'ajustement' rattachés à la clôture
+   (reference = cloture_id) : le stock théorique se recale tout seul et
+   l'écart reste auditable. kg/quantités uniquement — aucune valorisation
+   FCFA côté caisse (amendement item 1, anticipé ici). */
+function collecteAjustements(clotureId, now) {
+  const stock = stockParProduit();
+  const ajustements = [];
+  document.querySelectorAll('[data-compte-prod]').forEach(inp => {
+    if (inp.value === '') return;
+    const nom = inp.dataset.compteProd;
+    const compte = parseFloat(String(inp.value).replace(',', '.'));
+    if (isNaN(compte) || compte < 0) return;
+    const theo = Math.round((stock[nom] || 0) * 100) / 100;
+    const diff = Math.round((compte - theo) * 100) / 100;
+    if (diff === 0) return;
+    const p = C.catalogue.find(x => x.nom === nom);
+    ajustements.push({
+      mouvement_id: uuid(), date_mouvement: now, type_mouvement: 'ajustement',
+      from_pdv_id: diff < 0 ? C.pdv.pdv_id : null,
+      to_pdv_id: diff > 0 ? C.pdv.pdv_id : null,
+      type_produit: nom, quantite: Math.abs(diff), unite: p ? p.unite : null,
+      reference: clotureId, statut: 'valide', responsable: C.user.matricule,
+      note: 'Comptage cloture - theorique ' + theo + ', compte ' + compte
+    });
+  });
+  return ajustements;
 }
 
 function renderCloture() {
   $('clo-especes').textContent = fcfa(sommeEspecesDepuisCloture());
-  $('clo-sorties').textContent = '− ' + fcfa(sommeSortiesDepuisCloture());
+  $('clo-depenses').textContent = '− ' + fcfa(sommeDepensesDepuisCloture());
+  $('clo-mm').textContent = fcfa(sommeMMDepuisCloture());
+  $('clo-credit').textContent = fcfa(sommeCreditDepuisCloture());
+
+  const fondEl = $('clo-fond');
+  const verrou = fondVerrouille();
+  if (verrou != null) {
+    fondEl.value = Math.round(verrou);
+    fondEl.readOnly = true;
+    fondEl.style.background = 'var(--c-sand-100)';
+    const d = C.clotures[0];
+    $('clo-fond-note').textContent = (d.fond_suivant_fcfa != null)
+      ? 'Fond corrigé par le gérant' + (d.fond_suivant_note ? ' (' + d.fond_suivant_note + ')' : '') + ' − versements de la période.'
+      : 'Verrouillé : espèces comptées à la dernière clôture − versements ferme depuis. Correction : gérant, app SIVA.';
+  } else {
+    fondEl.readOnly = false;
+    fondEl.style.background = '';
+    $('clo-fond-note').textContent = 'Première clôture : saisissez le fond de départ — il sera verrouillé ensuite.';
+  }
+
   majClotureCalc();
+  renderClotureStock();
   const sorties = sortiesDepuisCloture();
   $('sorties-list').innerHTML = sorties.length
     ? sorties.map(p => {
@@ -1434,24 +1604,48 @@ async function submitCloture() {
   const fond = Number($('clo-fond').value) || 0;
   const theorique = theoriqueEspeces(fond);
   const compte = Number(compteRaw) || 0;
+  const now = new Date().toISOString();
   const clo = {
-    cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: new Date().toISOString(),
+    cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: now,
     fond_caisse_fcfa: fond, theorique_fcfa: theorique, compte_fcfa: compte,
     ecart_fcfa: compte - theorique, vendeur_id: C.user.matricule,
-    note: $('clo-note').value.trim() || null
+    note: $('clo-note').value.trim() || null,
+    // Instantané 0037 — ce que la vendeuse ATTESTE en clôturant. Retiré au
+    // repli si la migration n'est pas encore exécutée en base (Railway
+    // déploie le front avant le SQL manuel).
+    total_mm_fcfa: sommeMMDepuisCloture(),
+    total_credit_fcfa: sommeCreditDepuisCloture(),
+    total_depenses_fcfa: sommeDepensesDepuisCloture(),
+    total_versements_fcfa: sommeVersementsDepuisCloture()
   };
-  const rows = [{ table: 'cloture_caisse', row: clo }];
+  const ajustements = collecteAjustements(clo.cloture_id, now);
+  const rows = [{ table: 'cloture_caisse', row: clo }]
+    .concat(ajustements.map(r => ({ table: 'mouvements_stock', row: r })));
   let queued = false;
   try { await execRows(rows); }
   catch (e) {
     if (isNetError(e)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows }); queued = true; }
+    else if (isColErr0037(e)) {
+      // 0037 non exécutée : réessai SANS instantané — la clôture de base ne
+      // doit jamais être bloquée par une migration en attente.
+      try {
+        await execRows(strip0037(rows));
+        toast('Clôture enregistrée SANS instantané par mode (migration 0037 non appliquée)', 'error');
+      } catch (e2) {
+        if (isNetError(e2)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows: strip0037(rows) }); queued = true; }
+        else { toast('Erreur : ' + e2.message, 'error'); return; }
+      }
+    }
     else { toast('Erreur : ' + e.message, 'error'); return; }
   }
   C.clotures = [clo].concat(C.clotures);
+  C.mouvements = ajustements.concat(C.mouvements);
   saveCache();
   $('clo-compte').value = ''; $('clo-note').value = '';
-  renderCloture();
-  toast(queued ? 'Clôture enregistrée (hors ligne — sera synchronisée)' : 'Caisse clôturée');
+  renderCloture(); renderStock(); renderVente();
+  toast(queued
+    ? 'Clôture enregistrée (hors ligne — sera synchronisée)'
+    : 'Caisse clôturée' + (ajustements.length ? ' — ' + ajustements.length + ' ajustement(s) de stock' : ''));
 }
 
 /* ════════════════ NAVIGATION + ÉVÉNEMENTS ════════════════ */
