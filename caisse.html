@@ -137,6 +137,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 #badge-online.on  { background: rgba(14,124,74,.25); color: #7ADFAE; }
 #badge-online.off { background: rgba(200,51,43,.25); color: #F1A09B; }
 #badge-queue { background: var(--c-orange-600); color: #fff; }
+#badge-failed { background: rgba(200,51,43,.95); color: #fff; cursor: pointer; border: 0; font: inherit; }
 .signout-btn { background: transparent; border: none; color: var(--navbar-text); min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 19px; border-radius: var(--radius-md); }
 .signout-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
 
@@ -309,6 +310,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
       <span class="hd-pdv" id="hd-pdv">—</span>
     </div>
     <div class="hd-right">
+      <button id="badge-failed" class="badge hidden" title="Opérations refusées par le serveur — voir le détail" aria-label="Opérations non enregistrées"><i data-lucide="triangle-alert"></i><span id="badge-failed-n">0</span></button>
       <span id="badge-queue" class="badge hidden"><i data-lucide="upload-cloud"></i><span id="badge-queue-n">0</span></span>
       <span id="badge-online" class="badge on"><i data-lucide="wifi"></i><span id="badge-online-t">En ligne</span></span>
       <button id="signout-btn" class="signout-btn" title="Fermer la session" aria-label="Fermer la session"><i data-lucide="log-out"></i></button>
@@ -413,6 +415,20 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   </div>
 </div>
 
+<!-- ── Opérations refusées (rejets définitifs du serveur) ──
+     Store NON effaçable par le vendeur : pas de bouton de suppression.
+     Seul un manager connecté voit « Marquer résolu ». -->
+<div id="failed-overlay" class="overlay hidden">
+  <div class="sheet">
+    <h3><i data-lucide="triangle-alert"></i> Opérations NON enregistrées</h3>
+    <p class="muted" style="margin:4px 0 10px;">Refusées définitivement par le serveur — elles ne seront plus retentées. Résolution par le gérant uniquement.</p>
+    <div id="failed-list"></div>
+    <div class="receipt-actions">
+      <button class="btn btn-primary" id="failed-close">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -430,6 +446,7 @@ function matriculeToEmail(m) { return String(m || '').trim().toLowerCase() + AUT
 
 const CACHE_KEY = 'caisse_cache_v1';
 const QUEUE_KEY = 'caisse_queue_v1';
+const FAILED_KEY = 'caisse_failed_v1';
 
 /* Modes de paiement (0002 : colonne mode_paiement libre — valeurs affinées
    par opérateur pour l'analytique ; 'especes' + opérateurs mobile money.
@@ -483,6 +500,22 @@ function isNetError(e) {
   return !navigator.onLine || /failed to fetch|network|réseau|load failed|fetch/i.test(String(e && e.message || e));
 }
 function isDupError(e) { return /duplicate key/i.test(String(e && e.message || e)); }
+/* Rejet PERMANENT : le serveur a répondu et a REFUSÉ — rejouer ne changera
+   rien (FK/contrainte 23xxx, RLS 42501, requête invalide PGRST1xx…). Tout le
+   reste (coupure réseau, 5xx passerelle, erreur inconnue) est réputé
+   transitoire : on retente. En cas de doute on retente — un faux transitoire
+   reste visible en file, un faux permanent alerterait à tort le vendeur et
+   gèlerait une vente qui serait passée au rejeu suivant.
+   Exclusions du permanent : classes SQLSTATE retentables (08 connexion,
+   40 deadlock/sérialisation, 53 ressources, 57/58 serveur, XX interne) et
+   PGRST00x (connexion PostgREST -> base), que PostgREST mappe en 5xx. */
+function isPermError(e) {
+  if (isNetError(e)) return false;
+  const code = String(e && e.code || '');
+  if (/^[0-9A-Z]{5}$/.test(code)) return !/^(08|40|53|57|58|XX)/.test(code);
+  if (/^PGRST\d+$/.test(code)) return !/^PGRST00\d$/.test(code);
+  return /violates|constraint|invalid input|permission denied|row-level security/i.test(String(e && e.message || e));
+}
 
 /* ════════════════ CACHE + FILE HORS LIGNE ════════════════ */
 function saveCache() {
@@ -508,6 +541,39 @@ function getQueue() { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) ||
 function saveQueue(q) { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch (e) {} }
 function enqueue(item) { const q = getQueue(); q.push(item); saveQueue(q); updateStatusBadges(); }
 
+/* ── Store des rejets DÉFINITIFS ──────────────────────────────────────
+   Un lot refusé par le serveur (isPermError) sort de la file active et
+   atterrit ici : badge rouge permanent + panneau d'inspection. AUCUNE
+   suppression côté vendeur — seul un manager connecté peut marquer
+   résolu. Une vente qui n'a pas pu être sauvée ne doit JAMAIS avoir
+   l'air sauvée ni disparaître en silence. */
+function getFailed() { try { return JSON.parse(localStorage.getItem(FAILED_KEY) || '[]'); } catch (e) { return []; } }
+function saveFailed(f) { try { localStorage.setItem(FAILED_KEY, JSON.stringify(f)); } catch (e) {} }
+function addFailed(item, e) {
+  const f = getFailed();
+  f.push({
+    id: item.id, type: item.type, rows: item.rows,
+    erreur: String(e && e.message || e), code: (e && e.code) || null,
+    echec_le: new Date().toISOString()
+  });
+  saveFailed(f);
+}
+
+/* Montant d'un lot en échec (l'en-tête du lot porte le total) : le
+   vendeur a besoin de ce chiffre au moment de la clôture. */
+function failedMontant(item) {
+  const head = (item.rows && item.rows[0] && item.rows[0].row) || {};
+  if (item.type === 'vente') return Number(head.montant_total_fcfa) || 0;
+  return null;
+}
+function failedLabel(item) {
+  const m = failedMontant(item);
+  if (item.type === 'vente') return 'Vente de ' + fmt(m) + ' F NON enregistrée';
+  if (item.type === 'cloture') return 'Clôture de caisse NON enregistrée';
+  if (item.type === 'reception') return 'Réception de stock NON enregistrée';
+  return 'Opération NON enregistrée';
+}
+
 /* Exécution d'un lot de lignes [{table, row}] dans l'ordre, IDEMPOTENTE :
    chaque ligne porte un id métier unique généré côté client — au rejeu,
    « duplicate key » = déjà insérée = on continue (pattern index.html). */
@@ -516,14 +582,22 @@ async function execRows(rows) {
     const { error } = await sb.from(r.table).insert([r.row]);
     if (error) {
       if (isDupError(error)) continue;
-      throw new Error(error.message);
+      const e = new Error(error.message);
+      e.code = error.code || null;
+      throw e;
     }
   }
 }
 
-/* Rejeu de la file (reconnexion / connexion / minuterie). Un item en
-   échec réseau reste en file ; un item en échec définitif non-doublon
-   reste aussi (visible via le badge) pour diagnostic manager. */
+/* Rejeu de la file (reconnexion / connexion / minuterie). Deux classes
+   d'échec, traitées différemment :
+   - TRANSITOIRE (réseau, 5xx, inconnu) : l'item reste en file, le lot
+     s'arrête là (les suivants échoueraient pareil), on retentera.
+   - PERMANENT (isPermError : le serveur a refusé — FK, RLS, contrainte) :
+     rejouer ne changera JAMAIS rien. L'item sort de la file active vers
+     le store des rejets (badge rouge + panneau), avec alerte visible
+     portant le montant. Avant ce tri, un 409 était retenté à l'infini
+     et le vendeur n'apprenait jamais que sa vente n'existait pas. */
 let queueRunning = false;
 async function processQueue() {
   if (queueRunning || !navigator.onLine) return;
@@ -532,17 +606,26 @@ async function processQueue() {
   queueRunning = true;
   const remaining = [];
   let done = 0;
-  for (const item of q) {
+  const rejets = [];
+  for (let i = 0; i < q.length; i++) {
+    const item = q[i];
     try { await execRows(item.rows); done++; }
     catch (e) {
-      remaining.push(item);
-      if (isNetError(e)) { remaining.push(...q.slice(q.indexOf(item) + 1)); break; }
+      if (isPermError(e)) { addFailed(item, e); rejets.push(item); continue; }
+      remaining.push(item, ...q.slice(i + 1));
+      break;
     }
   }
   saveQueue(remaining);
   queueRunning = false;
   updateStatusBadges();
   if (done > 0) toast(done + ' opération(s) synchronisée(s)');
+  // Un seul élément toast : un message par rejet s'écraserait. Le badge
+  // rouge + le panneau restent l'alerte durable ; le toast porte le
+  // montant quand le rejet est unique.
+  if (rejets.length === 1) toast(failedLabel(rejets[0]) + ' — refusée par le serveur, touchez le badge rouge', 'error');
+  else if (rejets.length > 1) toast(rejets.length + ' opérations NON enregistrées — refusées par le serveur, touchez le badge rouge', 'error');
+  if (rejets.length) renderFailed();
 }
 
 function updateStatusBadges() {
@@ -552,6 +635,52 @@ function updateStatusBadges() {
   const n = getQueue().length;
   const bq = $('badge-queue');
   if (bq) { bq.classList.toggle('hidden', n === 0); $('badge-queue-n').textContent = n; }
+  const nf = getFailed().length;
+  const bf = $('badge-failed');
+  if (bf) { bf.classList.toggle('hidden', nf === 0); $('badge-failed-n').textContent = nf; }
+}
+
+/* ── Panneau des rejets définitifs ────────────────────────────────────
+   Lecture seule pour le vendeur : le payload complet est inspectable
+   (JSON déplié), rien n'est effaçable. Un manager connecté à la caisse
+   voit « Marquer résolu » par entrée — c'est la seule sortie du store. */
+function renderFailed() {
+  const box = $('failed-list');
+  if (!box) return;
+  const f = getFailed();
+  if (!f.length) {
+    box.innerHTML = '<p class="muted" style="padding:6px 0;">Aucune opération en échec.</p>';
+    return;
+  }
+  const isManager = C.user && C.user.role === 'manager';
+  box.innerHTML = f.map((it) => {
+    const d = new Date(it.echec_le);
+    return '<div class="list-card" style="margin-bottom:8px;">' +
+      '<div class="kv"><span><strong>' + esc(failedLabel(it)) + '</strong></span></div>' +
+      '<div class="kv"><span>' + d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR').slice(0, 5) +
+        ' — réf. <span class="mono">' + esc(String(it.id || '').slice(0, 8)) + '</span></span></div>' +
+      '<div class="kv"><span style="color:#C8332B;">' + esc(it.erreur) + (it.code ? ' (' + esc(it.code) + ')' : '') + '</span></div>' +
+      '<details style="margin-top:6px;"><summary style="cursor:pointer;">Détail technique (payload)</summary>' +
+        '<pre style="font-size:11px;overflow:auto;max-height:180px;">' + esc(JSON.stringify(it.rows, null, 1)) + '</pre></details>' +
+      (isManager
+        ? '<button class="btn btn-ghost btn-sm" style="margin-top:6px;" data-fresolve="' + esc(String(it.id)) + '">Marquer résolu (manager)</button>'
+        : '') +
+    '</div>';
+  }).join('');
+}
+/* Gate UI seulement (défense en profondeur : le store est du localStorage
+   local au poste — la vraie donnée sauvée, elle, est protégée par la RLS).
+   Résolution par id de lot, pas par index : le store peut bouger entre le
+   rendu et le clic (rejeu de file en arrière-plan). */
+function resolveFailed(id) {
+  if (!C.user || C.user.role !== 'manager') return;
+  const f = getFailed();
+  const i = f.findIndex(x => String(x.id) === String(id));
+  if (i === -1) return;
+  f.splice(i, 1);
+  saveFailed(f);
+  renderFailed();
+  updateStatusBadges();
 }
 
 /* ════════════════ AUTH ════════════════ */
@@ -596,6 +725,23 @@ async function enterFromSession(session) {
       ? 'Compte client — utilisez le portail (portail.html).'
       : 'La caisse est réservée aux vendeurs et managers. Utilisez l\'application SIVA (index.html).');
     return;
+  }
+  /* Garde d'identité vendeur : le matricule écrit dans chaque vente
+     (vendeur_id) vient du claim app_metadata.matricule. L'e-mail de
+     connexion est DÉRIVÉ du matricule (matriculeToEmail) : par
+     construction les deux doivent coïncider. Un claim absent ou
+     contradictoire (compte créé par copier-coller dans le dashboard —
+     cas observé : SIVA-050 portant matricule SIVA-001) signerait toutes
+     les ventes du mauvais vendeur. Échec BRUYANT ici, au login — jamais
+     silencieux au moment de la vente. */
+  if (id.role === 'vendeur') {
+    const meta = (session.user && session.user.app_metadata) || {};
+    const fromEmail = String(session.user && session.user.email || '').split('@')[0].toUpperCase();
+    if (!meta.matricule || String(meta.matricule).toUpperCase() !== fromEmail) {
+      try { await sb.auth.signOut(); } catch (e) {}
+      showLoginError('Compte vendeur mal configuré — contactez le gérant.');
+      return;
+    }
   }
   C.user = id;
   await resolvePdv();
@@ -686,6 +832,10 @@ async function enterApp() {
   renderStock();
   renderCloture();
   updateStatusBadges();
+  // Rejets définitifs en attente de résolution : rappel dès l'ouverture
+  // de session — le badge seul pourrait passer inaperçu.
+  const nf = getFailed().length;
+  if (nf > 0) toast(nf + ' opération(s) NON enregistrée(s) — touchez le badge rouge', 'error');
   processQueue();
   icons();
 }
@@ -1179,6 +1329,8 @@ function wireEvents() {
   });
   $('pay-client').addEventListener('change', () => { C.payClientId = $('pay-client').value; renderPayParts(); });
   $('receipt-close').addEventListener('click', () => $('receipt-overlay').classList.add('hidden'));
+  $('badge-failed').addEventListener('click', () => { renderFailed(); $('failed-overlay').classList.remove('hidden'); icons(); });
+  $('failed-close').addEventListener('click', () => $('failed-overlay').classList.add('hidden'));
   $('receipt-print').addEventListener('click', () => window.print());
   $('receipt-share').addEventListener('click', shareReceipt);
   $('btn-reception').addEventListener('click', submitReception);
@@ -1216,6 +1368,8 @@ function wireEvents() {
     }
     const pd = e.target.closest('[data-pdel]');
     if (pd) { C.payParts.splice(+pd.dataset.pdel, 1); renderPayParts(); return; }
+    const fr = e.target.closest('[data-fresolve]');
+    if (fr) { resolveFailed(fr.dataset.fresolve); return; }
   });
   document.addEventListener('input', (e) => {
     const pmont = e.target.closest('[data-pmont]');
