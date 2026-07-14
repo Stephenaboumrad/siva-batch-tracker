@@ -380,6 +380,28 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
         <div class="field"><label for="recep-bande">Bande d'origine</label><select id="recep-bande"></select></div>
         <button id="btn-reception" class="btn btn-primary btn-block"><i data-lucide="package-plus"></i> Enregistrer la réception</button>
       </div>
+
+      <!-- ── Déclaration de perte (POS-1 item 1) : LE flux critique du
+           périssable — sans lui, la perte est indiscernable du vol.
+           Quantité + motif UNIQUEMENT côté caisse (amendement 2) : toute
+           valorisation FCFA est calculée et affichée côté manager. -->
+      <div class="list-card">
+        <h3>Déclarer une perte</h3>
+        <div class="field"><label for="perte-produit">Produit</label><select id="perte-produit"></select></div>
+        <div class="field"><label for="perte-qty">Quantité perdue</label><input id="perte-qty" type="number" inputmode="decimal" min="0" step="0.1" placeholder="0"></div>
+        <div class="field">
+          <label>Motif (obligatoire)</label>
+          <div class="mode-chips" id="perte-motif-chips">
+            <button class="mode-chip" data-perte-motif="perime">Périmé</button>
+            <button class="mode-chip" data-perte-motif="casse">Casse</button>
+            <button class="mode-chip" data-perte-motif="invendu">Invendu jeté</button>
+            <button class="mode-chip" data-perte-motif="don">Don</button>
+            <button class="mode-chip" data-perte-motif="autoconso">Autoconsommation</button>
+          </div>
+        </div>
+        <button id="btn-perte" class="btn btn-primary btn-block"><i data-lucide="trash-2"></i> Enregistrer la perte</button>
+      </div>
+
       <div class="list-card"><h3>Derniers mouvements</h3><div id="mvt-list"></div></div>
     </div>
 
@@ -662,6 +684,7 @@ function failedLabel(item) {
   if (item.type === 'sortie') return 'Sortie de caisse de ' + fmt(m) + ' F NON enregistrée';
   if (item.type === 'cloture') return 'Clôture de caisse NON enregistrée';
   if (item.type === 'reception') return 'Réception de stock NON enregistrée';
+  if (item.type === 'perte') return 'Perte de stock NON enregistrée';
   return 'Opération NON enregistrée';
 }
 
@@ -1345,12 +1368,17 @@ function renderStock() {
 
   $('recep-produit').innerHTML = C.catalogue.map(p =>
     '<option value="' + esc(p.produit_id) + '">' + esc(p.nom) + '</option>').join('');
+  $('perte-produit').innerHTML = C.catalogue.map(p =>
+    '<option value="' + esc(p.produit_id) + '">' + esc(p.nom) + '</option>').join('');
   $('recep-bande').innerHTML = C.bandes.map(b =>
     '<option value="' + esc(b.bande_id) + '">' + esc(b.nom_bande) + '</option>').join('');
 
   $('mvt-list').innerHTML = C.mouvements.slice(0, 20).map(m => {
     const sens = m.to_pdv_id === C.pdv.pdv_id ? '+' : '−';
-    return '<div class="mvt-row"><span>' + esc(m.type_mouvement) + ' · ' + esc(m.type_produit || '') + '</span>' +
+    const type = m.type_mouvement === 'perte'
+      ? 'perte (' + (PERTE_MOTIF_LABELS[m.note] || m.note || '?') + ')'
+      : m.type_mouvement;
+    return '<div class="mvt-row"><span>' + esc(type) + ' · ' + esc(m.type_produit || '') + '</span>' +
       '<span class="mono">' + sens + fmt(m.quantite, 1) + '</span></div>';
   }).join('') || '<p class="muted">—</p>';
 }
@@ -1382,6 +1410,49 @@ async function submitReception() {
   $('recep-qty').value = '';
   renderStock(); renderVente();
   toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
+}
+
+/* Déclaration de perte (POS-1 item 1) : mouvement SORTIE type='perte'
+   (colonne texte libre 0002 — le calcul de stock existant la déduit
+   déjà, comme une vente). Motif en note : perime | casse | invendu |
+   don | autoconso. QUANTITÉ + MOTIF uniquement (amendement 2) : les
+   colonnes cout_* restent vides côté caisse, la valorisation FCFA est
+   affichée côté manager seulement. Rien n'est bloqué (un stock négatif
+   se voit au comptage de clôture). */
+let perteMotif = null;
+
+const PERTE_MOTIF_LABELS = {
+  perime: 'Périmé', casse: 'Casse', invendu: 'Invendu jeté',
+  don: 'Don', autoconso: 'Autoconsommation'
+};
+
+async function submitPerte() {
+  const prodId = $('perte-produit').value;
+  const p = C.catalogue.find(x => x.produit_id === prodId);
+  const qty = parseFloat(String($('perte-qty').value).replace(',', '.'));
+  if (!p || !(qty > 0)) { toast('Produit et quantité requis', 'error'); return; }
+  if (!perteMotif) { toast('Motif obligatoire — touchez une puce', 'error'); return; }
+  const mvt = {
+    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+    type_mouvement: 'perte', from_pdv_id: C.pdv.pdv_id,
+    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+    reference: null, statut: 'valide', responsable: C.user.matricule,
+    note: perteMotif
+  };
+  const rows = [{ table: 'mouvements_stock', row: mvt }];
+  let queued = false;
+  try { await execRows(rows); }
+  catch (e) {
+    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'perte', rows }); queued = true; }
+    else { toast('Erreur : ' + e.message, 'error'); return; }
+  }
+  C.mouvements = [mvt].concat(C.mouvements);
+  saveCache();
+  $('perte-qty').value = '';
+  perteMotif = null;
+  document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b => b.classList.remove('sel'));
+  renderStock(); renderVente();
+  toast(queued ? 'Perte enregistrée (hors ligne — sera synchronisée)' : 'Perte enregistrée');
 }
 
 /* ════════════════ SORTIES DE CAISSE (POS-1 item 2) ════════════════ */
@@ -1683,6 +1754,7 @@ function wireEvents() {
   $('receipt-print').addEventListener('click', () => window.print());
   $('receipt-share').addEventListener('click', shareReceipt);
   $('btn-reception').addEventListener('click', submitReception);
+  $('btn-perte').addEventListener('click', submitPerte);
   $('btn-sortie').addEventListener('click', submitSortie);
   $('btn-cloture').addEventListener('click', submitCloture);
   $('clo-fond').addEventListener('input', majClotureCalc);
@@ -1730,6 +1802,13 @@ function wireEvents() {
     }
     const sm = e.target.closest('[data-sortie-motif]');
     if (sm) { $('sortie-motif').value = sm.dataset.sortieMotif; return; }
+    const pm2 = e.target.closest('[data-perte-motif]');
+    if (pm2) {
+      perteMotif = pm2.dataset.perteMotif;
+      document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b =>
+        b.classList.toggle('sel', b.dataset.perteMotif === perteMotif));
+      return;
+    }
   });
   document.addEventListener('input', (e) => {
     const pmont = e.target.closest('[data-pmont]');
