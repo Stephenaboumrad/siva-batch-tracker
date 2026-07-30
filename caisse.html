@@ -536,7 +536,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
     <div class="receipt-actions">
       <button class="btn btn-ghost" id="receipt-print"><i data-lucide="printer"></i> Imprimer</button>
       <button class="btn btn-ghost" id="receipt-share"><i data-lucide="share-2"></i> Partager</button>
-      <button class="btn btn-primary" id="receipt-close">Nouvelle vente</button>
+      <button class="btn btn-primary" id="receipt-close">Fermer</button>
     </div>
   </div>
 </div>
@@ -1422,25 +1422,34 @@ async function submitReception() {
   const qty = parseFloat($('recep-qty').value);
   const bandeId = $('recep-bande').value;
   if (!p || !(qty > 0) || !bandeId) { toast('Produit, quantité et bande requis', 'error'); return; }
-  const mvt = {
-    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
-    type_mouvement: 'entree', to_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
-    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
-    reference: null, statut: 'valide', responsable: C.user.matricule,
-    note: 'Reception au point de vente'
-  };
-  const rows = [{ table: 'mouvements_stock', row: mvt }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'reception', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-reception');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const mvt = {
+      mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+      type_mouvement: 'entree', to_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
+      type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+      reference: null, statut: 'valide', responsable: C.user.matricule,
+      note: 'Reception au point de vente'
+    };
+    const rows = [{ table: 'mouvements_stock', row: mvt }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'reception', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.mouvements = [mvt].concat(C.mouvements);
+    saveCache();
+    $('recep-qty').value = '';
+    renderStock(); renderVente();
+    toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.mouvements = [mvt].concat(C.mouvements);
-  saveCache();
-  $('recep-qty').value = '';
-  renderStock(); renderVente();
-  toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
 }
 
 /* Déclaration de perte (POS-1 item 1) : mouvement SORTIE type='perte'
@@ -1463,27 +1472,36 @@ async function submitPerte() {
   const qty = parseFloat(String($('perte-qty').value).replace(',', '.'));
   if (!p || !(qty > 0)) { toast('Produit et quantité requis', 'error'); return; }
   if (!perteMotif) { toast('Motif obligatoire — touchez une puce', 'error'); return; }
-  const mvt = {
-    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
-    type_mouvement: 'perte', from_pdv_id: C.pdv.pdv_id,
-    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
-    reference: null, statut: 'valide', responsable: C.user.matricule,
-    note: perteMotif
-  };
-  const rows = [{ table: 'mouvements_stock', row: mvt }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'perte', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-perte');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const mvt = {
+      mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+      type_mouvement: 'perte', from_pdv_id: C.pdv.pdv_id,
+      type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+      reference: null, statut: 'valide', responsable: C.user.matricule,
+      note: perteMotif
+    };
+    const rows = [{ table: 'mouvements_stock', row: mvt }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'perte', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.mouvements = [mvt].concat(C.mouvements);
+    saveCache();
+    $('perte-qty').value = '';
+    perteMotif = null;
+    document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b => b.classList.remove('sel'));
+    renderStock(); renderVente();
+    toast(queued ? 'Perte enregistrée (hors ligne — sera synchronisée)' : 'Perte enregistrée');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.mouvements = [mvt].concat(C.mouvements);
-  saveCache();
-  $('perte-qty').value = '';
-  perteMotif = null;
-  document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b => b.classList.remove('sel'));
-  renderStock(); renderVente();
-  toast(queued ? 'Perte enregistrée (hors ligne — sera synchronisée)' : 'Perte enregistrée');
 }
 
 /* ════════════════ SORTIES DE CAISSE (POS-1 item 2) ════════════════ */
@@ -1513,27 +1531,36 @@ async function submitSortie() {
   const motif = $('sortie-motif').value.trim();
   if (!(montant > 0)) { toast('Montant requis', 'error'); return; }
   if (sortieType === 'depense' && !motif) { toast('Motif requis pour une dépense', 'error'); return; }
-  const p = {
-    paiement_id: uuid(), date_paiement: new Date().toISOString(),
-    pdv_id: C.pdv.pdv_id, sens: sortieType, mode_paiement: 'especes',
-    reference: C.user.matricule, montant_fcfa: montant,
-    encaisse_par: null, statut: 'confirme',
-    note: motif || 'Versement ferme'
-  };
-  const rows = [{ table: 'paiements', row: p }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'sortie', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-sortie');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const p = {
+      paiement_id: uuid(), date_paiement: new Date().toISOString(),
+      pdv_id: C.pdv.pdv_id, sens: sortieType, mode_paiement: 'especes',
+      reference: C.user.matricule, montant_fcfa: montant,
+      encaisse_par: null, statut: 'confirme',
+      note: motif || 'Versement ferme'
+    };
+    const rows = [{ table: 'paiements', row: p }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'sortie', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.paiements = [p].concat(C.paiements);
+    saveCache();
+    $('sortie-montant').value = ''; $('sortie-motif').value = '';
+    renderCloture();
+    toast(queued
+      ? 'Sortie enregistrée (hors ligne — sera synchronisée)'
+      : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.paiements = [p].concat(C.paiements);
-  saveCache();
-  $('sortie-montant').value = ''; $('sortie-motif').value = '';
-  renderCloture();
-  toast(queued
-    ? 'Sortie enregistrée (hors ligne — sera synchronisée)'
-    : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
 }
 
 /* ════════════════ ENCAISSEMENT CRÉDIT ════════════════ */
@@ -1590,30 +1617,43 @@ async function submitEncaissement() {
   const ref = String($('enc-ref').value || '').trim();
   if (def && def.ref && !ref) { toast('Référence ' + def.label + ' requise', 'error'); return; }
 
-  const p = {
-    paiement_id: uuid(), transaction_id: null,
-    pdv_id: C.pdv.pdv_id, client_id: clientId,
-    date_paiement: new Date().toISOString(), sens: 'encaissement', statut: 'confirme',
-    mode_paiement: encMode, reference: ref || null,
-    montant_fcfa: montant, encaisse_par: null,
-    note: 'ENC-CREDIT|' + C.user.matricule
-  };
-  const rows = [{ table: 'paiements', row: p }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    // Rejet direct (permanent ou inconnu hors réseau) : on sort AVANT tout
-    // optimisme — rien n'a été décrémenté, le solde affiché reste juste.
-    if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'encaissement', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap (même hazard que finalizeSale) : un double appui
+  // pendant l'await créerait DEUX lignes paiements à uuid distincts (l'
+  // idempotence par id ne protège que le REJEU de la même ligne) → dette
+  // client réduite deux fois pour un seul encaissement. Bouton désactivé
+  // avant l'await, restauré en finally — un throw inattendu ne doit jamais
+  // laisser le flux de remboursement gelé.
+  const btn = $('btn-encaissement');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const p = {
+      paiement_id: uuid(), transaction_id: null,
+      pdv_id: C.pdv.pdv_id, client_id: clientId,
+      date_paiement: new Date().toISOString(), sens: 'encaissement', statut: 'confirme',
+      mode_paiement: encMode, reference: ref || null,
+      montant_fcfa: montant, encaisse_par: null,
+      note: 'ENC-CREDIT|' + C.user.matricule
+    };
+    const rows = [{ table: 'paiements', row: p }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      // Rejet direct (permanent ou inconnu hors réseau) : on sort AVANT tout
+      // optimisme — rien n'a été décrémenté, le solde affiché reste juste.
+      if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'encaissement', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.paiements = [p].concat(C.paiements);
+    s.solde_fcfa = solde - montant;
+    saveCache();
+    $('enc-montant').value = ''; $('enc-ref').value = '';
+    renderCloture();
+    showEncaissementReceipt(p, s);
+    toast(queued ? 'Encaissement enregistré (hors ligne — sera synchronisé)' : 'Encaissement enregistré');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.paiements = [p].concat(C.paiements);
-  s.solde_fcfa = solde - montant;
-  saveCache();
-  $('enc-montant').value = ''; $('enc-ref').value = '';
-  renderCloture();
-  showEncaissementReceipt(p, s);
-  toast(queued ? 'Encaissement enregistré (hors ligne — sera synchronisé)' : 'Encaissement enregistré');
 }
 
 /* Annulation de l'optimisme local d'un encaissement rejeté DÉFINITIVEMENT
