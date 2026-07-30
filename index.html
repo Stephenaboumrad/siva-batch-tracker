@@ -3948,7 +3948,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="form-row">
       <div class="form-group"><label>Produit</label><input type="text" id="recep-produit" placeholder="Nom du produit"></div>
       <div class="form-group"><label>Catégorie</label>
-        <select id="recep-categorie">
+        <select id="recep-categorie" onchange="updateRecepPoussinFields()">
           <option value="mp">Matière première</option>
           <option value="medicament">Médicament</option>
           <option value="equipement">Équipement</option>
@@ -3960,6 +3960,17 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="form-row">
       <div class="form-group"><label>Quantité</label><input type="number" id="recep-quantite" step="0.01" min="0" placeholder="0" oninput="updateRecepCout()"></div>
       <div class="form-group"><label>Unité</label><input type="text" id="recep-unite" value="kg" placeholder="kg, L, unité…"></div>
+    </div>
+    <!-- Détail poussins (0038) — visible en catégorie « Poussin » seulement.
+         Convention : « Quantité » = effectif reçu VIVANT (mis en place) ;
+         il pré-remplira bandes.nb_poussins_entree. Aucun écart imposé. -->
+    <div id="recep-poussin-fields" style="display:none;">
+      <div class="form-row">
+        <div class="form-group"><label>Effectif commandé (poussins)</label><input type="number" id="recep-effectif-commande" min="0" step="1" inputmode="numeric" placeholder="Ex : 15000"></div>
+        <div class="form-group"><label>Morts à l'arrivée (transport)</label><input type="number" id="recep-mortalite-transport" min="0" step="1" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="form-group"><label>Poids moyen d'arrivée (g)</label><input type="number" id="recep-poids-moyen" min="0" step="0.1" inputmode="decimal" placeholder="Ex : 42"></div>
+      <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:-0.5rem;margin-bottom:0.75rem;">« Quantité » = effectif reçu vivant (mis en place) — c'est lui qui pré-remplira la bande.</div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Prix unitaire (FCFA)</label><input type="number" id="recep-prix" step="1" min="0" placeholder="0" oninput="updateRecepCout()"></div>
@@ -4950,6 +4961,7 @@ const ACTION_MAP = {
   updateFournisseur:  { table: 'fournisseurs',    op: 'update', idField: 'fournisseur_id' },
   // Réceptions
   addReception:       { table: 'receptions',      op: 'insert' },
+  updateReception:    { table: 'receptions',      op: 'update', idField: 'reception_id' },
   deleteReception:    { table: 'receptions',      op: 'delete', idField: 'reception_id' },
   // Inspections
   addInspection:      { table: 'inspections',     op: 'insert' },
@@ -5641,6 +5653,12 @@ const QUEUE_COLUMN_FALLBACKS = {
     {
       cols: ['surface_m2'],
       msg: 'Bande synchronisée SANS surface (migration 0030 non appliquée en base)'
+    }
+  ],
+  addReception: [
+    {
+      cols: ['effectif_commande', 'mortalite_transport', 'poids_moyen_g'],
+      msg: 'Réception synchronisée SANS détail poussins (migration 0038 non appliquée en base)'
     }
   ]
 };
@@ -9812,7 +9830,49 @@ async function confirmDeleteBande(bandeId) {
 }
 
 // ── New Bande Modal ──
+// ── Création de bande depuis une réception poussins (SC-1.1) ───────────────
+// Pré-remplit le modal Nouvelle bande depuis une réception catégorie
+// 'poussin' : quantite (= effectif reçu VIVANT, convention 0038) →
+// nb_poussins_entree ; prix unitaire → prix_poussin_unitaire ; fournisseur ;
+// poids_moyen_g (0038) → poids initial ; date de réception → date d'entrée.
+// Après création réussie, la réception est rattachée à la bande
+// (receptions.bande_id) — lien de traçabilité, jamais bloquant.
+let bandeFromReceptionId = null;
+function createBandeFromReception(receptionId) {
+  const r = STATE.receptions.find(x => x.reception_id === receptionId);
+  if (!r) return;
+  showNewBandeModal();
+  bandeFromReceptionId = receptionId;
+  const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === r.fournisseur_id);
+  if (r.date_reception) document.getElementById('new-bande-date').value = dateOnly(r.date_reception);
+  if (Number(r.quantite) > 0) document.getElementById('new-bande-nb').value = Math.round(Number(r.quantite));
+  if (fourn) document.getElementById('new-bande-fournisseur').value = fourn.nom;
+  if (Number(r.prix_unitaire_fcfa) > 0) document.getElementById('new-bande-prix').value = Number(r.prix_unitaire_fcfa);
+  if (Number(r.poids_moyen_g) > 0) document.getElementById('new-bande-poids').value = Number(r.poids_moyen_g);
+}
+
+// Rattachement réception → bande après création (best-effort : hors ligne =
+// mis en file et appliqué au rejeu ; un rejet serveur est signalé mais ne
+// remet jamais en cause la bande créée).
+async function linkReceptionToBande(bandeId) {
+  if (!bandeFromReceptionId) return;
+  const rid = bandeFromReceptionId;
+  bandeFromReceptionId = null;
+  let lie = true;
+  try {
+    await apiPost({ action: 'updateReception', payload: { reception_id: rid, bande_id: bandeId } });
+  } catch (e) {
+    lie = e.message.includes("file d'attente");
+    if (!lie) toast('Bande créée, mais réception non rattachée : ' + e.message, 'error');
+  }
+  if (lie) {
+    const rr = STATE.receptions.find(x => x.reception_id === rid);
+    if (rr) rr.bande_id = bandeId;
+  }
+}
+
 function showNewBandeModal() {
+  bandeFromReceptionId = null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'modal-overlay';
@@ -9973,6 +10033,7 @@ async function createBande() {
       if (lastErr) throw lastErr;
     }
     STATE.bandes.push(extrasDropped ? payload : Object.assign({}, bandeExtras, payload));
+    await linkReceptionToBande(payload.bande_id);
     closeModal();
     renderBandes();
     if (extrasDropped || surfaceDropped) {
@@ -9986,6 +10047,9 @@ async function createBande() {
       // retiré des colonnes avant la coupure, la perte doit rester signalée
       // (même discipline que le chemin en ligne).
       STATE.bandes.push(payload);
+      // Lien réception → bande : mis en file APRÈS l'insert de la bande
+      // (rejeu FIFO — l'update s'applique après la création côté serveur).
+      await linkReceptionToBande(payload.bande_id);
       closeModal();
       renderBandes();
       if (extrasDropped || surfaceDropped) {
@@ -14791,6 +14855,18 @@ function renderReceptions() {
     } else {
       inspBadge = '<span class="insp-badge refused"><i data-lucide="circle-x"></i> Refusé</span>';
     }
+    // SC-1.1 : une réception poussins non rattachée propose de créer la
+    // bande pré-remplie (manager — la création de bande est manager-only,
+    // RLS 0021) ; une fois rattachée, le nom de la bande s'affiche.
+    let bandeCell = '';
+    if (r.categorie === 'poussin') {
+      if (r.bande_id) {
+        const bLie = STATE.bandes.find(b => b.bande_id === r.bande_id);
+        bandeCell = '<span style="font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">→ ' + escHtml((bLie && bLie.nom_bande) || r.bande_id) + '</span> ';
+      } else {
+        bandeCell = '<button class="btn btn-outline btn-sm" style="white-space:nowrap;" onclick="createBandeFromReception(\'' + r.reception_id + '\')">Créer la bande</button> ';
+      }
+    }
     html += `<tr>
       <td>${fmtDate(r.date_reception)}</td>
       <td>${fourn ? fourn.nom : '—'}</td>
@@ -14800,7 +14876,7 @@ function renderReceptions() {
       ${canSee('finance') ? '<td>' + fmt(Number(r.prix_unitaire_fcfa)) + '</td><td><strong>' + fmt(Number(r.cout_total_fcfa)) + '</strong> FCFA</td>' : ''}
       <td>${r.numero_lot || '—'}</td>
       <td>${inspBadge}</td>
-      <td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')"><i data-lucide="x"></i></button></td>
+      <td class="manager-only" style="white-space:nowrap;">${bandeCell}<button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')"><i data-lucide="x"></i></button></td>
     </tr>`;
   });
   html += '</tbody></table></div></div>';
@@ -14827,9 +14903,23 @@ function showReceptionModal() {
   document.getElementById('recep-unite').value = 'kg';
   document.getElementById('recep-lot').value = '';
   document.getElementById('recep-peremption').value = '';
+  document.getElementById('recep-effectif-commande').value = '';
+  document.getElementById('recep-mortalite-transport').value = '';
+  document.getElementById('recep-poids-moyen').value = '';
+  updateRecepPoussinFields();
   document.getElementById('reception-modal').style.display = 'flex';
 }
 function closeReceptionModal() { document.getElementById('reception-modal').style.display = 'none'; }
+
+// Détail poussins (0038) : bloc visible en catégorie « poussin » seulement ;
+// l'unité bascule kg ↔ sujet sans écraser une valeur personnalisée.
+function updateRecepPoussinFields() {
+  const isPoussin = document.getElementById('recep-categorie').value === 'poussin';
+  document.getElementById('recep-poussin-fields').style.display = isPoussin ? '' : 'none';
+  const unite = document.getElementById('recep-unite');
+  if (isPoussin && unite.value === 'kg') unite.value = 'sujet';
+  if (!isPoussin && unite.value === 'sujet') unite.value = 'kg';
+}
 function updateRecepCout() {
   const q = parseFloat(document.getElementById('recep-quantite').value) || 0;
   const p = parseFloat(document.getElementById('recep-prix').value) || 0;
@@ -14860,6 +14950,21 @@ async function submitReception() {
     date_peremption: dateOrNull(document.getElementById('recep-peremption').value)
   };
 
+  // Détail poussins (0038) : clés posées SEULEMENT si catégorie poussin et
+  // champ rempli — même discipline que 0025/0030 (Railway déploie le front
+  // avant l'exécution manuelle du SQL) : repli d'insertion sans le groupe
+  // ci-dessous + repli équivalent au rejeu (QUEUE_COLUMN_FALLBACKS).
+  const COLS_0038 = ['effectif_commande', 'mortalite_transport', 'poids_moyen_g'];
+  let poussinDropped = false;
+  if (payload.categorie === 'poussin') {
+    const ec = document.getElementById('recep-effectif-commande').value;
+    const mt = document.getElementById('recep-mortalite-transport').value;
+    const pm = document.getElementById('recep-poids-moyen').value;
+    if (ec !== '') payload.effectif_commande = Math.round(Number(ec)) || 0;
+    if (mt !== '') payload.mortalite_transport = Math.round(Number(mt)) || 0;
+    if (pm !== '') payload.poids_moyen_g = Number(pm) || 0;
+  }
+
   const btn = document.querySelector('#reception-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
@@ -14876,12 +14981,27 @@ async function submitReception() {
       toast('Réception envoyée pour validation — en attente d\'approbation');
       closeReceptionModal();
     } else {
-      await apiPost({ action: 'addReception', payload });
+      try {
+        await apiPost({ action: 'addReception', payload });
+      } catch (err) {
+        // 0038 non appliquée en base : on retire le groupe poussins et on
+        // réessaie — la réception de base n'est jamais bloquée par une
+        // migration en attente (même discipline que createBande 0025/0030).
+        const isColErr = /column|schema cache/i.test(err.message);
+        const has0038 = COLS_0038.some(c => c in payload);
+        if (isColErr && has0038 && COLS_0038.some(c => err.message.includes(c))) {
+          COLS_0038.forEach(c => { delete payload[c]; });
+          poussinDropped = true;
+          await apiPost({ action: 'addReception', payload });
+        } else { throw err; }
+      }
       STATE.receptions.push(payload);
       lastReceptionId = payload.reception_id;
       closeReceptionModal();
       renderReceptions();
-      toast('Réception enregistrée');
+      toast(poussinDropped
+        ? 'Réception enregistrée, mais SANS détail poussins (migration 0038 non appliquée en base)'
+        : 'Réception enregistrée', poussinDropped ? 'error' : 'success');
       document.getElementById('inspection-prompt').style.display = 'flex';
     }
   } catch (err) {
