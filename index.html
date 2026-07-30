@@ -3651,39 +3651,42 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="tab-btn manager-only" onclick="switchTresoTab('caisse',this)">Caisse PDV <span id="caisse-ecart-badge" class="sidebar-badge" style="display:none;"></span></button>
     </div>
 
-    <!-- Tab 1: Trésorerie — contenu Phase 3 INCHANGÉ, simplement enveloppé -->
+    <!-- Tab 1: Trésorerie — atterrissage 4 zones (refonte position) :
+         1 « Où est l'argent » · 2 « Activité du mois » (B2B/B2C/Total)
+         · 3 bandes denses + graphiques conditionnels · 4 flux replié. -->
     <div id="treso-tab-general">
 
-    <!-- Zone 1: KPIs financiers -->
+    <!-- Zone 1: Où est l'argent — 4 cartes -->
     <div id="treso-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
 
-    <!-- Zone 2: Rentabilité par bande -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rentabilité par bande</h3></div>
-      <div class="table-wrap" id="treso-table"></div>
-    </div>
+    <!-- Zone 2: Activité du mois — B2B / B2C / Total (suit #treso-period) -->
+    <div id="treso-activite" class="card" style="margin-bottom:1.5rem;"></div>
 
-    <!-- Zone 2b: Créances clients (livré non payé) — manager-only (page déjà manager-only) -->
+    <!-- Zone 2b: Créances clients (détail par client du « En attente B2B ») -->
     <div id="treso-creances" class="manager-only" style="margin-bottom:1.5rem;"></div>
 
-    <!-- Zone 3 & 4: graphiques coûts / CA -->
+    <!-- Zone 3: bandes denses + graphiques (rendus seulement si séries non nulles) -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Bandes — coûts engagés → CA réalisé</h3></div>
+      <div class="table-wrap" id="treso-table"></div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;margin-bottom:1.5rem;">
-      <div class="card">
+      <div class="card" id="treso-costs-card">
         <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition des coûts</h3></div>
         <div style="position:relative;height:280px;"><canvas id="chart-treso-costs"></canvas></div>
         <div id="treso-costs-legend" style="margin-top:0.75rem;font-size:0.8rem;line-height:1.8;"></div>
       </div>
-      <div class="card">
+      <div class="card" id="treso-ca-card">
         <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">CA réalisé vs Coûts par bande</h3></div>
         <div style="position:relative;height:280px;"><canvas id="chart-treso-ca"></canvas></div>
       </div>
     </div>
 
-    <!-- Zone 5: Flux de trésorerie mensuel -->
-    <div class="card">
-      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Flux de trésorerie mensuel (6 derniers mois)</h3></div>
-      <div class="table-wrap" id="treso-flux"></div>
-    </div>
+    <!-- Zone 4: Flux de trésorerie mensuel — replié par défaut -->
+    <details class="card" id="treso-flux-details">
+      <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Flux de trésorerie mensuel (6 derniers mois)</summary>
+      <div class="table-wrap" id="treso-flux" style="margin-top:0.75rem;"></div>
+    </details>
     </div><!-- /treso-tab-general -->
 
     <!-- Tab 2: RH & Paie — Employés / Paies / Dépenses (module restauré, audit A-F1) -->
@@ -12361,7 +12364,10 @@ async function renderCaissePdv() {
       const caPdv = txPdv.reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
       const derniere = derniereCloture[p.pdv_id];
       const e = derniere ? (Number(derniere.ecart_fcfa) || 0) : 0;
-      const colE = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+      // Bug fix (revue) : un écart POSITIF n'est pas une bonne nouvelle — de
+      // l'argent non expliqué reste un écart. Ambre si surplus, rouge si
+      // manquant, JAMAIS vert ; le signe reste affiché.
+      const colE = e === 0 ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
       const clotureCeJour = clotures.some(c => c.pdv_id === p.pdv_id && String(c.date_cloture || '').startsWith(jour));
       const nonCloture = estAujourdhui && txPdv.length > 0 && !clotureCeJour;
       return '<div class="card">'
@@ -12545,7 +12551,9 @@ async function renderCaissePdv() {
     const snap = (v) => (v != null ? fmt(v) : '—');
     const cloRows = cloVisibles.map(c => {
       const e = Number(c.ecart_fcfa) || 0;
-      const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
+      // Même règle que la carte PDV : surplus = ambre, manquant = rouge,
+      // jamais vert (bug fix revue).
+      const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
       const derniere = derniereCloture[c.pdv_id] && derniereCloture[c.pdv_id].cloture_id === c.cloture_id;
       const ajs = ajustParCloture[c.cloture_id] || [];
       const ajHtml = ajs.length
@@ -12620,89 +12628,106 @@ function initTresoreriePage() {
   updateCaisseEcartBadge();
   if (currentTresoTab === 'caisse') renderCaissePdv();
 
-  const today = todayStr();
   const thisMonth = getBilanPeriod();              // période sélectionnée (#treso-period), défaut mois courant
   const periodLabel = frMonthLabel(thisMonth) || thisMonth;
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
 
-  // ── Zone 1: KPIs ──
+  // ── Calculs B2B (#52 / PR-D — sémantiques INCHANGÉES) ──
+  // caEncaisse = CA LIVRÉ (livrée + date_commande du mois) : pilote toujours la
+  // réconciliation #52 (table par-bande, zone 3). caPaye = réglé par DATE_PAIEMENT
+  // du mois. creances = livré NON payé, CUMULATIF (même test que la carte PR-B).
+  // Montants HT ; la TVA reste affichage facture (PR-C).
   const caEncaisse = STATE.commandes
     .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth))
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
-  const caAttente = STATE.commandes
-    .filter(c => c.statut === 'confirmee' || c.statut === 'en_preparation')
-    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
-  const coutsEngages = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
-  const margeEstimee = caEncaisse - coutsEngages;
-  const totalCarcKg = allBF.reduce((s, bf) => s + bf.fin.carcasseKg, 0);
-  const margeKgGlobal = totalCarcKg > 0 ? margeEstimee / totalCarcKg : 0;
-
-  // ── Paiement (audit #4 / PR-D) — calculs SÉPARÉS, orthogonaux à caEncaisse ──
-  // caEncaisse ci-dessus = CA LIVRÉ (livrée + date_commande du mois), INCHANGÉ : il
-  // pilote toujours la réconciliation #52 (table par-bande). On AJOUTE, sans y toucher :
-  //  • caPaye = cash réellement encaissé = payé, scopé par DATE_PAIEMENT du mois
-  //    (le vrai mois d'encaissement, ≠ date_commande). N'alimente PAS la table.
-  //  • creances = livré NON payé (cumulatif, même test que la section créances PR-B).
-  // Montants HT (montant_total_fcfa est HT) ; la TVA reste affichage facture (PR-C).
   const caPaye = STATE.commandes
     .filter(c => c.statut_paiement === 'paye' && c.date_paiement && c.date_paiement.startsWith(thisMonth))
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   const creances = STATE.commandes
     .filter(c => c.statut === 'livree' && c.statut_paiement !== 'paye')
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const coutsEngages = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
+
+  // ── Zone 1 : « Où est l'argent » — 4 cartes ──
+  // (a) espèces théoriques et (b) écarts arrivent en ASYNC (fetchTresoPosition,
+  // tables POS hors ALL_TABLES — lectures bornées à la demande, comme #131).
+  // (d) à payer ce mois = masse salariale permanents + CNPS (MÊME formule que
+  // renderRHEmployes — vérifiée : lit employes.salaire_base_fcfa +
+  // cnps_patronal_pct, défaut 18.6, sur actifs permanents) − paies déjà
+  // enregistrées sur la période (montant_total_charge_fcfa, le tout-chargé).
+  const permanents = STATE.employes.filter(e => e.statut === 'actif' && e.type === 'permanent');
+  const masseSalariale = permanents.reduce((s, e) => {
+    const sal = Number(e.salaire_base_fcfa) || 0;
+    return s + sal + sal * (Number(e.cnps_patronal_pct) || 18.6) / 100;
+  }, 0);
+  const paiesMoisCharges = STATE.paies.filter(p => p.mois === thisMonth)
+    .reduce((s, p) => s + (Number(p.montant_total_charge_fcfa) || 0), 0);
+  const aPayer = Math.max(0, masseSalariale - paiesMoisCharges);
 
   document.getElementById('treso-kpis').innerHTML =
-    '<div class="dash-kpi dk-headline"><div class="dk-value">' + fmt(caEncaisse) + '</div><div class="dk-label">CA livré — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · facturé (livré)</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(caPaye) + '</div><div class="dk-label">CA encaissé (payé) — ' + periodLabel + '</div><div class="dk-sub">FCFA HT · réglé ce mois</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · total dû</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(caAttente) + '</div><div class="dk-label">CA en attente de livraison</div><div class="dk-sub">FCFA</div></div>' +
-    '<div class="dash-kpi dk-danger"><div class="dk-value">' + fmt(coutsEngages) + '</div><div class="dk-label">Coûts engagés</div><div class="dk-sub">FCFA</div></div>' +
-    '<div class="dash-kpi' + (margeEstimee >= 0 ? ' dk-success' : ' dk-danger') + '"><div class="dk-value">' + fmt(margeEstimee) + '</div><div class="dk-label">Marge brute estimée</div><div class="dk-sub">marge/kg : ' + fmt(margeKgGlobal) + ' FCFA/kg</div></div>';
+    '<div class="dash-kpi dk-headline"><div class="dk-value" id="treso-kpi-especes">…</div><div class="dk-label">Espèces théoriques en caisse</div><div class="dk-sub" id="treso-kpi-especes-sub">FCFA · calcul…</div></div>' +
+    '<div class="dash-kpi" id="treso-kpi-ecarts-card"><div class="dk-value" id="treso-kpi-ecarts">…</div><div class="dk-label">Écarts de clôture non résolus</div><div class="dk-sub" id="treso-kpi-ecarts-sub">dernière clôture par PDV</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · cumul, détail ci-dessous</div></div>' +
+    '<div class="dash-kpi' + (aPayer > 0 ? ' dk-danger' : '') + '"><div class="dk-value">' + fmt(aPayer) + '</div><div class="dk-label">À payer ce mois (RH) — ' + periodLabel + '</div><div class="dk-sub">masse ' + fmt(masseSalariale) + ' − payé ' + fmt(paiesMoisCharges) + '</div></div>';
 
-  // ── Zone 2: Table par bande — VUE TRÉSORERIE = CASH ENCAISSÉ DU MOIS ──
-  // Colonnes limitées au cash du mois. Coût total + marges (Marge brute, Marge/kg,
-  // Coût revient/kg) RETIRÉS : les coûts ne sont pas attribuables proprement au mois
-  // (poussins = somme à l'entrée, aliment forfait/formulation = cumulés). Le P&L
-  // cycle-de-vie complet (avec marges) reste dans le registre / rapport de clôture.
-  // Test de réconciliation : Σ CA réalisé (bandes) + CA hors-bande === KPI "CA encaissé".
-  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th class="num">Oiseaux</th><th class="num">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
+  // ── Zone 2 : « Activité du mois » — B2B / B2C / Total (rendue par
+  // fetchTresoPosition, la colonne B2C vient des tables POS) ──
+  document.getElementById('treso-activite').innerHTML =
+    '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
+    '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Chargement des données caisse…</p>';
+  fetchTresoPosition(thisMonth, periodLabel, { caEncaisse, caPaye, creances });
+
+  // ── Zone 3 : une ligne DENSE par bande — jour / effectif / coûts engagés →
+  // CA réalisé du mois. Le CA reste la sémantique #52 (caLivreMois, réconciliée
+  // avec la colonne B2B de la zone 2) ; les coûts sont CUMULÉS cycle de vie
+  // (pas attribuables au mois — inchangé). Marges : registre / rapport de
+  // clôture, jamais ici.
+  let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th class="num">J</th><th class="num">Effectif</th><th class="num">Coûts engagés</th><th class="num">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
   let totCA = 0;
   allBF.forEach(bf => {
     const b = bf.bande, f = bf.fin;
     const caMois = caLivreMois(b.bande_id, thisMonth);
     const statutBadge = b.statut === 'en_cours'
-      ? '<span class="badge badge-green">En cours</span> <span class="badge badge-orange" style="font-size:0.65rem;">Projection</span>'
+      ? '<span class="badge badge-green">En cours</span>'
       : '<span class="badge badge-grey">Terminée</span>';
     const nb = b.statut === 'termine' ? (b.nb_oiseaux_sortie || f.ind.effectifActuel) : f.ind.effectifActuel;
+    const jour = b.statut === 'en_cours'
+      ? (f.ind.jourActuel != null ? 'J' + f.ind.jourActuel : '—')
+      : '—';
     tblHtml += '<tr>' +
       '<td><strong>' + b.nom_bande + '</strong></td>' +
       '<td>' + statutBadge + '</td>' +
+      '<td class="num">' + jour + '</td>' +
       '<td class="num">' + fmt(nb) + '</td>' +
+      '<td class="num">' + fmt(f.coutTotal) + '</td>' +
       '<td class="num">' + fmt(caMois) + '</td></tr>';
     totCA += caMois;
   });
   // Ligne Portail / Hors-bande : livrées du mois sans bande (NULL) ou bande inconnue.
-  // Complément exact pour que totCA boucle sur le KPI "CA encaissé".
+  // Complément exact pour que totCA boucle sur le CA B2B de la zone 2 (#52).
   const caHorsBande = caLivreHorsBande(thisMonth);
   if (caHorsBande > 0) {
     tblHtml += '<tr>' +
       '<td><strong>Portail / Hors-bande</strong></td>' +
       '<td><span class="badge badge-grey" style="font-size:0.65rem;">Portail</span></td>' +
-      '<td class="num">—</td>' +
+      '<td class="num">—</td><td class="num">—</td><td class="num">—</td>' +
       '<td class="num">' + fmt(caHorsBande) + '</td></tr>';
     totCA += caHorsBande;
   }
   tblHtml += '</tbody><tfoot><tr>' +
-    '<td colspan="3">TOTAL CA livré</td>' +
+    '<td colspan="4">TOTAL</td>' +
+    '<td class="num">' + fmt(coutsEngages) + '</td>' +
     '<td class="num">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
   // ── Zone 2b: Créances clients (livré non payé) — cumulatif, indépendant du mois ──
   renderCreances();
 
-  // ── Zone 3: Donut chart — cost breakdown ──
-  if (tresoCharts.costs) tresoCharts.costs.destroy();
-  if (tresoCharts.ca) tresoCharts.ca.destroy();
+  // ── Zone 3 (suite) : graphiques — rendus SEULEMENT si au moins une série
+  // est non nulle (bug 3 : plus jamais d'axes nus sur données vides ; la
+  // carte entière est masquée). destroy() systématique avant re-création.
+  if (tresoCharts.costs) { tresoCharts.costs.destroy(); tresoCharts.costs = null; }
+  if (tresoCharts.ca) { tresoCharts.ca.destroy(); tresoCharts.ca = null; }
   const t = chartTokens();
 
   const totPoussins = allBF.reduce((s, bf) => s + bf.fin.coutPoussins, 0);
@@ -12713,49 +12738,68 @@ function initTresoreriePage() {
   const costData = [totPoussins, totAliment, totIntrants, totAbattage, totRH];
   const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Abattage', 'Charges RH'];
   const costColors = ['#2563EB', '#0E9488', '#168A53', '#B7791F', '#8A95A1']; // palette sobre : bleu / teal / forêt / ambre / ardoise (plus d'orange vif)
-
-  const ctx1 = document.getElementById('chart-treso-costs');
-  if (ctx1) {
-    tresoCharts.costs = new Chart(ctx1.getContext('2d'), {
-      type: 'doughnut',
-      data: { labels: costLabels, datasets: [{ data: costData, backgroundColor: costColors }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
-  }
   const costTotal = costData.reduce((a, b) => a + b, 0);
-  document.getElementById('treso-costs-legend').innerHTML = costLabels.map((l, i) =>
-    '<span style="display:inline-flex;align-items:center;gap:0.3rem;margin-right:1rem;">' +
-    '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + costColors[i] + ';"></span>' +
-    l + ' : ' + fmt(costData[i]) + ' FCFA (' + (costTotal > 0 ? Math.round(costData[i] / costTotal * 100) : 0) + '%)</span>'
-  ).join('');
 
-  // ── Zone 4: Grouped bar chart — CA vs Costs per batch ──
+  const costsCardEl = document.getElementById('treso-costs-card');
+  if (costTotal <= 0) {
+    if (costsCardEl) costsCardEl.style.display = 'none';
+  } else {
+    if (costsCardEl) costsCardEl.style.display = '';
+    const ctx1 = document.getElementById('chart-treso-costs');
+    if (ctx1) {
+      tresoCharts.costs = new Chart(ctx1.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: costLabels, datasets: [{ data: costData, backgroundColor: costColors }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
+    }
+    document.getElementById('treso-costs-legend').innerHTML = costLabels.map((l, i) =>
+      '<span style="display:inline-flex;align-items:center;gap:0.3rem;margin-right:1rem;">' +
+      '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + costColors[i] + ';"></span>' +
+      l + ' : ' + fmt(costData[i]) + ' FCFA (' + Math.round(costData[i] / costTotal * 100) + '%)</span>'
+    ).join('');
+  }
+
   const batchNames = allBF.map(bf => bf.bande.nom_bande);
   const batchCA = allBF.map(bf => bf.fin.caRealise);
   const batchCosts = allBF.map(bf => bf.fin.coutTotal);
   const batchMarges = allBF.map(bf => bf.fin.margeBrute);
-
-  const ctx2 = document.getElementById('chart-treso-ca');
-  if (ctx2) {
-    tresoCharts.ca = new Chart(ctx2.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: batchNames,
-        datasets: [
-          { label: 'CA réalisé', data: batchCA, backgroundColor: t.observed, borderRadius: 4 },
-          { label: 'Coût total', data: batchCosts, backgroundColor: '#8A95A1', borderRadius: 4 },
-          { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: t.red, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
-        ]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } } }
-    });
+  const caCardEl = document.getElementById('treso-ca-card');
+  const caHasData = allBF.length > 0
+    && (batchCA.some(v => v !== 0) || batchCosts.some(v => v !== 0) || batchMarges.some(v => v !== 0));
+  if (!caHasData) {
+    if (caCardEl) caCardEl.style.display = 'none';
+  } else {
+    if (caCardEl) caCardEl.style.display = '';
+    const ctx2 = document.getElementById('chart-treso-ca');
+    if (ctx2) {
+      tresoCharts.ca = new Chart(ctx2.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: batchNames,
+          datasets: [
+            { label: 'CA réalisé', data: batchCA, backgroundColor: t.observed, borderRadius: 4 },
+            { label: 'Coût total', data: batchCosts, backgroundColor: '#8A95A1', borderRadius: 4 },
+            { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: t.red, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } } }
+      });
+    }
   }
 
-  // ── Zone 5: Flux mensuel (last 6 months) ──
+  // ── Zone 4: Flux mensuel (6 derniers mois, replié par défaut) ──
+  // BUG FIX (doublon « Mar 2026 ») : l'ancien code faisait
+  // `new Date(); d.setMonth(d.getMonth() - i)` — sur un 29/30/31 du mois,
+  // reculer vers un mois plus court déborde sur le mois suivant (ex. 31 mai
+  // − 3 mois → « 31 février » → 2/3 mars) : un mois sauté, un autre en
+  // double. Ancrage au 1er du mois via le constructeur (année, mois, 1) —
+  // l'arithmétique de mois du constructeur est exacte, sans passage UTC.
   const months = [];
+  const now = new Date();
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(); d.setMonth(d.getMonth() - i);
-    months.push(d.toISOString().slice(0, 7));
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
   }
   const monthNames = months.map(m => {
     const [y, mo] = m.split('-');
@@ -12764,6 +12808,7 @@ function initTresoreriePage() {
 
   let fluxHtml = '<table><thead><tr><th>Mois</th><th class="num">Entrées (CA livré)</th><th class="num">Sorties (coûts)</th><th class="num">Solde</th><th class="num">Cumulé</th></tr></thead><tbody>';
   let cumule = 0;
+  let fluxRows = 0;
   months.forEach((m, idx) => {
     const entrees = STATE.commandes
       .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(m))
@@ -12774,6 +12819,10 @@ function initTresoreriePage() {
       .reduce((s, b) => { const f = computeBandeFinancials(b); return s + f.coutTotal; }, 0);
     const solde = entrees - sorties;
     cumule += solde;
+    // Mois sans aucun mouvement : masqué (solde 0 → le cumulé n'est pas
+    // affecté par l'omission de la ligne).
+    if (entrees === 0 && sorties === 0) return;
+    fluxRows++;
     fluxHtml += '<tr><td><strong>' + monthNames[idx] + '</strong></td>' +
       '<td class="num" style="color:var(--color-success);">' + (entrees > 0 ? '+' + fmt(entrees) : '—') + '</td>' +
       '<td class="num" style="color:var(--color-danger);">' + (sorties > 0 ? '-' + fmt(sorties) : '—') + '</td>' +
@@ -12781,7 +12830,137 @@ function initTresoreriePage() {
       '<td class="num" style="color:' + (cumule >= 0 ? 'var(--color-success)' : 'var(--color-danger)') + ';">' + fmt(cumule) + '</td></tr>';
   });
   fluxHtml += '</tbody></table>';
-  document.getElementById('treso-flux').innerHTML = fluxHtml;
+  document.getElementById('treso-flux').innerHTML = fluxRows
+    ? fluxHtml
+    : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0.5rem 0 0;">Aucun mouvement sur les 6 derniers mois.</p>';
+}
+
+// ── Position de trésorerie POS + activité du mois (refonte 4 zones) ────────
+// Lectures BORNÉES à la demande (tables POS hors ALL_TABLES, discipline #131) :
+//  • clôtures (limit 200, DESC) → espèces théoriques + écarts non résolus ;
+//  • paiements 60 j (fenêtre alignée sur loadData caisse) → théorique par PDV ;
+//  • paiements + pos_transactions du MOIS (#treso-period) → zone 2 ;
+//  • pos_transactions clients + paiements clients (cumul, plafonds) → crédit B2C.
+// Espèces théoriques par PDV = MÊME logique que la caisse (fondVerrouille +
+// theoriqueEspeces) : base = fond_suivant_fcfa ?? compté de la DERNIÈRE
+// clôture, puis − versements + espèces − dépenses depuis. PDV jamais clôturé
+// ou clôture > 60 j : calcul partiel, signalé dans le sous-libellé.
+async function fetchTresoPosition(mois, periodLabel, b2b) {
+  const kEsp = document.getElementById('treso-kpi-especes');
+  const box = document.getElementById('treso-activite');
+  if (!kEsp || !box) return;
+  const moisDebut = mois + '-01';
+  const moisFin = new Date(Date.UTC(+mois.slice(0, 4), +mois.slice(5, 7), 1)).toISOString().slice(0, 10);
+  const depuis60 = new Date(Date.now() - 60 * 86400000).toISOString();
+  try {
+    const [cloR, pai60R, paiMoisR, txMoisR, txCliR, paiCliR] = await Promise.all([
+      sb.from('cloture_caisse').select('pdv_id, cloture_id, date_cloture, compte_fcfa, fond_suivant_fcfa, ecart_fcfa')
+        .order('date_cloture', { ascending: false }).limit(200),
+      sb.from('paiements').select('pdv_id, date_paiement, mode_paiement, montant_fcfa, sens, statut')
+        .gte('date_paiement', depuis60).not('pdv_id', 'is', null).limit(2000),
+      sb.from('paiements').select('pdv_id, mode_paiement, montant_fcfa, sens, statut')
+        .gte('date_paiement', moisDebut).lt('date_paiement', moisFin)
+        .not('pdv_id', 'is', null).limit(2000),
+      sb.from('pos_transactions').select('montant_total_fcfa, statut')
+        .gte('date_transaction', moisDebut).lt('date_transaction', moisFin).limit(5000),
+      sb.from('pos_transactions').select('montant_total_fcfa, statut, client_id')
+        .not('client_id', 'is', null).limit(5000),
+      sb.from('paiements').select('montant_fcfa, sens, statut, client_id')
+        .not('pdv_id', 'is', null).not('client_id', 'is', null).limit(5000)
+    ]);
+    for (const r of [cloR, pai60R, paiMoisR, txMoisR, txCliR, paiCliR]) { if (r.error) throw r.error; }
+
+    // ── Zone 1a : espèces théoriques (Σ PDV, logique caisse) ──
+    const derniere = caisseDernieresClotures(cloR.data || []);
+    const pai60 = (pai60R.data || []).filter(p => !p.statut || p.statut === 'confirme');
+    const pdvIds = new Set(Object.keys(derniere));
+    pai60.forEach(p => pdvIds.add(p.pdv_id));
+    let especesTotal = 0;
+    let partiel = false;
+    pdvIds.forEach(pdvId => {
+      const d = derniere[pdvId];
+      const base = d ? (d.fond_suivant_fcfa != null ? Number(d.fond_suivant_fcfa) || 0 : Number(d.compte_fcfa) || 0) : 0;
+      const since = d ? String(d.date_cloture) : null;
+      if (!d || since < depuis60) partiel = true;
+      const dep = pai60.filter(p => p.pdv_id === pdvId && (!since || String(p.date_paiement) > since));
+      const somme = (pred) => dep.filter(pred).reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+      especesTotal += base
+        + somme(p => p.mode_paiement === 'especes' && (!p.sens || p.sens === 'encaissement'))
+        - somme(p => p.sens === 'depense')
+        - somme(p => p.sens === 'versement');
+    });
+    kEsp.textContent = fmt(especesTotal);
+    document.getElementById('treso-kpi-especes-sub').textContent =
+      'FCFA · ' + pdvIds.size + ' PDV, logique clôture caisse' + (partiel ? ' · fenêtre 60 j (partiel)' : '');
+
+    // ── Zone 1b : écarts non résolus — ROUGE quel que soit le signe ──
+    const ecarts = Object.values(derniere).map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+    const kEc = document.getElementById('treso-kpi-ecarts');
+    const kEcCard = document.getElementById('treso-kpi-ecarts-card');
+    if (ecarts.length) {
+      const somme = ecarts.reduce((s, e) => s + e, 0);
+      kEc.textContent = ecarts.length + ' · ' + (somme > 0 ? '+' : '') + fmt(somme);
+      kEcCard.classList.add('dk-danger');
+      document.getElementById('treso-kpi-ecarts-sub').textContent = 'FCFA · à résoudre (onglet Caisse PDV)';
+    } else {
+      kEc.textContent = 'Aucun';
+      kEcCard.classList.remove('dk-danger');
+    }
+
+    // ── Zone 2 : activité du mois — B2B / B2C / TOTAL ──
+    // RÈGLE (revue) : les TOTAUX sont des agrégations d'AFFICHAGE UNIQUEMENT.
+    // Ils ne doivent JAMAIS alimenter une marge, la rentabilité par bande ni
+    // aucun calcul de coût — les marges restent PAR CANAL (décision v1 :
+    // caisse non intégrée au bilan/flux). Quiconque a besoin d'un total pour
+    // un calcul le recompose depuis les sources par canal.
+    const paiMois = (paiMoisR.data || []).filter(p => !p.statut || p.statut === 'confirme');
+    const caB2C = (txMoisR.data || []).filter(t => t.statut === 'finalisee')
+      .reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+    const encB2C = paiMois.filter(p => !p.sens || p.sens === 'encaissement')
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const sortiesDep = paiMois.filter(p => p.sens === 'depense')
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const sortiesVer = paiMois.filter(p => p.sens === 'versement')
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    // Crédit B2C en cours = restriction POS de v_client_soldes : ventes
+    // finalisées avec client − encaissements caisse liés à un client
+    // (cumul ; les règlements B2B n'écrivent PAS de ligne paiements → la
+    // borne pdv_id non nul isole proprement le canal caisse).
+    const txCli = (txCliR.data || []).filter(t => t.statut === 'finalisee')
+      .reduce((s, t) => s + (Number(t.montant_total_fcfa) || 0), 0);
+    const paiCli = (paiCliR.data || [])
+      .filter(p => (!p.statut || p.statut === 'confirme') && (!p.sens || p.sens === 'encaissement'))
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const creditB2C = Math.max(0, txCli - paiCli);
+
+    const kv = 'display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;';
+    const mono = 'font-family:var(--font-mono);';
+    const netEncaisse = b2b.caPaye + encB2C - sortiesDep - sortiesVer;
+    box.innerHTML =
+      '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
+      '<div class="table-wrap"><table><thead><tr><th></th><th class="num">B2B (commandes)</th><th class="num">B2C (caisse)</th><th class="num">Total</th></tr></thead><tbody>' +
+      '<tr><td>CA du mois</td><td class="num">' + fmt(b2b.caEncaisse) + '</td><td class="num">' + fmt(caB2C) + '</td><td class="num"><strong>' + fmt(b2b.caEncaisse + caB2C) + '</strong></td></tr>' +
+      '<tr><td>Encaissé</td><td class="num">' + fmt(b2b.caPaye) + '</td><td class="num">' + fmt(encB2C) + '</td><td class="num"><strong>' + fmt(b2b.caPaye + encB2C) + '</strong></td></tr>' +
+      '<tr><td>En attente (créances / crédit, cumul)</td><td class="num">' + fmt(b2b.creances) + '</td><td class="num">' + fmt(creditB2C) + '</td><td class="num"><strong>' + fmt(b2b.creances + creditB2C) + '</strong></td></tr>' +
+      '</tbody></table></div>' +
+      '<div style="' + kv + 'border-top:var(--border-hairline);margin-top:6px;"><span>Sorties de caisse (dépenses ' + fmt(sortiesDep) + ' + versements ferme ' + fmt(sortiesVer) + ')</span>' +
+      '<strong style="' + mono + '">− ' + fmt(sortiesDep + sortiesVer) + ' FCFA</strong></div>' +
+      '<div style="' + kv + '"><span><strong>Net encaissé (mois)</strong> = encaissé B2B + B2C − sorties</span>' +
+      '<strong style="' + mono + '">' + fmt(netEncaisse) + ' FCFA</strong></div>' +
+      '<p style="color:var(--text-muted);font-size:0.75rem;margin:6px 0 0;">Total = lecture consolidée ; les marges restent par canal. CA HT · B2B = livré (date commande) et réglé (date paiement) · B2C = ventes finalisées et encaissements confirmés.</p>';
+  } catch (e) {
+    kEsp.textContent = '—';
+    document.getElementById('treso-kpi-especes-sub').textContent = 'Caisse indisponible';
+    document.getElementById('treso-kpi-ecarts').textContent = '—';
+    box.innerHTML =
+      '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
+      '<div class="table-wrap"><table><thead><tr><th></th><th class="num">B2B (commandes)</th></tr></thead><tbody>' +
+      '<tr><td>CA du mois</td><td class="num">' + fmt(b2b.caEncaisse) + '</td></tr>' +
+      '<tr><td>Encaissé</td><td class="num">' + fmt(b2b.caPaye) + '</td></tr>' +
+      '<tr><td>En attente (créances, cumul)</td><td class="num">' + fmt(b2b.creances) + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<p style="color:var(--text-muted);font-size:0.85rem;margin:6px 0 0;">' + escHtml(caisseErrMessage(e)) + '</p>';
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════

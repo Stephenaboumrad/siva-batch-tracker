@@ -70,6 +70,13 @@ working rules for every task in this repository.
   vendeur can read — RLS 0027 serves a PDV's rows to its vendeur, and RLS
   cannot mask columns. If transfer costing is ever needed, create a
   vendeur-facing sanitized view at that point (`bandes_pos` pattern).
+- Any migration that adds a column to one of the 9 tables behind an
+  `_ops` view (`bandes`, `intrants`, `receptions`, `abattages`,
+  `aliments_phases`, `formulations_mp`, `commandes`, `lignes_commande`,
+  `clients`) MUST replay the 0040 §1 view block in the same migration —
+  the views freeze their column list at creation, so without the replay
+  the new column is invisible to chef_bande (reads go through the views;
+  QUEUE_COLUMN_FALLBACKS cannot help, it is the READ that is missing).
 - Flag any deviation from the brief in the PR body rather than silently
   adopting it.
 
