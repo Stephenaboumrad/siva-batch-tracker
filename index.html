@@ -4029,6 +4029,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Produit</label><input type="text" id="stock-produit" placeholder="Nom du produit"></div>
       <div class="form-group"><label>Catégorie</label>
         <select id="stock-categorie">
+          <option value="aliment">Aliment (provende)</option>
           <option value="mp">Matière première</option>
           <option value="medicament">Médicament</option>
           <option value="equipement">Équipement</option>
@@ -4903,6 +4904,13 @@ const ETALONNAGE_ALERTE_JOURS = 30;
 // only — nothing is ever blocked. Same discipline as above, ready to move to
 // the `parametres` table (0028).
 const NUISIBLES_INTERVALLE_JOURS = 30;
+// Feed autonomy alert (SC-1.4) : remaining feed days = feed stock (kg) /
+// moving-average daily consumption. Red at ≤ ALERTE days, amber at ≤ 2×.
+// DISPLAY thresholds only — nothing is ever blocked. Same single-named-
+// constant discipline as above, ready to move to `parametres` (0028).
+const ALIMENT_ALERTE_JOURS = 5;
+// Moving-average window (calendar days) for the daily feed consumption.
+const ALIMENT_CONSO_FENETRE_JOURS = 7;
 
 // ── Config (Supabase) ──
 // NB : on évite d'écrire `const supabase = ...` au top-level. Le bundle UMD
@@ -9436,6 +9444,35 @@ function renderDashboard() {
   document.getElementById('dash-commandes').innerHTML = cmdHtml;
 
   // ── Zone 5: Stocks à surveiller ──
+  // Bandeau « jours d'aliment restant » (SC-1.4) : L'ALERTE critique d'un
+  // élevage chair — Σ stock catégorie 'aliment' ÷ conso moyenne glissante
+  // (computeJoursAliment). Rendu seulement si au moins une ligne de stock
+  // aliment est suivie ; sans saisie sur la fenêtre (avant J0), le stock
+  // s'affiche seul avec « conso inconnue » — jamais un faux « ∞ ».
+  const alim = computeJoursAliment();
+  let feedHtml = '';
+  if (alim) {
+    const j = alim.jours;
+    const couleur = j == null ? 'var(--text-secondary)'
+      : j <= ALIMENT_ALERTE_JOURS ? '#E74C3C'
+      : j <= ALIMENT_ALERTE_JOURS * 2 ? '#F59E0B' : 'var(--color-success)';
+    const titre = j != null
+      ? '≈ ' + fmt(j, 1) + ' jour' + (j >= 2 ? 's' : '') + ' d\'aliment restant'
+      : fmt(alim.stockKg, 0) + ' kg d\'aliment en stock';
+    const detail = j != null
+      ? fmt(alim.stockKg, 0) + ' kg en stock · conso moyenne ' + fmt(alim.conso, 1)
+        + ' kg/j (fenêtre ' + ALIMENT_CONSO_FENETRE_JOURS + ' j)'
+      : 'Conso inconnue — aucune saisie d\'aliment sur ' + ALIMENT_CONSO_FENETRE_JOURS + ' j.';
+    feedHtml = '<div class="dash-section-title">Aliment</div>'
+      + '<div class="card" style="padding:0.75rem 1.25rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">'
+      + '<i data-lucide="wheat" style="width:20px;height:20px;flex:none;color:' + couleur + ';"></i>'
+      + '<div style="flex:1;min-width:200px;">'
+      + '<div style="font-weight:700;color:' + couleur + ';">' + titre + '</div>'
+      + '<div style="font-size:0.78rem;color:var(--text-muted);">' + detail
+      + (alim.horsKg > 0 ? ' · ' + alim.horsKg + ' ligne(s) aliment hors kg non comptée(s)' : '') + '</div>'
+      + '</div></div>';
+  }
+
   const watchStocks = STATE.stocks.filter(s => {
     const qty = Number(s.quantite_actuelle) || 0;
     const seuil = Number(s.seuil_alerte) || 0;
@@ -9443,7 +9480,7 @@ function renderDashboard() {
   });
 
   if (watchStocks.length === 0) {
-    document.getElementById('dash-stocks-watch').innerHTML = '';
+    document.getElementById('dash-stocks-watch').innerHTML = feedHtml;
   } else {
     let stkHtml = '<div class="dash-section-title">Stocks à surveiller</div><div class="card" style="padding:0.75rem 1.25rem;">';
     watchStocks.forEach(s => {
@@ -9459,7 +9496,7 @@ function renderDashboard() {
         '</div>';
     });
     stkHtml += '</div>';
-    document.getElementById('dash-stocks-watch').innerHTML = stkHtml;
+    document.getElementById('dash-stocks-watch').innerHTML = feedHtml + stkHtml;
   }
 
   updateSidebarLotActif();
@@ -13874,6 +13911,7 @@ function loadDemoData() {
 
   // ══════ STOCKS ══════
   const demoStocks = [
+    { stock_id:'stk-00', type_produit:'Aliment croissance (provende)', categorie:'aliment', quantite_actuelle:3400, unite:'kg', seuil_alerte:800, emplacement:'Silo principal', derniere_mise_a_jour:todayS },
     { stock_id:'stk-01', type_produit:'Maïs', categorie:'mp', quantite_actuelle:2800, unite:'kg', seuil_alerte:500, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
     { stock_id:'stk-02', type_produit:'Tourteau de soja', categorie:'mp', quantite_actuelle:850, unite:'kg', seuil_alerte:200, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
     { stock_id:'stk-03', type_produit:'Prémix vitamines-minéraux', categorie:'mp', quantite_actuelle:120, unite:'kg', seuil_alerte:30, emplacement:'Entrepôt principal', derniere_mise_a_jour:todayS },
@@ -14545,12 +14583,55 @@ function switchSupplyTab(tab) {
 
 // ── Helper: category emoji ──
 function catEmoji(cat) {
-  const map = { mp: '<i data-lucide="wheat"></i>', medicament: '<i data-lucide="pill"></i>', equipement: '<i data-lucide="wrench"></i>', poussin: '<i data-lucide="bird"></i>', autre: '<i data-lucide="package"></i>' };
+  const map = { aliment: '<i data-lucide="wheat"></i>', mp: '<i data-lucide="wheat"></i>', medicament: '<i data-lucide="pill"></i>', equipement: '<i data-lucide="wrench"></i>', poussin: '<i data-lucide="bird"></i>', autre: '<i data-lucide="package"></i>' };
   return map[cat] || '<i data-lucide="package"></i>';
 }
 function catLabel(cat) {
-  const map = { mp: 'Matière première', medicament: 'Médicament', equipement: 'Équipement', poussin: 'Poussin', autre: 'Autre' };
+  const map = { aliment: 'Aliment (provende)', mp: 'Matière première', medicament: 'Médicament', equipement: 'Équipement', poussin: 'Poussin', autre: 'Autre' };
   return map[cat] || cat;
+}
+
+// ── Autonomie aliment (SC-1.4) ─────────────────────────────────────────────
+// Conso moyenne d'aliment (kg/j) : Σ des saisies des bandes ACTIVES par jour
+// calendaire sur la fenêtre glissante, moyennée sur les JOURS AYANT une
+// saisie (une journée non saisie ne dilue pas la moyenne). null si aucune
+// donnée — l'appelant affiche alors le stock seul, jamais un faux « ∞ ».
+function computeConsoAlimentMoyenne() {
+  const actives = new Set(STATE.bandes
+    .filter(b => b.statut === 'en_cours' && !b.archivee).map(b => b.bande_id));
+  if (!actives.size) return null;
+  const depuis = new Date(Date.now() - (ALIMENT_CONSO_FENETRE_JOURS - 1) * 86400000)
+    .toISOString().slice(0, 10);
+  const auj = todayStr();
+  const parJour = {};
+  STATE.saisies.forEach(s => {
+    if (!actives.has(s.bande_id)) return;
+    const d = dateOnly(s.date_saisie);
+    if (!d || d < depuis || d > auj) return;
+    const kg = Number(s.aliment_consomme_kg) || 0;
+    if (kg > 0) parJour[d] = (parJour[d] || 0) + kg;
+  });
+  const jours = Object.keys(parJour);
+  if (!jours.length) return null;
+  return jours.reduce((s, d) => s + parJour[d], 0) / jours.length;
+}
+
+// Autonomie aliment globale : Σ stocks catégorie 'aliment' (lignes en kg)
+// ÷ conso moyenne. Renvoie null si AUCUNE ligne de stock aliment n'est
+// suivie (le bandeau ne se rend pas) ; `jours` null si la conso est
+// inconnue (aucune saisie sur la fenêtre — ex. avant J0 de la bande 1).
+function computeJoursAliment() {
+  const lignes = STATE.stocks.filter(s => s.categorie === 'aliment');
+  if (!lignes.length) return null;
+  const enKg = lignes.filter(l => (l.unite || 'kg') === 'kg');
+  const stockKg = enKg.reduce((s, l) => s + (Number(l.quantite_actuelle) || 0), 0);
+  const conso = computeConsoAlimentMoyenne();
+  return {
+    stockKg,
+    conso,
+    horsKg: lignes.length - enKg.length,
+    jours: (conso && conso > 0) ? stockKg / conso : null
+  };
 }
 
 // ══════════════════════════════
@@ -14968,11 +15049,20 @@ function stockCardReal(s) {
     const qty = Number(s.quantite_actuelle) || 0;
     const seuil = Number(s.seuil_alerte) || 0;
     const isAlert = qty <= seuil && seuil > 0;
+  // Autonomie par ligne aliment (SC-1.4) : quantité de LA ligne ÷ conso
+  // moyenne GLOBALE (toutes bandes actives) — le libellé le dit. null
+  // (pas de conso connue, ou ligne hors kg) → rien d'affiché.
+  let joursLigne = null;
+  if (s.categorie === 'aliment' && (s.unite || 'kg') === 'kg') {
+    const conso = computeConsoAlimentMoyenne();
+    if (conso && conso > 0) joursLigne = qty / conso;
+  }
   return `<div class="stock-card ${isAlert ? 'alert' : ''}" id="stock-card-${s.stock_id}">
       <div class="stock-icon">${catEmoji(s.categorie)}</div>
       <div class="stock-name">${s.type_produit}</div>
       <div class="stock-cat">${catLabel(s.categorie)}</div>
       <div class="stock-qty">${fmt(qty, 1)} ${s.unite}</div>
+      ${joursLigne != null ? '<div class="stock-meta"' + (joursLigne <= ALIMENT_ALERTE_JOURS ? ' style="color:var(--red);font-weight:600;"' : '') + '><i data-lucide="calendar"></i> ≈ ' + fmt(joursLigne, 1) + ' j au rythme actuel</div>' : ''}
       ${isAlert ? '<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;"><i data-lucide="triangle-alert"></i> Sous le seuil d\u0027alerte (' + fmt(seuil,1) + ' ' + s.unite + ')</div>' : ''}
       <div class="stock-meta"><i data-lucide="map-pin"></i> ${s.emplacement || '—'}</div>
       <div class="stock-meta">MAJ : ${fmtDate(s.derniere_mise_a_jour)}</div>
