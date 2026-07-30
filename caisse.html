@@ -1870,51 +1870,62 @@ function majClotureCalc() {
 async function submitCloture() {
   const compteRaw = $('clo-compte').value;
   if (compteRaw === '') { toast('Saisissez les espèces comptées', 'error'); return; }
-  const fond = Number($('clo-fond').value) || 0;
-  const theorique = theoriqueEspeces(fond);
-  const compte = Number(compteRaw) || 0;
-  const now = new Date().toISOString();
-  const clo = {
-    cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: now,
-    fond_caisse_fcfa: fond, theorique_fcfa: theorique, compte_fcfa: compte,
-    ecart_fcfa: compte - theorique, vendeur_id: C.user.matricule,
-    note: $('clo-note').value.trim() || null,
-    // Instantané 0037 — ce que la vendeuse ATTESTE en clôturant. Retiré au
-    // repli si la migration n'est pas encore exécutée en base (Railway
-    // déploie le front avant le SQL manuel).
-    total_mm_fcfa: sommeMMDepuisCloture(),
-    total_credit_fcfa: sommeCreditDepuisCloture(),
-    total_depenses_fcfa: sommeDepensesDepuisCloture(),
-    total_versements_fcfa: sommeVersementsDepuisCloture()
-  };
-  const ajustements = collecteAjustements(clo.cloture_id, now);
-  const rows = [{ table: 'cloture_caisse', row: clo }]
-    .concat(ajustements.map(r => ({ table: 'mouvements_stock', row: r })));
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows }); queued = true; }
-    else if (isColErr0037(e)) {
-      // 0037 non exécutée : réessai SANS instantané — la clôture de base ne
-      // doit jamais être bloquée par une migration en attente.
-      try {
-        await execRows(strip0037(rows));
-        toast('Clôture enregistrée SANS instantané par mode (migration 0037 non appliquée)', 'error');
-      } catch (e2) {
-        if (isNetError(e2)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows: strip0037(rows) }); queued = true; }
-        else { toast('Erreur : ' + e2.message, 'error'); return; }
+  // Garde anti double-tap (cf. submitEncaissement) — critique ici : un
+  // double appui re-collecterait les MÊMES ajustements de comptage avec de
+  // nouveaux mouvement_id (les inputs ne sont vidés qu'après succès) →
+  // stock recalé deux fois, en plus de la clôture dupliquée.
+  const btn = $('btn-cloture');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const fond = Number($('clo-fond').value) || 0;
+    const theorique = theoriqueEspeces(fond);
+    const compte = Number(compteRaw) || 0;
+    const now = new Date().toISOString();
+    const clo = {
+      cloture_id: uuid(), pdv_id: C.pdv.pdv_id, date_cloture: now,
+      fond_caisse_fcfa: fond, theorique_fcfa: theorique, compte_fcfa: compte,
+      ecart_fcfa: compte - theorique, vendeur_id: C.user.matricule,
+      note: $('clo-note').value.trim() || null,
+      // Instantané 0037 — ce que la vendeuse ATTESTE en clôturant. Retiré au
+      // repli si la migration n'est pas encore exécutée en base (Railway
+      // déploie le front avant le SQL manuel).
+      total_mm_fcfa: sommeMMDepuisCloture(),
+      total_credit_fcfa: sommeCreditDepuisCloture(),
+      total_depenses_fcfa: sommeDepensesDepuisCloture(),
+      total_versements_fcfa: sommeVersementsDepuisCloture()
+    };
+    const ajustements = collecteAjustements(clo.cloture_id, now);
+    const rows = [{ table: 'cloture_caisse', row: clo }]
+      .concat(ajustements.map(r => ({ table: 'mouvements_stock', row: r })));
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows }); queued = true; }
+      else if (isColErr0037(e)) {
+        // 0037 non exécutée : réessai SANS instantané — la clôture de base ne
+        // doit jamais être bloquée par une migration en attente.
+        try {
+          await execRows(strip0037(rows));
+          toast('Clôture enregistrée SANS instantané par mode (migration 0037 non appliquée)', 'error');
+        } catch (e2) {
+          if (isNetError(e2)) { enqueue({ id: clo.cloture_id, type: 'cloture', rows: strip0037(rows) }); queued = true; }
+          else { toast('Erreur : ' + e2.message, 'error'); return; }
+        }
       }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
     }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+    C.clotures = [clo].concat(C.clotures);
+    C.mouvements = ajustements.concat(C.mouvements);
+    saveCache();
+    $('clo-compte').value = ''; $('clo-note').value = '';
+    renderCloture(); renderStock(); renderVente();
+    toast(queued
+      ? 'Clôture enregistrée (hors ligne — sera synchronisée)'
+      : 'Caisse clôturée' + (ajustements.length ? ' — ' + ajustements.length + ' ajustement(s) de stock' : ''));
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.clotures = [clo].concat(C.clotures);
-  C.mouvements = ajustements.concat(C.mouvements);
-  saveCache();
-  $('clo-compte').value = ''; $('clo-note').value = '';
-  renderCloture(); renderStock(); renderVente();
-  toast(queued
-    ? 'Clôture enregistrée (hors ligne — sera synchronisée)'
-    : 'Caisse clôturée' + (ajustements.length ? ' — ' + ajustements.length + ' ajustement(s) de stock' : ''));
 }
 
 /* ════════════════ NAVIGATION + ÉVÉNEMENTS ════════════════ */
