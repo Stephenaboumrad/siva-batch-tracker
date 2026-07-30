@@ -11985,6 +11985,13 @@ const CAISSE_MODE_LABELS = {
   wave: 'Wave', moov: 'Moov', credit: 'Crédit', mixte: 'Mixte'
 };
 function caisseModeLabel(m) { return CAISSE_MODE_LABELS[m] || m || '—'; }
+// Motifs de perte écrits par la caisse dans mouvements_stock.note (POS-1
+// item 1). Dupliqué de caisse.html À DESSEIN : trois surfaces sans code
+// partagé (règle d'architecture).
+const CAISSE_PERTE_LABELS = {
+  perime: 'Périmé', casse: 'Casse', invendu: 'Invendu jeté',
+  don: 'Don', autoconso: 'Autoconsommation'
+};
 
 // Distinction d'erreur EXIGÉE (critère d'acceptation) : table absente
 // (migrations non exécutées) ≠ refus RLS (politique manager manquante) ≠
@@ -12104,20 +12111,36 @@ async function renderCaissePdv() {
     // Clôtures SANS borne de date (tri DESC, plafond 200 ≈ 6 mois à une
     // clôture/jour/PDV) : la dernière clôture PAR PDV doit être trouvée
     // même si elle est plus vieille que la fenêtre d'affichage de 30 jours.
-    const [pdvR, txJourR, txMoisR, paiJourR, cloR] = await Promise.all([
+    // POS-1 item 5 : + pertes (jour + mois) et ajustements de comptage
+    // (30 j, fenêtre des clôtures affichées) depuis mouvements_stock —
+    // lectures bornées à la demande, même discipline que le reste du bloc.
+    const depuis30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const [pdvR, txJourR, txMoisR, paiJourR, cloR, perteJourR, perteMoisR, ajustR] = await Promise.all([
       sb.from('points_de_vente').select('*').order('nom').limit(100),
       sb.from('pos_transactions').select('*')
         .gte('date_transaction', jour).lt('date_transaction', jourFin)
         .order('date_transaction', { ascending: false }).limit(500),
       sb.from('pos_transactions').select('montant_total_fcfa, statut, pdv_id')
         .gte('date_transaction', moisDebut).lt('date_transaction', moisFin).limit(5000),
-      sb.from('paiements').select('mode_paiement, montant_fcfa, sens, statut, transaction_id, pdv_id')
+      sb.from('paiements').select('date_paiement, mode_paiement, montant_fcfa, sens, statut, transaction_id, pdv_id, note, reference')
         .gte('date_paiement', jour).lt('date_paiement', jourFin)
         .not('pdv_id', 'is', null).limit(1000),
       sb.from('cloture_caisse').select('*')
-        .order('date_cloture', { ascending: false }).limit(200)
+        .order('date_cloture', { ascending: false }).limit(200),
+      sb.from('mouvements_stock')
+        .select('date_mouvement, type_produit, quantite, unite, note, responsable, statut, from_pdv_id')
+        .eq('type_mouvement', 'perte')
+        .gte('date_mouvement', jour).lt('date_mouvement', jourFin)
+        .order('date_mouvement', { ascending: false }).limit(500),
+      sb.from('mouvements_stock').select('type_produit, quantite, statut')
+        .eq('type_mouvement', 'perte')
+        .gte('date_mouvement', moisDebut).lt('date_mouvement', moisFin).limit(2000),
+      sb.from('mouvements_stock')
+        .select('type_produit, quantite, unite, reference, statut, from_pdv_id, to_pdv_id')
+        .eq('type_mouvement', 'ajustement')
+        .gte('date_mouvement', depuis30).limit(1000)
     ]);
-    for (const r of [pdvR, txJourR, txMoisR, paiJourR, cloR]) { if (r.error) throw r.error; }
+    for (const r of [pdvR, txJourR, txMoisR, paiJourR, cloR, perteJourR, perteMoisR, ajustR]) { if (r.error) throw r.error; }
 
     // Tous les PDV servent à résoudre les noms ; seuls les ACTIFS pilotent
     // puces et cartes (statut null = actif, valeur par défaut de 0002).
@@ -12272,6 +12295,95 @@ async function renderCaissePdv() {
         : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune transaction ce jour.</p>')
       + '</div>';
 
+    // ── 4b) Sorties de caisse du jour (POS-1 item 5) : le DÉTAIL — la
+    //       clôture (0037) n'atteste que les totaux. Convention caisse :
+    //       paiements.reference porte le MATRICULE de l'opérateur pour les
+    //       sorties (encaisse_par est une FK paie inutilisable). ──
+    const paiJour = paiJourR.data || [];
+    const sortiesJour = paiJour.filter(p =>
+      (p.sens === 'depense' || p.sens === 'versement')
+      && (!p.statut || p.statut === 'confirme')
+      && (!filtre || p.pdv_id === filtre));
+    const totDepensesJour = sortiesJour.filter(p => p.sens === 'depense')
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const totVersementsJour = sortiesJour.filter(p => p.sens === 'versement')
+      .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
+    const sortieRows = sortiesJour.map(p => '<tr>'
+      + '<td>' + escHtml(String(p.date_paiement || '').slice(11, 16)) + '</td>'
+      + (colPdv ? '<td>' + escHtml(pdvNom(p.pdv_id)) + '</td>' : '')
+      + '<td>' + (p.sens === 'versement' ? 'Versement ferme' : 'Dépense') + '</td>'
+      + '<td class="num">' + fmt(p.montant_fcfa) + '</td>'
+      + '<td>' + escHtml(p.note || '—') + '</td>'
+      + '<td>' + escHtml(p.reference || '—') + '</td></tr>').join('');
+    const sortiesHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header"><h3><i data-lucide="hand-coins"></i> Sorties de caisse du ' + escHtml(fmtDate(jour))
+      + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
+      + (sortiesJour.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Heure</th>' + (colPdv ? '<th>PDV</th>' : '')
+          + '<th>Type</th><th class="num">Montant (FCFA)</th><th>Motif</th><th>Opérateur</th></tr></thead>'
+          + '<tbody>' + sortieRows + '</tbody></table></div>'
+          + '<div style="' + kv + 'border-top:var(--border-hairline);margin-top:4px;"><span>Dépenses du jour</span>'
+          + '<strong style="' + mono + '">− ' + fmt(totDepensesJour) + ' FCFA</strong></div>'
+          + '<div style="' + kv + '"><span>Versements ferme du jour</span>'
+          + '<strong style="' + mono + '">− ' + fmt(totVersementsJour) + ' FCFA</strong></div>'
+        : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune sortie de caisse ce jour.</p>')
+      + '</div>';
+
+    // ── 4c) Pertes du jour (POS-1 item 5) : la caisse enregistre QUANTITÉ +
+    //       MOTIF uniquement (amendement 2) ; la VALORISATION est calculée
+    //       ICI, côté manager — estimation au prix de vente CATALOGUE COURANT
+    //       (le prix du jour de la perte n'est pas historisé). Un produit
+    //       renommé/retiré du catalogue n'est plus valorisable → « — »,
+    //       exclu des totaux, signalé sous le tableau. ──
+    const prixCatalogue = (nom) => {
+      const pr = STATE.produits.find(x => x.nom === nom);
+      return (pr && pr.prix_base_kg_fcfa != null) ? Number(pr.prix_base_kg_fcfa) : null;
+    };
+    const pertesJour = (perteJourR.data || []).filter(m =>
+      m.statut !== 'annule' && (!filtre || m.from_pdv_id === filtre));
+    let valJour = 0, nbSansPrix = 0;
+    const perteRows = pertesJour.map(m => {
+      const q = Number(m.quantite) || 0;
+      const prix = prixCatalogue(m.type_produit);
+      const val = prix != null ? Math.round(q * prix) : null;
+      if (val != null) valJour += val; else nbSansPrix++;
+      return '<tr>'
+        + '<td>' + escHtml(String(m.date_mouvement || '').slice(11, 16)) + '</td>'
+        + (colPdv ? '<td>' + escHtml(pdvNom(m.from_pdv_id)) + '</td>' : '')
+        + '<td>' + escHtml(m.type_produit || '—') + '</td>'
+        + '<td class="num">' + fmt(q, 1) + ' ' + (m.unite === 'unite' ? 'u' : 'kg') + '</td>'
+        + '<td>' + escHtml(CAISSE_PERTE_LABELS[m.note] || m.note || '—') + '</td>'
+        + '<td>' + escHtml(m.responsable || '—') + '</td>'
+        + '<td class="num">' + (val != null ? fmt(val) : '—') + '</td></tr>';
+    }).join('');
+    // Total du mois : global (jamais filtré), même fenêtre que le CA du mois.
+    const pertesMois = (perteMoisR.data || []).filter(m => m.statut !== 'annule');
+    let valMois = 0, nbMoisSansPrix = 0;
+    pertesMois.forEach(m => {
+      const prix = prixCatalogue(m.type_produit);
+      if (prix != null) valMois += Math.round((Number(m.quantite) || 0) * prix);
+      else nbMoisSansPrix++;
+    });
+    const pertesHtml =
+      '<div class="card" style="margin-bottom:1.5rem;">'
+      + '<div class="card-header"><h3><i data-lucide="trash-2"></i> Pertes du ' + escHtml(fmtDate(jour))
+      + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
+      + (pertesJour.length
+        ? '<div class="table-wrap"><table><thead><tr><th>Heure</th>' + (colPdv ? '<th>PDV</th>' : '')
+          + '<th>Produit</th><th class="num">Quantité</th><th>Motif</th><th>Vendeur</th>'
+          + '<th class="num">Valorisation (FCFA)</th></tr></thead>'
+          + '<tbody>' + perteRows + '</tbody></table></div>'
+          + '<div style="' + kv + 'border-top:var(--border-hairline);margin-top:4px;"><span>Pertes du jour (estimation au prix de vente)</span>'
+          + '<strong style="' + mono + 'color:var(--color-danger);">' + fmt(valJour) + ' FCFA</strong></div>'
+        : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune perte déclarée ce jour.</p>')
+      + '<div style="' + kv + '"><span>Pertes du mois — ' + escHtml(frMonthLabel(mois) || mois) + ', tous PDV (' + pertesMois.length + ' déclaration' + (pertesMois.length > 1 ? 's' : '') + ')</span>'
+      + '<strong style="' + mono + 'color:var(--color-danger);">' + fmt(valMois) + ' FCFA</strong></div>'
+      + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Estimation au prix de vente catalogue COURANT — la caisse n\'enregistre volontairement que quantité + motif.'
+      + ((nbSansPrix + nbMoisSansPrix) > 0 ? ' ' + (nbSansPrix + nbMoisSansPrix) + ' ligne(s) hors catalogue non valorisée(s).' : '')
+      + '</p>'
+      + '</div>';
+
     // ── 5) CA du mois : total + ventilation par PDV (une seule ligne
     //       aujourd'hui ; jamais filtré — c'est la vue d'ensemble) ──
     const txMois = (txMoisR.data || []).filter(t => t.statut === 'finalisee');
@@ -12297,13 +12409,31 @@ async function renderCaissePdv() {
     //       « Corriger le fond » (0037) : uniquement sur la DERNIÈRE
     //       clôture de chaque PDV — c'est elle que la caisse lit pour
     //       verrouiller le fond d'ouverture de la période suivante. ──
-    const depuis30 = new Date(Date.now() - 30 * 86400000).toISOString();
     const cloVisibles = clotures.filter(c =>
       String(c.date_cloture || '') >= depuis30 && (!filtre || c.pdv_id === filtre));
+    // Ajustements de comptage (POS-1 item 5) : rattachés à LEUR clôture par
+    // reference = cloture_id, en quantités SIGNÉES (to_pdv_id = surplus
+    // compté, from_pdv_id = manquant).
+    const ajustParCloture = {};
+    (ajustR.data || []).filter(m => m.statut !== 'annule').forEach(m => {
+      const k = m.reference || '?';
+      (ajustParCloture[k] = ajustParCloture[k] || []).push(m);
+    });
+    // Instantané 0037 : null = NON ATTESTÉ (clôture antérieure à la
+    // migration) → « — », jamais 0 (un 0 signifierait « attesté à zéro »).
+    const snap = (v) => (v != null ? fmt(v) : '—');
     const cloRows = cloVisibles.map(c => {
       const e = Number(c.ecart_fcfa) || 0;
       const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? 'var(--color-success)' : 'var(--color-danger)');
       const derniere = derniereCloture[c.pdv_id] && derniereCloture[c.pdv_id].cloture_id === c.cloture_id;
+      const ajs = ajustParCloture[c.cloture_id] || [];
+      const ajHtml = ajs.length
+        ? ajs.map(m => {
+            const q = Number(m.quantite) || 0;
+            return escHtml(m.type_produit || '?') + ' <span style="' + mono + '">'
+              + (m.to_pdv_id ? '+' : '−') + fmt(q, 1) + (m.unite === 'unite' ? ' u' : ' kg') + '</span>';
+          }).join('<br>')
+        : '—';
       return '<tr>'
         + '<td>' + escHtml(fmtDate(c.date_cloture)) + '</td>'
         + (colPdv ? '<td>' + escHtml(pdvNom(c.pdv_id)) + '</td>' : '')
@@ -12312,6 +12442,11 @@ async function renderCaissePdv() {
         + '<td class="num">' + fmt(c.theorique_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.compte_fcfa) + '</td>'
         + '<td class="num" style="color:' + col + ';font-weight:700;">' + (e > 0 ? '+' : '') + fmt(e) + '</td>'
+        + '<td class="num">' + snap(c.total_mm_fcfa) + '</td>'
+        + '<td class="num">' + snap(c.total_credit_fcfa) + '</td>'
+        + '<td class="num">' + snap(c.total_depenses_fcfa) + '</td>'
+        + '<td class="num">' + snap(c.total_versements_fcfa) + '</td>'
+        + '<td>' + ajHtml + '</td>'
         + '<td class="num"' + (c.fond_suivant_note ? ' title="' + escHtml(c.fond_suivant_note) + '"' : '') + '>'
           + (c.fond_suivant_fcfa != null ? fmt(c.fond_suivant_fcfa) : '—') + '</td>'
         + '<td>' + (derniere
@@ -12334,14 +12469,17 @@ async function renderCaissePdv() {
       + (filtre ? ' — ' + escHtml(pdvNom(filtre)) : '') + '</h3></div>'
       + (cloVisibles.length
         ? '<div class="table-wrap"><table><thead><tr><th>Date</th>' + (colPdv ? '<th>PDV</th>' : '')
-          + '<th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th><th class="num">Fond suivant</th><th></th></tr></thead>'
+          + '<th>Vendeur</th><th class="num">Fond</th><th class="num">Théorique</th><th class="num">Compté</th><th class="num">Écart</th>'
+          + '<th class="num">MM</th><th class="num">Crédit</th><th class="num">Dépenses</th><th class="num">Versements</th>'
+          + '<th>Ajust. stock</th><th class="num">Fond suivant</th><th></th></tr></thead>'
           + '<tbody>' + cloRows + '</tbody></table></div>'
           + fondForm
-          + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Le fond d\'ouverture de la caisse est verrouillé côté vendeur : espèces comptées de la dernière clôture − versements ferme, ou la correction posée ici (note obligatoire).</p>'
+          + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Le fond d\'ouverture de la caisse est verrouillé côté vendeur : espèces comptées de la dernière clôture − versements ferme, ou la correction posée ici (note obligatoire). '
+          + 'MM / Crédit / Dépenses / Versements = instantané ATTESTÉ à la clôture (0037) — « — » = non attesté (clôture antérieure à la migration). Ajust. stock = écarts de comptage signés (+ surplus / − manquant).</p>'
         : '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucune clôture enregistrée.</p>')
       + '</div>';
 
-    box.innerHTML = stripHtml + chipsHtml + cartesHtml + txHtml + moisHtml + cloHtml;
+    box.innerHTML = stripHtml + chipsHtml + cartesHtml + txHtml + sortiesHtml + pertesHtml + moisHtml + cloHtml;
     if (window.lucide) lucide.createIcons();
   } catch (e) {
     box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Caisse PDV</h3></div>'
