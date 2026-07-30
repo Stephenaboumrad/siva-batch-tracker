@@ -435,6 +435,25 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
         <div id="sorties-list" style="margin-top:10px;"></div>
       </div>
 
+      <!-- ── Encaissement crédit : règlement d'une créance SANS vente liée.
+           UNE ligne paiements (sens='encaissement', transaction_id NULL,
+           note discriminante 'ENC-CREDIT|<matricule>') : v_client_soldes
+           décroît, le théorique espèces / l'instantané MM de clôture la
+           comptent déjà. « Crédit consenti (période) » ne bouge pas — voulu
+           (ce KPI mesure le crédit ACCORDÉ, cf. sommeCreditDepuisCloture). -->
+      <div class="list-card">
+        <h3>Encaissement crédit</h3>
+        <div class="field"><label for="enc-client">Client débiteur</label><select id="enc-client"></select></div>
+        <div id="enc-solde" class="solde-box hidden"></div>
+        <div class="field"><label for="enc-montant">Montant reçu (FCFA)</label><input id="enc-montant" type="number" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="field">
+          <label>Mode</label>
+          <div class="mode-chips" id="enc-mode-chips"></div>
+        </div>
+        <div class="field hidden" id="enc-ref-field"><label for="enc-ref">N° de référence</label><input id="enc-ref" type="text" placeholder="N° de référence"></div>
+        <button id="btn-encaissement" class="btn btn-primary btn-block"><i data-lucide="banknote"></i> Encaisser le remboursement</button>
+      </div>
+
       <!-- ── Comptage du stock (POS-1 item 3) : produits à stock théorique
            non nul. Champ laissé vide = non compté (aucun ajustement) ;
            champ rempli et différent = mouvement 'ajustement' rattaché à la
@@ -517,7 +536,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
     <div class="receipt-actions">
       <button class="btn btn-ghost" id="receipt-print"><i data-lucide="printer"></i> Imprimer</button>
       <button class="btn btn-ghost" id="receipt-share"><i data-lucide="share-2"></i> Partager</button>
-      <button class="btn btn-primary" id="receipt-close">Nouvelle vente</button>
+      <button class="btn btn-primary" id="receipt-close">Fermer</button>
     </div>
   </div>
 </div>
@@ -676,12 +695,14 @@ function failedMontant(item) {
   const head = (item.rows && item.rows[0] && item.rows[0].row) || {};
   if (item.type === 'vente') return Number(head.montant_total_fcfa) || 0;
   if (item.type === 'sortie') return Number(head.montant_fcfa) || 0;
+  if (item.type === 'encaissement') return Number(head.montant_fcfa) || 0;
   return null;
 }
 function failedLabel(item) {
   const m = failedMontant(item);
   if (item.type === 'vente') return 'Vente de ' + fmt(m) + ' F NON enregistrée';
   if (item.type === 'sortie') return 'Sortie de caisse de ' + fmt(m) + ' F NON enregistrée';
+  if (item.type === 'encaissement') return 'Encaissement crédit de ' + fmt(m) + ' F NON enregistré';
   if (item.type === 'cloture') return 'Clôture de caisse NON enregistrée';
   if (item.type === 'reception') return 'Réception de stock NON enregistrée';
   if (item.type === 'perte') return 'Perte de stock NON enregistrée';
@@ -757,7 +778,17 @@ async function processQueue() {
           continue;
         } catch (e2) { e = e2; }
       }
-      if (isPermError(e)) { addFailed(item, e); rejets.push(item); continue; }
+      if (isPermError(e)) {
+        addFailed(item, e);
+        // Rejet DÉFINITIF d'un encaissement crédit : l'optimisme local
+        // (solde décrémenté + ligne paiements) doit être ANNULÉ, sinon le
+        // vendeur verrait une dette client faussement basse alors que la
+        // base n'a jamais reçu le paiement. Le badge rouge alerte le
+        // gérant ; le solde, lui, doit alerter le vendeur.
+        if (item.type === 'encaissement') revertEncaissementFailed(item);
+        rejets.push(item);
+        continue;
+      }
       remaining.push(item, ...q.slice(i + 1));
       break;
     }
@@ -1391,25 +1422,34 @@ async function submitReception() {
   const qty = parseFloat($('recep-qty').value);
   const bandeId = $('recep-bande').value;
   if (!p || !(qty > 0) || !bandeId) { toast('Produit, quantité et bande requis', 'error'); return; }
-  const mvt = {
-    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
-    type_mouvement: 'entree', to_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
-    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
-    reference: null, statut: 'valide', responsable: C.user.matricule,
-    note: 'Reception au point de vente'
-  };
-  const rows = [{ table: 'mouvements_stock', row: mvt }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'reception', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-reception');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const mvt = {
+      mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+      type_mouvement: 'entree', to_pdv_id: C.pdv.pdv_id, bande_id: bandeId,
+      type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+      reference: null, statut: 'valide', responsable: C.user.matricule,
+      note: 'Reception au point de vente'
+    };
+    const rows = [{ table: 'mouvements_stock', row: mvt }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'reception', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.mouvements = [mvt].concat(C.mouvements);
+    saveCache();
+    $('recep-qty').value = '';
+    renderStock(); renderVente();
+    toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.mouvements = [mvt].concat(C.mouvements);
-  saveCache();
-  $('recep-qty').value = '';
-  renderStock(); renderVente();
-  toast(queued ? 'Réception enregistrée (hors ligne — sera synchronisée)' : 'Réception enregistrée');
 }
 
 /* Déclaration de perte (POS-1 item 1) : mouvement SORTIE type='perte'
@@ -1432,27 +1472,36 @@ async function submitPerte() {
   const qty = parseFloat(String($('perte-qty').value).replace(',', '.'));
   if (!p || !(qty > 0)) { toast('Produit et quantité requis', 'error'); return; }
   if (!perteMotif) { toast('Motif obligatoire — touchez une puce', 'error'); return; }
-  const mvt = {
-    mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
-    type_mouvement: 'perte', from_pdv_id: C.pdv.pdv_id,
-    type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
-    reference: null, statut: 'valide', responsable: C.user.matricule,
-    note: perteMotif
-  };
-  const rows = [{ table: 'mouvements_stock', row: mvt }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'perte', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-perte');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const mvt = {
+      mouvement_id: uuid(), date_mouvement: new Date().toISOString(),
+      type_mouvement: 'perte', from_pdv_id: C.pdv.pdv_id,
+      type_produit: p.nom, quantite: Math.round(qty * 100) / 100, unite: p.unite,
+      reference: null, statut: 'valide', responsable: C.user.matricule,
+      note: perteMotif
+    };
+    const rows = [{ table: 'mouvements_stock', row: mvt }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: mvt.mouvement_id, type: 'perte', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.mouvements = [mvt].concat(C.mouvements);
+    saveCache();
+    $('perte-qty').value = '';
+    perteMotif = null;
+    document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b => b.classList.remove('sel'));
+    renderStock(); renderVente();
+    toast(queued ? 'Perte enregistrée (hors ligne — sera synchronisée)' : 'Perte enregistrée');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.mouvements = [mvt].concat(C.mouvements);
-  saveCache();
-  $('perte-qty').value = '';
-  perteMotif = null;
-  document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b => b.classList.remove('sel'));
-  renderStock(); renderVente();
-  toast(queued ? 'Perte enregistrée (hors ligne — sera synchronisée)' : 'Perte enregistrée');
 }
 
 /* ════════════════ SORTIES DE CAISSE (POS-1 item 2) ════════════════ */
@@ -1482,27 +1531,175 @@ async function submitSortie() {
   const motif = $('sortie-motif').value.trim();
   if (!(montant > 0)) { toast('Montant requis', 'error'); return; }
   if (sortieType === 'depense' && !motif) { toast('Motif requis pour une dépense', 'error'); return; }
-  const p = {
-    paiement_id: uuid(), date_paiement: new Date().toISOString(),
-    pdv_id: C.pdv.pdv_id, sens: sortieType, mode_paiement: 'especes',
-    reference: C.user.matricule, montant_fcfa: montant,
-    encaisse_par: null, statut: 'confirme',
-    note: motif || 'Versement ferme'
-  };
-  const rows = [{ table: 'paiements', row: p }];
-  let queued = false;
-  try { await execRows(rows); }
-  catch (e) {
-    if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'sortie', rows }); queued = true; }
-    else { toast('Erreur : ' + e.message, 'error'); return; }
+  // Garde anti double-tap : bouton désactivé pendant l'await, restauré en
+  // finally (cf. submitEncaissement pour le rationale complet).
+  const btn = $('btn-sortie');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const p = {
+      paiement_id: uuid(), date_paiement: new Date().toISOString(),
+      pdv_id: C.pdv.pdv_id, sens: sortieType, mode_paiement: 'especes',
+      reference: C.user.matricule, montant_fcfa: montant,
+      encaisse_par: null, statut: 'confirme',
+      note: motif || 'Versement ferme'
+    };
+    const rows = [{ table: 'paiements', row: p }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'sortie', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.paiements = [p].concat(C.paiements);
+    saveCache();
+    $('sortie-montant').value = ''; $('sortie-motif').value = '';
+    renderCloture();
+    toast(queued
+      ? 'Sortie enregistrée (hors ligne — sera synchronisée)'
+      : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
   }
-  C.paiements = [p].concat(C.paiements);
+}
+
+/* ════════════════ ENCAISSEMENT CRÉDIT ════════════════ */
+/* Règlement d'une créance client SANS vente liée : UNE ligne paiements
+   (sens='encaissement', statut='confirme', transaction_id NULL, note
+   discriminante 'ENC-CREDIT|<matricule>' — greppable en SQL et côté
+   manager). v_client_soldes (0027) la soustrait du solde ; le théorique
+   espèces et l'instantané MM de la clôture la comptent déjà
+   (paiementsDepuisCloture ne filtre pas sur transaction_id). « Crédit
+   consenti (période) » ne bouge pas : ce KPI mesure le crédit ACCORDÉ,
+   pas le net — voulu (cf. sommeCreditDepuisCloture). reference porte le
+   n° de référence mobile money (comme la vente) ; le matricule vit dans
+   la note. Plafond montant ≤ solde : garde UI uniquement — la base ne
+   bloque jamais une sauvegarde. */
+let encMode = 'especes';
+
+function renderEncaissement() {
+  const sel = $('enc-client');
+  if (!sel) return;
+  const cur = sel.value;
+  const debiteurs = C.soldes.filter(s => (Number(s.solde_fcfa) || 0) > 0);
+  sel.innerHTML = '<option value="">— Sélectionner le client —</option>' +
+    debiteurs.map(s => '<option value="' + esc(s.client_id) + '">' + esc(s.nom) +
+      ' — doit ' + fcfa(s.solde_fcfa) + '</option>').join('');
+  if (cur && debiteurs.some(s => s.client_id === cur)) sel.value = cur;
+  $('enc-mode-chips').innerHTML = PAY_MODES.map(m =>
+    '<button class="mode-chip' + (encMode === m.id ? ' sel' : '') + '" data-enc-mode="' + m.id + '">' + m.label + '</button>'
+  ).join('');
+  const def = PAY_MODES.find(m => m.id === encMode);
+  $('enc-ref-field').classList.toggle('hidden', !(def && def.ref));
+  majEncaissementBox();
+}
+
+function majEncaissementBox() {
+  const box = $('enc-solde');
+  const s = C.soldes.find(x => x.client_id === $('enc-client').value);
+  if (!s) { box.classList.add('hidden'); return; }
+  const solde = Number(s.solde_fcfa) || 0;
+  const montant = Number($('enc-montant').value) || 0;
+  box.classList.remove('hidden');
+  box.innerHTML = 'Solde actuel : <strong class="mono">' + fcfa(solde) + '</strong>' +
+    (montant > 0 ? ' → après : <strong class="mono">' + fcfa(solde - montant) + '</strong>' : '');
+}
+
+async function submitEncaissement() {
+  const clientId = $('enc-client').value;
+  const s = C.soldes.find(x => x.client_id === clientId);
+  if (!clientId || !s) { toast('Sélectionnez le client débiteur', 'error'); return; }
+  const montant = Number($('enc-montant').value);
+  if (!(montant > 0)) { toast('Montant requis', 'error'); return; }
+  const solde = Number(s.solde_fcfa) || 0;
+  if (montant > solde) { toast('Montant supérieur au solde dû (' + fcfa(solde) + ')', 'error'); return; }
+  const def = PAY_MODES.find(m => m.id === encMode);
+  const ref = String($('enc-ref').value || '').trim();
+  if (def && def.ref && !ref) { toast('Référence ' + def.label + ' requise', 'error'); return; }
+
+  // Garde anti double-tap (même hazard que finalizeSale) : un double appui
+  // pendant l'await créerait DEUX lignes paiements à uuid distincts (l'
+  // idempotence par id ne protège que le REJEU de la même ligne) → dette
+  // client réduite deux fois pour un seul encaissement. Bouton désactivé
+  // avant l'await, restauré en finally — un throw inattendu ne doit jamais
+  // laisser le flux de remboursement gelé.
+  const btn = $('btn-encaissement');
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enregistrement…';
+  try {
+    const p = {
+      paiement_id: uuid(), transaction_id: null,
+      pdv_id: C.pdv.pdv_id, client_id: clientId,
+      date_paiement: new Date().toISOString(), sens: 'encaissement', statut: 'confirme',
+      mode_paiement: encMode, reference: ref || null,
+      montant_fcfa: montant, encaisse_par: null,
+      note: 'ENC-CREDIT|' + C.user.matricule
+    };
+    const rows = [{ table: 'paiements', row: p }];
+    let queued = false;
+    try { await execRows(rows); }
+    catch (e) {
+      // Rejet direct (permanent ou inconnu hors réseau) : on sort AVANT tout
+      // optimisme — rien n'a été décrémenté, le solde affiché reste juste.
+      if (isNetError(e)) { enqueue({ id: p.paiement_id, type: 'encaissement', rows }); queued = true; }
+      else { toast('Erreur : ' + e.message, 'error'); return; }
+    }
+    C.paiements = [p].concat(C.paiements);
+    s.solde_fcfa = solde - montant;
+    saveCache();
+    $('enc-montant').value = ''; $('enc-ref').value = '';
+    renderCloture();
+    showEncaissementReceipt(p, s);
+    toast(queued ? 'Encaissement enregistré (hors ligne — sera synchronisé)' : 'Encaissement enregistré');
+  } finally {
+    btn.disabled = false; btn.innerHTML = btnHtml;
+  }
+}
+
+/* Annulation de l'optimisme local d'un encaissement rejeté DÉFINITIVEMENT
+   au rejeu de la file : retire la ligne paiements optimiste et re-crédite
+   le solde. Garde d'idempotence : si la ligne n'est plus dans C.paiements
+   (état déjà rafraîchi depuis le serveur par loadData — qui remplace
+   paiements ET soldes ensemble), il n'y a rien à annuler : re-créditer
+   doublerait le solde. */
+function revertEncaissementFailed(item) {
+  const row = item.rows && item.rows[0] && item.rows[0].row;
+  if (!row) return;
+  const i = C.paiements.findIndex(x => x.paiement_id === row.paiement_id);
+  if (i === -1) return;
+  C.paiements.splice(i, 1);
+  const s = C.soldes.find(x => x.client_id === row.client_id);
+  if (s) s.solde_fcfa = Number(s.solde_fcfa || 0) + (Number(row.montant_fcfa) || 0);
   saveCache();
-  $('sortie-montant').value = ''; $('sortie-motif').value = '';
   renderCloture();
-  toast(queued
-    ? 'Sortie enregistrée (hors ligne — sera synchronisée)'
-    : (sortieType === 'versement' ? 'Versement enregistré' : 'Dépense enregistrée'));
+}
+
+/* Reçu d'encaissement — même papier et mêmes actions (imprimer, partager)
+   que le reçu de vente : shareReceipt lit #receipt-paper génériquement. */
+function showEncaissementReceipt(p, s) {
+  const d = new Date(p.date_paiement);
+  const numero = 'ENC-' + p.paiement_id.slice(0, 8).toUpperCase();
+  const def = PAY_MODES.find(m => m.id === p.mode_paiement);
+  $('receipt-content').innerHTML =
+    '<div class="receipt" id="receipt-paper">' +
+      '<div class="rc-center rc-brand">COQORICO</div>' +
+      '<div class="rc-center">Caisse ' + esc(C.pdv.nom || C.pdv.pdv_id) + '</div>' +
+      '<div class="rc-center">' + d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR').slice(0, 5) + ' — ' + esc(numero) + '</div>' +
+      '<div class="rc-center">Vendeur : ' + esc(C.user.matricule) + '</div>' +
+      '<div class="rc-line"></div>' +
+      '<table><tr><td>Règlement crédit — ' + esc(s.nom) + '</td><td class="r">' + fmt(p.montant_fcfa) + '</td></tr>' +
+      '<tr><td>' + esc(def ? def.label : p.mode_paiement) + (p.reference ? ' (' + esc(p.reference) + ')' : '') + '</td><td class="r"></td></tr></table>' +
+      '<div class="rc-line"></div>' +
+      '<table><tr class="rc-total"><td>ENCAISSÉ</td><td class="r">' + fmt(p.montant_fcfa) + ' F</td></tr>' +
+      '<tr><td>Reste dû</td><td class="r">' + fmt(s.solde_fcfa) + ' F</td></tr></table>' +
+      '<div class="rc-nonfiscal">Reçu d\'encaissement — document non fiscal</div>' +
+      '<div class="rc-line"></div>' +
+      '<div class="rc-center rc-legal">SIVA — Société Ivoirienne de Volailles et Assimilés</div>' +
+      (C.legal.rccm ? '<div class="rc-center rc-legal">RCCM : ' + esc(C.legal.rccm) + '</div>' : '') +
+      (C.legal.ncc ? '<div class="rc-center rc-legal">NCC : ' + esc(C.legal.ncc) + '</div>' : '') +
+    '</div>';
+  $('receipt-overlay').classList.remove('hidden');
+  icons();
 }
 
 /* ════════════════ CLÔTURE DE CAISSE (élargie — POS-1 item 3) ═══════ */
@@ -1655,6 +1852,7 @@ function renderCloture() {
           '<span class="v ' + (e === 0 ? '' : (e > 0 ? 'ecart-pos' : 'ecart-neg')) + '">écart ' + fcfa(e) + '</span></div>';
       }).join('')
     : '<p class="muted">Aucune clôture enregistrée.</p>';
+  renderEncaissement();
 }
 
 function majClotureCalc() {
@@ -1756,6 +1954,9 @@ function wireEvents() {
   $('btn-reception').addEventListener('click', submitReception);
   $('btn-perte').addEventListener('click', submitPerte);
   $('btn-sortie').addEventListener('click', submitSortie);
+  $('btn-encaissement').addEventListener('click', submitEncaissement);
+  $('enc-client').addEventListener('change', majEncaissementBox);
+  $('enc-montant').addEventListener('input', majEncaissementBox);
   $('btn-cloture').addEventListener('click', submitCloture);
   $('clo-fond').addEventListener('input', majClotureCalc);
   $('clo-compte').addEventListener('input', majClotureCalc);
@@ -1807,6 +2008,15 @@ function wireEvents() {
       perteMotif = pm2.dataset.perteMotif;
       document.querySelectorAll('#perte-motif-chips .mode-chip').forEach(b =>
         b.classList.toggle('sel', b.dataset.perteMotif === perteMotif));
+      return;
+    }
+    const em = e.target.closest('[data-enc-mode]');
+    if (em) {
+      encMode = em.dataset.encMode;
+      document.querySelectorAll('#enc-mode-chips .mode-chip').forEach(b =>
+        b.classList.toggle('sel', b.dataset.encMode === encMode));
+      const dm = PAY_MODES.find(m => m.id === encMode);
+      $('enc-ref-field').classList.toggle('hidden', !(dm && dm.ref));
       return;
     }
   });
