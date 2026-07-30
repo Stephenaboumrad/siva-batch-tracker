@@ -65,6 +65,11 @@ working rules for every task in this repository.
   `mouvements_stock`: renaming a product in the catalogue splits its stock
   history in two. Do not rename; create a new product and deactivate the
   old one instead.
+- Farm→PDV stock transfers (future SC-2.5) must NOT write
+  `cout_unitaire_fcfa` / `cout_total_fcfa` on `mouvements_stock` rows a
+  vendeur can read — RLS 0027 serves a PDV's rows to its vendeur, and RLS
+  cannot mask columns. If transfer costing is ever needed, create a
+  vendeur-facing sanitized view at that point (`bandes_pos` pattern).
 - Flag any deviation from the brief in the PR body rather than silently
   adopting it.
 
