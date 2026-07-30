@@ -5318,13 +5318,33 @@ const ALL_TABLES = [
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
 const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles']);
 
-// Source de lecture selon le rôle. chef_bande lit les vues assainies (sans
-// colonnes financières) ; les managers lisent les tables complètes.
-// (Les tables manager-only — paies/employes/depenses_rh — renvoient déjà [] pour
-//  chef_bande via la RLS, donc pas besoin de les détourner ici.)
+// Source de lecture selon le rôle (0040, fix #142). Tout rôle ≠ manager lit
+// les vues assainies _ops — les colonnes financières y sont ABSENTES CÔTÉ
+// SERVEUR (vues droits propriétaire + WHERE rôle JWT : la vraie barrière,
+// canSee('finance') redevient la défense en profondeur qu'il prétendait
+// être). Le manager lit les tables complètes. Repli [] si une vue n'existe
+// pas encore (front déployé avant l'exécution de 0040) — via sbSelectRouted
+// et le .catch de getAll.
+// (Les tables manager-only — paies/employes/depenses_rh — renvoient déjà []
+//  pour chef_bande via la RLS, donc pas besoin de les détourner ici.)
+const OPS_VIEWS = {
+  bandes: 'bandes_ops', intrants: 'intrants_ops', receptions: 'receptions_ops',
+  abattages: 'abattages_ops', aliments_phases: 'aliments_phases_ops',
+  formulations_mp: 'formulations_mp_ops', commandes: 'commandes_ops',
+  lignes_commande: 'lignes_commande_ops', clients: 'clients_ops'
+};
 function dataSourceFor(table) {
-  if (currentUser && currentUser.role !== 'manager' && table === 'bandes') return 'bandes_ops';
+  if (currentUser && currentUser.role !== 'manager' && OPS_VIEWS[table]) return OPS_VIEWS[table];
   return table;
+}
+
+// Lecture routée : applique dataSourceFor et, quand la lecture passe par une
+// vue, tolère son absence (migration 0040 pas encore exécutée) par un repli
+// [] silencieux — même discipline que le routage bandes_ops historique.
+function sbSelectRouted(table, filters) {
+  const src = dataSourceFor(table);
+  if (src !== table) return sbSelect(src, filters).catch(() => []);
+  return sbSelect(table, filters);
 }
 
 // ── Garde anti-troncature silencieuse ──────────────────────────────────────
@@ -5426,14 +5446,14 @@ async function apiGet(params) {
   }
   if (action === 'getAllSupplyChain') {
     const [fournisseurs, receptions, inspections, stocks] = await Promise.all([
-      sbSelect('fournisseurs'), sbSelect('receptions'),
-      sbSelect('inspections'), sbSelect('stocks')
+      sbSelectRouted('fournisseurs'), sbSelectRouted('receptions'),
+      sbSelectRouted('inspections'), sbSelectRouted('stocks')
     ]);
     return { fournisseurs, receptions, inspections, stocks };
   }
   if (action === 'getAllCommandes') {
     const [clients, commandes, lignes] = await Promise.all([
-      sbSelect('clients'), sbSelect('commandes'), sbSelect('lignes_commande')
+      sbSelectRouted('clients'), sbSelectRouted('commandes'), sbSelectRouted('lignes_commande')
     ]);
     return { clients, commandes, lignes };
   }
@@ -5466,7 +5486,7 @@ async function apiGet(params) {
   if (!cfg) throw new Error('Action inconnue: ' + action);
   const filters = (cfg.filterKey && params[cfg.filterKey] != null)
     ? { [cfg.filterKey]: params[cfg.filterKey] } : null;
-  return await sbSelect(cfg.table, filters);
+  return await sbSelectRouted(cfg.table, filters);
 }
 
 // ── Exécuteur de l'action composite addCommandeWithLignes (D-F1) ───────────
