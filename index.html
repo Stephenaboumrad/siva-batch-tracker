@@ -984,7 +984,11 @@ body::before {
   display:flex; flex-direction:column; gap:6px;
   padding:0 var(--space-3); flex:1;
   overflow-y:auto; overflow-x:hidden;
+  /* UX C3 : le rail défile déjà, mais sans affordance — barre fine visible. */
+  scrollbar-width:thin; scrollbar-color:var(--sidebar-icon) transparent;
 }
+#top-header .hdr-nav::-webkit-scrollbar { width:4px; }
+#top-header .hdr-nav::-webkit-scrollbar-thumb { background:var(--sidebar-icon); border-radius:2px; }
 #top-header .hdr-nav a {
   color:var(--sidebar-text); text-decoration:none;
   font-family:var(--sans); font-size:11px; font-weight:600;
@@ -2724,16 +2728,16 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- Center: Nav -->
   <nav class="hdr-nav" id="header-nav">
-    <a href="#" data-page="dashboard" class="active" onclick="navigate('dashboard',this)">
+    <a href="#" data-page="dashboard" class="active" title="Dashboard" onclick="navigate('dashboard',this)">
       <span class="icon"><i data-lucide="layout-dashboard"></i></span> <span class="nav-full">Dashboard</span><span class="nav-short">Dash</span> <span id="alert-badge" class="sidebar-badge" style="display:none;"></span>
     </a>
-    <a href="#" data-page="saisie" onclick="navigate('saisie',this)">
+    <a href="#" data-page="saisie" title="Saisie Terrain" onclick="navigate('saisie',this)">
       <span class="icon"><i data-lucide="pencil-ruler"></i></span> Saisie Terrain
     </a>
-    <a href="#" data-page="fiche" onclick="navigate('fiche',this)">
+    <a href="#" data-page="fiche" title="Fiche de bande" onclick="navigate('fiche',this)">
       <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
     </a>
-    <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this)">
+    <a href="#" data-page="veterinaire" title="Vétérinaire & Santé" onclick="navigate('veterinaire',this)">
       <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
     </a>
     <div class="nav-group" data-group="biosecurite">
@@ -2741,36 +2745,36 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité &amp; Contrôles</span><span class="nav-short">Bioséc.</span> <span class="nav-caret">▸</span>
       </a>
       <div class="nav-group-children">
-        <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this)">
+        <a href="#" data-page="vide-sanitaire" title="Vide sanitaire" onclick="navigate('vide-sanitaire',this)">
           <span class="icon"><i data-lucide="spray-can"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
         </a>
-        <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this)">
+        <a href="#" data-page="nuisibles" title="Nuisibles" onclick="navigate('nuisibles',this)">
           <span class="icon"><i data-lucide="bug-off"></i></span> <span class="nav-full">Nuisibles</span><span class="nav-short">Nuis.</span>
         </a>
-        <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this)">
+        <a href="#" data-page="etalonnage" title="Étalonnage" onclick="navigate('etalonnage',this)">
           <span class="icon"><i data-lucide="gauge"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
         </a>
       </div>
     </div>
-    <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this)">
+    <a href="#" data-page="non-conformites" title="Non-conformités" onclick="navigate('non-conformites',this)">
       <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
     </a>
-    <a href="#" data-page="abattage" onclick="navigate('abattage',this)">
+    <a href="#" data-page="abattage" title="Transformation & Abattage" onclick="navigate('abattage',this)">
       <span class="icon"><i data-lucide="package"></i></span> Transformation
     </a>
-    <a href="#" data-page="supply" onclick="navigate('supply',this)">
+    <a href="#" data-page="supply" title="Supply Chain" onclick="navigate('supply',this)">
       <span class="icon"><i data-lucide="truck"></i></span> <span class="nav-full">Supply Chain</span><span class="nav-short">Supply</span>
     </a>
-    <a href="#" data-page="clients" onclick="navigate('clients',this)">
+    <a href="#" data-page="clients" title="Commercial & Ventes" onclick="navigate('clients',this)">
       <span class="icon"><i data-lucide="banknote"></i></span> <span class="nav-full">Commercial & Ventes</span><span class="nav-short">Ventes</span>
     </a>
-    <a href="#" data-page="tresorerie" onclick="navigate('tresorerie',this)">
+    <a href="#" data-page="tresorerie" title="Trésorerie" onclick="navigate('tresorerie',this)">
       <span class="icon"><i data-lucide="wallet"></i></span> <span class="nav-full">Trésorerie</span><span class="nav-short">Tréso.</span>
     </a>
-    <a href="#" data-page="iot" onclick="navigate('iot',this)">
+    <a href="#" data-page="iot" title="Monitoring IoT" onclick="navigate('iot',this)">
       <span class="icon"><i data-lucide="activity"></i></span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
-    <a href="#" data-page="parametres" onclick="navigate('parametres',this)">
+    <a href="#" data-page="parametres" title="Paramètres" onclick="navigate('parametres',this)">
       <span class="icon"><i data-lucide="settings"></i></span> <span class="nav-full">Paramètres</span><span class="nav-short">Param.</span>
     </a>
   </nav>
@@ -2787,7 +2791,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- Right: User + Sync + Logout -->
   <div class="hdr-right">
-    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Notifications"><i data-lucide="bell"></i><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
+    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Validations en attente (intrants, réceptions, abattages déclarés par le chef)"><i data-lucide="bell"></i><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
     <div id="sync-status">
       <span class="sync-dot green"></span> <span id="sync-text">Synchronisé</span>
     </div>
@@ -2856,7 +2860,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <span class="mtb-title" id="mtb-page-title">Dashboard</span>
   <div class="mtb-actions">
     <button class="mtb-btn" id="mtb-soleil" onclick="toggleModeSoleil()" title="Mode sombre"><i data-lucide="moon"></i></button>
-    <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Notifications" style="display:none;"><i data-lucide="bell"></i><span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
+    <button class="mtb-btn" id="mtb-bell" onclick="toggleNotifPanel()" title="Validations en attente (intrants, réceptions, abattages déclarés par le chef)" style="display:none;"><i data-lucide="bell"></i><span class="bell-badge" id="mtb-bell-badge" style="display:none;position:absolute;top:2px;right:2px;">0</span></button>
   </div>
 </div>
 
@@ -8435,6 +8439,12 @@ function applyNavGroupBiosec() {
 function toggleNavGroupBiosec() {
   navGroupBiosecOpen = !navGroupBiosecOpen;
   applyNavGroupBiosec();
+  // UX C3 : le sous-menu déplié se rendait sous la ligne de flottaison du
+  // rail (qui défile) — l'amener à l'écran quand on l'ouvre.
+  if (navGroupBiosecOpen) {
+    const g = document.querySelector('.nav-group');
+    if (g) g.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
   return false;
 }
 
@@ -9400,7 +9410,11 @@ function renderDashboard() {
 
   // ── Attention panel: surface the worst current metric ──
   if (alerts.length > 0) {
-    let attHtml = '<div class="attention-panel"><h4><i data-lucide="triangle-alert"></i> Ce qui demande de l\'attention</h4>';
+    // C5 : le panneau est un SOUS-ENSEMBLE du bandeau d'alertes — il le dit,
+    // au lieu de contredire le compteur (« 7 alertes » vs 4 lignes).
+    const attShown = Math.min(4, alerts.length);
+    let attHtml = '<div class="attention-panel"><h4><i data-lucide="triangle-alert"></i> Ce qui demande de l\'attention'
+      + (alerts.length > attShown ? ' — ' + alerts.length + ' alertes, dont ' + attShown + ' prioritaires' : '') + '</h4>';
     alerts.slice(0, 4).forEach(a => {
       attHtml += '<div class="attention-item"><span style="font-size:16px;">' + a.icon + '</span><span>' + escHtml(a.text) + '</span></div>';
     });
@@ -9493,7 +9507,7 @@ function renderDashboard() {
         <div class="forecast-chip">${forecast.text}</div>
         <div class="quick-actions">
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openSaisieFor('${b.bande_id}')">Saisie terrain &#8599;</button>
-          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Analyses &#8599;</button>
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Voir les courbes &#8599;</button>
         </div>
       </div>`;
   });
@@ -9954,6 +9968,48 @@ async function linkReceptionToBande(bandeId) {
     const rr = STATE.receptions.find(x => x.reception_id === rid);
     if (rr) rr.bande_id = bandeId;
   }
+}
+
+// ── C6d : la densité se répare LÀ où on la constate — mini-modale surface
+// (m²) → updateBande. Manager only (écritures bandes = manager, RLS 0021 ;
+// le lien de la fiche est déjà gaté isManager). Aucun formulaire d'édition
+// de bande n'existait : ceci est la première voie de correction post-création.
+function showSurfaceModal(bandeId) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:380px;">
+      <h3>Surface du bâtiment — ${bande.nom_bande}</h3>
+      <div class="form-group">
+        <label>Surface (m²)</label>
+        <input type="number" id="surface-input" min="0" step="0.1" inputmode="decimal" placeholder="Ex : 1200" value="${bande.surface_m2 || ''}">
+        <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:0.25rem;">Active l'indicateur de densité (oiseaux/m²) — migration 0030.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveSurface('${bande.bande_id}')">Enregistrer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => { const f = document.getElementById('surface-input'); if (f) f.focus(); }, 60);
+}
+async function saveSurface(bandeId) {
+  const raw = document.getElementById('surface-input').value.trim();
+  const val = Number(raw);
+  if (raw === '' || !isFinite(val) || val <= 0) {
+    toast('Surface invalide : nombre de m² strictement positif attendu', 'error');
+    return;
+  }
+  const r = await saveRemote({ action: 'updateBande', payload: { bande_id: bandeId, surface_m2: val } });
+  if (!r.ok) return;
+  const b = STATE.bandes.find(x => x.bande_id === bandeId);
+  if (b) b.surface_m2 = val;
+  closeModal();
+  initFichePage();
+  toast(r.queued ? 'Surface enregistrée (hors ligne — sera synchronisée)' : 'Surface enregistrée');
 }
 
 function showNewBandeModal() {
@@ -11038,22 +11094,23 @@ function loadFicheBande() {
       </div>
     </div>
     <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem;">
-      Entrée : ${fmtDate(bande.date_entree)} | ${fmt(bande.nb_poussins_entree)} poussins | ${bande.fournisseur_poussins || '—'}
+      Entrée : ${fmtDate(bande.date_entree)} | ${fmt(bande.nb_poussins_entree)} poussins${bande.fournisseur_poussins ? ' | ' + bande.fournisseur_poussins : ''}
       ${bande.date_sortie ? ' | Sortie : ' + fmtDate(bande.date_sortie) : ''}
       | Cible carcasse : ${TARGET_CARCASS_WEIGHT_G/1000} kg (${pctCible}% atteint)
+      <span class="manager-only"> | <a href="#" onclick="navigate('tresorerie', document.querySelector('[data-page=tresorerie]'));return false;">Voir en Trésorerie ↗</a></span>
     </div>
     <div class="stat-grid">
       <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
       <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:${mortClass === 'green' ? 'var(--color-success)' : mortClass === 'orange' ? 'var(--color-warning)' : 'var(--color-danger)'}">${fmt(ind.viabilite,1)}%</div></div>
       <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic,2) : '—'}</div></div>
       <div class="stat-item"><div class="label">GMQ</div><div class="value">${ind.gmq != null ? fmt(ind.gmq,1) + ' g/j' : '—'}</div></div>
-      <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
-      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${ind.hasWeighing ? fmt(carcEst) + ' g' : '—'}</div></div>
+      <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div>${ind.hasWeighing ? '' : '<div style="font-size:10px;color:var(--text-muted);font-style:italic;">aucune pesée</div>'}</div>
+      <div class="stat-item"><div class="label">Carcasse est.</div><div class="value">${ind.hasWeighing ? fmt(carcEst) + ' g' : '—'}</div>${ind.hasWeighing ? '' : '<div style="font-size:10px;color:var(--text-muted);font-style:italic;">dès la 1re pesée</div>'}</div>
       <div class="stat-item"><div class="label">Eau totale</div><div class="value">${ind.eauTotal > 0 ? fmt(ind.eauTotal,0) + ' L' : '—'}</div></div>
       <div class="stat-item"><div class="label">Densité</div>${ind.densiteActuelle != null
         ? '<div class="value">' + fmt(ind.densiteActuelle, 1) + ' oiseaux/m²</div>'
           + (ind.densiteInitiale != null ? '<div style="font-size:10px;color:var(--text-muted);">initiale : ' + fmt(ind.densiteInitiale, 1) + ' oiseaux/m² — surface ' + fmt(ind.surfaceM2, 0) + ' m²</div>' : '')
-        : '<div class="value">—</div><div style="font-size:10px;color:var(--text-muted);font-style:italic;">densité non calculable — renseigner la surface (m²)</div>'}</div>
+        : '<div class="value">—</div><div style="font-size:10px;color:var(--text-muted);font-style:italic;">densité non calculable — ' + (isManager() ? '<a href="#" onclick="showSurfaceModal(\'' + bande.bande_id + '\');return false;">renseigner la surface (m²)</a>' : 'surface non renseignée (gérant)') + '</div>'}</div>
       <div class="stat-item"><div class="label">Commandes</div><div class="value">${getCommandesForBande(bande.bande_id).length}</div></div>
     </div>
     ${withdrawalHtml}
@@ -12206,6 +12263,13 @@ function caisseErrMessage(err) {
 // Dernière clôture par pdv_id depuis une liste triée date_cloture DESC :
 // la première rencontrée par PDV est la plus récente. Un PDV désactivé
 // garde son écart visible (l'argent manque toujours).
+// C1 : un écart est NON RÉSOLU si non nul ET sans résolution posée (0041).
+// Avant l'exécution de 0041, les lignes lues en select('*') n'ont pas la
+// colonne → undefined → tout écart non nul reste non résolu : dégradé sûr.
+function ecartNonResolu(c) {
+  return (Number(c.ecart_fcfa) || 0) !== 0 && !c.ecart_resolu_at;
+}
+
 function caisseDernieresClotures(clotures) {
   const derniere = {};
   (clotures || []).forEach(c => {
@@ -12226,11 +12290,11 @@ async function updateCaisseEcartBadge() {
   if (!canSee('finance')) { el.style.display = 'none'; return; }
   try {
     const { data, error } = await sb.from('cloture_caisse')
-      .select('pdv_id, ecart_fcfa, date_cloture')
+      .select('*')
       .order('date_cloture', { ascending: false }).limit(200);
     if (error) throw error;
     const ecarts = Object.values(caisseDernieresClotures(data))
-      .map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+      .filter(ecartNonResolu).map(c => Number(c.ecart_fcfa) || 0);
     if (ecarts.length === 1) {
       el.textContent = (ecarts[0] > 0 ? '+' : '') + fmt(ecarts[0]);
       el.title = 'Dernière clôture de caisse : écart de ' + (ecarts[0] > 0 ? '+' : '') + fmt(ecarts[0]) + ' FCFA';
@@ -12266,8 +12330,42 @@ function changeCaissePdvFiltre(p) {
    cloture_caisse, RLS 0027), seul un manager peut le corriger, avec une
    note OBLIGATOIRE (audit). L'override se pose sur la DERNIÈRE clôture du
    PDV : la caisse calcule fond = fond_suivant_fcfa − versements depuis. */
-function editFondSuivant(id) { fondEditClotureId = id; renderCaissePdv(); }
+function editFondSuivant(id) { fondEditClotureId = id; ecartEditClotureId = null; renderCaissePdv(); }
 function annuleFondSuivant() { fondEditClotureId = null; renderCaissePdv(); }
+
+/* ── C1 : résolution d'un écart de clôture (0041) ──────────────────────────
+   Manager only (la page et l'onglet sont déjà gatés canSee('finance') ; la
+   vraie barrière est la RLS : UPDATE cloture_caisse = rls27_cloture_manager,
+   le vendeur ne peut pas s'auto-résoudre). Note OBLIGATOIRE (audit). Un
+   écart résolu sort des agrégats (badge, carte zone 1, bandeau) via
+   ecartNonResolu mais reste visible dans le tableau avec son tag. */
+let ecartEditClotureId = null;
+function editEcartResolu(id) { ecartEditClotureId = id; fondEditClotureId = null; renderCaissePdv(); }
+function annuleEcartResolu() { ecartEditClotureId = null; renderCaissePdv(); }
+async function saveEcartResolu() {
+  const note = document.getElementById('ecart-resolu-note').value.trim();
+  if (!note) { toast('Note obligatoire pour résoudre un écart (audit)', 'error'); return; }
+  const { error } = await sb.from('cloture_caisse')
+    .update({
+      ecart_resolu_note: note,
+      ecart_resolu_at: new Date().toISOString(),
+      ecart_resolu_par: (currentUser && currentUser.matricule) || null
+    })
+    .eq('cloture_id', ecartEditClotureId);
+  if (error) {
+    toast(/column|schema cache/i.test(String(error.message))
+      ? 'Migration 0041 non appliquée en base — résolution indisponible'
+      : 'Erreur : ' + error.message, 'error');
+    return;
+  }
+  toast('Écart marqué résolu');
+  ecartEditClotureId = null;
+  // Revue #149 : re-rendre TOUTE la page Trésorerie — switchTresoTab('general')
+  // ne re-rend rien, la carte zone 1 « Écarts non résolus » resterait périmée.
+  // initTresoreriePage fait badge + zone 1 (fetchTresoPosition) + renderCaissePdv
+  // (onglet caisse actif).
+  initTresoreriePage();
+}
 async function saveFondSuivant() {
   const montant = Number(document.getElementById('fond-suivant-montant').value);
   const note = document.getElementById('fond-suivant-note').value.trim();
@@ -12286,7 +12384,9 @@ async function saveFondSuivant() {
   }
   toast('Fond de la prochaine période corrigé');
   fondEditClotureId = null;
-  renderCaissePdv();
+  // Revue #149 : même raison que saveEcartResolu — la carte zone 1
+  // « Espèces théoriques » dépend de fond_suivant, re-rendre toute la page.
+  initTresoreriePage();
 }
 
 async function renderCaissePdv() {
@@ -12383,7 +12483,7 @@ async function renderCaissePdv() {
     // Écarts non résolus : dernière clôture de chaque PDV avec écart ≠ 0
     // (même logique que le badge d'onglet — un PDV désactivé reste compté).
     const ecartsOuverts = Object.values(derniereCloture)
-      .map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+      .filter(ecartNonResolu).map(c => Number(c.ecart_fcfa) || 0);
     const ecartsSomme = ecartsOuverts.reduce((s, e) => s + e, 0);
 
     const modesHtml = Object.keys(parMode).length
@@ -12434,8 +12534,9 @@ async function renderCaissePdv() {
       const e = derniere ? (Number(derniere.ecart_fcfa) || 0) : 0;
       // Bug fix (revue) : un écart POSITIF n'est pas une bonne nouvelle — de
       // l'argent non expliqué reste un écart. Ambre si surplus, rouge si
-      // manquant, JAMAIS vert ; le signe reste affiché.
-      const colE = e === 0 ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
+      // manquant, JAMAIS vert ; le signe reste affiché. Résolu (C1) → neutre.
+      const eResolu = !!(derniere && e !== 0 && derniere.ecart_resolu_at);
+      const colE = (e === 0 || eResolu) ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
       const clotureCeJour = clotures.some(c => c.pdv_id === p.pdv_id && String(c.date_cloture || '').startsWith(jour));
       const nonCloture = estAujourdhui && txPdv.length > 0 && !clotureCeJour;
       return '<div class="card">'
@@ -12446,7 +12547,7 @@ async function renderCaissePdv() {
         + '<div style="' + kv + '"><span>CA du jour (finalisées)</span><strong style="' + mono + '">' + fmt(caPdv) + ' FCFA</strong></div>'
         + '<div style="' + kv + '"><span>Dernière clôture</span>'
         + (derniere
-          ? '<span style="' + mono + '">' + escHtml(fmtDate(derniere.date_cloture)) + ' · <strong style="color:' + colE + ';">écart ' + (e > 0 ? '+' : '') + fmt(e) + '</strong></span>'
+          ? '<span style="' + mono + '">' + escHtml(fmtDate(derniere.date_cloture)) + ' · <strong style="color:' + colE + ';">écart ' + (e > 0 ? '+' : '') + fmt(e) + (eResolu ? ' · résolu' : '') + '</strong></span>'
           : '<span style="color:var(--text-muted);">Jamais clôturé</span>')
         + '</div>'
         + '</div>';
@@ -12620,8 +12721,14 @@ async function renderCaissePdv() {
     const cloRows = cloVisibles.map(c => {
       const e = Number(c.ecart_fcfa) || 0;
       // Même règle que la carte PDV : surplus = ambre, manquant = rouge,
-      // jamais vert (bug fix revue).
-      const col = e === 0 ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
+      // jamais vert (bug fix revue). Résolu (C1/0041) → neutre + tag.
+      const resolu = e !== 0 && !!c.ecart_resolu_at;
+      const col = (e === 0 || resolu) ? 'var(--text-secondary)' : (e > 0 ? '#B7791F' : 'var(--color-danger)');
+      const resoluTag = resolu
+        ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:var(--radius-full);background:var(--color-surface-alt,#F0F0EC);color:var(--text-muted);" title="'
+          + escHtml('Résolu par ' + (c.ecart_resolu_par || '?') + ' le ' + fmtDate(c.ecart_resolu_at)
+          + (c.ecart_resolu_note ? ' — ' + c.ecart_resolu_note : '')) + '">résolu</span>'
+        : '';
       const derniere = derniereCloture[c.pdv_id] && derniereCloture[c.pdv_id].cloture_id === c.cloture_id;
       const ajs = ajustParCloture[c.cloture_id] || [];
       const ajHtml = ajs.length
@@ -12638,7 +12745,7 @@ async function renderCaissePdv() {
         + '<td class="num">' + fmt(c.fond_caisse_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.theorique_fcfa) + '</td>'
         + '<td class="num">' + fmt(c.compte_fcfa) + '</td>'
-        + '<td class="num" style="color:' + col + ';font-weight:700;">' + (e > 0 ? '+' : '') + fmt(e) + '</td>'
+        + '<td class="num" style="color:' + col + ';font-weight:700;white-space:nowrap;">' + (e > 0 ? '+' : '') + fmt(e) + resoluTag + '</td>'
         + '<td class="num">' + snap(c.total_mm_fcfa) + '</td>'
         + '<td class="num">' + snap(c.total_credit_fcfa) + '</td>'
         + '<td class="num">' + snap(c.total_depenses_fcfa) + '</td>'
@@ -12646,10 +12753,23 @@ async function renderCaissePdv() {
         + '<td>' + ajHtml + '</td>'
         + '<td class="num"' + (c.fond_suivant_note ? ' title="' + escHtml(c.fond_suivant_note) + '"' : '') + '>'
           + (c.fond_suivant_fcfa != null ? fmt(c.fond_suivant_fcfa) : '—') + '</td>'
-        + '<td>' + (derniere
+        + '<td style="white-space:nowrap;">'
+        + (e !== 0 && !resolu
+          ? '<button class="btn btn-outline btn-sm" onclick="editEcartResolu(\'' + escHtml(c.cloture_id) + '\')">Marquer résolu</button> '
+          : '')
+        + (derniere
           ? '<button class="btn btn-outline btn-sm" onclick="editFondSuivant(\'' + escHtml(c.cloture_id) + '\')">Corriger le fond</button>'
           : '') + '</td></tr>';
     }).join('');
+    // C1 : formulaire inline de résolution d'écart (note obligatoire — audit).
+    const ecartForm = ecartEditClotureId
+      ? '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.75rem;padding:0.75rem;background:var(--color-surface-alt);border-radius:var(--radius-md);">'
+        + '<div style="flex:1;min-width:260px;"><label style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Résolution de l\'écart — note obligatoire (audit)</label>'
+        + '<input id="ecart-resolu-note" type="text" placeholder="Ex. : recompté le ' + escHtml(fmtDate(todayStr())) + ', erreur de comptage" style="width:100%;padding:0.35rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);"></div>'
+        + '<button class="btn btn-primary btn-sm" onclick="saveEcartResolu()">Marquer résolu</button>'
+        + '<button class="btn btn-outline btn-sm" onclick="annuleEcartResolu()">Annuler</button>'
+        + '</div>'
+      : '';
     const fondForm = fondEditClotureId
       ? '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;margin-top:0.75rem;padding:0.75rem;background:var(--color-surface-alt);border-radius:var(--radius-md);">'
         + '<div><label style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;">Fond de la prochaine période (FCFA)</label>'
@@ -12670,6 +12790,7 @@ async function renderCaissePdv() {
           + '<th class="num">MM</th><th class="num">Crédit</th><th class="num">Dépenses</th><th class="num">Versements</th>'
           + '<th>Ajust. stock</th><th class="num">Fond suivant</th><th></th></tr></thead>'
           + '<tbody>' + cloRows + '</tbody></table></div>'
+          + ecartForm
           + fondForm
           + '<p style="color:var(--text-muted);font-size:0.78rem;margin:6px 0 0;">Le fond d\'ouverture de la caisse est verrouillé côté vendeur : espèces comptées de la dernière clôture − versements ferme, ou la correction posée ici (note obligatoire). '
           + 'MM / Crédit / Dépenses / Versements = instantané ATTESTÉ à la clôture (0037) — « — » = non attesté (clôture antérieure à la migration). Ajust. stock = écarts de comptage signés (+ surplus / − manquant).</p>'
@@ -12678,6 +12799,14 @@ async function renderCaissePdv() {
 
     box.innerHTML = stripHtml + chipsHtml + cartesHtml + txHtml + sortiesHtml + pertesHtml + moisHtml + cloHtml;
     if (window.lucide) lucide.createIcons();
+    // C2 : ouvrir un formulaire inline = l'amener À L'ÉCRAN, focus posé —
+    // il se rendait sous la ligne de flottaison, invisible au clic.
+    const focusForm = (id) => {
+      const f = document.getElementById(id);
+      if (f) { f.closest('div').scrollIntoView({ block: 'center', behavior: 'smooth' }); f.focus(); }
+    };
+    if (fondEditClotureId) focusForm('fond-suivant-montant');
+    if (ecartEditClotureId) focusForm('ecart-resolu-note');
   } catch (e) {
     box.innerHTML = '<div class="card"><div class="card-header"><h3><i data-lucide="store"></i> Caisse PDV</h3></div>'
       + '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">' + escHtml(caisseErrMessage(e)) + '</p></div>';
@@ -12762,7 +12891,8 @@ function initTresoreriePage() {
     const jour = b.statut === 'en_cours'
       ? (f.ind.jourActuel != null ? 'J' + f.ind.jourActuel : '—')
       : '—';
-    tblHtml += '<tr>' +
+    // C4 : la ligne s'ouvre sur la fiche de la bande (drill-down).
+    tblHtml += '<tr style="cursor:pointer;" title="Ouvrir la fiche de ' + escHtml(b.nom_bande) + '" onclick="openFiche(\'' + escHtml(b.bande_id) + '\')">' +
       '<td><strong>' + b.nom_bande + '</strong></td>' +
       '<td>' + statutBadge + '</td>' +
       '<td class="num">' + jour + '</td>' +
@@ -12922,7 +13052,7 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
   const depuis60 = new Date(Date.now() - 60 * 86400000).toISOString();
   try {
     const [cloR, pai60R, paiMoisR, txMoisR, txCliR, paiCliR] = await Promise.all([
-      sb.from('cloture_caisse').select('pdv_id, cloture_id, date_cloture, compte_fcfa, fond_suivant_fcfa, ecart_fcfa')
+      sb.from('cloture_caisse').select('*')
         .order('date_cloture', { ascending: false }).limit(200),
       sb.from('paiements').select('pdv_id, date_paiement, mode_paiement, montant_fcfa, sens, statut')
         .gte('date_paiement', depuis60).not('pdv_id', 'is', null).limit(2000),
@@ -12962,7 +13092,7 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
       'FCFA · ' + pdvIds.size + ' PDV, logique clôture caisse' + (partiel ? ' · fenêtre 60 j (partiel)' : '');
 
     // ── Zone 1b : écarts non résolus — ROUGE quel que soit le signe ──
-    const ecarts = Object.values(derniere).map(c => Number(c.ecart_fcfa) || 0).filter(e => e !== 0);
+    const ecarts = Object.values(derniere).filter(ecartNonResolu).map(c => Number(c.ecart_fcfa) || 0);
     const kEc = document.getElementById('treso-kpi-ecarts');
     const kEcCard = document.getElementById('treso-kpi-ecarts-card');
     if (ecarts.length) {
