@@ -12360,8 +12360,11 @@ async function saveEcartResolu() {
   }
   toast('Écart marqué résolu');
   ecartEditClotureId = null;
-  renderCaissePdv();
-  updateCaisseEcartBadge();
+  // Revue #149 : re-rendre TOUTE la page Trésorerie — switchTresoTab('general')
+  // ne re-rend rien, la carte zone 1 « Écarts non résolus » resterait périmée.
+  // initTresoreriePage fait badge + zone 1 (fetchTresoPosition) + renderCaissePdv
+  // (onglet caisse actif).
+  initTresoreriePage();
 }
 async function saveFondSuivant() {
   const montant = Number(document.getElementById('fond-suivant-montant').value);
@@ -12381,7 +12384,9 @@ async function saveFondSuivant() {
   }
   toast('Fond de la prochaine période corrigé');
   fondEditClotureId = null;
-  renderCaissePdv();
+  // Revue #149 : même raison que saveEcartResolu — la carte zone 1
+  // « Espèces théoriques » dépend de fond_suivant, re-rendre toute la page.
+  initTresoreriePage();
 }
 
 async function renderCaissePdv() {
