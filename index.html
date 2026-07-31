@@ -10558,10 +10558,12 @@ function validateSaisieField(field) {
     }
     setFieldMsg(field, null); return null;
   } else if (field === 'temp-observee') {
-    // T° du cahier : simple garde de plausibilité fixe (20–40°C), jamais
-    // bloquante — contrairement à la T° d'ambiance, pas de norme d'âge ici.
-    if (val < 20 || val > 40) {
-      setFieldMsg(field, 'warn', 'Température inhabituelle (plausible : 20–40°C) — confirmer ?');
+    // T° des SUJETS (UX A1, revue #147) : garde de plausibilité CLINIQUE —
+    // la température corporelle d'un poulet est ~41-42°C au repos, davantage
+    // en fièvre. L'ancienne plage 20-40°C (sémantique ambiante d'avant A1)
+    // aurait alerté sur toute valeur légitime. Jamais bloquante.
+    if (val < 35 || val > 45) {
+      setFieldMsg(field, 'warn', 'T° corporelle inhabituelle (plausible : 35–45°C) — confirmer ?');
       return 'warn';
     }
     setFieldMsg(field, null); return null;
