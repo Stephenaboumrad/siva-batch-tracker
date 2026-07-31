@@ -3244,7 +3244,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <!-- Bilan de bande DMAICS (clôture P6) — manager + bande terminée
            uniquement, rempli par renderFicheBilanDmaics() ; vide sinon. -->
       <div id="fiche-bilan-dmaics" style="display:none;"></div>
-      <!-- Encart Rentabilité (réservé managers SIVA-001 / SIVA-002) — rempli par renderFicheRentabilite() -->
+      <!-- Encart Rentabilité (manager — canSee finance) — rempli par renderFicheRentabilite() -->
       <div class="card" id="fiche-rentabilite" style="display:none;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
         <div class="card">
@@ -8610,7 +8610,12 @@ function computeIndicators(bande) {
   const surfaceM2 = Number(bande.surface_m2) || 0;
   const densiteInitiale = (surfaceM2 > 0 && nbEntree > 0) ? nbEntree / surfaceM2 : null;
   const densiteActuelle = surfaceM2 > 0 ? effectifActuel / surfaceM2 : null;
-  const ic = (effectifActuel > 0 && dernierPoids > 0)
+  // Audit pré-placement : IC NUL tant qu'aucune pesée réelle (miroir du motif
+  // GMQ ci-dessous) — sans pesée, dernierPoids vaut le poids d'ENTRÉE reporté
+  // (42 g) et l'IC gonflé déclenchait « IC critique » à tort toute la première
+  // semaine. Consommateurs vérifiés null-sûrs : KPIs « — », alerte (!= null),
+  // computeIP (garde !ic), DMAICS (teste null), exports (« — »).
+  const ic = (poidsMesure != null && effectifActuel > 0 && dernierPoids > 0)
     ? alimentTotal / ((dernierPoids / 1000) * effectifActuel)
     : null;
   // Jour de cycle réel (basé sur les dates), indépendant de la fréquence des saisies.
@@ -9804,8 +9809,6 @@ function renderBandes() {
 
 // ── Gestion des bandes : archivage & suppression ──
 
-// Liste conservée pour canViewRentabilite (encart Rentabilité de la fiche).
-const SUPER_ADMIN_MATRICULES = ['SIVA-001', 'SIVA-002'];
 // Suppression définitive : contrôle par RÔLE (migration 0021 = enforcement
 // serveur — RLS manager-only + trigger BEFORE DELETE). Le check client n'est
 // plus qu'une affordance UX ; le serveur est le contrôle.
@@ -11119,7 +11122,7 @@ function loadFicheBande() {
   // Bilan de bande DMAICS (manager + bande terminée ; vide sinon)
   renderFicheBilanDmaics(bande, ind);
 
-  // Encart Rentabilité (réservé managers SIVA-001 / SIVA-002)
+  // Encart Rentabilité (manager — canSee finance)
   renderFicheRentabilite(bande);
 
   // Charts
@@ -11136,9 +11139,12 @@ function loadFicheBande() {
 }
 
 // ── Encart Rentabilité de la fiche bande ──
-// Vue réservée aux managers SIVA-001 / SIVA-002 (pas au compte démo SIVA-003).
+// Audit pré-placement : gate par RÔLE (canSee('finance'), comme tout bloc
+// financier — C-F1), plus de matricules en dur. L'ancienne liste
+// SIVA-001/002 excluait par construction tout NOUVEAU manager légitime ;
+// le compte démo SIVA-003 est chef_bande → toujours exclu par le rôle.
 function canViewRentabilite() {
-  return !!currentUser && SUPER_ADMIN_MATRICULES.includes(currentUser.matricule);
+  return canSee('finance');
 }
 
 function renderFicheRentabilite(bande) {
@@ -12238,7 +12244,7 @@ function caisseModeLabel(m) { return CAISSE_MODE_LABELS[m] || m || '—'; }
 // item 1). Dupliqué de caisse.html À DESSEIN : trois surfaces sans code
 // partagé (règle d'architecture).
 const CAISSE_PERTE_LABELS = {
-  perime: 'Périmé', casse: 'Casse', invendu: 'Invendu jeté',
+  perime: 'Périmé', casse: 'Casse', invendu: 'Invendu',
   don: 'Don', autoconso: 'Autoconsommation'
 };
 
