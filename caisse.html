@@ -2130,6 +2130,9 @@ function wireEvents() {
       C.cart.splice(+qpoids.dataset.qpoids, 1);
       $('poids-titre').textContent = l.nom;
       $('poids-input').value = l.qty;
+      // Revue #148 : effacer l'erreur d'une saisie précédente — ce chemin
+      // rouvrait la modale avec un poids valide ET l'ancien message rouge.
+      $('poids-msg').classList.add('hidden');
       $('poids-overlay').classList.remove('hidden');
       renderCart();
       return;
