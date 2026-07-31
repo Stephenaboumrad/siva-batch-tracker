@@ -12668,7 +12668,7 @@ function initTresoreriePage() {
     '<div class="dash-kpi dk-headline"><div class="dk-value" id="treso-kpi-especes">…</div><div class="dk-label">Espèces théoriques en caisse</div><div class="dk-sub" id="treso-kpi-especes-sub">FCFA · calcul…</div></div>' +
     '<div class="dash-kpi" id="treso-kpi-ecarts-card"><div class="dk-value" id="treso-kpi-ecarts">…</div><div class="dk-label">Écarts de clôture non résolus</div><div class="dk-sub" id="treso-kpi-ecarts-sub">dernière clôture par PDV</div></div>' +
     '<div class="dash-kpi"><div class="dk-value">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · cumul, détail ci-dessous</div></div>' +
-    '<div class="dash-kpi' + (aPayer > 0 ? ' dk-danger' : '') + '"><div class="dk-value">' + fmt(aPayer) + '</div><div class="dk-label">À payer ce mois (RH) — ' + periodLabel + '</div><div class="dk-sub">masse ' + fmt(masseSalariale) + ' − payé ' + fmt(paiesMoisCharges) + '</div></div>';
+    '<div class="dash-kpi' + (aPayer > 0 ? ' dk-danger' : '') + '"><div class="dk-value">' + fmt(aPayer) + '</div><div class="dk-label">À payer ce mois (RH) — ' + periodLabel + '</div><div class="dk-sub">masse ' + fmt(masseSalariale) + ' − enregistré ' + fmt(paiesMoisCharges) + '</div></div>';
 
   // ── Zone 2 : « Activité du mois » — B2B / B2C / Total (rendue par
   // fetchTresoPosition, la colonne B2C vient des tables POS) ──
