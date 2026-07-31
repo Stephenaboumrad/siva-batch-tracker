@@ -311,6 +311,14 @@
 #page-tresorerie tfoot td { background: var(--color-surface); border-top: var(--border-hairline); font-weight: var(--fw-bold); }
 #page-tresorerie tfoot td.num { color: var(--color-accent); }   /* accent sur le SEUL chiffre clé (TOTAL CA livré) */
 
+/* UX A4 — 7 derniers jours (Saisie Terrain) : 1re colonne (date + J) collante
+   pendant le défilement horizontal du .table-wrap. Fond opaque obligatoire
+   sinon les colonnes défilent visiblement dessous. */
+.saisies-recent-table th:first-child, .saisies-recent-table td:first-child {
+  position: sticky; left: 0; z-index: 1;
+  background: var(--card-bg); white-space: nowrap;
+}
+
 /* Créances — lignes compactes (fini la sous-table encadrée) */
 #page-tresorerie .cr-client-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; padding: var(--space-3) 0 var(--space-1); margin-top: var(--space-2); border-top: var(--border-hairline); font-weight: var(--fw-bold); font-size: 12.5px; }
 #page-tresorerie .creances-card .cr-client-head:first-of-type { margin-top: 0; border-top: none; }
@@ -3094,14 +3102,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <label class="signe-chip"><input type="checkbox" id="saisie-entassement"> entassement constaté</label>
         </div>
         <input type="text" id="saisie-signes-libre" placeholder="Autres signes observés (texte libre)" style="margin-top:0.5rem;">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:0.25rem;font-style:italic;">Signes factuels uniquement — le diagnostic est établi par le vétérinaire (flux de validation existant).</div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Température observée (°C)</label>
-          <input type="number" id="saisie-temp-observee" step="0.1" min="0" max="50" placeholder="—" inputmode="decimal">
-          <div class="field-msg" id="saisie-msg-temp-observee"></div>
+        <!-- UX A1 : la T° observée vit ICI, dans le bloc clinique — c'est une
+             observation sur les SUJETS (colonne temperature_observee_c, 0024),
+             pas la série quotidienne d'ambiance. LA température du jour est
+             celle du bâtiment (bloc Ambiance ci-dessous, temperature_c). -->
+        <div class="form-row" style="margin-top:0.5rem;">
+          <div class="form-group">
+            <label>T° des sujets si anormale (°C, optionnel)</label>
+            <input type="number" id="saisie-temp-observee" step="0.1" min="0" max="50" placeholder="—" inputmode="decimal">
+            <div class="field-msg" id="saisie-msg-temp-observee"></div>
+          </div>
         </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:0.25rem;font-style:italic;">Signes factuels uniquement — le diagnostic est établi par le vétérinaire (flux de validation existant).</div>
       </div>
       <div class="form-group">
         <label>Observations</label>
@@ -3109,11 +3121,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
 
       <!-- Compléments hors cahier : pesée d'échantillon + ambiance bâtiment.
-           Champs EXISTANTS inchangés (ids, libellés, validation par normes
-           d'âge) — déplacés après le bloc cahier, jamais renommés ni retirés.
-           saisie-temperature = T° d'ambiance (colonne temperature_c, futur
-           pipeline IoT), distincte de saisie-temp-observee (T° relevée sur le
-           cahier → temperature_observee_c, migration 0024). -->
+           UX A1 (le doublon de température a corrompu les données du dry run,
+           J2-J8 dans une colonne, J9-J11 dans l'autre) : saisie-temperature
+           (« Température du bâtiment », colonne temperature_c) est LA
+           température du jour — normes, alertes et graphiques ne lisent
+           qu'elle. saisie-temp-observee (bloc clinique ci-dessus,
+           temperature_observee_c, 0024) = T° des SUJETS si anormale,
+           optionnelle — observation clinique, jamais une série. -->
       <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Compléments (hors cahier)</div>
         <div class="form-row">
@@ -3134,7 +3148,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Ambiance bâtiment</div>
         <div class="form-row">
           <div class="form-group">
-            <label>Température (°C)</label>
+            <label>Température du bâtiment (°C)</label>
             <input type="number" id="saisie-temperature" step="0.1" min="0" max="50" placeholder="—">
             <div class="field-msg" id="saisie-msg-temperature"></div>
           </div>
@@ -5115,11 +5129,15 @@ const COBB_STANDARD = [
   { day: 42, weight: 2450 }
 ];
 
-// ── Helper: jour de cycle "réel" d'un lot ──
-// Source de vérité = les DATES : jour = (aujourd'hui − date de mise en place) + 1.
-// Jamais un compteur arbitraire (ex : jour_bande figé d'une vieille saisie).
+// ── SOURCE UNIQUE du compteur de jour (UX A7 — ex-cycleDay, renommé) ──
+// Convention : J1 = jour de mise en place — VÉRIFIÉE contre le seed vaccinal
+// (0017:7 « J1=entree », 0019:20, 0020:61 traduisent le J0 vétérinaire en J1).
+// Source de vérité = les DATES : jour = (date − date de mise en place) + 1.
+// Jamais un compteur arbitraire (ex : jour_bande figé d'une vieille saisie) —
+// sidebar, sélecteurs, chips et fiche passent tous par ICI ; toute divergence
+// J26/J27/J28 est impossible par construction.
 // Retourne null si la date de mise en place est manquante ou incohérente.
-function cycleDay(bande, refDate) {
+function computeJourBande(bande, refDate) {
   if (!bande || !bande.date_entree) return null;
   const d = daysBetween(bande.date_entree, refDate || todayStr()) + 1;
   if (!Number.isFinite(d) || d < 1) return null;
@@ -5136,7 +5154,7 @@ function bandeLabel(bande, opts) {
   const parts = [(bande.nom_bande || bande.bande_id || '—')];
   parts.push(bande.batiment || '—');
   if (bande.statut === 'en_cours') {
-    const j = cycleDay(bande);
+    const j = computeJourBande(bande);
     if (j != null) parts.push('J' + j);
   } else if (opts.statut) {
     parts.push(bande.statut === 'termine' ? 'Terminée' : (bande.statut || ''));
@@ -5155,7 +5173,7 @@ function getCurrentPhase(jour) {
 function getIoTReferenceNorm() {
   const active = STATE.bandes
     .filter(b => b.statut === 'en_cours' && !b.archivee)
-    .map(b => ({ b, jour: cycleDay(b) }))
+    .map(b => ({ b, jour: computeJourBande(b) }))
     .filter(x => x.jour != null)
     .sort((a, z) => z.jour - a.jour)[0];
   const jour = active ? active.jour : 21;   // défaut documenté : mi-cycle si aucun lot actif
@@ -6086,7 +6104,13 @@ function renderVetOverview() {
     else {
       const nx = pendingV[0];
       echVal = protoJourLabel(nx.proto);
-      if (nx.status === 'retard')   { echSub = escHtml(nx.proto.nom_vaccin) + ' — en retard'; echClass = 'dk-danger'; }
+      // UX A6 : un acte en retard n'est pas une « prochaine échéance » comme
+      // les autres — dire DEPUIS QUAND (fin de fenêtre, sinon jour prévu).
+      if (nx.status === 'retard') {
+        echVal = 'En retard';
+        echSub = escHtml(nx.proto.nom_vaccin) + ' — depuis le ' + fmtDate(nx.windowEndDate || nx.plannedDate) + ' (' + protoJourLabel(nx.proto) + ')';
+        echClass = 'dk-danger';
+      }
       else if (nx.status === 'due') { echSub = escHtml(nx.proto.nom_vaccin) + ' — aujourd\'hui'; echClass = 'dk-danger'; }
       else                          { echSub = escHtml(nx.proto.nom_vaccin) + ' — dans ' + nx.daysUntil + ' j'; echClass = ''; }
     }
@@ -6127,7 +6151,7 @@ function renderVetOverview() {
   }
 
   el.innerHTML = kpis + wdLine
-    + '<p style="margin-top:1rem;font-size:0.78rem;color:var(--text-muted);font-style:italic;">Indicateurs dérivés des saisies et intrants existants. Le carnet de vaccination, les traitements, la mortalité détaillée et la biosécurité seront activés dans leurs onglets dédiés.</p>';
+    + '<p style="margin-top:1rem;font-size:0.78rem;color:var(--text-muted);font-style:italic;">Indicateurs dérivés des saisies, intrants et du carnet de vaccination — le détail vit dans les onglets dédiés.</p>';
 }
 
 // ── Carnet de vaccination (PIECE 2) ───────────────────────────────────────
@@ -6136,7 +6160,7 @@ function renderVetOverview() {
 // écritures passent par les handlers dédiés (migration 0017 + RLS).
 
 // Statut par bande : 1 entrée par ligne ACTIVE du protocole. Date prévue =
-// date_entree + (jour_cible - 1) (convention J1 = jour d'entrée, comme cycleDay).
+// date_entree + (jour_cible - 1) (convention J1 = jour d'entrée, comme computeJourBande).
 // refDateStr (optionnel, 'YYYY-MM-DD') : jour de référence des statuts
 // due/retard/avenir — défaut aujourd'hui, comportement STRICTEMENT INCHANGÉ
 // pour tous les appelants existants (onglet vaccination, alertes dashboard).
@@ -6181,7 +6205,7 @@ function computeVaccinationStatus(bande, refDateStr) {
 }
 
 // Libellé de jour d'un item de protocole : « Jx » ou « Jx–Jy » si fenêtre
-// (jour_max). Convention app : J1 = mise en place (comme cycleDay). Utilisé par
+// (jour_max). Convention app : J1 = mise en place (comme computeJourBande). Utilisé par
 // le carnet de vaccination, la vue d'ensemble et les alertes.
 function protoJourLabel(p) {
   const jc = Number(p.jour_cible);
@@ -6433,7 +6457,7 @@ async function deleteVaccination(vaccId) {
 // 0018) + registre d'exécution par bande (traitements, 0018). Aucune valeur
 // médicale en dur : délais d'attente SAISIS à l'exécution (migration 0015-0016),
 // seuils de mortalité PARAMÉTRÉS. Convention de jour app inchangée (J1 = mise en
-// place, comme cycleDay).
+// place, comme computeJourBande).
 
 // ── Données de référence vétérinaire (libellés uniquement, aucune logique) ──
 const VET_MONITORING_SIGNS = ['Diarrhée', 'Symptômes respiratoires', 'Mortalité élevée'];
@@ -6546,11 +6570,12 @@ function vetParamNum(key) {
 }
 // Format d'un SEUIL en % : entier propre (3 %) sinon une décimale (2,5 %).
 function fmtPct(n) { return fmt(n, (Number(n) % 1 === 0) ? 0 : 1); }
-// Âge (Jx, convention app J1 = mise en place) d'un acte daté sur une bande.
+// Âge (Jx) d'un acte daté sur une bande — délégué de computeJourBande (A7 :
+// source unique, convention J1 = mise en place). Acte antérieur à la mise en
+// place → null (affiché « — », plus jamais un J négatif).
 function ageJourBande(bande, dateStr) {
-  if (!bande || !bande.date_entree || !dateStr) return null;
-  const d = daysBetween(bande.date_entree, dateStr);
-  return (d == null || isNaN(d)) ? null : (d + 1);
+  if (!dateStr) return null;
+  return computeJourBande(bande, dateStr);
 }
 
 // ── Onglet Traitements : plan de référence (manager) + registre par bande ──
@@ -7017,7 +7042,7 @@ async function exportRegistreDSV() {
     const infoR = [
       'Souche : ' + souche,
       'Effectif entrée : ' + fmt(bande.nb_poussins_entree) + '  ·  actuel : ' + fmt(ind.effectifActuel),
-      'Âge actuel : J' + (cycleDay(bande) || '—')
+      'Âge actuel : J' + (computeJourBande(bande) || '—')
     ];
     infoL.forEach((t, i) => doc.text(t, 12, y + i * 5));
     infoR.forEach((t, i) => doc.text(t, pw / 2, y + i * 5));
@@ -8447,6 +8472,12 @@ function navigate(page, el) {
   if (NAV_GROUP_BIOSECURITE_PAGES.includes(page)) navGroupBiosecOpen = true;
   applyNavGroupBiosec();
 
+  // UX A2 : chaque changement de page repart du HAUT — sans ça, la position
+  // de défilement de la page précédente persiste (Saisie ouverte au milieu du
+  // formulaire sur « Prophylaxie », Bandes sur du blanc). Même idiome que la
+  // caisse (switchView → scrollTo).
+  window.scrollTo(0, 0);
+
   switch (page) {
     case 'dashboard': renderDashboard(); break;
     case 'bandes': renderBandes(); break;
@@ -8521,7 +8552,7 @@ function computeIndicators(bande) {
   let jourPesee = null;
 
   const dailyData = saisies.map(s => {
-    const jour = Number(s.jour_bande) || (daysBetween(bande.date_entree, s.date_saisie) + 1);
+    const jour = Number(s.jour_bande) || computeJourBande(bande, s.date_saisie) || 1;
     mortCum += Number(s.mortalite_jour) || 0;
     alimentTotal += Number(s.aliment_consomme_kg) || 0;
     eauTotal += Number(s.eau_consommee_l) || 0;
@@ -8573,7 +8604,7 @@ function computeIndicators(bande) {
     ? alimentTotal / ((dernierPoids / 1000) * effectifActuel)
     : null;
   // Jour de cycle réel (basé sur les dates), indépendant de la fréquence des saisies.
-  const jourActuel = cycleDay(bande);
+  const jourActuel = computeJourBande(bande);
   const hasWeighing = poidsMesure != null;
   // GMQ = gain moyen depuis le démarrage jusqu'à la DERNIÈRE PESÉE réelle.
   // null si aucune pesée : on n'invente pas un GMQ à partir du poids initial reporté.
@@ -8675,13 +8706,13 @@ function checkAlerts() {
       }
     }
 
-    // Aucune saisie aujourd'hui
+    // Aucune saisie aujourd'hui → tape = ouvrir la Saisie Terrain (UX A5)
     if (!ind.lastSaisieDate || daysBetween(ind.lastSaisieDate, todayStr()) >= 1) {
-      alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Aucune saisie aujourd\'hui' });
+      alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: b.nom_bande + ' — Aucune saisie aujourd\'hui', nav: ['saisie'] });
     }
 
     // Abattage à planifier — basé sur le poids carcasse cible
-    const jour = ind.jourActuel || ind.dernierJour || (daysBetween(b.date_entree, todayStr()) + 1);
+    const jour = computeJourBande(b) || ind.dernierJour || 1;
     if (ind.hasWeighing && ind.carcasseEstimee >= TARGET_CARCASS_WEIGHT_G * 0.9) {
       const hasAbattage = STATE.abattages.some(a => a.bande_id === b.bande_id);
       if (!hasAbattage) {
@@ -8698,17 +8729,17 @@ function checkAlerts() {
     if (ind.lastTemp != null) {
       const norm = getAmbianceNorm(jour);
       if (ind.lastTemp < norm.tempMin - 3 || ind.lastTemp > norm.tempMax + 3) {
-        alerts.push({ level: 'critical', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température critique : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température critique : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)', nav: ['fiche', b.bande_id] });
       } else if (ind.lastTemp < norm.tempMin || ind.lastTemp > norm.tempMax) {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température hors norme : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="thermometer"></i>', text: b.nom_bande + ' — Température hors norme : ' + fmt(ind.lastTemp, 1) + '°C (norme ' + norm.tempMin + '–' + norm.tempMax + '°C)', nav: ['fiche', b.bande_id] });
       }
     }
     if (ind.lastHumidite != null) {
       const norm = getAmbianceNorm(jour);
       if (ind.lastHumidite < norm.humMin - 10 || ind.lastHumidite > norm.humMax + 10) {
-        alerts.push({ level: 'critical', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité critique : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité critique : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)', nav: ['fiche', b.bande_id] });
       } else if (ind.lastHumidite < norm.humMin || ind.lastHumidite > norm.humMax) {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="droplet"></i>', text: b.nom_bande + ' — Humidité hors norme : ' + fmt(ind.lastHumidite, 1) + '% (norme ' + norm.humMin + '–' + norm.humMax + '%)', nav: ['fiche', b.bande_id] });
       }
     }
 
@@ -8716,11 +8747,11 @@ function checkAlerts() {
     // le rappel s'efface dès qu'une ligne vaccinations existe — a_valider OU valide).
     computeVaccinationStatus(b).forEach(v => {
       if (v.status === 'retard') {
-        alerts.push({ level: 'critical', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » EN RETARD (prévue ' + protoJourLabel(v.proto) + ', ' + fmtDate(v.plannedDate) + ')' });
+        alerts.push({ level: 'critical', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » EN RETARD (prévue ' + protoJourLabel(v.proto) + ', ' + fmtDate(v.plannedDate) + ')', nav: ['veterinaire', b.bande_id, 'vaccination'] });
       } else if (v.status === 'due') {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » à faire AUJOURD\'HUI (' + protoJourLabel(v.proto) + ')' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » à faire AUJOURD\'HUI (' + protoJourLabel(v.proto) + ')', nav: ['veterinaire', b.bande_id, 'vaccination'] });
       } else if (v.status === 'avenir' && v.daysUntil != null && v.daysUntil <= 3) {
-        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » dans ' + v.daysUntil + ' j (' + protoJourLabel(v.proto) + ')' });
+        alerts.push({ level: 'warning', icon: '<i data-lucide="syringe"></i>', text: b.nom_bande + ' — Vaccination « ' + v.proto.nom_vaccin + ' » dans ' + v.daysUntil + ' j (' + protoJourLabel(v.proto) + ')', nav: ['veterinaire', b.bande_id, 'vaccination'] });
       }
     });
   });
@@ -8769,13 +8800,38 @@ function renderAlerts(alerts) {
   let html = '<div class="alerts-section">';
   alerts.forEach(a => {
     const cls = a.level === 'critical' ? 'critical' : 'warning';
-    html += `<div class="alert-item ${cls}">
+    // UX A5 : une alerte taguée nav se TAPE — elle mène là où l'action se
+    // fait (saisie manquante → Saisie ; ambiance → fiche ; vaccin → Carnet).
+    const attrs = Array.isArray(a.nav)
+      ? ' role="button" tabindex="0" style="cursor:pointer;" onclick="alertNavigate(' +
+        a.nav.map(x => x == null ? 'null' : "'" + String(x).replace(/'/g, "\\'") + "'").join(',') + ')"'
+      : '';
+    html += `<div class="alert-item ${cls}"${attrs}>
       <span class="alert-icon">${a.icon}</span>
-      ${a.text}
+      ${a.text}${attrs ? ' <span style="opacity:.45;">›</span>' : ''}
     </div>`;
   });
   html += '</div>';
   container.innerHTML = html;
+}
+
+// UX A5 : cible de navigation d'une alerte. fiche → openFiche (sélectionne la
+// bande) ; veterinaire → pré-sélectionne la bande dans le sélecteur puis ouvre
+// l'onglet demandé (ex. Carnet de vaccination).
+function alertNavigate(page, bandeId, vetTab) {
+  if (page === 'fiche' && bandeId) { openFiche(bandeId); return; }
+  navigate(page, document.querySelector('[data-page="' + page + '"]'));
+  if (page === 'veterinaire') {
+    const sel = document.getElementById('vet-bande-select');
+    if (sel && bandeId && Array.prototype.some.call(sel.options, o => o.value === bandeId)) {
+      sel.value = bandeId;
+      if (typeof sel.onchange === 'function') sel.onchange();
+    }
+    if (vetTab) {
+      const btn = document.querySelector('[data-vet-tab="' + vetTab + '"]');
+      if (btn) switchVetTab(vetTab, btn);
+    }
+  }
 }
 
 // ── Slaughter forecast ──
@@ -8784,7 +8840,7 @@ function renderAlerts(alerts) {
 // pour ne JAMAIS produire de valeur absurde (ex : « J+225 ») même avec des pesées aberrantes/manquantes.
 function computeSlaughterForecast(bande, ind) {
   const rendement = Number(bande.rendement_carcasse_pct) || TARGET_CARCASS_YIELD_PCT;
-  const jourActuel = ind.jourActuel || cycleDay(bande) || ind.dernierJour || 0;
+  const jourActuel = ind.jourActuel || computeJourBande(bande) || ind.dernierJour || 0;
 
   // Poids de référence = dernière PESÉE réelle (jamais le poids initial reporté).
   const currentWeight = ind.poidsMesure || 0;
@@ -9622,7 +9678,10 @@ function updateSidebarLotActif() {
   if (activeBandes.length === 0) { panel.style.display = 'none'; return; }
   const b = activeBandes[0];
   const ind = computeIndicators(b);
-  const jour = ind.dernierJour || daysBetween(b.date_entree, todayStr()) + 1;
+  // A7 : jour CALENDAIRE d'abord (source unique) — l'ancien ordre préférait
+  // le jour_bande STOCKÉ de la dernière saisie, d'où le J26 sidebar contre
+  // J27 sélecteur.
+  const jour = computeJourBande(b) || ind.dernierJour || 1;
   const pct = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
   document.getElementById('sla-id').textContent = b.nom_bande;
   document.getElementById('sla-info').textContent = 'J' + jour + '/J' + CYCLE_DURATION_DAYS + ' — ' + (b.batiment || '—');
@@ -9686,6 +9745,9 @@ function renderBandes() {
   if (bandeFilter === 'termine') bandes = bandes.filter(b => b.statut === 'termine');
   // Les bandes archivées sont masquées par défaut (toggle "Afficher les archivées").
   if (!showArchivedBandes) bandes = bandes.filter(b => !b.archivee);
+  // UX A4 : plus récente EN PREMIER — même ordre que partout ailleurs
+  // (l'ordre STATE est created_at croissant, la bande active finissait en bas).
+  bandes.sort((a, b) => String(b.date_entree || '').localeCompare(String(a.date_entree || '')));
 
   if (bandes.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune bande trouvée</p></div>';
@@ -9711,7 +9773,7 @@ function renderBandes() {
     }
     // Jour de cycle (J-day) affiché seulement pour les bandes en cours ;
     // classe cell-empty = fournisseur non renseigné (masqué en carte mobile).
-    const jday = b.statut === 'en_cours' ? cycleDay(b) : null;
+    const jday = b.statut === 'en_cours' ? computeJourBande(b) : null;
     html += `<tr>
       <td><strong>${escHtml(b.nom_bande || b.bande_id)}</strong></td>
       <td>${fmtDate(b.date_entree)}${jday ? ' <span class="bande-jday">J' + jday + '</span>' : ''}</td>
@@ -10349,13 +10411,12 @@ function initSaisiePage() {
   renderRecentSaisies();
 }
 
-// ── Date de saisie : « hier d'abord » + garde doublon (consultative) ──
-// Le flux terrain réel : le cahier papier est rempli dans la journée puis
-// transcrit dans l'app en fin de journée OU le lendemain matin. À l'ouverture,
-// si la bande était active hier et qu'aucune saisie n'existe pour hier, on
-// propose hier ; sinon aujourd'hui. La date reste éditable dans la plage
-// active de la bande (min/max natifs) ; jour_bande reste calculé depuis la
-// date (convention existante, inchangée).
+// ── Date de saisie : AUJOURD'HUI par défaut (UX A3) + garde doublon dure ──
+// L'ancien « hier d'abord » créait des saisies datées de la veille sans que
+// le chef s'en aperçoive. Défaut = aujourd'hui (bande terminée : dernier jour
+// actif) ; le chef peut toujours changer la date dans la plage active de la
+// bande (min/max natifs) ; jour_bande reste calculé depuis la date (source
+// unique computeJourBande).
 function yesterdayStr() {
   return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 }
@@ -10385,9 +10446,7 @@ function applySaisieDatePreselect() {
   const max = (sortie && sortie < today) ? sortie : today;
   dateEl.min = entree;
   dateEl.max = max;
-  const hier = yesterdayStr();
-  const activeHier = entree <= hier && hier <= max;
-  dateEl.value = (activeHier && !hasSaisieOn(bandeId, hier)) ? hier : today;
+  dateEl.value = (max < today) ? max : today;
   refreshSaisieDateMsgs();
 }
 
@@ -10410,11 +10469,12 @@ function refreshSaisieDateMsgs() {
     setFieldMsg('date', 'warn', 'Bande pas encore en place (entrée le ' + fmtDate(entree) + ') — saisie possible à partir de ce jour.');
     return;
   }
-  // Garde une-saisie-par-jour : il n'existe AUCUNE contrainte (client ou base)
-  // empêchant deux saisies le même jour — avertissement consultatif seulement,
-  // dans le style maison (warn, jamais bloquant).
+  // Garde une-saisie-par-jour (UX A3) : la contrainte UNIQUE de la base
+  // (saisies_bande_date_uniq, migration 0024) REFUSERA l'insert — le message
+  // le dit franchement AVANT l'enregistrement, plus de « doublon possible ».
+  // (Le commentaire historique « aucune contrainte » datait d'avant 0024.)
   if (bandeId && val && hasSaisieOn(bandeId, val)) {
-    setFieldMsg('date', 'warn', 'Une saisie existe déjà pour cette date — doublon possible, vérifier avant d\'enregistrer.');
+    setFieldMsg('date', 'error', 'Une saisie existe déjà pour le ' + fmtDate(val) + ' — l\'enregistrement sera refusé.');
   } else {
     setFieldMsg('date', null);
   }
@@ -10435,7 +10495,7 @@ function getSaisieValidationContext() {
   if (!bande) return null;
   const ind = computeIndicators(bande);
   const dateVal = document.getElementById('saisie-date').value || todayStr();
-  const jour = Math.max(1, daysBetween(bande.date_entree, dateVal) + 1);
+  const jour = computeJourBande(bande, dateVal) || 1;
   return { bande, jour, effectif: ind.effectifActuel, norm: getAmbianceNorm(jour) };
 }
 
@@ -10498,10 +10558,12 @@ function validateSaisieField(field) {
     }
     setFieldMsg(field, null); return null;
   } else if (field === 'temp-observee') {
-    // T° du cahier : simple garde de plausibilité fixe (20–40°C), jamais
-    // bloquante — contrairement à la T° d'ambiance, pas de norme d'âge ici.
-    if (val < 20 || val > 40) {
-      setFieldMsg(field, 'warn', 'Température inhabituelle (plausible : 20–40°C) — confirmer ?');
+    // T° des SUJETS (UX A1, revue #147) : garde de plausibilité CLINIQUE —
+    // la température corporelle d'un poulet est ~41-42°C au repos, davantage
+    // en fièvre. L'ancienne plage 20-40°C (sémantique ambiante d'avant A1)
+    // aurait alerté sur toute valeur légitime. Jamais bloquante.
+    if (val < 35 || val > 45) {
+      setFieldMsg(field, 'warn', 'T° corporelle inhabituelle (plausible : 35–45°C) — confirmer ?');
       return 'warn';
     }
     setFieldMsg(field, null); return null;
@@ -10523,7 +10585,7 @@ function updateSaisieInfo() {
   if (!bande) return;
 
   const ind = computeIndicators(bande);
-  const jour = daysBetween(bande.date_entree, document.getElementById('saisie-date').value || todayStr()) + 1;
+  const jour = computeJourBande(bande, document.getElementById('saisie-date').value || todayStr()) || 1;
   const phase = getCurrentPhase(jour);
   const norm = getAmbianceNorm(jour);
   const viab = 100 - ind.tauxMort;
@@ -10597,8 +10659,12 @@ function renderSaisieProphylaxie(bande, refDateStr) {
     }
   });
   const head = isToday ? '' : '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Au ' + fmtDate(refStr) + '</div>';
+  // UX A5 : le bloc mène au Carnet (c'est là que l'acte se coche).
+  const lien = items.length
+    ? '<div style="margin-top:4px;"><a href="#" style="font-size:0.8rem;" onclick="alertNavigate(\'veterinaire\', \'' + escHtml(bande.bande_id) + '\', \'vaccination\');return false;">Ouvrir le carnet de vaccination →</a></div>'
+    : '';
   el.innerHTML = items.length
-    ? head + items.map(i => '<div>• ' + i + '</div>').join('')
+    ? head + items.map(i => '<div>• ' + i + '</div>').join('') + lien
     : head + '<span style="color:var(--text-muted);">Aucune prophylaxie en cours</span>';
 }
 
@@ -10666,7 +10732,7 @@ async function submitSaisie() {
 
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   const dateSaisie = document.getElementById('saisie-date').value;
-  const jourBande = daysBetween(bande.date_entree, dateSaisie) + 1;
+  const jourBande = computeJourBande(bande, dateSaisie) || 1;
 
   const saisiePayload = {
     saisie_id: uuid(),
@@ -10873,24 +10939,26 @@ function renderRecentSaisies() {
   const bandeId = document.getElementById('saisie-bande').value;
   if (!bandeId) { container.innerHTML = ''; return; }
 
+  // UX A4 : 7 derniers jours (les chiffres d'hier sous les yeux pendant la
+  // transcription), plus récent EN PREMIER (même ordre que partout ailleurs),
+  // 1re colonne (date + J) COLLANTE pendant le défilement horizontal.
   const recent = STATE.saisies
     .filter(s => s.bande_id === bandeId)
     .sort((a, b) => new Date(b.date_saisie) - new Date(a.date_saisie))
-    .slice(0, 3);
+    .slice(0, 7);
 
   if (recent.length === 0) {
     container.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;">Aucune saisie récente</p>';
     return;
   }
 
-  const titre = recent.length > 1 ? recent.length + ' dernières saisies' : 'Dernière saisie';
-  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table><thead><tr>' +
-    '<th>Date</th><th>Jour</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
+  const titre = recent.length > 1 ? '7 derniers jours' : 'Dernière saisie';
+  let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table class="saisies-recent-table"><thead><tr>' +
+    '<th>Date · J</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
 
   recent.forEach(s => {
     html += `<tr>
-      <td>${fmtDate(s.date_saisie)}</td>
-      <td>J${s.jour_bande}</td>
+      <td>${fmtDate(s.date_saisie)} · J${s.jour_bande != null ? s.jour_bande : '?'}</td>
       <td>${s.mortalite_jour}</td>
       <td>${fmt(Number(s.aliment_consomme_kg), 1)} kg</td>
       <td>${Number(s.eau_consommee_l) ? fmt(Number(s.eau_consommee_l), 1) + ' L' : '—'}</td>
@@ -10935,7 +11003,7 @@ function loadFicheBande() {
 
   const ind = computeIndicators(bande);
   // Lot actif : jour réel (dates). Lot terminé : dernier jour saisi (historique).
-  const jour = (bande.statut === 'en_cours' && ind.jourActuel) ? ind.jourActuel : (ind.dernierJour || daysBetween(bande.date_entree, todayStr()) + 1);
+  const jour = (bande.statut === 'en_cours' && ind.jourActuel) ? ind.jourActuel : (ind.dernierJour || computeJourBande(bande) || 1);
   const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
 
   // Header with enriched metrics
@@ -11404,7 +11472,7 @@ function bilanFinalMetrics(bande, ind) {
   let age = null;
   let ageSrc = null;
   if (bande.date_sortie && bande.date_entree) {
-    age = daysBetween(bande.date_entree, bande.date_sortie) + 1;
+    age = computeJourBande(bande, bande.date_sortie);
     ageSrc = 'date de sortie';
   } else if (ind.dernierJour) {
     age = ind.dernierJour;
@@ -17248,7 +17316,7 @@ function computeDashboardReport() {
   const active = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
   const perBande = active.map(b => {
     const ind = computeIndicators(b);
-    const jour = cycleDay(b);
+    const jour = computeJourBande(b);
     return {
       nom: b.nom_bande || b.bande_id, jour: jour != null ? jour : null,
       effectif: ind.effectifActuel, tauxMort: ind.tauxMort, ic: ind.ic,

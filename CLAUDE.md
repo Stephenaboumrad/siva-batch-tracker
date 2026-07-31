@@ -77,6 +77,12 @@ working rules for every task in this repository.
   the views freeze their column list at creation, so without the replay
   the new column is invisible to chef_bande (reads go through the views;
   QUEUE_COLUMN_FALLBACKS cannot help, it is the READ that is missing).
+- Temperature: the daily series is `saisies.temperature_c` (building ambient
+  — norms, alerts and charts read ONLY this column); `temperature_observee_c`
+  (0024) is a clinical observation on the birds, optional, never a series.
+- Day counter: J1 = placement day (matches the vaccination seed 0017/0019/
+  0020). `computeJourBande(bande, date)` is the single source — never compute
+  a J inline and never trust a stored `jour_bande` over it for display.
 - Flag any deviation from the brief in the PR body rather than silently
   adopting it.
 
