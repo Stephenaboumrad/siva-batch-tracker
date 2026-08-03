@@ -3427,7 +3427,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div id="sc-tab-receptions" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <h3 style="font-size:1rem;color:var(--primary-dark);">Réceptions</h3>
-        <button class="btn btn-primary manager-only" onclick="showReceptionModal()">+ Nouvelle réception</button>
+        <button class="btn btn-primary" onclick="showReceptionModal()">+ Nouvelle réception</button>
       </div>
       <div class="filter-bar" id="reception-filters">
         <select id="filter-reception-cat" onchange="renderReceptions()">
@@ -3964,7 +3964,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Poids moyen d'arrivée (g)</label><input type="number" id="recep-poids-moyen" min="0" step="0.1" inputmode="decimal" placeholder="Ex : 42"></div>
       <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:-0.5rem;margin-bottom:0.75rem;">« Quantité » = effectif reçu vivant (mis en place) — c'est lui qui pré-remplira la bande.</div>
     </div>
-    <div class="form-row">
+    <!-- SC-1.2 (décision 3) : rangée prix ABSENTE pour le chef — le manager
+         pose le prix à la VALIDATION (openReceptionPriceConfirm), pas à la
+         déclaration. Masquée par showReceptionModal selon le rôle. -->
+    <div class="form-row" id="recep-prix-row">
       <div class="form-group"><label>Prix unitaire (FCFA)</label><input type="number" id="recep-prix" step="1" min="0" placeholder="0" oninput="updateRecepCout()"></div>
       <div class="form-group"><label>Coût total (FCFA) — auto</label><input type="number" id="recep-cout" readonly style="background:#f9f9f9;color:var(--text-secondary);"></div>
     </div>
@@ -9028,7 +9031,7 @@ function formatNotifStatut(s) {
 function formatNotifPayload(type, p) {
   if (type === 'saisie') return 'Mortalité ' + (p.mortalite_jour || 0) + ' | Aliment ' + (p.aliment_consomme_kg || 0) + ' kg | Poids ' + (p.poids_vif_moyen_g || 0) + ' g' + (Array.isArray(p.cause_5m) && p.cause_5m.length ? ' | 5M : ' + escHtml(p.cause_5m.map(cause5mLabel).join(', ')) : '') + (p.signes_observes ? ' | Signes : ' + escHtml(p.signes_observes) : '');
   if (type === 'intrant') { const m = fmtMoney(p.cout_total_fcfa || 0); return (p.nom_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' — ' + m : ''); }
-  if (type === 'reception') { const m = fmtMoney(p.prix_unitaire_fcfa || 0); return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' @ ' + m : ''); }
+  if (type === 'reception') { const m = Number(p.prix_unitaire_fcfa) > 0 ? fmtMoney(p.prix_unitaire_fcfa) : null; return (p.type_produit || '?') + ' — ' + (p.quantite || 0) + ' ' + (p.unite || '') + (m ? ' @ ' + m : ' (prix à poser à la validation)'); }
   if (type === 'abattage') return (p.nb_oiseaux_abattus || 0) + ' oiseaux | ' + (p.poids_vif_total_kg || 0) + ' kg vif';
   return JSON.stringify(p).slice(0, 120);
 }
@@ -9090,10 +9093,67 @@ async function validateNotif(notifId) {
       }
     }
   }
+  // SC-1.2 (décision 3) : une réception déclarée par le chef arrive SANS
+  // prix — le manager le pose ICI, au moment de valider (jamais bloquant).
+  // Annuler = la réception reste en file, non validée.
+  if (notif.type === 'reception') {
+    let p = {};
+    try { p = JSON.parse(notif.payload_json || '{}'); } catch (e) {}
+    openReceptionPriceConfirm(p, function (prix) { performValidateNotif(notif, null, prix); });
+    return;
+  }
   performValidateNotif(notif, null);
 }
 
-async function performValidateNotif(notif, override) {
+// ── SC-1.2 : pose du prix d'achat à la validation d'une réception ─────────
+// Décision SC (2) : les coûts de réception sont la FUTURE source de vérité
+// de la marge — capture propre dès maintenant, sans jamais bloquer (prix
+// vide = 0, corrigeable plus tard). Motif modale : openWithdrawalConfirm.
+let _recepPriceCb = null;
+function openReceptionPriceConfirm(p, onConfirm) {
+  _recepPriceCb = onConfirm;
+  const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === p.fournisseur_id);
+  const qte = Number(p.quantite) || 0;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:440px;">
+      <h3><i data-lucide="package"></i> Valider la réception — prix d'achat</h3>
+      <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:1rem;">
+        ${escHtml(p.type_produit || '—')} — ${fmt(qte, 1)} ${escHtml(p.unite || '')} · ${escHtml(fourn ? fourn.nom : 'fournisseur ?')}
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prix unitaire (FCFA)</label>
+          <input type="number" id="recep-valid-prix" min="0" step="1" inputmode="numeric" placeholder="0"
+            value="${Number(p.prix_unitaire_fcfa) > 0 ? Number(p.prix_unitaire_fcfa) : ''}"
+            oninput="document.getElementById('recep-valid-cout').textContent = fmt(Math.round((Number(this.value) || 0) * ${qte})) + ' FCFA'">
+        </div>
+        <div class="form-group">
+          <label>Coût total — auto</label>
+          <div id="recep-valid-cout" style="padding:0.6rem 0.75rem;font-family:var(--font-mono);">${fmt(Math.round((Number(p.prix_unitaire_fcfa) || 0) * qte))} FCFA</div>
+        </div>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">Prix vide = 0 (jamais bloquant) — mais les coûts de réception alimenteront la marge : renseigner maintenant évite une ressaisie.</p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="_recepPriceCb=null;closeModal()">Annuler (reste en attente)</button>
+        <button class="btn btn-primary" onclick="confirmReceptionPrice()">Valider la réception</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => { const f = document.getElementById('recep-valid-prix'); if (f) f.focus(); }, 60);
+  if (window.lucide) lucide.createIcons();
+}
+function confirmReceptionPrice() {
+  const prix = Number(document.getElementById('recep-valid-prix').value) || 0;
+  const cb = _recepPriceCb;
+  _recepPriceCb = null;
+  closeModal();
+  if (cb) cb(prix);
+}
+
+async function performValidateNotif(notif, override, prixRecep) {
   // Update notification status
   notif.statut = 'validee';
   notif.valide_par = currentUser.name;
@@ -9108,11 +9168,35 @@ async function performValidateNotif(notif, override) {
     payload.delai_attente_override_at = override.at;
     payload.delai_attente_override_motif = override.motif;
   }
+  // SC-1.2 (décision 3) : le prix posé par le manager à la validation entre
+  // dans l'insert ET dans l'état local (coût total recalculé serveur du
+  // pauvre : quantité × prix, arrondi — même formule que le formulaire).
+  if (notif.type === 'reception' && prixRecep != null) {
+    payload.prix_unitaire_fcfa = prixRecep;
+    payload.cout_total_fcfa = Math.round((Number(payload.quantite) || 0) * prixRecep);
+  }
   const actionMap = { intrant: 'addIntrant', reception: 'addReception', abattage: 'addAbattage' };
   const apiAction = actionMap[notif.type];
 
   if (apiAction) {
-    const r = await saveRemote({ action: apiAction, payload: payload }, { silent: true });
+    let r = await saveRemote({ action: apiAction, payload: payload }, { silent: true });
+    // Repli migrations en attente (dette SC-1.1) : l'insert de VALIDATION ne
+    // doit pas rester coincé si une colonne du payload n'existe pas encore
+    // en base (front déployé avant le SQL manuel). Même discipline
+    // groupe-par-groupe que la file hors ligne — on réutilise les groupes
+    // QUEUE_COLUMN_FALLBACKS de l'action (0038 pour addReception ; les
+    // actions sans groupe ne passent jamais ici).
+    const fbGroups = QUEUE_COLUMN_FALLBACKS[apiAction] || [];
+    if (!r.ok && r.error && fbGroups.length && /column|schema cache/i.test(r.error.message || '')) {
+      for (const g of fbGroups) {
+        if (g.cols.some(c => (r.error.message || '').includes(c)) && g.cols.some(c => c in payload)) {
+          g.cols.forEach(c => { delete payload[c]; });
+          toast(g.msg, 'error');
+          r = await saveRemote({ action: apiAction, payload: payload }, { silent: true });
+          if (r.ok) break;
+        }
+      }
+    }
     // D-F3 : « duplicate key » sur l'insert DATA = la ligne existe déjà (rejeu
     // d'une validation dont la mise à jour de notification avait échoué) →
     // considérer comme DÉJÀ APPLIQUÉ et poursuivre vers la validation de la
@@ -15264,6 +15348,10 @@ function showReceptionModal() {
   document.getElementById('recep-mortalite-transport').value = '';
   document.getElementById('recep-poids-moyen').value = '';
   updateRecepPoussinFields();
+  // SC-1.2 (décision 3) : prix ABSENT du formulaire chef — posé par le
+  // manager à la validation. Le payload chef part avec prix 0.
+  document.getElementById('recep-prix-row').style.display =
+    (currentUser && currentUser.role === 'chef_bande') ? 'none' : '';
   document.getElementById('reception-modal').style.display = 'flex';
 }
 function closeReceptionModal() { document.getElementById('reception-modal').style.display = 'none'; }
