@@ -2725,7 +2725,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="icon"><i data-lucide="pencil-ruler"></i></span> Saisie Terrain
     </a>
     <a href="#" data-page="fiche" title="Fiche de bande" onclick="navigate('fiche',this)">
-      <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Bandes</span><span class="nav-short">Bandes</span>
+      <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Fiche de bande</span><span class="nav-short">Fiche</span>
     </a>
     <a href="#" data-page="veterinaire" title="Vétérinaire & Santé" onclick="navigate('veterinaire',this)">
       <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
@@ -2733,8 +2733,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="biosecurite" title="Biosécurité &amp; Conformité" onclick="navigate('biosecurite',this)">
       <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité &amp; Conformité</span><span class="nav-short">Bioséc.</span>
     </a>
-    <a href="#" data-page="abattage" title="Transformation & Abattage" onclick="navigate('abattage',this)">
-      <span class="icon"><i data-lucide="package"></i></span> Transformation
+    <a href="#" data-page="bandes" title="Bandes &amp; Transformation" onclick="navigate('bandes',this)">
+      <span class="icon"><i data-lucide="package"></i></span> <span class="nav-full">Bandes &amp; Transformation</span><span class="nav-short">Lots</span>
     </a>
     <a href="#" data-page="supply" title="Supply Chain" onclick="navigate('supply',this)">
       <span class="icon"><i data-lucide="truck"></i></span> <span class="nav-full">Supply Chain</span><span class="nav-short">Supply</span>
@@ -2787,7 +2787,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <span class="icon"><i data-lucide="pencil-ruler"></i></span> Saisie Terrain
   </a>
   <a href="#" data-page="fiche" onclick="navigate('fiche',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="chart-line"></i></span> Bandes
+    <span class="icon"><i data-lucide="chart-line"></i></span> Fiche de bande
   </a>
   <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
@@ -2795,8 +2795,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <a href="#" data-page="biosecurite" onclick="navigate('biosecurite',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité
   </a>
-  <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="package"></i></span> Transformation
+  <a href="#" data-page="bandes" onclick="navigate('bandes',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="package"></i></span> Bandes &amp; Transformation
   </a>
   <a href="#" data-page="supply" onclick="navigate('supply',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="truck"></i></span> Supply Chain
@@ -2831,7 +2831,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </button>
     <button class="tab-item" data-page="fiche" onclick="navigateTab('fiche')">
       <span class="tab-icon"><i data-lucide="chart-line"></i></span>
-      <span>Bandes</span>
+      <span>Fiche</span>
     </button>
     <!-- FAB central : Saisie = action PRIMAIRE de l'app. Composant autonome —
          re-cibler = changer openSaisieFAB()/l'onclick. (Ancien onglet IoT retiré :
@@ -2840,7 +2840,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="fab-circle"><i data-lucide="plus"></i></span>
       <span class="fab-label">Saisie</span>
     </button>
-    <button class="tab-item" data-page="abattage" onclick="navigateTab('abattage')">
+    <button class="tab-item" data-page="bandes" onclick="navigateTab('abattage')">
       <span class="tab-icon"><i data-lucide="package"></i></span>
       <span>Transfo.</span>
     </button>
@@ -2855,10 +2855,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 <div id="plus-sheet-overlay" onclick="closePlusSheet()">
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
+    <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes &amp; Transformation</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
     <a href="#" data-page="biosecurite" onclick="navigateFromSheet('biosecurite')"><span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité</a>
-    <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
+
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
     <a href="#" data-page="tresorerie" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
@@ -2953,8 +2953,17 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
+  <!-- ═══ PAGE: BANDES & TRANSFORMATION (C2, audit AI) — « le lot finit là ».
+       L'ex-page Transformation & Abattage devient l'onglet 2 (contenu et ids
+       intacts) ; l'ancien id de page 'abattage' est un ALIAS dans navigate(). -->
   <div id="page-bandes" class="page">
-    <h2><i data-lucide="chart-line"></i> Gestion des bandes</h2>
+    <h2><i data-lucide="chart-line"></i> Bandes &amp; Transformation</h2>
+    <div id="bandes-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" data-bandes-tab="lots" onclick="switchBandesTab('lots',this)">Lots</button>
+      <button class="tab-btn" data-bandes-tab="transformation" onclick="switchBandesTab('transformation',this)">Transformation &amp; Abattage</button>
+    </div>
+
+    <div id="bandes-tab-lots">
     <div id="bandes-controls" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
       <div class="tabs">
         <button class="tab-btn active" onclick="filterBandes('all',this)">Toutes</button>
@@ -2970,20 +2979,55 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
     </div>
     <div id="bandes-list"></div>
+    </div><!-- /bandes-tab-lots -->
+
+    <!-- Onglet 2 : Transformation & Abattage (ex-page-abattage, contenu intact) -->
+    <div id="bandes-tab-transformation" style="display:none;">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Suivi des journées d'abattage par bande</p>
+      <div id="abattage-tabs" class="tabs" style="margin-bottom:1.25rem;">
+        <button class="tab-btn active" onclick="switchAbattageTab('sessions',this)">Sessions d'abattage</button>
+        <button class="tab-btn" onclick="switchAbattageTab('detail',this)">Fiche détaillée</button>
+        <button class="tab-btn" onclick="switchAbattageTab('stats',this)">Statistiques</button>
+      </div>
+      <div id="ab-tab-sessions">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+            <label for="abattage-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
+            <input type="month" id="abattage-period" title="Période du rapport d'abattage" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+            <button class="btn btn-outline btn-sm" onclick="exportAbattagePDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+            <button class="btn btn-outline btn-sm" onclick="exportAbattageExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+          </div>
+          <button class="btn btn-primary" onclick="showAbattageModal()">+ Nouvelle session</button>
+        </div>
+        <div id="abattage-list"></div>
+      </div>
+      <div id="ab-tab-detail" style="display:none;">
+        <div id="abattage-detail-content">
+          <p style="color:#9e9e9e;text-align:center;padding:2rem;">Cliquez sur une session dans l'onglet "Sessions" pour voir le détail.</p>
+        </div>
+      </div>
+      <div id="ab-tab-stats" style="display:none;">
+        <div id="ab-stats-empty" class="empty-state" style="display:none;">
+          <div class="icon"><i data-lucide="inbox"></i></div>
+          <p>Aucune donnée d'abattage pour le moment.<br>Les statistiques s'afficheront après votre première session d'abattage validée.</p>
+        </div>
+        <div id="ab-stats-content">
+          <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
+            <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
+            <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /bandes-tab-transformation -->
   </div>
 
   <!-- ═══════════════ PAGE: SAISIE DU JOUR ═══════════════ -->
   <div id="page-saisie" class="page">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
-      <h2 style="margin:0;"><i data-lucide="pencil-ruler"></i> Saisie Terrain</h2>
-      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-        <select id="saisie-report-bande" title="Bande du rapport" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);max-width:170px;"></select>
-        <input type="month" id="saisie-report-period" title="Période du rapport" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
-        <button class="btn btn-outline btn-sm" onclick="exportDailiesPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="exportDailiesExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
-        <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('saisie')"><i data-lucide="printer"></i> Cahier vierge (PDF)</button>
-      </div>
-    </div>
+    <!-- C2 (audit AI) : le Rapport quotidien PDF/Excel a déménagé vers les
+         exports de la Fiche (c'est un export de registre, pas un acte de
+         saisie) ; le Cahier vierge y existait déjà (doublon supprimé). -->
+    <h2 style="margin:0 0 0.75rem;"><i data-lucide="pencil-ruler"></i> Saisie Terrain</h2>
     <form id="saisie-form" onsubmit="event.preventDefault(); if (this.reportValidity()) submitSaisie();">
     <div class="card" style="max-width:700px;">
       <div class="form-group">
@@ -3186,12 +3230,21 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div id="fiche-content" style="display:none;">
       <div class="card" id="fiche-header"></div>
-      <!-- Clôture / registre de bande — export manuel à la demande -->
-      <div style="display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <!-- Clôture / registre de bande — export manuel à la demande.
+           C2 (audit AI) : + Rapport quotidien PDF/Excel (déplacé de Saisie
+           Terrain — ids conservés, sélecteurs bande/mois autonomes, bande
+           alignée par défaut sur la bande affichée). -->
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;">
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('pdf')"><i data-lucide="file-text"></i> Registre de Bande (PDF)</button>
         <button class="btn btn-outline btn-sm" onclick="exportFicheRegistre('excel')"><i data-lucide="sheet"></i> Export Excel</button>
         <button class="btn btn-outline btn-sm" onclick="exportCahierPDF('fiche')"><i data-lucide="printer"></i> Cahier de bâtiment (vierge)</button>
         <button class="btn btn-outline btn-sm manager-only" onclick="exportBandeCSV()"><i data-lucide="table"></i> Export bande (CSV)</button>
+        <span style="display:inline-flex;gap:0.4rem;align-items:center;border-left:var(--border-hairline);padding-left:0.5rem;">
+          <select id="saisie-report-bande" title="Bande du rapport quotidien" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);max-width:170px;"></select>
+          <input type="month" id="saisie-report-period" title="Période du rapport quotidien" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+          <button class="btn btn-outline btn-sm" onclick="exportDailiesPDF()"><i data-lucide="file-text"></i> Rapport quotidien (PDF)</button>
+          <button class="btn btn-outline btn-sm" onclick="exportDailiesExcel()"><i data-lucide="sheet"></i> (Excel)</button>
+        </span>
       </div>
       <!-- Bilan de bande DMAICS (clôture P6) — manager + bande terminée
            uniquement, rempli par renderFicheBilanDmaics() ; vide sinon. -->
@@ -3242,52 +3295,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
   <!-- ═══════════════ PAGE: ALIMENTATION ═══════════════ -->
   <!-- ═══════════════ PAGE: ABATTAGE ═══════════════ -->
-  <div id="page-abattage" class="page">
-    <h2><i data-lucide="package"></i> Transformation & Abattage</h2>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:-1rem;margin-bottom:1.5rem;">Suivi des journées d'abattage par bande</p>
-
-    <div id="abattage-tabs" class="tabs" style="margin-bottom:1.25rem;">
-      <button class="tab-btn active" onclick="switchAbattageTab('sessions',this)">Sessions d'abattage</button>
-      <button class="tab-btn" onclick="switchAbattageTab('detail',this)">Fiche détaillée</button>
-      <button class="tab-btn" onclick="switchAbattageTab('stats',this)">Statistiques</button>
-    </div>
-
-    <!-- Tab 1: Sessions -->
-    <div id="ab-tab-sessions">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-          <label for="abattage-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
-          <input type="month" id="abattage-period" title="Période du rapport d'abattage" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
-          <button class="btn btn-outline btn-sm" onclick="exportAbattagePDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
-          <button class="btn btn-outline btn-sm" onclick="exportAbattageExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
-        </div>
-        <button class="btn btn-primary" onclick="showAbattageModal()">+ Nouvelle session</button>
-      </div>
-      <div id="abattage-list"></div>
-    </div>
-
-    <!-- Tab 2: Fiche détaillée -->
-    <div id="ab-tab-detail" style="display:none;">
-      <div id="abattage-detail-content">
-        <p style="color:#9e9e9e;text-align:center;padding:2rem;">Cliquez sur une session dans l'onglet "Sessions" pour voir le détail.</p>
-      </div>
-    </div>
-
-    <!-- Tab 3: Statistiques -->
-    <div id="ab-tab-stats" style="display:none;">
-      <div id="ab-stats-empty" class="empty-state" style="display:none;">
-        <div class="icon"><i data-lucide="inbox"></i></div>
-        <p>Aucune donnée d'abattage pour le moment.<br>Les statistiques s'afficheront après votre première session d'abattage validée.</p>
-      </div>
-      <div id="ab-stats-content">
-        <div id="ab-stats-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
-          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Rendement réel par bande</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-rendement"></canvas></div></div>
-          <div class="card"><div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition coûts abattage</h3></div><div style="position:relative;height:280px;"><canvas id="chart-ab-costs"></canvas></div></div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- (page-abattage supprimée — C2 : la Transformation vit dans Bandes & Transformation, onglet 2.) -->
 
   <!-- ═══════════════ PAGE: VÉTÉRINAIRE & SANTÉ ═══════════════ -->
   <div id="page-veterinaire" class="page">
@@ -4684,8 +4692,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'bandes', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -5933,12 +5941,11 @@ function hideOfflineBanner() {
 // ── Mobile navigation (bottom tab bar) ──
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
-  bandes: 'Gestion des bandes',
+  bandes: 'Bandes & Transformation',
   saisie: 'Saisie Terrain',
-  fiche: 'Bandes',
+  fiche: 'Fiche de bande',
   veterinaire: 'Vétérinaire & Santé',
   biosecurite: 'Biosécurité & Conformité',
-  abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
   tresorerie: 'Trésorerie',
@@ -8371,6 +8378,30 @@ async function submitPoste() {
 // appelant résiduel ; aucun appel programmatique connu (vérifié : seuls les
 // liens de nav pointaient dessus).
 const BIOSEC_ALIASES = { 'vide-sanitaire': 'vide', 'nuisibles': 'nuisibles', 'etalonnage': 'etalonnage', 'non-conformites': 'nc' };
+
+// ── C2 (audit AI) : Transformation & Abattage = onglet 2 de Bandes ─────────
+// L'ancien id de page 'abattage' est un alias navigate() (bottom-bar mobile
+// « Transfo. » et tout appel résiduel). Le chef GAGNE l'accès à page-bandes
+// (il avait la page abattage) : l'onglet Lots lui est en lecture seule
+// (boutons création/clôture/archivage déjà manager-only) et il lit les
+// bandes via la vue assainie bandes_ops (0040) — aucune donnée nouvelle.
+let currentBandesTab = 'lots';
+let bandesTabTarget = null;
+function switchBandesTab(tab, btn) {
+  currentBandesTab = (tab === 'transformation') ? 'transformation' : 'lots';
+  document.getElementById('bandes-tab-lots').style.display = currentBandesTab === 'lots' ? '' : 'none';
+  document.getElementById('bandes-tab-transformation').style.display = currentBandesTab === 'transformation' ? '' : 'none';
+  document.querySelectorAll('#bandes-tabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.bandesTab === currentBandesTab));
+  if (currentBandesTab === 'lots') renderBandes();
+  else initAbattagePage();
+  if (window.lucide) lucide.createIcons();
+}
+function initBandesPage() {
+  const tab = bandesTabTarget || currentBandesTab || 'lots';
+  bandesTabTarget = null;
+  switchBandesTab(tab);
+}
 const BIOSEC_TABS = ['vide', 'nuisibles', 'etalonnage', 'nc'];
 let currentBiosecTab = 'vide';
 let biosecTabTarget = null;
@@ -8405,6 +8436,12 @@ function navigate(page, el) {
     biosecTabTarget = BIOSEC_ALIASES[page];
     page = 'biosecurite';
     el = document.querySelector('[data-page="biosecurite"]');
+  }
+  // C2 : Transformation & Abattage vit dans Bandes (onglet 2) — alias.
+  if (page === 'abattage') {
+    bandesTabTarget = 'transformation';
+    page = 'bandes';
+    el = document.querySelector('[data-page="bandes"]');
   }
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
   // un rôle qui tente une page non autorisée (ex. chef_bande → 'tresorerie',
@@ -8442,12 +8479,11 @@ function navigate(page, el) {
 
   switch (page) {
     case 'dashboard': renderDashboard(); break;
-    case 'bandes': renderBandes(); break;
+    case 'bandes': initBandesPage(); break;
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
     case 'veterinaire': initVeterinairePage(); break;
     case 'biosecurite': initBiosecuritePage(); break;
-    case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
     case 'tresorerie': initTresoreriePage(); break;
@@ -10378,13 +10414,8 @@ function initSaisiePage() {
   select.innerHTML = active.length === 0
     ? '<option value="">Aucune bande active</option>'
     : active.map(b => `<option value="${b.bande_id}">${bandeLabel(b)}</option>`).join('');
-  // Sélecteur de bande du rapport quotidien (toutes les bandes, clôturées incluses).
-  const rsel = document.getElementById('saisie-report-bande');
-  if (rsel) {
-    rsel.innerHTML = STATE.bandes.length
-      ? STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('')
-      : '<option value="">Aucune bande</option>';
-  }
+  // (C2 : le sélecteur du rapport quotidien vit désormais sur la Fiche —
+  //  peuplé par initFichePage.)
   document.getElementById('saisie-mortalite').value = '';
   document.getElementById('saisie-aliment').value = '';
   document.getElementById('saisie-eau').value = '';
@@ -10994,6 +11025,15 @@ function populateFicheSelect(forceId) {
 
 function initFichePage() {
   populateFicheSelect();
+  // C2 : sélecteur du rapport quotidien (déplacé de Saisie Terrain) —
+  // toutes les bandes, clôturées incluses, aligné par défaut sur la bande
+  // affichée (loadFicheBande le resynchronise à chaque changement).
+  const rsel = document.getElementById('saisie-report-bande');
+  if (rsel) {
+    rsel.innerHTML = STATE.bandes.length
+      ? STATE.bandes.map(b => `<option value="${b.bande_id}">${bandeLabel(b, { statut: true })}</option>`).join('')
+      : '<option value="">Aucune bande</option>';
+  }
   loadFicheBande();
 }
 
@@ -11002,6 +11042,10 @@ function loadFicheBande() {
   const content = document.getElementById('fiche-content');
   if (!bandeId) { content.style.display = 'none'; return; }
   content.style.display = 'block';
+
+  // C2 : le rapport quotidien suit la bande affichée (resélectionnable).
+  const rsel = document.getElementById('saisie-report-bande');
+  if (rsel && rsel.querySelector('option[value="' + bandeId + '"]')) rsel.value = bandeId;
 
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
   if (!bande) return;
