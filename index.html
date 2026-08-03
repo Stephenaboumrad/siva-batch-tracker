@@ -9216,6 +9216,9 @@ async function performValidateNotif(notif, override, prixRecep) {
     const idField = { intrant: 'intrant_id', reception: 'reception_id', abattage: 'abattage_id' }[notif.type];
     const stateList = { intrant: STATE.intrants, reception: STATE.receptions, abattage: STATE.abattages }[notif.type];
     if (stateList && !stateList.some(x => x[idField] === payload[idField])) stateList.push(payload);
+    // SC-1.3 : réception validée → proposition d'incrément du stock ferme
+    // (la modale prix vient de se fermer — pas d'empilement de modales).
+    if (notif.type === 'reception') proposeStockIncrement(payload);
   }
 
   // Persist notification update — un échec ICI doit remonter au manager :
@@ -15447,7 +15450,9 @@ async function submitReception() {
       toast(poussinDropped
         ? 'Réception enregistrée, mais SANS détail poussins (migration 0038 non appliquée en base)'
         : 'Réception enregistrée', poussinDropped ? 'error' : 'success');
-      document.getElementById('inspection-prompt').style.display = 'flex';
+      // SC-1.3 : picker d'incrément de stock D'ABORD (inventaire), prompt
+      // d'inspection ENSUITE (chaîné — jamais deux modales empilées).
+      proposeStockIncrement(payload, () => { document.getElementById('inspection-prompt').style.display = 'flex'; });
     }
   } catch (err) {
     if (err.message.includes("file d'attente")) {
@@ -15456,7 +15461,8 @@ async function submitReception() {
       closeReceptionModal();
       renderReceptions();
       toast('Enregistré (hors ligne)');
-      document.getElementById('inspection-prompt').style.display = 'flex';
+      // SC-1.3 : l'incrément fonctionne hors ligne (valeur absolue en file).
+      proposeStockIncrement(payload, () => { document.getElementById('inspection-prompt').style.display = 'flex'; });
     } else { toast('Erreur : ' + err.message, 'error'); }
   } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
 }
@@ -15466,6 +15472,136 @@ function promptInspectionForLastReception() {
   if (lastReceptionId) {
     showInspectionModal(lastReceptionId);
   }
+}
+
+// ── SC-1.3 : réception enregistrée → incrément du stock ferme, CONFIRMÉ ────
+// JAMAIS silencieux : le manager choisit la ligne cible (pré-sélection par
+// correspondance de NOM, insensible casse/espaces), peut en prendre une
+// autre (override), créer une ligne, ou explicitement ne rien toucher.
+// GARDE D'UNITÉ : appliquer est REFUSÉ si l'unité de la ligne diffère de
+// celle de la réception (additionner des kg à des sacs = stock menteur) —
+// issue de secours : autre ligne, ou nouvelle ligne qui hérite de l'unité.
+// IDEMPOTENCE HORS LIGNE : l'update porte la VALEUR ABSOLUE (base locale +
+// quantité) — un rejeu repose la même valeur ; deux incréments successifs
+// hors ligne s'empilent correctement (l'état local sert de base au
+// suivant). Réceptions 'poussin' exclues (elles peuplent une bande via
+// SC-1.1, pas le stock). RÉTROACTIF : NON — le stock ferme n'a pas de
+// journal de provenance : proposer sur une réception déjà validée
+// risquerait le double-comptage des lignes saisies à la main en SC-0 ;
+// la réconciliation outillée, c'est SC-2.1.
+let _stiReception = null;
+let _stiOnDone = null;
+function proposeStockIncrement(reception, onDone) {
+  if (!reception || reception.categorie === 'poussin' || !(Number(reception.quantite) > 0)) {
+    if (onDone) onDone();
+    return;
+  }
+  _stiReception = reception;
+  _stiOnDone = onDone || null;
+  const norm = s => String(s || '').trim().toLowerCase();
+  const match = STATE.stocks.find(s => norm(s.type_produit) === norm(reception.type_produit));
+  const opts = STATE.stocks.map(s =>
+    '<option value="' + escHtml(s.stock_id) + '"' + (match && match.stock_id === s.stock_id ? ' selected' : '') + '>'
+    + escHtml(s.type_produit) + ' — ' + fmt(Number(s.quantite_actuelle) || 0, 1) + ' ' + escHtml(s.unite || '') + '</option>').join('');
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:460px;">
+      <h3><i data-lucide="boxes"></i> Ajouter au stock ferme ?</h3>
+      <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:1rem;">
+        Réception : <strong>${escHtml(reception.type_produit)}</strong> — ${fmt(Number(reception.quantite), 1)} ${escHtml(reception.unite || '')}
+      </p>
+      <div class="form-group">
+        <label>Ligne de stock à incrémenter</label>
+        <select id="sti-target" onchange="stiRefresh()">
+          ${opts}
+          <option value="__new__"${match ? '' : ' selected'}>➕ Créer une nouvelle ligne de stock…</option>
+        </select>
+        <div id="sti-unit-warn" style="display:none;color:var(--color-danger);font-size:0.8rem;margin-top:0.25rem;"></div>
+      </div>
+      <div id="sti-new-block" style="display:none;">
+        <div class="form-group">
+          <label>Catégorie de la nouvelle ligne</label>
+          <select id="sti-new-cat">
+            <option value="aliment">Aliment (provende)</option>
+            <option value="mp">Matière première</option>
+            <option value="medicament">Médicament</option>
+            <option value="equipement">Équipement</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="skipStockIncrement()">Ne pas toucher au stock</button>
+        <button class="btn btn-primary" id="sti-apply" onclick="applyStockIncrement()">Appliquer l'incrément</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const catSel = document.getElementById('sti-new-cat');
+  if (catSel && ['mp', 'medicament', 'equipement', 'autre', 'aliment'].includes(reception.categorie)) catSel.value = reception.categorie;
+  stiRefresh();
+  if (window.lucide) lucide.createIcons();
+}
+function stiRefresh() {
+  const r = _stiReception;
+  if (!r) return;
+  const val = document.getElementById('sti-target').value;
+  const isNew = val === '__new__';
+  document.getElementById('sti-new-block').style.display = isNew ? '' : 'none';
+  const warn = document.getElementById('sti-unit-warn');
+  const btn = document.getElementById('sti-apply');
+  if (!isNew) {
+    const s = STATE.stocks.find(x => x.stock_id === val);
+    const uniteOk = !!s && String(s.unite || 'kg') === String(r.unite || 'kg');
+    warn.style.display = uniteOk ? 'none' : '';
+    warn.textContent = uniteOk ? '' : 'Unités différentes (' + (s ? (s.unite || '?') : '?') + ' vs ' + (r.unite || '?') + ') — incrément refusé : choisir une autre ligne ou en créer une.';
+    btn.disabled = !uniteOk;
+  } else {
+    warn.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+function skipStockIncrement() {
+  const done = _stiOnDone;
+  _stiReception = null; _stiOnDone = null;
+  closeModal();
+  if (done) done();
+}
+async function applyStockIncrement() {
+  const r = _stiReception;
+  if (!r) { closeModal(); return; }
+  const val = document.getElementById('sti-target').value;
+  const done = _stiOnDone;
+  if (val === '__new__') {
+    const payload = {
+      stock_id: 'stk-' + uuid(),
+      type_produit: r.type_produit,
+      categorie: document.getElementById('sti-new-cat').value,
+      quantite_actuelle: Number(r.quantite) || 0,
+      unite: r.unite || 'kg',
+      seuil_alerte: 0,
+      emplacement: '',
+      derniere_mise_a_jour: todayStr()
+    };
+    const res = await saveRemote({ action: 'addStock', payload });
+    if (!res.ok) return;
+    STATE.stocks.push(payload);
+    toast(res.queued ? 'Ligne de stock créée (hors ligne — sera synchronisée)' : 'Ligne de stock créée : ' + payload.type_produit);
+  } else {
+    const s = STATE.stocks.find(x => x.stock_id === val);
+    if (!s) { toast('Ligne de stock introuvable', 'error'); return; }
+    const nouvelle = Math.round(((Number(s.quantite_actuelle) || 0) + (Number(r.quantite) || 0)) * 100) / 100;
+    const res = await saveRemote({ action: 'updateStock', payload: { stock_id: s.stock_id, quantite_actuelle: nouvelle, derniere_mise_a_jour: todayStr() } });
+    if (!res.ok) return;
+    s.quantite_actuelle = nouvelle;
+    s.derniere_mise_a_jour = todayStr();
+    toast(res.queued ? 'Stock incrémenté (hors ligne — sera synchronisé)' : 'Stock « ' + s.type_produit + ' » : ' + fmt(nouvelle, 1) + ' ' + (s.unite || ''));
+  }
+  _stiReception = null; _stiOnDone = null;
+  closeModal();
+  if (document.getElementById('stocks-grid')) renderStocks();
+  if (done) done();
 }
 
 async function deleteReception(id) {
