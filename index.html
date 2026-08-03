@@ -1020,18 +1020,8 @@ body::before {
    uses a FLAT section label instead (.sheet-group-label, with the sheet
    CSS below) : a bottom sheet fits badly with a second interaction level.
    Existing tokens only, text caret (no new icon). */
-#top-header .hdr-nav .nav-group { display:flex; flex-direction:column; gap:6px; }
-#top-header .hdr-nav .nav-group-children { display:none; flex-direction:column; gap:6px; }
-#top-header .hdr-nav .nav-group.open .nav-group-children { display:flex; }
-#top-header .hdr-nav .nav-group-children a { padding-left:34px; }
-#mobile-menu .nav-group-children { display:none; }
-#mobile-menu .nav-group.open .nav-group-children { display:block; }
-#mobile-menu .nav-group-children a { padding-left:52px; }
-.nav-group-toggle .nav-caret {
-  margin-left:auto; font-size:9px; color:var(--sidebar-icon);
-  display:inline-block; transition:transform .15s var(--ease);
-}
-.nav-group.open .nav-group-toggle .nav-caret { transform:rotate(90deg); }
+/* C1 (audit AI) : le groupe de nav repliable Biosécurité a disparu — la
+   fusion en une page à onglets règle à la racine le débordement du rail. */
 
 /* ── Sidebar Footer ── */
 #top-header .hdr-right {
@@ -2740,24 +2730,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="veterinaire" title="Vétérinaire & Santé" onclick="navigate('veterinaire',this)">
       <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
     </a>
-    <div class="nav-group" data-group="biosecurite">
-      <a href="#" class="nav-group-toggle" onclick="return toggleNavGroupBiosec()">
-        <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité &amp; Contrôles</span><span class="nav-short">Bioséc.</span> <span class="nav-caret">▸</span>
-      </a>
-      <div class="nav-group-children">
-        <a href="#" data-page="vide-sanitaire" title="Vide sanitaire" onclick="navigate('vide-sanitaire',this)">
-          <span class="icon"><i data-lucide="spray-can"></i></span> <span class="nav-full">Vide sanitaire</span><span class="nav-short">Vide</span>
-        </a>
-        <a href="#" data-page="nuisibles" title="Nuisibles" onclick="navigate('nuisibles',this)">
-          <span class="icon"><i data-lucide="bug-off"></i></span> <span class="nav-full">Nuisibles</span><span class="nav-short">Nuis.</span>
-        </a>
-        <a href="#" data-page="etalonnage" title="Étalonnage" onclick="navigate('etalonnage',this)">
-          <span class="icon"><i data-lucide="gauge"></i></span> <span class="nav-full">Étalonnage</span><span class="nav-short">Étal.</span>
-        </a>
-      </div>
-    </div>
-    <a href="#" data-page="non-conformites" title="Non-conformités" onclick="navigate('non-conformites',this)">
-      <span class="icon"><i data-lucide="triangle-alert"></i></span> <span class="nav-full">Non-conformités</span><span class="nav-short">Non-conf.</span>
+    <a href="#" data-page="biosecurite" title="Biosécurité &amp; Conformité" onclick="navigate('biosecurite',this)">
+      <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité &amp; Conformité</span><span class="nav-short">Bioséc.</span>
     </a>
     <a href="#" data-page="abattage" title="Transformation & Abattage" onclick="navigate('abattage',this)">
       <span class="icon"><i data-lucide="package"></i></span> Transformation
@@ -2818,24 +2792,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
   </a>
-  <div class="nav-group" data-group="biosecurite">
-    <a href="#" class="nav-group-toggle" onclick="return toggleNavGroupBiosec()">
-      <span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Contrôles <span class="nav-caret">▸</span>
-    </a>
-    <div class="nav-group-children">
-      <a href="#" data-page="vide-sanitaire" onclick="navigate('vide-sanitaire',this);closeMobileMenu()">
-        <span class="icon"><i data-lucide="spray-can"></i></span> Vide sanitaire
-      </a>
-      <a href="#" data-page="nuisibles" onclick="navigate('nuisibles',this);closeMobileMenu()">
-        <span class="icon"><i data-lucide="bug-off"></i></span> Nuisibles
-      </a>
-      <a href="#" data-page="etalonnage" onclick="navigate('etalonnage',this);closeMobileMenu()">
-        <span class="icon"><i data-lucide="gauge"></i></span> Étalonnage
-      </a>
-    </div>
-  </div>
-  <a href="#" data-page="non-conformites" onclick="navigate('non-conformites',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités
+  <a href="#" data-page="biosecurite" onclick="navigate('biosecurite',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité
   </a>
   <a href="#" data-page="abattage" onclick="navigate('abattage',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="package"></i></span> Transformation
@@ -2899,13 +2857,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <div class="sheet-handle"></div>
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes</a>
     <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
-    <div class="nav-group">
-      <div class="sheet-group-label">Biosécurité &amp; Contrôles</div>
-      <a href="#" data-page="vide-sanitaire" onclick="navigateFromSheet('vide-sanitaire')"><span class="icon"><i data-lucide="spray-can"></i></span> Vide sanitaire</a>
-      <a href="#" data-page="nuisibles" onclick="navigateFromSheet('nuisibles')"><span class="icon"><i data-lucide="bug-off"></i></span> Nuisibles</a>
-      <a href="#" data-page="etalonnage" onclick="navigateFromSheet('etalonnage')"><span class="icon"><i data-lucide="gauge"></i></span> Étalonnage</a>
-    </div>
-    <a href="#" data-page="non-conformites" onclick="navigateFromSheet('non-conformites')"><span class="icon"><i data-lucide="triangle-alert"></i></span> Non-conformités</a>
+    <a href="#" data-page="biosecurite" onclick="navigateFromSheet('biosecurite')"><span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité</a>
     <a href="#" data-page="abattage" onclick="navigateFromSheet('abattage')"><span class="icon"><i data-lucide="package"></i></span> Transformation</a>
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
@@ -3355,82 +3307,85 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="tab-btn" data-vet-tab="vaccination" onclick="switchVetTab('vaccination',this)">Carnet de vaccination</button>
       <button class="tab-btn" data-vet-tab="traitements" onclick="switchVetTab('traitements',this)">Traitements</button>
       <button class="tab-btn" data-vet-tab="mortalite" onclick="switchVetTab('mortalite',this)">Mortalité & santé</button>
-      <button class="tab-btn" data-vet-tab="biosecurite" onclick="switchVetTab('biosecurite',this)">Biosécurité</button>
+      <button class="tab-btn" onclick="navigate('biosecurite', document.querySelector('[data-page=biosecurite]'));return false;" title="Ouvre Biosécurité &amp; Conformité">Biosécurité ↗</button>
     </div>
 
     <div id="vet-tab-overview"></div>
     <div id="vet-tab-vaccination" style="display:none;"></div>
     <div id="vet-tab-traitements" style="display:none;"></div>
     <div id="vet-tab-mortalite" style="display:none;"></div>
-    <div id="vet-tab-biosecurite" style="display:none;"></div>
   </div>
 
   <!-- ═══════════════ PAGE: VIDE SANITAIRE ═══════════════ -->
-  <div id="page-vide-sanitaire" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="spray-can"></i> Vide sanitaire</h2>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des vides sanitaires — nettoyage &amp; désinfection entre deux bandes d'un même bâtiment.</p>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-      <span id="vs-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-      <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
-    </div>
-    <div id="vs-list"></div>
-  </div>
-
-  <!-- ═══════════════ PAGE: ÉTALONNAGE ═══════════════ -->
-  <div id="page-etalonnage" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="gauge"></i> Étalonnage</h2>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre d'étalonnage des instruments de mesure — thermomètres, balances.</p>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-      <span id="etal-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-      <button class="btn btn-primary manager-only" onclick="openEquipementModal()">+ Nouvel équipement</button>
-    </div>
-    <div id="etal-list"></div>
-    <div id="etal-historique"></div>
-  </div>
-
-  <!-- ═══════════════ PAGE: NUISIBLES ═══════════════ -->
-  <div id="page-nuisibles" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="bug-off"></i> Lutte contre les nuisibles</h2>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des postes d'appâtage &amp; pièges — rongeurs, insectes, oiseaux sauvages. Suivi périodique, indépendant des bandes.</p>
-
-    <div id="nuisibles-tabs" class="tabs" style="margin-bottom:1.25rem;">
-      <button class="tab-btn active" data-nui-tab="postes" onclick="switchNuisiblesTab('postes',this)">Postes</button>
-      <button class="tab-btn" data-nui-tab="tournee" onclick="switchNuisiblesTab('tournee',this)">Tournée</button>
+  <!-- ═══════════════ PAGE: BIOSÉCURITÉ & CONFORMITÉ (C1, audit AI) ══════════
+       Les 4 registres réglementaires fusionnés en UNE page à onglets
+       (ex-pages vide-sanitaire / nuisibles / etalonnage / non-conformites).
+       IDs internes et fonctions init/render INCHANGÉS — seuls les conteneurs
+       de page ont bougé. Anciens ids de page → alias dans navigate(). -->
+  <div id="page-biosecurite" class="page">
+    <h2><i data-lucide="shield-check"></i> Biosécurité &amp; Conformité</h2>
+    <div id="biosec-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" data-bio-tab="vide" onclick="switchBiosecTab('vide',this)">Vide sanitaire</button>
+      <button class="tab-btn" data-bio-tab="nuisibles" onclick="switchBiosecTab('nuisibles',this)">Nuisibles</button>
+      <button class="tab-btn" data-bio-tab="etalonnage" onclick="switchBiosecTab('etalonnage',this)">Étalonnage</button>
+      <button class="tab-btn" data-bio-tab="nc" onclick="switchBiosecTab('nc',this)">Non-conformités</button>
     </div>
 
-    <!-- Tab 1: stations -->
-    <div id="nui-tab-postes">
+    <!-- Onglet 1 : Vide sanitaire (ex-page-vide-sanitaire, contenu intact) -->
+    <div id="bio-tab-vide">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des vides sanitaires — nettoyage &amp; désinfection entre deux bandes d'un même bâtiment.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <span id="nui-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-        <button class="btn btn-primary manager-only" onclick="openPosteModal()">+ Nouveau poste</button>
+        <span id="vs-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+        <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
       </div>
-      <div id="nui-postes-list"></div>
+      <div id="vs-list"></div>
     </div>
 
-    <!-- Tab 2: the round — every active station recorded in sequence -->
-    <div id="nui-tab-tournee" style="display:none;">
-      <div style="display:flex;align-items:flex-end;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
-        <div class="form-group" style="max-width:220px;margin:0;">
-          <label>Date de la tournée</label>
-          <input type="date" id="nui-tournee-date" onchange="renderNuisiblesTournee()">
+    <!-- Onglet 2 : Nuisibles (ex-page-nuisibles, sous-onglets intacts) -->
+    <div id="bio-tab-nuisibles" style="display:none;">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des postes d'appâtage &amp; pièges — rongeurs, insectes, oiseaux sauvages. Suivi périodique, indépendant des bandes.</p>
+      <div id="nuisibles-tabs" class="tabs" style="margin-bottom:1.25rem;">
+        <button class="tab-btn active" data-nui-tab="postes" onclick="switchNuisiblesTab('postes',this)">Postes</button>
+        <button class="tab-btn" data-nui-tab="tournee" onclick="switchNuisiblesTab('tournee',this)">Tournée</button>
+      </div>
+      <div id="nui-tab-postes">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+          <span id="nui-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+          <button class="btn btn-primary manager-only" onclick="openPosteModal()">+ Nouveau poste</button>
         </div>
-        <span id="nui-tournee-progress" style="font-size:0.82rem;color:var(--text-muted);padding-bottom:0.6rem;"></span>
+        <div id="nui-postes-list"></div>
       </div>
-      <div id="nui-tournee-list"></div>
+      <div id="nui-tab-tournee" style="display:none;">
+        <div style="display:flex;align-items:flex-end;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+          <div class="form-group" style="max-width:220px;margin:0;">
+            <label>Date de la tournée</label>
+            <input type="date" id="nui-tournee-date" onchange="renderNuisiblesTournee()">
+          </div>
+          <span id="nui-tournee-progress" style="font-size:0.82rem;color:var(--text-muted);padding-bottom:0.6rem;"></span>
+        </div>
+        <div id="nui-tournee-list"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- ═══════════════ PAGE: NON-CONFORMITÉS ═══════════════ -->
-  <div id="page-non-conformites" class="page">
-    <h2 style="margin:0 0 0.25rem;"><i data-lucide="triangle-alert"></i> Non-conformités</h2>
-    <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des écarts — constat, action corrective, vérification d'efficacité.</p>
-
-    <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-      <button class="btn btn-primary" onclick="openNonConformiteModal()">+ Nouvelle non-conformité</button>
+    <!-- Onglet 3 : Étalonnage (ex-page-etalonnage, contenu intact) -->
+    <div id="bio-tab-etalonnage" style="display:none;">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre d'étalonnage des instruments de mesure — thermomètres, balances.</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <span id="etal-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
+        <button class="btn btn-primary manager-only" onclick="openEquipementModal()">+ Nouvel équipement</button>
+      </div>
+      <div id="etal-list"></div>
+      <div id="etal-historique"></div>
     </div>
-    <div id="nc-list"></div>
+
+    <!-- Onglet 4 : Non-conformités (ex-page-non-conformites, contenu intact) -->
+    <div id="bio-tab-nc" style="display:none;">
+      <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des écarts — constat, action corrective, vérification d'efficacité.</p>
+      <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <button class="btn btn-primary" onclick="openNonConformiteModal()">+ Nouvelle non-conformité</button>
+      </div>
+      <div id="nc-list"></div>
+    </div>
   </div>
 
   <div id="page-supply" class="page">
@@ -4729,8 +4684,8 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'nuisibles', 'non-conformites', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
-const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'vide-sanitaire', 'etalonnage', 'nuisibles', 'non-conformites', 'abattage', 'supply', 'clients', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'abattage', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'abattage', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
 function rolePages() {
@@ -4855,14 +4810,8 @@ function applyRoleAccess() {
     document.querySelectorAll('[data-page="iot"]').forEach(el => { el.style.display = 'none'; });
   }
 
-  // Grouped nav containers (header collapsible group, mobile-menu group,
-  // flat plus-sheet section) : hide the whole PARENT when the role can see
-  // none of its children — per-child visibility stays driven by the loop
-  // above, each child keeps the exact roles it has today.
-  document.querySelectorAll('.nav-group').forEach(g => {
-    const anyVisible = Array.from(g.querySelectorAll('a[data-page]')).some(a => a.style.display !== 'none');
-    g.style.display = anyVisible ? '' : 'none';
-  });
+  // (C1 : plus aucun groupe de nav — la boucle de masquage des parents
+  // .nav-group a été retirée avec la fusion Biosécurité & Conformité.)
 
   // Show user badge
   const badge = document.getElementById('user-badge');
@@ -5988,10 +5937,7 @@ const PAGE_TITLES = {
   saisie: 'Saisie Terrain',
   fiche: 'Bandes',
   veterinaire: 'Vétérinaire & Santé',
-  'vide-sanitaire': 'Vide sanitaire',
-  etalonnage: 'Étalonnage',
-  nuisibles: 'Nuisibles',
-  'non-conformites': 'Non-conformités',
+  biosecurite: 'Biosécurité & Conformité',
   abattage: 'Transformation',
   supply: 'Supply Chain',
   clients: 'Commercial & Ventes',
@@ -6052,7 +5998,7 @@ function initVeterinairePage() {
 function switchVetTab(tab, btn) {
   document.querySelectorAll('#vet-tabs .tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  ['overview', 'vaccination', 'traitements', 'mortalite', 'biosecurite'].forEach(t => {
+  ['overview', 'vaccination', 'traitements', 'mortalite'].forEach(t => {
     const el = document.getElementById('vet-tab-' + t);
     if (el) el.style.display = (t === tab) ? 'block' : 'none';
   });
@@ -6066,7 +6012,6 @@ function renderVetActiveTab() {
   else if (tab === 'vaccination') renderVetVaccination();
   else if (tab === 'traitements') renderVetTraitements();
   else if (tab === 'mortalite') renderVetSante();
-  else if (tab === 'biosecurite') renderVetBiosecurite();
   else renderVetPlaceholder(tab);
 }
 
@@ -6904,16 +6849,8 @@ function renderVetSante() {
 }
 
 // ── Onglet Biosécurité : vide sanitaire (référence paramétrable) ──
-function renderVetBiosecurite() {
-  const el = document.getElementById('vet-tab-biosecurite');
-  if (!el) return;
-  const vide = getVetParams().videSanitaire || '15';
-  el.innerHTML =
-    '<div class="card"><div class="card-header"><h3>Vide sanitaire</h3></div>'
-    + '<div class="param-info-row"><span>Durée minimale recommandée</span><strong>' + escHtml(String(vide)) + ' jours</strong></div>'
-    + '<p style="font-size:0.78rem;color:var(--text-muted);margin:0.5rem 0 0;">Référence paramétrable (Paramètres → Santé &amp; vétérinaire). Durée entre deux bandes dans un même bâtiment. Surface d\'information — non automatisé.</p></div>'
-    + '<div class="card"><div class="card-header"><h3>Registre de biosécurité</h3></div><p style="color:var(--text-muted);font-size:0.85rem;">Nettoyage, désinfection, visiteurs — à venir.</p></div>';
-}
+// (renderVetBiosecurite supprimé — C1 : l'onglet Véto « Biosécurité » est
+// devenu un lien direct vers la page Biosécurité & Conformité.)
 
 // ── Export PDF : registre sanitaire DSV (vaccinations + traitements + signature) ──
 // Réutilise l'en-tête/pied/section/tableau de marque partagés (reportHeaderPDF…),
@@ -8427,29 +8364,48 @@ async function submitPoste() {
 // (per session, per spec : no localStorage, no parametres). Navigating to a
 // child force-opens the group so the active link is never hidden ; any other
 // navigation keeps the manual state.
-const NAV_GROUP_BIOSECURITE_PAGES = ['vide-sanitaire', 'nuisibles', 'etalonnage'];
-let navGroupBiosecOpen = false;
+// ── C1 (audit AI) : Biosécurité & Conformité — 1 page, 4 registres ─────────
+// Le groupe de nav repliable a disparu avec la fusion (ce qui règle à la
+// racine le bug de débordement du rail que C3 contournait). Les anciens ids
+// de page restent des ALIAS acceptés par navigate() — filet pour tout
+// appelant résiduel ; aucun appel programmatique connu (vérifié : seuls les
+// liens de nav pointaient dessus).
+const BIOSEC_ALIASES = { 'vide-sanitaire': 'vide', 'nuisibles': 'nuisibles', 'etalonnage': 'etalonnage', 'non-conformites': 'nc' };
+const BIOSEC_TABS = ['vide', 'nuisibles', 'etalonnage', 'nc'];
+let currentBiosecTab = 'vide';
+let biosecTabTarget = null;
 
-function applyNavGroupBiosec() {
-  document.querySelectorAll('.nav-group[data-group="biosecurite"]').forEach(g => {
-    g.classList.toggle('open', navGroupBiosecOpen);
+function switchBiosecTab(tab, btn) {
+  currentBiosecTab = BIOSEC_TABS.includes(tab) ? tab : 'vide';
+  BIOSEC_TABS.forEach(t => {
+    const el = document.getElementById('bio-tab-' + t);
+    if (el) el.style.display = (t === currentBiosecTab) ? '' : 'none';
   });
+  document.querySelectorAll('#biosec-tabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.bioTab === currentBiosecTab));
+  if (currentBiosecTab === 'vide') initVideSanitairePage();
+  else if (currentBiosecTab === 'nuisibles') initNuisiblesPage();
+  else if (currentBiosecTab === 'etalonnage') initEtalonnagePage();
+  else initNonConformitesPage();
+  if (window.lucide) lucide.createIcons();
 }
 
-function toggleNavGroupBiosec() {
-  navGroupBiosecOpen = !navGroupBiosecOpen;
-  applyNavGroupBiosec();
-  // UX C3 : le sous-menu déplié se rendait sous la ligne de flottaison du
-  // rail (qui défile) — l'amener à l'écran quand on l'ouvre.
-  if (navGroupBiosecOpen) {
-    const g = document.querySelector('.nav-group');
-    if (g) g.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-  return false;
+function initBiosecuritePage() {
+  const tab = biosecTabTarget || currentBiosecTab || 'vide';
+  biosecTabTarget = null;
+  switchBiosecTab(tab);
 }
 
 // ── Navigation ──
 function navigate(page, el) {
+  // C1 : anciens ids des pages fusionnées → Biosécurité & Conformité, onglet
+  // ciblé (alias de compatibilité — les liens de nav pointent déjà sur
+  // 'biosecurite', ceci couvre tout appel direct résiduel).
+  if (BIOSEC_ALIASES[page]) {
+    biosecTabTarget = BIOSEC_ALIASES[page];
+    page = 'biosecurite';
+    el = document.querySelector('[data-page="biosecurite"]');
+  }
   // Garde d'accès par rôle (défense en profondeur, en plus du masquage nav) :
   // un rôle qui tente une page non autorisée (ex. chef_bande → 'tresorerie',
   // 'bandes', 'iot') est redirigé vers le dashboard. Couvre TOUTES les voies
@@ -8477,10 +8433,6 @@ function navigate(page, el) {
   closeMobileMenu();
   closePlusSheet();
   updateBottomBar(page);
-  // Nav group : landing on one of its children force-opens it (the active
-  // link must be visible) ; other navigations keep the manual state.
-  if (NAV_GROUP_BIOSECURITE_PAGES.includes(page)) navGroupBiosecOpen = true;
-  applyNavGroupBiosec();
 
   // UX A2 : chaque changement de page repart du HAUT — sans ça, la position
   // de défilement de la page précédente persiste (Saisie ouverte au milieu du
@@ -8494,10 +8446,7 @@ function navigate(page, el) {
     case 'saisie': initSaisiePage(); break;
     case 'fiche': initFichePage(); break;
     case 'veterinaire': initVeterinairePage(); break;
-    case 'vide-sanitaire': initVideSanitairePage(); break;
-    case 'etalonnage': initEtalonnagePage(); break;
-    case 'nuisibles': initNuisiblesPage(); break;
-    case 'non-conformites': initNonConformitesPage(); break;
+    case 'biosecurite': initBiosecuritePage(); break;
     case 'abattage': initAbattagePage(); break;
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
