@@ -420,6 +420,8 @@
 #page-dashboard .alert-item:hover { transform: none; }
 #page-dashboard .alert-item.warning { border-left: 3px solid var(--color-warning); color: var(--color-text); }
 #page-dashboard .alert-item.critical { border-left: 3px solid var(--color-danger); color: var(--color-text); }
+/* C5 : rangée « échéance » du bandeau fusionné — neutre, datée, non urgente. */
+#page-dashboard .alert-item.info { border-left: 3px solid var(--sidebar-icon); color: var(--color-text-secondary); }
 
 /* 6. Hero card — filet fin, pas d'ombre ni de glow orange (hero retiré, règles inertes mais sans effet) */
 #page-dashboard .hero-batch-card { box-shadow: none; border: var(--border-hairline); border-left: 3px solid var(--color-accent); }
@@ -3523,10 +3525,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
     <!-- Tabs -->
     <div id="clients-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <!-- C3 (audit AI) : le Tableau commercial vit replié dans Trésorerie
+           (analyse mensuelle = argent) ; le Catalogue monte en 2e position
+           (référentiel de VENTE du portail et de la caisse). -->
       <button class="tab-btn active" onclick="switchClientsTab('commandes',this)">Commandes</button>
-      <button class="tab-btn" onclick="switchClientsTab('clients',this)">Clients</button>
-      <button class="tab-btn manager-only" onclick="switchClientsTab('commercial',this)">Tableau commercial</button>
       <button class="tab-btn manager-only" onclick="switchClientsTab('catalogue',this)">Catalogue</button>
+      <button class="tab-btn" onclick="switchClientsTab('clients',this)">Clients</button>
     </div>
 
     <!-- Tab 1: Commandes -->
@@ -3570,30 +3574,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div id="clients-list"></div>
     </div>
 
-    <!-- Tab 3: Tableau commercial -->
-    <div id="cl-tab-commercial" style="display:none;">
-      <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-        <label for="commercial-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
-        <input type="month" id="commercial-period" title="Période du rapport commercial" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
-        <button class="btn btn-outline btn-sm" onclick="exportCommercialPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
-        <button class="btn btn-outline btn-sm" onclick="exportCommercialExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
-      </div>
-      <div id="commercial-comparison" class="card" style="margin-bottom:1rem;"></div>
-      <div class="commercial-grid">
-        <div class="card">
-          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Top 5 clients (CA)</h3>
-          <div style="position:relative;height:280px;"><canvas id="chart-top-clients"></canvas></div>
-        </div>
-        <div class="card">
-          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Répartition par produit</h3>
-          <div style="position:relative;height:280px;"><canvas id="chart-produits"></canvas></div>
-        </div>
-        <div class="card">
-          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Commandes par statut</h3>
-          <div style="position:relative;height:280px;"><canvas id="chart-statuts"></canvas></div>
-        </div>
-      </div>
-    </div>
+    <!-- (Tableau commercial : déplacé dans Trésorerie, replié — C3, audit AI.) -->
 
     <!-- Tab 4: Catalogue (manager-only) -->
     <div id="cl-tab-catalogue" class="manager-only" style="display:none;">
@@ -3643,6 +3624,35 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Zone 2: Activité du mois — B2B / B2C / Total (suit #treso-period) -->
     <div id="treso-activite" class="card" style="margin-bottom:1.5rem;"></div>
 
+    <!-- C3 (audit AI) : Analyse commerciale (ex-onglet « Tableau commercial »
+         de Commercial & Ventes) — REPLIÉE par défaut, contenu et ids intacts
+         (comparaison, top clients, produits, statuts, rapports PDF/Excel,
+         période autonome #commercial-period). Rendu à l'ouverture. -->
+    <details class="card" id="treso-commercial" style="margin-bottom:1.5rem;" ontoggle="if (this.open) renderCommercialDashboard()">
+      <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Analyse commerciale (mois)</summary>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:0.5rem;flex-wrap:wrap;margin:0.75rem 0 1rem;">
+        <label for="commercial-period" style="font-size:0.78rem;color:var(--text-muted);">Période</label>
+        <input type="month" id="commercial-period" title="Période du rapport commercial" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+        <button class="btn btn-outline btn-sm" onclick="exportCommercialPDF()"><i data-lucide="file-text"></i> Rapport PDF</button>
+        <button class="btn btn-outline btn-sm" onclick="exportCommercialExcel()"><i data-lucide="sheet"></i> Rapport Excel</button>
+      </div>
+      <div id="commercial-comparison" class="card" style="margin-bottom:1rem;"></div>
+      <div class="commercial-grid">
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Top 5 clients (CA)</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-top-clients"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Répartition par produit</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-produits"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.75rem;color:var(--primary-dark);">Commandes par statut</h3>
+          <div style="position:relative;height:280px;"><canvas id="chart-statuts"></canvas></div>
+        </div>
+      </div>
+    </details>
+
     <!-- Zone 2b: Créances clients (détail par client du « En attente B2B ») -->
     <div id="treso-creances" class="manager-only" style="margin-bottom:1.5rem;"></div>
 
@@ -3657,10 +3667,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div style="position:relative;height:280px;"><canvas id="chart-treso-costs"></canvas></div>
         <div id="treso-costs-legend" style="margin-top:0.75rem;font-size:0.8rem;line-height:1.8;"></div>
       </div>
-      <div class="card" id="treso-ca-card">
-        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">CA réalisé vs Coûts par bande</h3></div>
-        <div style="position:relative;height:280px;"><canvas id="chart-treso-ca"></canvas></div>
-      </div>
+      <!-- (C5 : graphique « CA réalisé vs Coûts par bande » supprimé —
+           doublon moins précis de la table zone 3 juste au-dessus.) -->
     </div>
 
     <!-- Zone 4: Flux de trésorerie mensuel — replié par défaut -->
@@ -8785,15 +8793,24 @@ function checkAlerts() {
   return alerts;
 }
 
-function renderAlerts(alerts) {
+// C5 (audit AI) : LE bandeau unique — alertes TRIÉES (critiques, puis
+// avertissements, ordre d'origine préservé dans chaque classe) suivies des
+// ÉCHÉANCES datées (ex-zone « Échéances à venir », fusionnée ici — le
+// panneau « attention », sous-ensemble redondant, est mort). Les rangées
+// gardent leur navigation A5.
+function renderAlerts(alerts, deadlines) {
   const container = document.getElementById('dash-alerts');
-  if (alerts.length === 0) {
+  deadlines = deadlines || [];
+  if (alerts.length === 0 && deadlines.length === 0) {
     container.innerHTML = '<p style="color:#27AE60;font-size:0.85rem;margin-bottom:0.75rem;"><i data-lucide="circle-check"></i> Tout est normal</p>';
     return;
   }
 
+  const tri = alerts.slice().sort((a, b) =>
+    (a.level === 'critical' ? 0 : 1) - (b.level === 'critical' ? 0 : 1));
+
   let html = '<div class="alerts-section">';
-  alerts.forEach(a => {
+  tri.forEach(a => {
     const cls = a.level === 'critical' ? 'critical' : 'warning';
     // UX A5 : une alerte taguée nav se TAPE — elle mène là où l'action se
     // fait (saisie manquante → Saisie ; ambiance → fiche ; vaccin → Carnet).
@@ -8805,6 +8822,17 @@ function renderAlerts(alerts) {
       <span class="alert-icon">${a.icon}</span>
       ${a.text}${attrs ? ' <span style="opacity:.45;">›</span>' : ''}
     </div>`;
+  });
+  // Échéances (déjà triées par computeDeadlines) : rangées neutres datées —
+  // en retard / aujourd'hui = warning, sinon info.
+  deadlines.forEach(dl => {
+    const late = dl.daysLeft <= 0;
+    const compte = dl.daysLeft < 0 ? 'EN RETARD' : (dl.daysLeft === 0 ? 'AUJOURD\'HUI' : 'J-' + dl.daysLeft);
+    html += '<div class="alert-item ' + (late ? 'warning' : 'info') + '">'
+      + '<span class="alert-icon"><i data-lucide="calendar"></i></span>'
+      + '<strong>' + compte + '</strong> · ' + escHtml(dl.label) + ' — ' + escHtml(dl.sub)
+      + ' · ' + dl.date.toLocaleDateString('fr-FR')
+      + '</div>';
   });
   html += '</div>';
   container.innerHTML = html;
@@ -9283,35 +9311,8 @@ function computeDeadlines(batchData) {
   return deadlines;
 }
 
-function renderDeadlines(batchData) {
-  const container = document.getElementById('dash-deadlines');
-  if (!container) return;
-  const deadlines = computeDeadlines(batchData);
-
-  if (deadlines.length === 0) {
-    container.innerHTML = '<div class="deadlines-section-title">ÉCHÉANCES À VENIR</div>' +
-      '<p style="font-size:0.82rem;color:#9E9E9E;margin-bottom:1.25rem;">Aucune échéance dans les 14 prochains jours</p>';
-    return;
-  }
-
-  let html = '<div class="deadlines-section-title">ÉCHÉANCES À VENIR</div><div class="deadlines-row">';
-  deadlines.forEach(dl => {
-    // Orange UNIQUEMENT sur l'échéance imminente (J-7 ou moins) ; les plus lointaines en encre ; retard/aujourd'hui en danger.
-    let countText, countColor;
-    if (dl.daysLeft < 0) { countText = 'EN RETARD'; countColor = 'var(--status-danger-fg)'; }
-    else if (dl.daysLeft === 0) { countText = "AUJOURD'HUI"; countColor = 'var(--status-danger-fg)'; }
-    else { countText = 'J-' + dl.daysLeft; countColor = dl.daysLeft <= 7 ? 'var(--color-accent)' : 'var(--color-text)'; }
-
-    const dateStr = dl.date.toLocaleDateString('fr-FR');
-    html += '<div class="deadline-card">';
-    html += '<div class="dl-count" style="color:' + countColor + ';">' + countText + '</div>';
-    html += '<div class="dl-meta"><div class="dl-label">' + escHtml(dl.label) + '</div>' +
-      '<div class="dl-date">' + escHtml(dl.sub) + ' · ' + dateStr + '</div></div>';
-    html += '</div>';
-  });
-  html += '</div>';
-  container.innerHTML = html;
-}
+// (renderDeadlines supprimé — C5 : les échéances vivent dans le bandeau
+// d'alertes fusionné, computeDeadlines reste la source.)
 
 // ── Dashboard ──
 function renderDashboard() {
@@ -9345,7 +9346,8 @@ function renderDashboard() {
   }
 
   emptyDiv.style.display = 'none';
-  renderAlerts(alerts);
+  // C5 : le bandeau se rend plus bas, une fois batchData construit (il
+  // fusionne alertes + échéances datées).
 
   // Pre-compute indicators for all active batches
   const batchData = activeBandes.map(b => ({
@@ -9390,22 +9392,12 @@ function renderDashboard() {
     '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
     '<div class="dash-kpi card-stagger' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
 
-  // ── Zone 2b: Deadline timers ──
-  renderDeadlines(batchData);
+  // ── C5 : bandeau unique = alertes triées + échéances datées ──
+  renderAlerts(alerts, computeDeadlines(batchData));
+  document.getElementById('dash-deadlines').innerHTML = '';
 
-  // ── Attention panel: surface the worst current metric ──
-  if (alerts.length > 0) {
-    // C5 : le panneau est un SOUS-ENSEMBLE du bandeau d'alertes — il le dit,
-    // au lieu de contredire le compteur (« 7 alertes » vs 4 lignes).
-    const attShown = Math.min(4, alerts.length);
-    let attHtml = '<div class="attention-panel"><h4><i data-lucide="triangle-alert"></i> Ce qui demande de l\'attention'
-      + (alerts.length > attShown ? ' — ' + alerts.length + ' alertes, dont ' + attShown + ' prioritaires' : '') + '</h4>';
-    alerts.slice(0, 4).forEach(a => {
-      attHtml += '<div class="attention-item"><span style="font-size:16px;">' + a.icon + '</span><span>' + escHtml(a.text) + '</span></div>';
-    });
-    attHtml += '</div>';
-    document.getElementById('dash-deadlines').insertAdjacentHTML('afterend', attHtml);
-  }
+  // (C5 : panneau « Ce qui demande de l'attention » supprimé — c'était un
+  // sous-ensemble du bandeau, désormais trié critiques-d'abord.)
 
   // ── Zone 3: Enriched batch cards ──
   function getCobbGmq(day) {
@@ -9559,8 +9551,8 @@ function renderDashboard() {
       ? fmt(alim.stockKg, 0) + ' kg en stock · conso moyenne ' + fmt(alim.conso, 1)
         + ' kg/j (fenêtre ' + ALIMENT_CONSO_FENETRE_JOURS + ' j)'
       : 'Conso inconnue — aucune saisie d\'aliment sur ' + ALIMENT_CONSO_FENETRE_JOURS + ' j.';
-    feedHtml = '<div class="dash-section-title">Aliment</div>'
-      + '<div class="card" style="padding:0.75rem 1.25rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">'
+    // C5 : plus de carte dédiée — la ligne aliment ouvre LA carte Stocks.
+    feedHtml = '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;padding-bottom:0.5rem;">'
       + '<i data-lucide="wheat" style="width:20px;height:20px;flex:none;color:' + couleur + ';"></i>'
       + '<div style="flex:1;min-width:200px;">'
       + '<div style="font-weight:700;color:' + couleur + ';">' + titre + '</div>'
@@ -9575,25 +9567,25 @@ function renderDashboard() {
     return seuil > 0 && qty <= seuil * 1.5;
   });
 
-  if (watchStocks.length === 0) {
-    document.getElementById('dash-stocks-watch').innerHTML = feedHtml;
-  } else {
-    let stkHtml = '<div class="dash-section-title">Stocks à surveiller</div><div class="card" style="padding:0.75rem 1.25rem;">';
-    watchStocks.forEach(s => {
-      const qty = Number(s.quantite_actuelle) || 0;
-      const seuil = Number(s.seuil_alerte) || 0;
-      const pct = seuil > 0 ? Math.min(100, Math.round((qty / seuil) * 100)) : 100;
-      const barColor = qty <= seuil ? '#E74C3C' : '#F59E0B';
-      stkHtml += '<div class="dash-stock-row">' +
-        '<span class="dash-stock-name">' + s.type_produit + '</span>' +
-        '<span class="dash-stock-levels">' + fmt(qty, 0) + ' ' + s.unite + ' / seuil ' + fmt(seuil, 0) + ' ' + s.unite + '</span>' +
-        '<div class="dash-stock-bar"><div class="dash-stock-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
-        '<span class="btn btn-outline btn-sm" style="font-size:0.7rem;padding:0.2rem 0.5rem;pointer-events:none;opacity:0.6;">Commander</span>' +
-        '</div>';
-    });
-    stkHtml += '</div>';
-    document.getElementById('dash-stocks-watch').innerHTML = feedHtml + stkHtml;
-  }
+  // C5 (audit AI) : UN seul bloc « Stocks » — la ligne d'autonomie aliment
+  // (SC-1.4) et les seuils à surveiller vivaient en deux cartes titrées
+  // côte à côte pour le même sujet.
+  let stkRows = '';
+  watchStocks.forEach(s => {
+    const qty = Number(s.quantite_actuelle) || 0;
+    const seuil = Number(s.seuil_alerte) || 0;
+    const pct = seuil > 0 ? Math.min(100, Math.round((qty / seuil) * 100)) : 100;
+    const barColor = qty <= seuil ? '#E74C3C' : '#F59E0B';
+    stkRows += '<div class="dash-stock-row">' +
+      '<span class="dash-stock-name">' + s.type_produit + '</span>' +
+      '<span class="dash-stock-levels">' + fmt(qty, 0) + ' ' + s.unite + ' / seuil ' + fmt(seuil, 0) + ' ' + s.unite + '</span>' +
+      '<div class="dash-stock-bar"><div class="dash-stock-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
+      '<span class="btn btn-outline btn-sm" style="font-size:0.7rem;padding:0.2rem 0.5rem;pointer-events:none;opacity:0.6;">Commander</span>' +
+      '</div>';
+  });
+  document.getElementById('dash-stocks-watch').innerHTML = (feedHtml || stkRows)
+    ? '<div class="dash-section-title">Stocks</div><div class="card" style="padding:0.75rem 1.25rem;">' + feedHtml + stkRows + '</div>'
+    : '';
 
   updateSidebarLotActif();
 }
@@ -12025,7 +12017,7 @@ async function deleteIntrant(intrantId) {
 }
 
 // ── Exports ──
-let tresoCharts = { costs: null, ca: null };
+let tresoCharts = { costs: null };
 
 let currentTresoTab = 'general';
 let currentRHSubTab = 'employes';
@@ -12918,7 +12910,7 @@ function initTresoreriePage() {
   // est non nulle (bug 3 : plus jamais d'axes nus sur données vides ; la
   // carte entière est masquée). destroy() systématique avant re-création.
   if (tresoCharts.costs) { tresoCharts.costs.destroy(); tresoCharts.costs = null; }
-  if (tresoCharts.ca) { tresoCharts.ca.destroy(); tresoCharts.ca = null; }
+
   const t = chartTokens();
 
   const totPoussins = allBF.reduce((s, bf) => s + bf.fin.coutPoussins, 0);
@@ -12951,33 +12943,8 @@ function initTresoreriePage() {
     ).join('');
   }
 
-  const batchNames = allBF.map(bf => bf.bande.nom_bande);
-  const batchCA = allBF.map(bf => bf.fin.caRealise);
-  const batchCosts = allBF.map(bf => bf.fin.coutTotal);
-  const batchMarges = allBF.map(bf => bf.fin.margeBrute);
-  const caCardEl = document.getElementById('treso-ca-card');
-  const caHasData = allBF.length > 0
-    && (batchCA.some(v => v !== 0) || batchCosts.some(v => v !== 0) || batchMarges.some(v => v !== 0));
-  if (!caHasData) {
-    if (caCardEl) caCardEl.style.display = 'none';
-  } else {
-    if (caCardEl) caCardEl.style.display = '';
-    const ctx2 = document.getElementById('chart-treso-ca');
-    if (ctx2) {
-      tresoCharts.ca = new Chart(ctx2.getContext('2d'), {
-        type: 'bar',
-        data: {
-          labels: batchNames,
-          datasets: [
-            { label: 'CA réalisé', data: batchCA, backgroundColor: t.observed, borderRadius: 4 },
-            { label: 'Coût total', data: batchCosts, backgroundColor: '#8A95A1', borderRadius: 4 },
-            { label: 'Marge brute', data: batchMarges, type: 'line', borderColor: t.red, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false }
-          ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: t.grid, drawTicks: false }, border: { display: false }, ticks: { color: t.axis } }, x: { grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } } } }
-      });
-    }
-  }
+  // (C5 : graphique « CA réalisé vs Coûts » supprimé — la table zone 3
+  // porte les mêmes chiffres, en précis et cliquable.)
 
   // ── Zone 4: Flux mensuel (6 derniers mois, replié par défaut) ──
   // BUG FIX (doublon « Mar 2026 ») : l'ancien code faisait
@@ -15750,21 +15717,22 @@ function initClientsPage() {
 }
 
 function switchClientsTab(tab, btn) {
-  // C-F1 : le Tableau commercial est intrinsèquement financier (CA, top
-  // clients) → réservé au manager (bouton masqué + garde ici).
-  if (tab === 'commercial' && !canSee('finance')) tab = 'commandes';
+  // C3 (audit AI) : l'onglet Tableau commercial a déménagé dans Trésorerie
+  // (replié) — alias pour tout appel résiduel. C-F1 : le Catalogue reste
+  // manager-only (bouton masqué + garde).
+  if (tab === 'commercial') { navigate('tresorerie', document.querySelector('[data-page="tresorerie"]')); return; }
+  if (tab === 'catalogue' && !canSee('finance')) tab = 'commandes';
   currentClientsTab = tab;
-  ['commandes','clients','commercial','catalogue'].forEach(t => {
+  ['commandes','catalogue','clients'].forEach(t => {
     const el = document.getElementById('cl-tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#clients-tabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['commandes','clients','commercial','catalogue'][i] === tab);
+    b.classList.toggle('active', ['commandes','catalogue','clients'][i] === tab);
   });
   switch (tab) {
     case 'commandes': renderCommandes(); break;
     case 'clients': renderClientsList(); break;
-    case 'commercial': renderCommercialDashboard(); break;
     case 'catalogue': renderCatalogue(); break;
   }
 }
