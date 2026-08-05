@@ -287,6 +287,12 @@
 #page-tresorerie #treso-kpis .dk-value { font-size: 23px; color: var(--color-text); }
 #page-tresorerie #treso-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 #page-tresorerie #treso-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
+/* #146 : les KPI sémantiques gardent leur rouge — la règle générique
+   .dash-kpi.dk-danger .dk-value (spécificité 0-3-0) perd contre le restyle
+   ci-dessus (2-1-0) : l'écart de clôture non résolu s'affichait en encre par
+   défaut. Même token que l'onglet Caisse PDV (--color-danger), rouge quel que
+   soit le signe. */
+#page-tresorerie #treso-kpis .dash-kpi.dk-danger .dk-value { color: var(--color-danger); }
 @media (max-width: 900px) { #page-tresorerie #treso-kpis { grid-template-columns: repeat(2, 1fr); } }
 /* Mobile (≤560px) : 6 KPI (pair) → 2 colonnes compactes (pavage 2×3 propre, aucun « orphelin »).
    Padding + valeur resserrés pour que les GROS montants FCFA (CA livré, coûts engagés) tiennent
@@ -348,6 +354,9 @@
 #page-dashboard #dash-kpis .dk-value { font-size: 23px; color: var(--color-text); }
 #page-dashboard #dash-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
 #page-dashboard #dash-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
+/* #146 (même famille que Trésorerie) : le compteur « Alertes actives » porte
+   dk-danger mais restait en encre par défaut — même écrasure de spécificité. */
+#page-dashboard #dash-kpis .dash-kpi.dk-danger .dk-value { color: var(--color-danger); }
 @media (max-width: 900px) { #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); } }
 /* Mobile (≤560px) : 4 KPI pairs → 2 colonnes compactes (au lieu de 4 blocs très hauts).
    Densité resserrée (padding + valeur) pour tenir ~1 écran. Même style (cartes blanches,
@@ -8840,7 +8849,56 @@ function checkAlerts() {
     }
   }
 
+  // Fraîcheur : le Dashboard consomme la MÊME liste que le badge — bandeau
+  // d'alertes, compteur KPI et bloc Stocks se rafraîchissent à chaque
+  // checkAlerts() si la page est affichée (sinon no-op ; l'entrée de page
+  // repasse de toute façon par renderDashboard).
+  try { refreshDashAlertsLive(alerts); } catch (e) { /* rendu au mieux */ }
+
   return alerts;
+}
+
+// Fraîcheur : cellule KPI « Alertes actives » — une seule fabrique pour les
+// deux branches de renderDashboard ET le rafraîchissement live (ids stables).
+function dashKpiAlertesHtml(alerts, cls) {
+  return '<div class="dash-kpi card-stagger ' + cls + '" id="dash-kpi-alertes"><div class="dk-value" id="dash-kpi-alertes-val">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub" id="dash-kpi-alertes-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
+}
+
+// Fraîcheur : le panneau d'alertes, le compteur KPI et le bloc Stocks du
+// Dashboard étaient un instantané (seul le badge nav vivait). Appelé par
+// checkAlerts() — même source, même fraîcheur, dans les deux sens. Quand
+// renderDashboard appelle lui-même checkAlerts, le double rendu est bénin
+// (mêmes données, mêmes conteneurs) ; aucune récursion (rien ici ne rappelle
+// renderDashboard ni checkAlerts).
+function refreshDashAlertsLive(alerts) {
+  const page = document.getElementById('page-dashboard');
+  if (!page || !page.classList.contains('active')) return;
+  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
+  if (activeBandes.length === 0) {
+    // Miroir de la branche vide de renderDashboard : bandeau sans échéances,
+    // KPI unique si alertes, bloc Stocks laissé vide.
+    renderAlerts(alerts);
+    const kpis = document.getElementById('dash-kpis');
+    if (kpis) kpis.innerHTML = alerts.length > 0 ? dashKpiAlertesHtml(alerts, 'dk-danger') : '';
+  } else {
+    // Échéances : même recette que renderDashboard — le bandeau fusionne
+    // alertes + échéances, les rendre sans échéances les ferait disparaître.
+    const batchData = activeBandes.map(b => ({ bande: b, ind: computeIndicators(b), jour: 0, forecast: null }));
+    batchData.forEach(bd => {
+      bd.jour = bd.ind.jourActuel || bd.ind.dernierJour || (daysBetween(bd.bande.date_entree, todayStr()) + 1);
+      bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
+    });
+    renderAlerts(alerts, computeDeadlines(batchData));
+    const card = document.getElementById('dash-kpi-alertes');
+    if (card) {
+      card.classList.toggle('dk-danger', alerts.length > 0);
+      card.classList.toggle('dk-success', alerts.length === 0);
+      document.getElementById('dash-kpi-alertes-val').textContent = alerts.length;
+      document.getElementById('dash-kpi-alertes-sub').innerHTML = alerts.map(a => a.icon).join(' ');
+    }
+    renderDashStocksWatch();
+  }
+  if (window.lucide) lucide.createIcons();
 }
 
 // C5 (audit AI) : LE bandeau unique — alertes TRIÉES (critiques, puis
@@ -9545,7 +9603,7 @@ function renderDashboard() {
     // que le badge de navigation (posé par checkAlerts ci-dessus).
     renderAlerts(alerts);
     document.getElementById('dash-kpis').innerHTML = alerts.length > 0
-      ? '<div class="dash-kpi card-stagger dk-danger"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>'
+      ? dashKpiAlertesHtml(alerts, 'dk-danger')
       : '';
     document.getElementById('dash-commandes').innerHTML = '';
     document.getElementById('dash-stocks-watch').innerHTML = '';
@@ -9600,7 +9658,7 @@ function renderDashboard() {
     '<div class="dash-kpi card-stagger dk-headline"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
     '<div class="dash-kpi card-stagger' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
     '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
-    '<div class="dash-kpi card-stagger' + (alerts.length > 0 ? ' dk-danger' : ' dk-success') + '"><div class="dk-value">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
+    dashKpiAlertesHtml(alerts, alerts.length > 0 ? 'dk-danger' : 'dk-success');
 
   // ── C5 : bandeau unique = alertes triées + échéances datées ──
   renderAlerts(alerts, computeDeadlines(batchData));
@@ -9741,12 +9799,22 @@ function renderDashboard() {
   }
   document.getElementById('dash-commandes').innerHTML = cmdHtml;
 
-  // ── Zone 5: Stocks à surveiller ──
-  // Bandeau « jours d'aliment restant » (SC-1.4) : L'ALERTE critique d'un
-  // élevage chair — Σ stock catégorie 'aliment' ÷ conso moyenne glissante
-  // (computeJoursAliment). Rendu seulement si au moins une ligne de stock
-  // aliment est suivie ; sans saisie sur la fenêtre (avant J0), le stock
-  // s'affiche seul avec « conso inconnue » — jamais un faux « ∞ ».
+  // ── Zone 5: Stocks à surveiller ── (extrait en renderDashStocksWatch —
+  // aussi rappelé par refreshDashAlertsLive : le bandeau autonomie aliment +
+  // seuils suit les mutations de stock sans attendre un rechargement.)
+  renderDashStocksWatch();
+
+  updateSidebarLotActif();
+}
+
+// Bandeau « jours d'aliment restant » (SC-1.4) : L'ALERTE critique d'un
+// élevage chair — Σ stock catégorie 'aliment' ÷ conso moyenne glissante
+// (computeJoursAliment). Rendu seulement si au moins une ligne de stock
+// aliment est suivie ; sans saisie sur la fenêtre (avant J0), le stock
+// s'affiche seul avec « conso inconnue » — jamais un faux « ∞ ».
+function renderDashStocksWatch() {
+  const box = document.getElementById('dash-stocks-watch');
+  if (!box) return;
   const alim = computeJoursAliment();
   let feedHtml = '';
   if (alim) {
@@ -9793,11 +9861,9 @@ function renderDashboard() {
       '<span class="btn btn-outline btn-sm" style="font-size:0.7rem;padding:0.2rem 0.5rem;pointer-events:none;opacity:0.6;">Commander</span>' +
       '</div>';
   });
-  document.getElementById('dash-stocks-watch').innerHTML = (feedHtml || stkRows)
+  box.innerHTML = (feedHtml || stkRows)
     ? '<div class="dash-section-title">Stocks</div><div class="card" style="padding:0.75rem 1.25rem;">' + feedHtml + stkRows + '</div>'
     : '';
-
-  updateSidebarLotActif();
 }
 
 // ── Dashboard Mortality Charts ──
@@ -13321,6 +13387,10 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
     kEsp.textContent = '—';
     document.getElementById('treso-kpi-especes-sub').textContent = 'Caisse indisponible';
     document.getElementById('treso-kpi-ecarts').textContent = '—';
+    // Le « — » d'indisponibilité ne doit pas hériter du rouge d'un rendu
+    // précédent (la règle #146 rend dk-danger réellement visible ici).
+    const kEcErrCard = document.getElementById('treso-kpi-ecarts-card');
+    if (kEcErrCard) kEcErrCard.classList.remove('dk-danger');
     box.innerHTML =
       '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
       '<div class="table-wrap"><table><thead><tr><th></th><th class="num">B2B (commandes)</th></tr></thead><tbody>' +
@@ -15796,8 +15866,11 @@ async function applyStockIncrement() {
     if (!res.ok) return;
     STATE.stocks.push(payload);
     cible = payload;
-    toast('Ligne créée — ' + payload.type_produit + ' : ' + fmt(delta, 1) + ' ' + payload.unite
-      + ' (' + stiSourceLabel(r) + ')' + (res.queued ? ' — hors ligne, sera synchronisé' : ''));
+    // 1a : même narration que la branche incrément — une ligne s'ouvre à 0,
+    // le mouvement reste avant → après.
+    toast('Ligne créée — ' + payload.type_produit + ' : ' + fmt(0, 1) + ' → ' + fmt(delta, 1) + ' ' + payload.unite
+      + ' (+' + fmt(delta, 1) + ' ' + payload.unite + ' — ' + stiSourceLabel(r) + ')'
+      + (res.queued ? ' — hors ligne, sera synchronisé' : ''));
   } else {
     const s = STATE.stocks.find(x => x.stock_id === val);
     if (!s) { toast('Ligne de stock introuvable', 'error'); return; }
@@ -15834,6 +15907,9 @@ async function applyStockIncrement() {
   closeModal();
   if (document.getElementById('stocks-grid')) renderStocks();
   if (document.getElementById('receptions-list')) renderReceptions();
+  // Fraîcheur : le stock vient de bouger → badge + Dashboard (alertes stock
+  // bas, bandeau autonomie aliment) suivent sans attendre un rechargement.
+  try { checkAlerts(); } catch (e) {}
   if (done) done();
 }
 
@@ -16071,12 +16147,14 @@ async function submitStock() {
     closeStockModal();
     renderStocks();
     toast('Stock ajouté');
+    try { checkAlerts(); } catch (e) {}
   } catch (err) {
     if (err.message.includes("file d'attente")) {
       STATE.stocks.push(payload);
       closeStockModal();
       renderStocks();
       toast('Enregistré (hors ligne)');
+      try { checkAlerts(); } catch (e) {}
     } else { toast('Erreur : ' + err.message, 'error'); }
   } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
 }
@@ -16108,6 +16186,7 @@ async function saveStockEdit(stockId) {
   if (!r.ok) return;
   Object.assign(s, payload);
   renderStocks();
+  try { checkAlerts(); } catch (e) {}
   toast(delta !== 0
     ? s.type_produit + ' : ' + fmt(avant, 1) + ' → ' + fmt(newQty, 1) + ' ' + (s.unite || '')
       + ' (' + (delta > 0 ? '+' : '') + fmt(delta, 1) + ' ' + (s.unite || '') + ' — ajustement manuel)'
