@@ -912,6 +912,13 @@ body::before {
   border-bottom:1px solid var(--sidebar-border);
   margin-bottom:var(--space-4); flex-shrink:0;
 }
+/* Cloche de validations : élément de FLUX sur sa propre ligne de la zone
+   fixe (sous le tag AGRITECH), alignée à droite — JAMAIS en absolu : le
+   wordmark Orbitron 38px occupe quasi toute la largeur du rail (preuve :
+   réduction à 31px sous 1100px « pour éviter tout débordement »), un
+   bouton flottant le chevaucherait. Visible sur toutes les pages, hors
+   scroll de la nav (revue #159, finding 1). */
+#top-header .hdr-left .hdr-bell { align-self:flex-end; margin:2px -6px -10px 0; }
 #top-header .hdr-logo {
   font-family:var(--sans); font-size:17px; font-weight:700;
   letter-spacing:0.14em; text-transform:uppercase;
@@ -2710,12 +2717,14 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 
 <!-- Top Header Bar -->
 <div id="top-header">
-  <!-- Left: Logo -->
+  <!-- Left: Logo + cloche (zone FIXE du rail : visible sur toutes les pages,
+       indépendante du scroll de la nav — confiance & traçabilité, item 2) -->
   <div class="hdr-left">
     <div class="siva-wordmark">
       <span class="siva-word">SI<span class="sw-accent">V</span>A</span>
       <span class="siva-tag">Agritech</span>
     </div>
+    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Validations en attente (intrants, réceptions, abattages déclarés par le chef)"><i data-lucide="bell"></i><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
   </div>
 
   <!-- Center: Nav -->
@@ -2765,9 +2774,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
   </div>
 
-  <!-- Right: User + Sync + Logout -->
+  <!-- Right: User + Sync + Logout (la cloche vit en haut du rail, zone fixe) -->
   <div class="hdr-right">
-    <button class="hdr-bell" id="notif-bell" onclick="toggleNotifPanel()" style="display:none;" title="Validations en attente (intrants, réceptions, abattages déclarés par le chef)"><i data-lucide="bell"></i><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
     <div id="sync-status">
       <span class="sync-dot green"></span> <span id="sync-text">Synchronisé</span>
     </div>
@@ -3426,7 +3434,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Tab 2: Réceptions -->
     <div id="sc-tab-receptions" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-        <h3 style="font-size:1rem;color:var(--primary-dark);">Réceptions</h3>
+        <h3 style="font-size:1rem;color:var(--primary-dark);">Réceptions
+          <span id="recep-prix-chip" style="display:none;margin-left:0.5rem;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(245,158,11,0.14);color:#B45309;border:1px solid rgba(245,158,11,0.4);vertical-align:middle;white-space:nowrap;"></span>
+        </h3>
         <button class="btn btn-primary" onclick="showReceptionModal()">+ Nouvelle réception</button>
       </div>
       <div class="filter-bar" id="reception-filters">
@@ -5672,6 +5682,28 @@ const QUEUE_COLUMN_FALLBACKS = {
     {
       cols: ['effectif_commande', 'mortalite_transport', 'poids_moyen_g'],
       msg: 'Réception synchronisée SANS détail poussins (migration 0038 non appliquée en base)'
+    },
+    {
+      cols: ['prix_pose_par', 'prix_pose_le'],
+      msg: 'Réception synchronisée SANS métadonnées de pose du prix (migration 0042 non appliquée en base)'
+    }
+  ],
+  updateReception: [
+    {
+      cols: ['prix_pose_par', 'prix_pose_le', 'stock_mouvement_ref'],
+      msg: 'Réception synchronisée SANS métadonnées de traçabilité (migration 0042 non appliquée en base)'
+    }
+  ],
+  addStock: [
+    {
+      cols: ['dernier_mouvement_delta', 'dernier_mouvement_type', 'dernier_mouvement_date'],
+      msg: 'Stock synchronisé SANS dernier mouvement (migration 0042 non appliquée en base)'
+    }
+  ],
+  updateStock: [
+    {
+      cols: ['dernier_mouvement_delta', 'dernier_mouvement_type', 'dernier_mouvement_date'],
+      msg: 'Stock synchronisé SANS dernier mouvement (migration 0042 non appliquée en base)'
     }
   ]
 };
@@ -8787,6 +8819,16 @@ function checkAlerts() {
   getCommandeAlerts().forEach(a => alerts.push(richAlertToText(a)));
   getInspectionAlerts().forEach(a => alerts.push(richAlertToText(a)));
 
+  // 3b (confiance & traçabilité) : réceptions validées SANS prix (null
+  // strict) — la marge est incalculable tant qu'elles restent posées.
+  // Manager-only : le cycle de vie du prix est invisible au chef.
+  if (canSee('finance')) {
+    const nPrix = countPrixManquants();
+    if (nPrix > 0) {
+      alerts.push({ level: 'warning', icon: '<i data-lucide="banknote"></i>', text: nPrix + ' réception(s) sans prix d\'achat — à poser pour une marge juste', nav: ['supply'] });
+    }
+  }
+
   // Update nav badge
   const badge = document.getElementById('alert-badge');
   if (badge) {
@@ -9112,11 +9154,16 @@ async function validateNotif(notifId) {
 
 // ── SC-1.2 : pose du prix d'achat à la validation d'une réception ─────────
 // Décision SC (2) : les coûts de réception sont la FUTURE source de vérité
-// de la marge — capture propre dès maintenant, sans jamais bloquer (prix
-// vide = 0, corrigeable plus tard). Motif modale : openWithdrawalConfirm.
+// de la marge — capture propre dès maintenant, sans jamais bloquer.
+// Confiance & traçabilité (3a) : FIN DU ZÉRO SILENCIEUX — le choix est
+// explicite : un prix saisi (0 compris, s'il est tapé), ou « Prix à définir
+// plus tard » (cb(null) → réception validée avec prix NULL, badge ambre).
+// Fermer sans choisir n'existe pas (pas de backdrop/Échap sur les modales).
+// Motif modale : openWithdrawalConfirm.
 let _recepPriceCb = null;
-function openReceptionPriceConfirm(p, onConfirm) {
+function openReceptionPriceConfirm(p, onConfirm, opts) {
   _recepPriceCb = onConfirm;
+  opts = opts || {};
   const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === p.fournisseur_id);
   const qte = Number(p.quantite) || 0;
   const overlay = document.createElement('div');
@@ -9124,38 +9171,85 @@ function openReceptionPriceConfirm(p, onConfirm) {
   overlay.id = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal" style="max-width:440px;">
-      <h3><i data-lucide="package"></i> Valider la réception — prix d'achat</h3>
+      <h3><i data-lucide="package"></i> ${opts.title || "Valider la réception — prix d'achat"}</h3>
       <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:1rem;">
         ${escHtml(p.type_produit || '—')} — ${fmt(qte, 1)} ${escHtml(p.unite || '')} · ${escHtml(fourn ? fourn.nom : 'fournisseur ?')}
       </p>
       <div class="form-row">
         <div class="form-group">
           <label>Prix unitaire (FCFA)</label>
-          <input type="number" id="recep-valid-prix" min="0" step="1" inputmode="numeric" placeholder="0"
+          <input type="number" id="recep-valid-prix" min="0" step="1" inputmode="numeric" placeholder="—"
             value="${Number(p.prix_unitaire_fcfa) > 0 ? Number(p.prix_unitaire_fcfa) : ''}"
-            oninput="document.getElementById('recep-valid-cout').textContent = fmt(Math.round((Number(this.value) || 0) * ${qte})) + ' FCFA'">
+            oninput="document.getElementById('recep-valid-cout').textContent = fmt(Math.round((Number(this.value) || 0) * ${qte})) + ' FCFA'; document.getElementById('recep-valid-ok').disabled = this.value === '';">
         </div>
         <div class="form-group">
           <label>Coût total — auto</label>
           <div id="recep-valid-cout" style="padding:0.6rem 0.75rem;font-family:var(--font-mono);">${fmt(Math.round((Number(p.prix_unitaire_fcfa) || 0) * qte))} FCFA</div>
         </div>
       </div>
-      <p style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">Prix vide = 0 (jamais bloquant) — mais les coûts de réception alimenteront la marge : renseigner maintenant évite une ressaisie.</p>
+      <p style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">Sans prix, la réception passe en « Prix manquant » (badge dans la liste) — les coûts de réception alimenteront la marge : renseigner maintenant évite une ressaisie.</p>
       <div class="modal-actions">
-        <button class="btn btn-outline" onclick="_recepPriceCb=null;closeModal()">Annuler (reste en attente)</button>
-        <button class="btn btn-primary" onclick="confirmReceptionPrice()">Valider la réception</button>
+        <button class="btn btn-outline" onclick="_recepPriceCb=null;closeModal()">${opts.cancelLabel || 'Annuler (reste en attente)'}</button>
+        ${opts.noLater ? '' : '<button class="btn btn-outline" onclick="confirmReceptionPriceLater()">Prix à définir plus tard</button>'}
+        <button class="btn btn-primary" id="recep-valid-ok" onclick="confirmReceptionPrice()" ${Number(p.prix_unitaire_fcfa) > 0 ? '' : 'disabled'}>${opts.okLabel || 'Valider avec ce prix'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   setTimeout(() => { const f = document.getElementById('recep-valid-prix'); if (f) f.focus(); }, 60);
   if (window.lucide) lucide.createIcons();
 }
+// 3a : « Valider avec ce prix » n'est cliquable QUE champ rempli — un champ
+// vide ne vaut plus jamais 0. Un 0 TAPÉ reste un prix légitime (don).
 function confirmReceptionPrice() {
-  const prix = Number(document.getElementById('recep-valid-prix').value) || 0;
+  const field = document.getElementById('recep-valid-prix');
+  if (!field || field.value === '') return;
+  const prix = Number(field.value) || 0;
   const cb = _recepPriceCb;
   _recepPriceCb = null;
   closeModal();
   if (cb) cb(prix);
+}
+// 3a : choix explicite « plus tard » → prix NULL (manquant), jamais 0.
+function confirmReceptionPriceLater() {
+  const cb = _recepPriceCb;
+  _recepPriceCb = null;
+  closeModal();
+  if (cb) cb(null);
+}
+
+// ── 3b : pose du prix APRÈS coup (badge « Prix manquant » de la liste) ────
+// Boucle complète du « plus tard » : sans ce chemin, le badge serait une
+// impasse. updateReception + métadonnées 0042 ; si 0042 n'est pas appliquée,
+// le PRIX est quand même sauvé (les métadonnées seules sont retirées).
+function openReceptionPricePose(receptionId) {
+  const r = STATE.receptions.find(x => x.reception_id === receptionId);
+  if (!r) { toast('Réception introuvable', 'error'); return; }
+  openReceptionPriceConfirm(r, async function (prix) {
+    if (prix == null) return;
+    const payload = {
+      reception_id: r.reception_id,
+      prix_unitaire_fcfa: prix,
+      cout_total_fcfa: Math.round((Number(r.quantite) || 0) * prix),
+      prix_pose_par: currentUser.matricule,
+      prix_pose_le: new Date().toISOString()
+    };
+    let res = await saveRemote({ action: 'updateReception', payload }, { silent: true });
+    if (!res.ok && res.error && /column|schema cache/i.test(res.error.message || '')
+        && ['prix_pose_par', 'prix_pose_le'].some(c => (res.error.message || '').includes(c))) {
+      delete payload.prix_pose_par;
+      delete payload.prix_pose_le;
+      toast('Prix posé SANS métadonnées d\'auteur (migration 0042 non appliquée en base)', 'error');
+      res = await saveRemote({ action: 'updateReception', payload }, { silent: true });
+    }
+    if (!res.ok) {
+      toast("Échec de l'enregistrement : " + ((res.error && res.error.message) || 'erreur serveur'), 'error');
+      return;
+    }
+    Object.assign(r, payload);
+    renderReceptions();
+    toast('Prix posé — ' + r.type_produit + ' : ' + fmt(prix) + ' FCFA/' + (r.unite || 'u')
+      + (res.queued ? ' (hors ligne — sera synchronisé)' : ''));
+  }, { title: "Poser le prix d'achat", okLabel: 'Enregistrer le prix', cancelLabel: 'Annuler', noLater: true });
 }
 
 async function performValidateNotif(notif, override, prixRecep) {
@@ -9176,9 +9270,20 @@ async function performValidateNotif(notif, override, prixRecep) {
   // SC-1.2 (décision 3) : le prix posé par le manager à la validation entre
   // dans l'insert ET dans l'état local (coût total recalculé serveur du
   // pauvre : quantité × prix, arrondi — même formule que le formulaire).
-  if (notif.type === 'reception' && prixRecep != null) {
-    payload.prix_unitaire_fcfa = prixRecep;
-    payload.cout_total_fcfa = Math.round((Number(payload.quantite) || 0) * prixRecep);
+  // 3a/3c : prixRecep null = « Prix à définir plus tard » → prix/coût NULL
+  // explicites (le payload chef porte des 0 : sans écrasement, le zéro
+  // silencieux reviendrait par la petite porte). Prix posé → métadonnées
+  // d'auteur (0042, repli par groupe ci-dessous si non appliquée).
+  if (notif.type === 'reception') {
+    if (prixRecep != null) {
+      payload.prix_unitaire_fcfa = prixRecep;
+      payload.cout_total_fcfa = Math.round((Number(payload.quantite) || 0) * prixRecep);
+      payload.prix_pose_par = currentUser.matricule;
+      payload.prix_pose_le = new Date().toISOString();
+    } else {
+      payload.prix_unitaire_fcfa = null;
+      payload.cout_total_fcfa = null;
+    }
   }
   const actionMap = { intrant: 'addIntrant', reception: 'addReception', abattage: 'addAbattage' };
   const apiAction = actionMap[notif.type];
@@ -9223,7 +9328,13 @@ async function performValidateNotif(notif, override, prixRecep) {
     if (stateList && !stateList.some(x => x[idField] === payload[idField])) stateList.push(payload);
     // SC-1.3 : réception validée → proposition d'incrément du stock ferme
     // (la modale prix vient de se fermer — pas d'empilement de modales).
-    if (notif.type === 'reception') proposeStockIncrement(payload);
+    // Revue #159 finding 3 : rafraîchir la liste AVANT le picker — sans ça,
+    // un manager déjà sur Supply→Réceptions validerait sans voir apparaître
+    // la ligne, la puce ni le badge « Prix manquant » avant re-navigation.
+    if (notif.type === 'reception') {
+      renderReceptions();
+      proposeStockIncrement(payload);
+    }
   }
 
   // Persist notification update — un échec ICI doit remonter au manager :
@@ -9295,6 +9406,13 @@ function updateBellBadge() {
     badge.style.display = 'flex';
   } else {
     badge.style.display = 'none';
+  }
+  // Item 2 : le badge MOBILE (#mtb-bell-badge) reflète le même compte — il
+  // restait figé à « 0 » caché depuis sa création (jamais mis à jour ici).
+  const mtbBadge = document.getElementById('mtb-bell-badge');
+  if (mtbBadge) {
+    mtbBadge.textContent = count;
+    mtbBadge.style.display = count > 0 ? 'flex' : 'none';
   }
 }
 
@@ -15261,7 +15379,20 @@ async function toggleFournisseurStatut(id) {
 // ── Tab 2: Réceptions ──
 // ══════════════════════════════
 
+// 3b : compte des réceptions au prix MANQUANT (null strict — les 0 posés
+// explicitement et l'historique pré-0042 n'allument rien). Manager-only.
+function countPrixManquants() {
+  return STATE.receptions.filter(r => r.prix_unitaire_fcfa == null).length;
+}
 function renderReceptions() {
+  // Puce « prix manquants » de l'en-tête — sur TOUTES les réceptions,
+  // indépendante des filtres de la liste.
+  const chip = document.getElementById('recep-prix-chip');
+  if (chip) {
+    const n = canSee('finance') ? countPrixManquants() : 0;
+    chip.style.display = n > 0 ? '' : 'none';
+    if (n > 0) chip.textContent = n + ' prix manquant' + (n > 1 ? 's' : '');
+  }
   // Populate fournisseur filter
   const fSel = document.getElementById('filter-reception-fourn');
   const curVal = fSel.value;
@@ -15317,13 +15448,35 @@ function renderReceptions() {
         bandeCell = '<button class="btn btn-outline btn-sm" style="white-space:nowrap;" onclick="createBandeFromReception(\'' + r.reception_id + '\')">Créer la bande</button> ';
       }
     }
+    // 1c : l'incrément de stock appliqué (picker SC-1.3) est VISIBLE sur la
+    // ligne — 'stock_id|delta|unite', nom résolu localement (0042).
+    let stockRefHtml = '';
+    if (r.stock_mouvement_ref) {
+      const parts = String(r.stock_mouvement_ref).split('|');
+      const sLie = STATE.stocks.find(x => x.stock_id === parts[0]);
+      stockRefHtml = '<div style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">→ stock « '
+        + escHtml(sLie ? sLie.type_produit : parts[0]) + ' » +' + fmt(Number(parts[1]) || 0, 1) + ' ' + escHtml(parts[2] || '') + '</div>';
+    }
+    // 3b : prix NULL = manquant (badge ambre cliquable → pose) ; 0 = posé à
+    // zéro, explicite. Métadonnées de pose (0042) affichées manager-only.
+    let prixCells = '';
+    if (canSee('finance')) {
+      if (r.prix_unitaire_fcfa == null) {
+        prixCells = '<td colspan="2"><button class="btn btn-sm" style="background:rgba(245,158,11,0.14);color:#B45309;border:1px solid rgba(245,158,11,0.4);white-space:nowrap;" onclick="openReceptionPricePose(\'' + r.reception_id + '\')"><i data-lucide="triangle-alert"></i> Prix manquant</button></td>';
+      } else {
+        const poseHtml = r.prix_pose_par
+          ? '<div style="font-size:0.68rem;color:var(--text-muted);white-space:nowrap;">posé par ' + escHtml(r.prix_pose_par) + ' · ' + fmtDate(r.prix_pose_le) + '</div>'
+          : '';
+        prixCells = '<td>' + fmt(Number(r.prix_unitaire_fcfa)) + poseHtml + '</td><td><strong>' + fmt(Number(r.cout_total_fcfa)) + '</strong> FCFA</td>';
+      }
+    }
     html += `<tr>
       <td>${fmtDate(r.date_reception)}</td>
       <td>${fourn ? fourn.nom : '—'}</td>
-      <td>${r.type_produit}</td>
+      <td>${r.type_produit}${stockRefHtml}</td>
       <td>${catEmoji(r.categorie)} ${catLabel(r.categorie)}</td>
       <td>${fmt(Number(r.quantite), 1)} ${r.unite}</td>
-      ${canSee('finance') ? '<td>' + fmt(Number(r.prix_unitaire_fcfa)) + '</td><td><strong>' + fmt(Number(r.cout_total_fcfa)) + '</strong> FCFA</td>' : ''}
+      ${prixCells}
       <td>${r.numero_lot || '—'}</td>
       <td>${inspBadge}</td>
       <td class="manager-only" style="white-space:nowrap;">${bandeCell}<button class="btn btn-danger btn-sm" onclick="deleteReception('${r.reception_id}')"><i data-lucide="x"></i></button></td>
@@ -15376,8 +15529,9 @@ function updateRecepPoussinFields() {
 }
 function updateRecepCout() {
   const q = parseFloat(document.getElementById('recep-quantite').value) || 0;
-  const p = parseFloat(document.getElementById('recep-prix').value) || 0;
-  document.getElementById('recep-cout').value = Math.round(q * p);
+  const pStr = document.getElementById('recep-prix').value;
+  // 3a : prix vide = coût vide (pas un faux 0 — le prix sera « manquant »).
+  document.getElementById('recep-cout').value = pStr === '' ? '' : Math.round(q * (parseFloat(pStr) || 0));
 }
 
 async function submitReception() {
@@ -15388,7 +15542,13 @@ async function submitReception() {
   if (!produit) { toast('Nom du produit requis', 'error'); return; }
   if (!quantite || quantite <= 0) { toast('Quantité invalide', 'error'); return; }
 
-  const prix = parseFloat(document.getElementById('recep-prix').value) || 0;
+  // 3a : fin du zéro silencieux AUSSI au formulaire direct — champ vide =
+  // prix NULL (badge « Prix manquant », posable plus tard), pas 0. Un prix
+  // saisi porte les métadonnées de pose (0042). Le champ est masqué au chef
+  // (SC-1.2 décision 3) : son payload part donc en NULL, la modale de
+  // validation tranche.
+  const prixStr = document.getElementById('recep-prix').value;
+  const prix = prixStr === '' ? null : (parseFloat(prixStr) || 0);
   const payload = {
     reception_id: 'recep-' + uuid(),
     fournisseur_id: fournId,
@@ -15398,17 +15558,23 @@ async function submitReception() {
     quantite,
     unite: document.getElementById('recep-unite').value.trim() || 'kg',
     prix_unitaire_fcfa: prix,
-    cout_total_fcfa: Math.round(quantite * prix),
+    cout_total_fcfa: prix == null ? null : Math.round(quantite * prix),
     bande_id: emptyToNull(document.getElementById('recep-bande').value),
     numero_lot: document.getElementById('recep-lot').value.trim(),
     date_peremption: dateOrNull(document.getElementById('recep-peremption').value)
   };
 
+  // 3c : métadonnées de pose du prix (0042) — manager seulement, et
+  // seulement quand un prix est réellement saisi.
+  if (prix != null && currentUser && currentUser.role !== 'chef_bande') {
+    payload.prix_pose_par = currentUser.matricule;
+    payload.prix_pose_le = new Date().toISOString();
+  }
+
   // Détail poussins (0038) : clés posées SEULEMENT si catégorie poussin et
   // champ rempli — même discipline que 0025/0030 (Railway déploie le front
-  // avant l'exécution manuelle du SQL) : repli d'insertion sans le groupe
-  // ci-dessous + repli équivalent au rejeu (QUEUE_COLUMN_FALLBACKS).
-  const COLS_0038 = ['effectif_commande', 'mortalite_transport', 'poids_moyen_g'];
+  // avant l'exécution manuelle du SQL) : repli d'insertion par groupe
+  // (0038, 0042) + repli équivalent au rejeu (QUEUE_COLUMN_FALLBACKS).
   let poussinDropped = false;
   if (payload.categorie === 'poussin') {
     const ec = document.getElementById('recep-effectif-commande').value;
@@ -15435,19 +15601,28 @@ async function submitReception() {
       toast('Réception envoyée pour validation — en attente d\'approbation');
       closeReceptionModal();
     } else {
-      try {
-        await apiPost({ action: 'addReception', payload });
-      } catch (err) {
-        // 0038 non appliquée en base : on retire le groupe poussins et on
-        // réessaie — la réception de base n'est jamais bloquée par une
-        // migration en attente (même discipline que createBande 0025/0030).
-        const isColErr = /column|schema cache/i.test(err.message);
-        const has0038 = COLS_0038.some(c => c in payload);
-        if (isColErr && has0038 && COLS_0038.some(c => err.message.includes(c))) {
-          COLS_0038.forEach(c => { delete payload[c]; });
-          poussinDropped = true;
+      // Migration non appliquée en base (0038 poussins, 0042 métadonnées
+      // prix) : on retire le groupe fautif et on réessaie — la réception de
+      // BASE n'est jamais bloquée par une migration en attente (même
+      // discipline que createBande 0025/0030). Groupes partagés avec la
+      // file hors ligne (QUEUE_COLUMN_FALLBACKS.addReception).
+      let inserted = false;
+      let strips = 0;
+      while (!inserted) {
+        try {
           await apiPost({ action: 'addReception', payload });
-        } else { throw err; }
+          inserted = true;
+        } catch (err) {
+          const groups = QUEUE_COLUMN_FALLBACKS.addReception;
+          const g = (/column|schema cache/i.test(err.message) && strips < groups.length)
+            ? groups.find(x => x.cols.some(c => err.message.includes(c)) && x.cols.some(c => c in payload))
+            : null;
+          if (!g) throw err;
+          strips++;
+          g.cols.forEach(c => { delete payload[c]; });
+          if (g.cols.includes('effectif_commande')) poussinDropped = true;
+          else toast(g.msg, 'error');
+        }
       }
       STATE.receptions.push(payload);
       lastReceptionId = payload.reception_id;
@@ -15574,39 +15749,91 @@ function skipStockIncrement() {
   closeModal();
   if (done) done();
 }
+// Confiance & traçabilité : les colonnes 0042 partent avec l'écriture et
+// sont RETIRÉES puis rejouées si la base ne les a pas encore (front déployé
+// avant le SQL manuel — même discipline que COLS_0038). L'écriture de BASE
+// (quantité) n'est jamais bloquée par une migration en attente.
+const COLS_0042_STOCKS = ['dernier_mouvement_delta', 'dernier_mouvement_type', 'dernier_mouvement_date'];
+async function saveStockWith0042(action, payload) {
+  let res = await saveRemote({ action, payload }, { silent: true });
+  if (!res.ok && res.error && /column|schema cache/i.test(res.error.message || '')
+      && COLS_0042_STOCKS.some(c => (res.error.message || '').includes(c))
+      && COLS_0042_STOCKS.some(c => c in payload)) {
+    COLS_0042_STOCKS.forEach(c => { delete payload[c]; });
+    toast('Dernier mouvement non tracé (migration 0042 non appliquée en base)', 'error');
+    res = await saveRemote({ action, payload }, { silent: true });
+  }
+  if (!res.ok) toast("Échec de l'enregistrement : " + ((res.error && res.error.message) || 'erreur serveur'), 'error');
+  return res;
+}
+// Libellé source d'un mouvement issu d'une réception : « réception Sekongo du 03/08/2026 ».
+function stiSourceLabel(r) {
+  const fourn = STATE.fournisseurs.find(f => f.fournisseur_id === r.fournisseur_id);
+  return 'réception ' + (fourn ? fourn.nom : '?') + ' du ' + fmtDate(r.date_reception);
+}
 async function applyStockIncrement() {
   const r = _stiReception;
   if (!r) { closeModal(); return; }
   const val = document.getElementById('sti-target').value;
   const done = _stiOnDone;
+  const delta = Number(r.quantite) || 0;
+  let cible = null;
   if (val === '__new__') {
     const payload = {
       stock_id: 'stk-' + uuid(),
       type_produit: r.type_produit,
       categorie: document.getElementById('sti-new-cat').value,
-      quantite_actuelle: Number(r.quantite) || 0,
+      quantite_actuelle: delta,
       unite: r.unite || 'kg',
       seuil_alerte: 0,
       emplacement: '',
-      derniere_mise_a_jour: todayStr()
+      derniere_mise_a_jour: todayStr(),
+      dernier_mouvement_delta: delta,
+      dernier_mouvement_type: 'reception',
+      dernier_mouvement_date: todayStr()
     };
-    const res = await saveRemote({ action: 'addStock', payload });
+    const res = await saveStockWith0042('addStock', payload);
     if (!res.ok) return;
     STATE.stocks.push(payload);
-    toast(res.queued ? 'Ligne de stock créée (hors ligne — sera synchronisée)' : 'Ligne de stock créée : ' + payload.type_produit);
+    cible = payload;
+    toast('Ligne créée — ' + payload.type_produit + ' : ' + fmt(delta, 1) + ' ' + payload.unite
+      + ' (' + stiSourceLabel(r) + ')' + (res.queued ? ' — hors ligne, sera synchronisé' : ''));
   } else {
     const s = STATE.stocks.find(x => x.stock_id === val);
     if (!s) { toast('Ligne de stock introuvable', 'error'); return; }
-    const nouvelle = Math.round(((Number(s.quantite_actuelle) || 0) + (Number(r.quantite) || 0)) * 100) / 100;
-    const res = await saveRemote({ action: 'updateStock', payload: { stock_id: s.stock_id, quantite_actuelle: nouvelle, derniere_mise_a_jour: todayStr() } });
+    const avant = Number(s.quantite_actuelle) || 0;
+    const nouvelle = Math.round((avant + delta) * 100) / 100;
+    const payload = {
+      stock_id: s.stock_id, quantite_actuelle: nouvelle, derniere_mise_a_jour: todayStr(),
+      dernier_mouvement_delta: delta, dernier_mouvement_type: 'reception', dernier_mouvement_date: todayStr()
+    };
+    const res = await saveStockWith0042('updateStock', payload);
     if (!res.ok) return;
-    s.quantite_actuelle = nouvelle;
-    s.derniere_mise_a_jour = todayStr();
-    toast(res.queued ? 'Stock incrémenté (hors ligne — sera synchronisé)' : 'Stock « ' + s.type_produit + ' » : ' + fmt(nouvelle, 1) + ' ' + (s.unite || ''));
+    Object.assign(s, payload);
+    cible = s;
+    // 1a : le toast dit TOUT — avant, après, delta, provenance.
+    toast(s.type_produit + ' : ' + fmt(avant, 1) + ' → ' + fmt(nouvelle, 1) + ' ' + (s.unite || '')
+      + ' (+' + fmt(delta, 1) + ' ' + (s.unite || '') + ' — ' + stiSourceLabel(r) + ')'
+      + (res.queued ? ' — hors ligne, sera synchronisé' : ''));
+  }
+  // 1c : la réception garde la référence de l'incrément appliqué
+  // ('stock_id|delta|unite') — rendue visible dans la liste des réceptions.
+  // Échec de colonne (0042 absente) = référence non tracée, informatif
+  // seulement : le stock, lui, est déjà à jour.
+  const ref = cible.stock_id + '|' + delta + '|' + (cible.unite || '');
+  const rr = await saveRemote({ action: 'updateReception', payload: { reception_id: r.reception_id, stock_mouvement_ref: ref } }, { silent: true });
+  if (rr.ok) {
+    const localRecep = STATE.receptions.find(x => x.reception_id === r.reception_id);
+    if (localRecep) localRecep.stock_mouvement_ref = ref;
+  } else {
+    toast(/column|schema cache/i.test((rr.error && rr.error.message) || '')
+      ? 'Référence stock↔réception non tracée (migration 0042 non appliquée en base)'
+      : 'Référence stock↔réception non enregistrée — le stock, lui, est à jour', 'error');
   }
   _stiReception = null; _stiOnDone = null;
   closeModal();
   if (document.getElementById('stocks-grid')) renderStocks();
+  if (document.getElementById('receptions-list')) renderReceptions();
   if (done) done();
 }
 
@@ -15773,6 +16000,7 @@ function stockCardReal(s) {
       ${isAlert ? '<div style="color:var(--red);font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;"><i data-lucide="triangle-alert"></i> Sous le seuil d\u0027alerte (' + fmt(seuil,1) + ' ' + s.unite + ')</div>' : ''}
       <div class="stock-meta"><i data-lucide="map-pin"></i> ${s.emplacement || '—'}</div>
       <div class="stock-meta">MAJ : ${fmtDate(s.derniere_mise_a_jour)}</div>
+      ${s.dernier_mouvement_delta != null ? '<div class="stock-meta"><i data-lucide="arrow-right-left"></i> Dernier mouvement : ' + (Number(s.dernier_mouvement_delta) > 0 ? '+' : '') + fmt(Number(s.dernier_mouvement_delta), 1) + ' ' + (s.unite || '') + ' · ' + (s.dernier_mouvement_type === 'reception' ? 'réception' : 'ajustement') + ' · ' + fmtDate(s.dernier_mouvement_date) + '</div>' : ''}
       <div class="manager-only inline-edit" id="stock-edit-${s.stock_id}" style="display:none;">
         <div class="form-group"><label>Quantité</label><input type="number" id="se-qty-${s.stock_id}" step="0.01" value="${qty}"></div>
         <div class="form-group"><label>Emplacement</label><input type="text" id="se-emp-${s.stock_id}" value="${s.emplacement || ''}"></div>
@@ -15859,6 +16087,7 @@ async function saveStockEdit(stockId) {
   const newQty = parseFloat(document.getElementById('se-qty-' + stockId).value);
   const newEmp = document.getElementById('se-emp-' + stockId).value.trim();
   const newSeuil = parseFloat(document.getElementById('se-seuil-' + stockId).value) || 0;
+  const avant = Number(s.quantite_actuelle) || 0;
   const payload = {
     stock_id: stockId,
     quantite_actuelle: newQty,
@@ -15866,11 +16095,24 @@ async function saveStockEdit(stockId) {
     seuil_alerte: newSeuil,
     derniere_mise_a_jour: todayStr()
   };
-  const r = await saveRemote({ action: 'updateStock', payload });
+  // Une correction manuelle est AUSSI un mouvement : sans cette écriture, la
+  // ligne « Dernier mouvement » de la carte mentirait après un ajustement.
+  // Quantité inchangée (édition emplacement/seuil) = pas un mouvement.
+  const delta = Math.round((newQty - avant) * 100) / 100;
+  if (isFinite(delta) && delta !== 0) {
+    payload.dernier_mouvement_delta = delta;
+    payload.dernier_mouvement_type = 'ajustement';
+    payload.dernier_mouvement_date = todayStr();
+  }
+  const r = await saveStockWith0042('updateStock', payload);
   if (!r.ok) return;
   Object.assign(s, payload);
   renderStocks();
-  toast(r.queued ? 'Stock mis à jour (hors ligne — sera synchronisé)' : 'Stock mis à jour');
+  toast(delta !== 0
+    ? s.type_produit + ' : ' + fmt(avant, 1) + ' → ' + fmt(newQty, 1) + ' ' + (s.unite || '')
+      + ' (' + (delta > 0 ? '+' : '') + fmt(delta, 1) + ' ' + (s.unite || '') + ' — ajustement manuel)'
+      + (r.queued ? ' — hors ligne, sera synchronisé' : '')
+    : (r.queued ? 'Stock mis à jour (hors ligne — sera synchronisé)' : 'Stock mis à jour'));
 }
 
 // ── Stock alerts for dashboard ──
