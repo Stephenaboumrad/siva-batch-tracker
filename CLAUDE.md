@@ -77,6 +77,10 @@ working rules for every task in this repository.
   the views freeze their column list at creation, so without the replay
   the new column is invisible to chef_bande (reads go through the views;
   QUEUE_COLUMN_FALLBACKS cannot help, it is the READ that is missing).
+  Start every replay from the MOST RECENT replay's exclusion lists, not
+  from 0040's: 0042 extended `receptions` with `prix_pose_par` /
+  `prix_pose_le` (price-lifecycle metadata stays out of the chef view) —
+  replaying 0040's original lists would resurrect them for the chef.
 - Temperature: the daily series is `saisies.temperature_c` (building ambient
   — norms, alerts and charts read ONLY this column); `temperature_observee_c`
   (0024) is a clinical observation on the birds, optional, never a series.
