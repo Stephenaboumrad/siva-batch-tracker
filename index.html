@@ -911,11 +911,14 @@ body::before {
   padding:0 var(--space-4) var(--space-5);
   border-bottom:1px solid var(--sidebar-border);
   margin-bottom:var(--space-4); flex-shrink:0;
-  position:relative;
 }
-/* Cloche de validations : ancrée dans la rangée fixe du rail (item 2) —
-   toujours visible, quel que soit le scroll de la nav en dessous. */
-#top-header .hdr-left .hdr-bell { position:absolute; top:-4px; right:8px; }
+/* Cloche de validations : élément de FLUX sur sa propre ligne de la zone
+   fixe (sous le tag AGRITECH), alignée à droite — JAMAIS en absolu : le
+   wordmark Orbitron 38px occupe quasi toute la largeur du rail (preuve :
+   réduction à 31px sous 1100px « pour éviter tout débordement »), un
+   bouton flottant le chevaucherait. Visible sur toutes les pages, hors
+   scroll de la nav (revue #159, finding 1). */
+#top-header .hdr-left .hdr-bell { align-self:flex-end; margin:2px -6px -10px 0; }
 #top-header .hdr-logo {
   font-family:var(--sans); font-size:17px; font-weight:700;
   letter-spacing:0.14em; text-transform:uppercase;
@@ -9325,7 +9328,13 @@ async function performValidateNotif(notif, override, prixRecep) {
     if (stateList && !stateList.some(x => x[idField] === payload[idField])) stateList.push(payload);
     // SC-1.3 : réception validée → proposition d'incrément du stock ferme
     // (la modale prix vient de se fermer — pas d'empilement de modales).
-    if (notif.type === 'reception') proposeStockIncrement(payload);
+    // Revue #159 finding 3 : rafraîchir la liste AVANT le picker — sans ça,
+    // un manager déjà sur Supply→Réceptions validerait sans voir apparaître
+    // la ligne, la puce ni le badge « Prix manquant » avant re-navigation.
+    if (notif.type === 'reception') {
+      renderReceptions();
+      proposeStockIncrement(payload);
+    }
   }
 
   // Persist notification update — un échec ICI doit remonter au manager :
