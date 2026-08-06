@@ -1251,6 +1251,20 @@ body::before {
 /* Wraps the Saisie card in a <form> for native validation without altering layout (generates no box). */
 #saisie-form { display: contents; }
 
+/* Fast path (lot b) : replis <details> du formulaire de saisie. AUCUN champ
+   required n'y vit (reportValidity ne peut pas focaliser un champ caché). */
+.saisie-fold { border-top:var(--border-hairline); margin-top:1rem; padding-top:0.75rem; }
+.saisie-fold > summary { cursor:pointer; font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; list-style:none; display:flex; align-items:center; gap:0.5rem; user-select:none; }
+.saisie-fold > summary::-webkit-details-marker { display:none; }
+.saisie-fold > summary::before { content:'▸'; font-size:11px; transition:transform .15s ease; }
+.saisie-fold[open] > summary::before { transform:rotate(90deg); }
+.saisie-fold > summary .fold-hint { font-weight:600; text-transform:none; letter-spacing:0; color:var(--status-warning-fg); background:var(--status-warning-bg); border-radius:var(--radius-full); padding:1px 8px; font-size:10.5px; }
+.saisie-fold > .fold-body { margin-top:0.75rem; }
+/* Report de veille : valeur pré-remplie NON confirmée — teinte + mention,
+   la marque tombe à la première frappe (jamais de pré-rempli silencieux). */
+input.prefill-veille { background:var(--status-warning-bg); }
+.prefill-hint { font-size:11px; color:var(--text-muted); font-style:italic; margin-top:2px; }
+
 /* ══════════════ TABLES ══════════════ */
 .table-wrap { overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--border-subtle); background:var(--card-bg); box-shadow:var(--shadow-sm); }
 table { width:100%; border-collapse:collapse; }
@@ -3071,6 +3085,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Aliment consommé (kg)</label>
           <input type="number" id="saisie-aliment" step="0.1" min="0" placeholder="0.0" inputmode="decimal">
+          <div class="prefill-hint" id="saisie-aliment-veille"></div>
         </div>
         <div class="form-group">
           <label>Type / phase d'aliment</label>
@@ -3081,6 +3096,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div class="form-group">
           <label>Eau consommée (L)</label>
           <input type="number" id="saisie-eau" step="0.1" min="0" placeholder="0.0" inputmode="decimal">
+          <div class="prefill-hint" id="saisie-eau-veille"></div>
         </div>
       </div>
       <div class="form-group">
@@ -3094,6 +3110,15 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
           <div class="field-msg" id="saisie-msg-mortalite"></div>
         </div>
       </div>
+      <!-- Fast path (lot b) : le bloc clinique (5M + signes + T° sujets +
+           observations) se replie — il ne sert que les jours ANORMAUX. Un
+           jour normal, le cahier se transcrit sans le voir. L'en-tête porte
+           un indice (« 2 signes hier ») et le repli s'ouvre SEUL quand la
+           mortalité tapée dépasse le seuil journalier paramétré. AUCUN champ
+           required dedans ; l'ordre interne du cahier est conservé. -->
+      <details class="saisie-fold" id="saisie-fold-clinique">
+        <summary>Observations cliniques <span class="fold-hint" id="saisie-clinique-hint" style="display:none;"></span></summary>
+        <div class="fold-body">
       <!-- 5M (hors cahier, rattaché à la mortalité) : pré-classement OPTIONNEL
            de la cause probable — un tap par catégorie, zéro obligation, aucun
            champ du cahier réordonné (les signes ci-dessous restent le bloc
@@ -3138,6 +3163,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <label>Observations</label>
         <textarea id="saisie-observations" rows="2" placeholder="Notes du cahier (comportement, litière, matériel…)" style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;font-family:inherit;"></textarea>
       </div>
+        </div>
+      </details>
 
       <!-- Compléments hors cahier : pesée d'échantillon + ambiance bâtiment.
            UX A1 (le doublon de température a corrompu les données du dry run,
@@ -3147,8 +3174,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
            qu'elle. saisie-temp-observee (bloc clinique ci-dessus,
            temperature_observee_c, 0024) = T° des SUJETS si anormale,
            optionnelle — observation clinique, jamais une série. -->
-      <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.75rem;">Compléments (hors cahier)</div>
+      <!-- Fast path (lot b) : la pesée est HEBDOMADAIRE (~1-2 j/7) — repliée
+           les jours sans pesée. Champs optionnels uniquement. -->
+      <details class="saisie-fold" id="saisie-fold-pesee">
+        <summary>Pesée hebdo</summary>
+        <div class="fold-body">
         <div class="form-row">
           <div class="form-group">
             <label>Nb oiseaux pesés (échantillon)</label>
@@ -3160,7 +3190,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
             <div class="field-msg" id="saisie-msg-poids"></div>
           </div>
         </div>
-      </div>
+        </div>
+      </details>
 
       <!-- Ambiance bâtiment -->
       <div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:1rem;">
@@ -3170,11 +3201,13 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
             <label>Température du bâtiment (°C)</label>
             <input type="number" id="saisie-temperature" step="0.1" min="0" max="50" placeholder="—">
             <div class="field-msg" id="saisie-msg-temperature"></div>
+            <div class="prefill-hint" id="saisie-temperature-veille"></div>
           </div>
           <div class="form-group">
             <label>Humidité (%)</label>
             <input type="number" id="saisie-humidite" step="0.1" min="0" max="100" placeholder="—">
             <div class="field-msg" id="saisie-msg-humidite"></div>
+            <div class="prefill-hint" id="saisie-humidite-veille"></div>
           </div>
         </div>
         <div id="saisie-ambiance-hint" style="font-size:11px;color:var(--text-muted);margin-top:-0.5rem;margin-bottom:0.5rem;font-style:italic;"></div>
@@ -3966,7 +3999,11 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Date réception</label><input type="date" id="recep-date"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Produit</label><input type="text" id="recep-produit" placeholder="Nom du produit"></div>
+      <!-- Fast path (lot b) : autocomplete sur les noms DÉJÀ connus (stock
+           ferme + réceptions passées) — datalist = suggestion, jamais une
+           liste fermée. Une variante d'orthographe casse le rapprochement
+           stock par NOM (SC-1.3) et la valorisation (latestUnitPrice). -->
+      <div class="form-group"><label>Produit</label><input type="text" id="recep-produit" placeholder="Nom du produit" list="recep-produit-list"><datalist id="recep-produit-list"></datalist></div>
       <div class="form-group"><label>Catégorie</label>
         <select id="recep-categorie" onchange="updateRecepPoussinFields()">
           <option value="mp">Matière première</option>
@@ -3979,7 +4016,21 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div class="form-row">
       <div class="form-group"><label>Quantité</label><input type="number" id="recep-quantite" step="0.01" min="0" placeholder="0" oninput="updateRecepCout()"></div>
-      <div class="form-group"><label>Unité</label><input type="text" id="recep-unite" value="kg" placeholder="kg, L, unité…"></div>
+      <!-- Fast path (lot b) : fin du texte libre — mêmes options que le bloc
+           intrant, + « sujet » exigé par le flux poussin (bascule auto
+           updateRecepPoussinFields). Normalise l'unité pour la garde
+           anti-« stock menteur » de SC-1.3 (comparaison stricte). -->
+      <div class="form-group"><label>Unité</label>
+        <select id="recep-unite">
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="L">L</option>
+          <option value="mL">mL</option>
+          <option value="dose">dose</option>
+          <option value="comprimé">comprimé</option>
+          <option value="sujet">sujet</option>
+        </select>
+      </div>
     </div>
     <!-- Détail poussins (0038) — visible en catégorie « Poussin » seulement.
          Convention : « Quantité » = effectif reçu VIVANT (mis en place) ;
@@ -6830,6 +6881,10 @@ async function submitTraitFait() {
   if (!date) { if (msg) msg.textContent = 'La date est requise.'; return; }
   if (delaiRaw !== '' && Number(delaiRaw) < 0) { if (msg) msg.textContent = 'Le délai d\'attente doit être ≥ 0.'; return; }
   if (dureeRaw !== '' && Number(dureeRaw) < 0) { if (msg) msg.textContent = 'La durée doit être ≥ 0.'; return; }
+  // Garde-fou (jamais bloquant — le délai reste saisi par produit réel, 0015/
+  // 0018) : sans délai, la garde d'abattage est AVEUGLE à ce traitement.
+  // Confirmation consciente ; la ligne garde son badge rouge « à renseigner ».
+  if (delaiRaw === '' && !confirm('Sans délai d\'attente, l\'abattage ne sera PAS gardé pour ce traitement — continuer ?')) return;
   const manager = isManager();
   const payload = {
     traitement_id: 'trt-' + uuid(),
@@ -10884,19 +10939,36 @@ function initSaisiePage() {
   document.getElementById('intrant-subform').style.display = 'none';
   document.getElementById('toggle-intrant-btn').textContent = '+ Ajouter un intrant';
   clearSaisieValidation();
+  // Fast path (lot b) : les replis repartent FERMÉS à chaque entrée de page
+  // (le dépli auto sur mortalité anormale et le chef restent maîtres ensuite).
+  const foldClin = document.getElementById('saisie-fold-clinique');
+  const foldPes = document.getElementById('saisie-fold-pesee');
+  if (foldClin) foldClin.open = false;
+  if (foldPes) foldPes.open = false;
   // Validation terrain en temps réel (à la frappe), bienveillante.
+  // La mortalité déclenche AUSSI le dépli auto du bloc clinique.
   SAISIE_VALIDATED_FIELDS.forEach(f => {
     const el = document.getElementById('saisie-' + f);
-    if (el) el.oninput = () => validateSaisieField(f);
+    if (el) el.oninput = () => { validateSaisieField(f); if (f === 'mortalite') maybeOpenCliniqueFold(); };
+  });
+  // Reports de veille : la première frappe fait tomber la marque « hier ».
+  // Enchaîné SUR le handler de validation déjà posé (réassigné à chaque init
+  // ci-dessus → pas d'empilement).
+  SAISIE_VEILLE_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el) return;
+    const prev = el.oninput;
+    el.oninput = (e) => { saisieVeilleTouched(el); if (prev) prev(e); };
   });
   // Le jour de cycle (donc les normes/effectif) dépend de la date → revalider à son changement.
   const dateEl = document.getElementById('saisie-date');
-  if (dateEl) dateEl.onchange = () => { refreshSaisieDateMsgs(); updateSaisieInfo(); };
+  if (dateEl) dateEl.onchange = () => { refreshSaisieDateMsgs(); updateSaisieInfo(); refreshSaisieVeilleUi(); };
   // Pré-sélection « hier d'abord » (transcription du cahier le lendemain matin),
   // recalculée à chaque changement de bande.
   applySaisieDatePreselect();
   updateSaisieInfo();
-  select.onchange = () => { applySaisieDatePreselect(); updateSaisieInfo(); };
+  refreshSaisieVeilleUi();
+  select.onchange = () => { applySaisieDatePreselect(); updateSaisieInfo(); refreshSaisieVeilleUi(); };
   renderRecentSaisies();
 }
 
@@ -10967,6 +11039,96 @@ function refreshSaisieDateMsgs() {
   } else {
     setFieldMsg('date', null);
   }
+}
+
+// ── Fast path (lot b) : reports de veille + indice clinique + dépli auto ────
+// Les mesures CONTINUES (aliment, eau, T°, HR) changent peu d'un jour à
+// l'autre : pré-remplies depuis la saisie de la VEILLE STRICTE (date
+// sélectionnée − 1 jour), éditables, marquées « hier : X » + teinte tant que
+// le chef n'y a pas touché — JAMAIS de pré-rempli silencieux, la marque tombe
+// à la première frappe. La MORTALITÉ n'a JAMAIS de défaut : donnée du jour,
+// tapée consciemment.
+const SAISIE_VEILLE_FIELDS = [
+  { id: 'saisie-aliment', col: 'aliment_consomme_kg', unit: 'kg' },
+  { id: 'saisie-eau', col: 'eau_consommee_l', unit: 'L' },
+  { id: 'saisie-temperature', col: 'temperature_c', unit: '°C' },
+  { id: 'saisie-humidite', col: 'humidite_pct', unit: '%' }
+];
+function saisieVeilleRow() {
+  const bandeId = document.getElementById('saisie-bande').value;
+  const dateVal = document.getElementById('saisie-date').value;
+  if (!bandeId || !dateVal) return null;
+  const p = dateVal.split('-').map(Number);
+  if (p.length !== 3 || p.some(n => !Number.isFinite(n))) return null;
+  // Arithmétique UTC pure : pas de bascule de jour selon le fuseau local.
+  const veille = new Date(Date.UTC(p[0], p[1] - 1, p[2] - 1)).toISOString().slice(0, 10);
+  return STATE.saisies.find(s => s.bande_id === bandeId
+    && String(s.date_saisie || '').slice(0, 10) === veille) || null;
+}
+function applySaisieVeille() {
+  const s = saisieVeilleRow();
+  SAISIE_VEILLE_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    const hint = document.getElementById(f.id + '-veille');
+    if (!el || !hint) return;
+    // Un champ vide ou portant encore un ANCIEN report peut être re-rempli ;
+    // une valeur tapée par le chef n'est JAMAIS écrasée.
+    const untouched = el.value === '' || (el.dataset.veille != null && el.value === el.dataset.veille);
+    if (el.dataset.veille != null && el.value === el.dataset.veille) el.value = '';
+    delete el.dataset.veille;
+    el.classList.remove('prefill-veille');
+    hint.textContent = '';
+    const v = s ? Number(s[f.col]) : null;
+    if (untouched && v != null && isFinite(v) && v > 0) {
+      el.value = String(v);
+      el.dataset.veille = el.value;
+      el.classList.add('prefill-veille');
+      hint.textContent = 'hier : ' + fmt(v, 1) + ' ' + f.unit + ' — reporté, modifiez si différent';
+    }
+  });
+}
+function saisieVeilleTouched(el) {
+  // La moindre frappe = valeur consciente (même si le chiffre final
+  // redevient identique à hier) : la marque tombe définitivement.
+  if (el.dataset.veille == null) return;
+  delete el.dataset.veille;
+  el.classList.remove('prefill-veille');
+  const hint = document.getElementById(el.id + '-veille');
+  if (hint) hint.textContent = '';
+}
+// Indice d'en-tête du repli clinique : ce que la VEILLE avait consigné —
+// le chef sait qu'il y a une suite à surveiller sans déplier.
+function updateSaisieCliniqueHint() {
+  const hintEl = document.getElementById('saisie-clinique-hint');
+  if (!hintEl) return;
+  const s = saisieVeilleRow();
+  const parts = [];
+  if (s && s.signes_observes) {
+    const n = String(s.signes_observes).split(',').filter(x => x.trim()).length;
+    parts.push(n + ' signe' + (n > 1 ? 's' : ''));
+  }
+  if (s && s.observations) parts.push('note');
+  hintEl.textContent = parts.length ? parts.join(' + ') + ' hier' : '';
+  hintEl.style.display = parts.length ? '' : 'none';
+}
+// Dépli AUTOMATIQUE du bloc clinique quand la mortalité tapée dépasse le
+// seuil journalier paramétré (vet_params, jamais de valeur devinée : sans
+// seuil défini, pas de dépli auto). Ouvre, ne referme jamais.
+function maybeOpenCliniqueFold() {
+  const fold = document.getElementById('saisie-fold-clinique');
+  if (!fold || fold.open) return;
+  const seuil = vetParamNum('mortDaily');
+  if (seuil == null) return;
+  const morts = Number(document.getElementById('saisie-mortalite').value) || 0;
+  if (morts <= 0) return;
+  const bande = STATE.bandes.find(b => b.bande_id === document.getElementById('saisie-bande').value);
+  if (!bande) return;
+  const eff = computeIndicators(bande).effectifActuel;
+  if (eff > 0 && (morts / eff) * 100 >= seuil) fold.open = true;
+}
+function refreshSaisieVeilleUi() {
+  applySaisieVeille();
+  updateSaisieCliniqueHint();
 }
 
 // ── Validation de saisie terrain (temps réel, bienveillante : alerter, pas bloquer) ──
@@ -15759,6 +15921,14 @@ function showReceptionModal() {
   });
   document.getElementById('recep-date').value = todayStr();
   document.getElementById('recep-produit').value = '';
+  // Autocomplete produit : union stock ferme + réceptions passées, dédupliquée
+  // sans casse (la première orthographe rencontrée gagne — le stock d'abord,
+  // c'est lui la référence du rapprochement par nom).
+  const nomsProduits = new Map();
+  STATE.stocks.forEach(s => { const n = String(s.type_produit || '').trim(); if (n) nomsProduits.set(n.toLowerCase(), n); });
+  STATE.receptions.forEach(r => { const n = String(r.type_produit || '').trim(); if (n && !nomsProduits.has(n.toLowerCase())) nomsProduits.set(n.toLowerCase(), n); });
+  document.getElementById('recep-produit-list').innerHTML =
+    [...nomsProduits.values()].sort((a, b) => a.localeCompare(b, 'fr')).map(n => '<option value="' + escHtml(n) + '"></option>').join('');
   document.getElementById('recep-categorie').value = 'mp';
   document.getElementById('recep-quantite').value = '';
   document.getElementById('recep-prix').value = '';
