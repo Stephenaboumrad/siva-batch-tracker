@@ -36,6 +36,11 @@ create policy "profiles readable" on profiles for select using (true);
 -- Mapping matricule → e-mail interne / nom / rôle pour les 3 comptes actuels.
 -- (Nom de SIVA-003 conservé tel qu'affiché aujourd'hui — « Démonstration » ;
 --  ajustez si vous préférez « Mounir ».)
+-- (Note 2026-08-06, commentaire seul — le SQL exécuté ci-dessous est immuable :
+--  le rôle EFFECTIF vit dans Auth app_metadata (JWT), pas dans cette table —
+--  SIVA-003 est chef_bande en Auth (vérifié en juillet). La valeur 'manager'
+--  du seed historique ci-dessous ne gouverne aucune RLS ; toute correction de
+--  rôle passe par Auth, jamais par profiles.)
 insert into profiles (matricule, email, name, role) values
   ('SIVA-001', 'siva-001@coqorico.internal', 'Stephen Aboumrad', 'manager'),
   ('SIVA-002', 'siva-002@coqorico.internal', 'Zahreddine Abbas', 'manager'),
