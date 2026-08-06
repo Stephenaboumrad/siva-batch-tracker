@@ -2787,15 +2787,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </a>
   </nav>
 
-  <!-- Lot actif block -->
-  <div id="sidebar-lot-actif" class="sidebar-lot-actif" style="display:none;">
-    <div class="sla-title">Bande active</div>
-    <div class="sla-id" id="sla-id"></div>
-    <div class="sla-info" id="sla-info"></div>
-    <div class="sla-progress-wrap">
-      <div class="sla-progress-bar"><div class="sla-progress-fill" id="sla-progress"></div></div>
-    </div>
-  </div>
+  <!-- (Cockpit F : l'ancien bloc sidebar « Bande active » — qui ne montrait
+       que la 1ʳᵉ bande — est absorbé par le bloc « Cycle en cours » du
+       Dashboard, une ligne par bande active.) -->
 
   <!-- Right: User + Sync + Logout (la cloche vit en haut du rail, zone fixe) -->
   <div class="hdr-right">
@@ -2963,12 +2957,18 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="btn btn-outline btn-sm" onclick="exportDashboardExcel()"><i data-lucide="sheet"></i> Snapshot Excel</button>
       </div>
     </div>
-    <!-- Zone 1: Alertes -->
+    <!-- Zone 1 : À TRAITER (cockpit F, variante A) — validations en attente
+         (manager) puis bandeau alertes + échéances fusionné. -->
+    <div id="dash-validations"></div>
     <div id="dash-alerts"></div>
+    <!-- Zone 1b : CYCLE EN COURS — une ligne par bande active (absorbe
+         l'ancienne sidebar « Bande active » qui n'en montrait qu'une). -->
+    <div id="dash-cycle"></div>
+    <!-- Zone 1c : ARGENT (manager-only) — POS async à l'entrée (arbitrage :
+         un strip B2B-seul mentirait tout le cycle 1). -->
+    <div id="dash-argent" class="manager-only"></div>
     <!-- Zone 2: KPIs agrégés -->
     <div id="dash-kpis" class="dash-kpi-bar"></div>
-    <!-- Zone 2b: Deadline timers -->
-    <div id="dash-deadlines"></div>
     <!-- Zone 3: Bandes actives -->
     <div id="dash-grid" class="dash-grid">
       <div class="empty-state" id="dash-empty">
@@ -9088,6 +9088,24 @@ function checkAlerts() {
     }
   }
 
+  // Cockpit F : les registres biosécurité ESCALADENT au bandeau quand ils
+  // franchissent leur seuil temporel — ils restaient captifs de leur page
+  // (constat d'audit : aucune sortie transversale). Agrégés en UNE alerte
+  // par registre (pas une par item), navigation vers l'onglet concerné via
+  // les alias C1.
+  const ncRetard = (STATE.nonConformites || []).filter(nonConformiteEnRetard).length;
+  if (ncRetard > 0) {
+    alerts.push({ level: 'warning', icon: '<i data-lucide="triangle-alert"></i>', text: ncRetard + ' non-conformité(s) en retard d\'action corrective', nav: ['non-conformites'] });
+  }
+  const etalRetard = (STATE.equipements || []).filter(eq => eq.actif !== false && equipementEtalonnageInfo(eq).statut === 'En retard').length;
+  if (etalRetard > 0) {
+    alerts.push({ level: 'warning', icon: '<i data-lucide="gauge"></i>', text: etalRetard + ' instrument(s) en retard d\'étalonnage', nav: ['etalonnage'] });
+  }
+  const nuisRetard = (STATE.postesAppatage || []).filter(p => p.actif !== false && posteReleveInfo(p).statut === 'En retard').length;
+  if (nuisRetard > 0) {
+    alerts.push({ level: 'warning', icon: '<i data-lucide="bug-off"></i>', text: nuisRetard + ' poste(s) d\'appâtage en retard de relevé', nav: ['nuisibles'] });
+  }
+
   // Update nav badge
   const badge = document.getElementById('alert-badge');
   if (badge) {
@@ -9128,6 +9146,7 @@ function refreshDashAlertsLive(alerts) {
     // Miroir de la branche vide de renderDashboard : bandeau sans échéances,
     // KPI unique si alertes, bloc Stocks laissé vide.
     renderAlerts(alerts);
+    renderDashValidations();
     const kpis = document.getElementById('dash-kpis');
     if (kpis) kpis.innerHTML = alerts.length > 0 ? dashKpiAlertesHtml(alerts, 'dk-danger') : '';
   } else {
@@ -9139,6 +9158,10 @@ function refreshDashAlertsLive(alerts) {
       bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
     });
     renderAlerts(alerts, computeDeadlines(batchData));
+    // Cockpit F : le rafraîchissement live couvre aussi la tête validations
+    // et le bloc Cycle (saisie du jour, jalons) — mêmes données, même source.
+    renderDashValidations();
+    renderDashCycle(batchData);
     const card = document.getElementById('dash-kpi-alertes');
     if (card) {
       card.classList.toggle('dk-danger', alerts.length > 0);
@@ -9186,10 +9209,17 @@ function renderAlerts(alerts, deadlines) {
   deadlines.forEach(dl => {
     const late = dl.daysLeft <= 0;
     const compte = dl.daysLeft < 0 ? 'EN RETARD' : (dl.daysLeft === 0 ? 'AUJOURD\'HUI' : 'J-' + dl.daysLeft);
-    html += '<div class="alert-item ' + (late ? 'warning' : 'info') + '">'
+    // Cockpit F : les échéances mènent là où l'action se fait (fiche de la
+    // bande, page Commandes) — même idiome A5 que les alertes taguées nav.
+    const attrs = Array.isArray(dl.nav)
+      ? ' role="button" tabindex="0" style="cursor:pointer;" onclick="alertNavigate(' +
+        dl.nav.map(x => x == null ? 'null' : "'" + String(x).replace(/'/g, "\\'") + "'").join(',') + ')"'
+      : '';
+    html += '<div class="alert-item ' + (late ? 'warning' : 'info') + '"' + attrs + '>'
       + '<span class="alert-icon"><i data-lucide="calendar"></i></span>'
       + '<strong>' + compte + '</strong> · ' + escHtml(dl.label) + ' — ' + escHtml(dl.sub)
       + ' · ' + dl.date.toLocaleDateString('fr-FR')
+      + (attrs ? ' <span style="opacity:.45;">›</span>' : '')
       + '</div>';
   });
   html += '</div>';
@@ -9753,6 +9783,9 @@ function updateBellBadge() {
     mtbBadge.textContent = count;
     mtbBadge.style.display = count > 0 ? 'flex' : 'none';
   }
+  // Cockpit F : la tête « validations en attente » du Dashboard suit le même
+  // compte que la cloche (validation/rejet/poll → tout passe par ici).
+  try { renderDashValidations(); } catch (e) { /* rendu au mieux */ }
 }
 
 // ── État de lecture (lot cockpit D) ─────────────────────────────────────────
@@ -9864,7 +9897,8 @@ function computeDeadlines(batchData) {
         color: daysLeft <= 7 ? '#C62828' : 'var(--accent)',
         date: fDate,
         daysLeft: daysLeft,
-        sub: 'Poids vif : ' + (ind.hasWeighing ? Math.round(ind.poidsMesure) + 'g' : 'non pesé') + ' / cible ' + fmt(TARGET_LIVE_WEIGHT_G) + 'g'
+        sub: 'Poids vif : ' + (ind.hasWeighing ? Math.round(ind.poidsMesure) + 'g' : 'non pesé') + ' / cible ' + fmt(TARGET_LIVE_WEIGHT_G) + 'g',
+        nav: ['fiche', b.bande_id]
       });
     }
 
@@ -9890,7 +9924,8 @@ function computeDeadlines(batchData) {
             color: 'var(--accent)',
             date: endDate,
             daysLeft: daysLeft,
-            sub: 'Jour actuel : J' + jour
+            sub: 'Jour actuel : J' + jour,
+            nav: ['fiche', b.bande_id]
           });
         }
       }
@@ -9915,7 +9950,8 @@ function computeDeadlines(batchData) {
       color: daysLeft <= 2 ? '#C62828' : daysLeft <= 7 ? 'var(--accent)' : 'var(--accent)',
       date: livDate,
       daysLeft: daysLeft,
-      sub: fmtMoney(Number(c.montant_total_fcfa) || 0) || commandeKgLabel(c)
+      sub: fmtMoney(Number(c.montant_total_fcfa) || 0) || commandeKgLabel(c),
+      nav: ['clients']
     });
   });
 
@@ -9941,24 +9977,31 @@ function renderDashboard() {
 
   if (activeBandes.length === 0) {
     grid.innerHTML = '';
-    grid.appendChild(emptyDiv);
-    emptyDiv.style.display = '';
+    if (emptyDiv) { grid.appendChild(emptyDiv); emptyDiv.style.display = ''; }
     // Les alertes hors-bande (stock bas, livraisons, réceptions non inspectées)
     // existent aussi entre deux cycles : l'en-tête doit refléter la même liste
     // que le badge de navigation (posé par checkAlerts ci-dessus).
     renderAlerts(alerts);
+    // Cockpit F : entre deux cycles, les validations et l'ARGENT continuent
+    // d'exister — seuls le bloc Cycle et les zones par-bande se vident.
+    renderDashValidations();
+    document.getElementById('dash-cycle').innerHTML = '';
+    renderDashArgent();
     document.getElementById('dash-kpis').innerHTML = alerts.length > 0
       ? dashKpiAlertesHtml(alerts, 'dk-danger')
       : '';
     document.getElementById('dash-commandes').innerHTML = '';
     document.getElementById('dash-stocks-watch').innerHTML = '';
-    document.getElementById('dash-deadlines').innerHTML = '';
     document.getElementById('dash-mortality').innerHTML = '';
-    updateSidebarLotActif();
     return;
   }
 
-  emptyDiv.style.display = 'none';
+  // Bug latent (découvert au smoke PR2, PRÉ-EXISTANT) : le rendu des cartes
+  // (grid.innerHTML plus bas) DÉTRUISAIT #dash-empty → tout renderDashboard
+  // suivant crashait ici sur null — le dashboard cessait silencieusement de
+  // se re-rendre (sync, validation de notif, pull-to-refresh) jusqu'au
+  // rechargement. Garde + ré-adoption du nœud après le rendu des cartes.
+  if (emptyDiv) emptyDiv.style.display = 'none';
   // C5 : le bandeau se rend plus bas, une fois batchData construit (il
   // fusionne alertes + échéances datées).
 
@@ -10007,7 +10050,10 @@ function renderDashboard() {
 
   // ── C5 : bandeau unique = alertes triées + échéances datées ──
   renderAlerts(alerts, computeDeadlines(batchData));
-  document.getElementById('dash-deadlines').innerHTML = '';
+  // Cockpit F : tête de bloc À TRAITER + Cycle en cours + strip Argent.
+  renderDashValidations();
+  renderDashCycle(batchData);
+  renderDashArgent();
 
   // (C5 : panneau « Ce qui demande de l'attention » supprimé — c'était un
   // sous-ensemble du bandeau, désormais trié critiques-d'abord.)
@@ -10102,6 +10148,9 @@ function renderDashboard() {
       </div>`;
   });
   grid.innerHTML = cardsHtml;
+  // Ré-adoption de #dash-empty (caché) : il doit SURVIVRE au rendu des
+  // cartes pour que la branche « aucune bande » le retrouve au cycle suivant.
+  if (emptyDiv) { emptyDiv.style.display = 'none'; grid.appendChild(emptyDiv); }
 
   // ── Zone 3b: Mortality chart ──
   renderDashMortalityCharts(batchData);
@@ -10148,8 +10197,161 @@ function renderDashboard() {
   // aussi rappelé par refreshDashAlertsLive : le bandeau autonomie aliment +
   // seuils suit les mutations de stock sans attendre un rechargement.)
   renderDashStocksWatch();
+}
 
-  updateSidebarLotActif();
+// ── Cockpit F (variante A) : bloc À TRAITER, tête « validations » ──────────
+// La vraie file d'action du manager (la cloche) apparaît ENFIN sur le
+// Dashboard — un clic ouvre le panneau. Manager uniquement ; le chef a ses
+// items dans le bandeau d'alertes (saisie du jour, vaccins, registres).
+function renderDashValidations() {
+  const box = document.getElementById('dash-validations');
+  if (!box) return;
+  if (!isManager()) { box.innerHTML = ''; return; }
+  const n = (STATE.notifications || []).filter(x => x.statut === 'en_attente').length;
+  box.innerHTML = n > 0
+    ? '<div class="alert-item warning" role="button" tabindex="0" style="cursor:pointer;" onclick="toggleNotifPanel()">'
+      + '<span class="alert-icon"><i data-lucide="bell"></i></span>'
+      + '<strong>' + n + ' validation' + (n > 1 ? 's' : '') + ' en attente</strong>&nbsp;— intrants, réceptions, abattages déclarés par le chef '
+      + '<span style="opacity:.45;">›</span></div>'
+    : '';
+  if (n > 0 && window.lucide) lucide.createIcons();
+}
+
+// ── Cockpit F : bloc CYCLE EN COURS — une ligne PAR bande active ───────────
+// Absorbe l'ancienne sidebar « Bande active » (qui n'en montrait qu'une) et
+// répond à « où en est le cycle ? » : J/42, phase, effectif, saisie du jour
+// faite/pas faite, prochain jalon vaccinal, et LE correctif de cohérence :
+// la date d'abattage AUTORISÉE (earliestSlaughterDate, délai d'attente 0015/
+// 0018) confrontée au forecast — une sortie estimée AVANT la date légale
+// n'était signalée nulle part.
+function renderDashCycle(batchData) {
+  const box = document.getElementById('dash-cycle');
+  if (!box) return;
+  if (!batchData || batchData.length === 0) { box.innerHTML = ''; return; }
+  const today = parseDayLocal(todayStr());
+  const rows = batchData.map(bd => {
+    const b = bd.bande, ind = bd.ind;
+    const phase = getCurrentPhase(bd.jour);
+    const saisieFaite = hasSaisieOn(b.bande_id, todayStr());
+    const saisieHtml = saisieFaite
+      ? '<span style="color:var(--color-success);font-weight:600;white-space:nowrap;"><i data-lucide="check" style="width:13px;height:13px;"></i> saisie du jour faite</span>'
+      : '<button class="btn btn-sm btn-outline" style="white-space:nowrap;" onclick="openSaisieFor(\'' + escHtml(b.bande_id) + '\')">Saisir aujourd\'hui</button>';
+    // Prochain jalon vaccinal — même sélection que la vue d'ensemble véto
+    // (orphelines exclues : elles ne sont plus « du protocole »).
+    const pend = computeVaccinationStatus(b).filter(v => !v.vacc && !v.orphelin)
+      .sort((x, y) => ((x.plannedDate ? x.plannedDate.getTime() : Infinity) - (y.plannedDate ? y.plannedDate.getTime() : Infinity)));
+    const nx = pend[0] || null;
+    let jalonHtml = '';
+    if (nx) {
+      const urgent = nx.status === 'retard' || nx.status === 'due';
+      const quand = nx.status === 'retard' ? 'EN RETARD' : nx.status === 'due' ? 'aujourd\'hui'
+        : (nx.daysUntil != null ? 'dans ' + nx.daysUntil + ' j' : '');
+      jalonHtml = '<span style="white-space:nowrap;' + (urgent ? 'color:var(--color-danger);font-weight:600;' : 'color:var(--text-secondary);') + '">'
+        + 'vaccin « ' + escHtml(nx.proto.nom_vaccin) + ' » ' + protoJourLabel(nx.proto) + (quand ? ' (' + quand + ')' : '') + '</span>';
+    }
+    // Abattage autorisé vs forecast — signal visuel quand le forecast
+    // PRÉCÈDE la date légale.
+    const wd = ind.earliestSlaughterDate;
+    const fDate = (bd.forecast && bd.forecast.status === 'projected' && bd.forecast.date) ? bd.forecast.date : null;
+    let abattageHtml = '';
+    if (wd && today && wd > today) {
+      const conflit = fDate && fDate < wd;
+      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">abattage autorisé dès <strong>' + fmtDate(wd) + '</strong></span>'
+        + (conflit
+          ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:9px;padding:1px 6px;">⚠ sortie estimée ' + fmtDate(fDate) + ' AVANT la date autorisée</span>'
+          : '');
+    } else if (fDate) {
+      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">sortie estimée ' + fmtDate(fDate) + '</span>';
+    }
+    return '<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding:0.5rem 0;border-bottom:var(--border-hairline);">'
+      + '<span style="min-width:150px;"><strong>' + escHtml(b.nom_bande) + '</strong>' + (b.batiment ? ' <span style="color:var(--text-muted);font-size:0.78rem;">· ' + escHtml(b.batiment) + '</span>' : '') + '</span>'
+      + '<span style="font-family:var(--font-mono);white-space:nowrap;">J' + bd.jour + '/' + CYCLE_DURATION_DAYS + '</span>'
+      + '<span style="font-size:0.78rem;font-weight:600;color:' + phase.color + ';white-space:nowrap;">' + escHtml(phase.label) + '</span>'
+      + '<span style="white-space:nowrap;color:var(--text-secondary);">' + fmt(ind.effectifActuel) + ' oiseaux</span>'
+      + saisieHtml
+      + [jalonHtml, abattageHtml].filter(Boolean).join(' ')
+      + '</div>';
+  }).join('');
+  box.innerHTML = '<div class="dash-section-title">Cycle en cours</div>'
+    + '<div class="card" style="padding:0.4rem 1.25rem;margin-bottom:1.25rem;">' + rows + '</div>';
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── Cockpit F : strip ARGENT (manager-only) ────────────────────────────────
+// « Où est l'argent » sans quitter le Dashboard. B2B depuis STATE (MÊMES
+// formules que la Trésorerie — sémantique #52 inchangée) ; caisse en ASYNC à
+// l'entrée (arbitrage : un strip B2B-seul mentirait tout le cycle 1).
+// Lectures POS bornées (paiements du mois, 200 clôtures) + cache 60 s : le
+// Dashboard se re-rend souvent, la caisse n'est pas re-interrogée à chaque
+// fois. Affichage seul — AUCUN calcul de marge ici (règle Trésorerie).
+let _dashArgentPos = { t: 0, encB2C: null, ecartsN: 0, ecartsSomme: 0, err: false };
+function dashArgentHtml() {
+  const mois = todayStr().slice(0, 7);
+  const caPayeB2B = STATE.commandes
+    .filter(c => c.statut_paiement === 'paye' && c.date_paiement && c.date_paiement.startsWith(mois))
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const creances = STATE.commandes
+    .filter(c => c.statut === 'livree' && c.statut_paiement !== 'paye')
+    .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
+  const nPrix = countPrixManquants();
+  const p = _dashArgentPos;
+  const seg = (label, valHtml, page, titre) =>
+    '<div role="button" tabindex="0" style="cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:140px;" title="' + titre + '" onclick="navigate(\'' + page + '\', null)">'
+    + '<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">' + label + '</span>'
+    + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;">' + valHtml + '</span></div>';
+  const caVal = p.err
+    ? fmt(caPayeB2B) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · B2B seul — caisse indisponible</span>'
+    : (p.encB2C == null
+      ? fmt(caPayeB2B) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · + caisse…</span>'
+      : fmt(caPayeB2B + p.encB2C) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · B2B + caisse</span>');
+  const ecartsVal = p.err
+    ? '<span style="color:var(--text-muted);">—</span>'
+    : (p.ecartsN > 0
+      ? '<span style="color:var(--color-danger);">' + p.ecartsN + ' · ' + (p.ecartsSomme > 0 ? '+' : '') + fmt(p.ecartsSomme) + '</span>'
+      : (p.encB2C == null ? '…' : 'Aucun'));
+  return '<div class="card" style="margin-bottom:1.25rem;padding:0.7rem 1.25rem;display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">'
+    + seg('CA encaissé (mois)', caVal, 'tresorerie', 'Ouvrir la Trésorerie')
+    + seg('Créances', fmt(creances) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA</span>', 'tresorerie', 'Livré non payé, cumul — détail en Trésorerie')
+    + seg('Écarts caisse', ecartsVal, 'tresorerie', 'Écarts de clôture non résolus — onglet Caisse PDV')
+    + seg('Prix manquants', (nPrix > 0 ? '<span style="color:#B45309;">' + nPrix + '</span>' : 'Aucun'), 'supply', 'Réceptions sans prix d\'achat — à poser en Supply')
+    + '</div>';
+}
+function renderDashArgent() {
+  const box = document.getElementById('dash-argent');
+  if (!box) return;
+  if (!canSee('finance')) { box.innerHTML = ''; return; }
+  box.innerHTML = dashArgentHtml();
+  if (Date.now() - _dashArgentPos.t > 60000) fetchDashArgentPos();
+}
+async function fetchDashArgentPos() {
+  // t posé AVANT la requête : pas de rafale si le Dashboard se re-rend
+  // pendant le fetch.
+  _dashArgentPos.t = Date.now();
+  try {
+    const mois = todayStr().slice(0, 7);
+    const debut = mois + '-01';
+    const fin = new Date(Date.UTC(Number(mois.slice(0, 4)), Number(mois.slice(5, 7)), 1)).toISOString().slice(0, 10);
+    const [paiR, cloR] = await Promise.all([
+      sb.from('paiements').select('montant_fcfa,statut,sens,date_paiement').gte('date_paiement', debut).lt('date_paiement', fin),
+      sb.from('cloture_caisse').select('*').order('date_cloture', { ascending: false }).limit(200)
+    ]);
+    if (paiR.error) throw paiR.error;
+    if (cloR.error) throw cloR.error;
+    const enc = (paiR.data || [])
+      .filter(x => (!x.statut || x.statut === 'confirme') && (!x.sens || x.sens === 'encaissement'))
+      .reduce((s, x) => s + (Number(x.montant_fcfa) || 0), 0);
+    const ecarts = Object.values(caisseDernieresClotures(cloR.data || []))
+      .filter(ecartNonResolu).map(c => Number(c.ecart_fcfa) || 0);
+    _dashArgentPos = { t: Date.now(), encB2C: enc, ecartsN: ecarts.length,
+      ecartsSomme: ecarts.reduce((s, e) => s + e, 0), err: false };
+  } catch (e) {
+    // Tables POS absentes / RLS / hors ligne : le strip le DIT (B2B seul),
+    // jamais un faux zéro.
+    _dashArgentPos = { t: Date.now(), encB2C: null, ecartsN: 0, ecartsSomme: 0, err: true };
+  }
+  const page = document.getElementById('page-dashboard');
+  const box = document.getElementById('dash-argent');
+  if (box && page && page.classList.contains('active') && canSee('finance')) box.innerHTML = dashArgentHtml();
 }
 
 // Bandeau « jours d'aliment restant » (SC-1.4) : L'ALERTE critique d'un
@@ -10199,11 +10401,12 @@ function renderDashStocksWatch() {
     const seuil = Number(s.seuil_alerte) || 0;
     const pct = seuil > 0 ? Math.min(100, Math.round((qty / seuil) * 100)) : 100;
     const barColor = qty <= seuil ? '#E74C3C' : '#F59E0B';
+    // (Cockpit F : le bouton « Commander » inerte est mort — un bouton qui
+    // ne fait rien apprend aux utilisateurs à ne pas cliquer.)
     stkRows += '<div class="dash-stock-row">' +
       '<span class="dash-stock-name">' + s.type_produit + '</span>' +
       '<span class="dash-stock-levels">' + fmt(qty, 0) + ' ' + s.unite + ' / seuil ' + fmt(seuil, 0) + ' ' + s.unite + '</span>' +
       '<div class="dash-stock-bar"><div class="dash-stock-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
-      '<span class="btn btn-outline btn-sm" style="font-size:0.7rem;padding:0.2rem 0.5rem;pointer-events:none;opacity:0.6;">Commander</span>' +
       '</div>';
   });
   box.innerHTML = (feedHtml || stkRows)
@@ -10286,23 +10489,8 @@ function renderDashMortalityCharts(batchData) {
   });
 }
 
-// ── Sidebar Lot Actif ──
-function updateSidebarLotActif() {
-  const panel = document.getElementById('sidebar-lot-actif');
-  const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
-  if (activeBandes.length === 0) { panel.style.display = 'none'; return; }
-  const b = activeBandes[0];
-  const ind = computeIndicators(b);
-  // A7 : jour CALENDAIRE d'abord (source unique) — l'ancien ordre préférait
-  // le jour_bande STOCKÉ de la dernière saisie, d'où le J26 sidebar contre
-  // J27 sélecteur.
-  const jour = computeJourBande(b) || ind.dernierJour || 1;
-  const pct = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
-  document.getElementById('sla-id').textContent = b.nom_bande;
-  document.getElementById('sla-info').textContent = 'J' + jour + '/J' + CYCLE_DURATION_DAYS + ' — ' + (b.batiment || '—');
-  document.getElementById('sla-progress').style.width = pct + '%';
-  panel.style.display = '';
-}
+// (Cockpit F : updateSidebarLotActif supprimé — le bloc « Cycle en cours »
+// du Dashboard montre TOUTES les bandes actives, plus seulement la 1ʳᵉ.)
 
 function openFiche(bandeId) {
   navigate('fiche', document.querySelector('[data-page=fiche]'));
@@ -10435,7 +10623,6 @@ async function setBandeArchivee(bandeId, archivee) {
     const b = STATE.bandes.find(x => x.bande_id === bandeId);
     if (b) b.archivee = archivee;
     renderBandes();
-    updateSidebarLotActif();
   };
   try {
     await apiPost({ action: 'updateBande', payload });
@@ -10519,7 +10706,6 @@ async function confirmDeleteBande(bandeId) {
     STATE.bandes = STATE.bandes.filter(b => b.bande_id !== bandeId);
     closeModal();
     renderBandes();
-    updateSidebarLotActif();
     toast('Bande supprimée définitivement');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Supprimer définitivement'; }
