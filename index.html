@@ -4255,7 +4255,6 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div class="form-group"><label>Date réelle</label><input type="date" id="vf-date"></div>
       <div class="form-group"><label>Voie (texte libre)</label><input type="text" id="vf-voie" placeholder="Ex. eau de boisson"></div>
     </div>
-    <div class="form-group"><label>Note (optionnel)</label><input type="text" id="vf-note" placeholder="Remarque…"></div>
     <div id="vf-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeVaccFaitModal()">Annuler</button>
@@ -4327,7 +4326,6 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <input type="checkbox" id="tf-omsa" style="width:auto;">
       <label for="tf-omsa" style="margin:0;">Antibiotique critique (liste OMSA)</label>
     </div>
-    <div class="form-group"><label>Observation (optionnel)</label><input type="text" id="tf-obs" placeholder="Remarque…"></div>
     <div id="tf-msg" style="color:var(--c-red-600);font-size:0.85rem;min-height:1rem;"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeTraitFaitModal()">Annuler</button>
@@ -4346,7 +4344,6 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div class="form-row">
       <div class="form-group"><label>Bande sortante</label><select id="vs-bande-sortante"></select></div>
-      <div class="form-group"><label>Bande entrante</label><select id="vs-bande-entrante"></select></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Sortie du dernier oiseau *</label><input type="date" id="vs-date-sortie" oninput="updateVideSanitaireDuree()"></div>
@@ -6480,7 +6477,6 @@ function openVaccFaitModal(protoId) {
   document.getElementById('vf-vaccin').textContent = p.nom_vaccin + ' (' + protoJourLabel(p) + ')';
   document.getElementById('vf-date').value = todayStr();
   document.getElementById('vf-voie').value = p.voie || '';
-  document.getElementById('vf-note').value = '';
   document.getElementById('vf-msg').textContent = '';
   document.getElementById('vacc-fait-modal').style.display = 'flex';
 }
@@ -6509,8 +6505,6 @@ async function submitVaccFait() {
     fait_par: currentUserLabel(),
     statut_validation: manager ? 'valide' : 'a_valider',
     valide_par: manager ? currentUserLabel() : null,
-    valide_at: manager ? new Date().toISOString() : null,
-    note: document.getElementById('vf-note').value.trim() || null
   };
   const btn = document.querySelector('#vacc-fait-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
@@ -6529,10 +6523,10 @@ async function confirmVaccination(vaccId) {
   if (!isManager()) return;
   const v = STATE.vaccinations.find(x => x.vacc_id === vaccId);
   if (!v) return;
-  const patch = { vacc_id: vaccId, statut_validation: 'valide', valide_par: currentUserLabel(), valide_at: new Date().toISOString() };
+  const patch = { vacc_id: vaccId, statut_validation: 'valide', valide_par: currentUserLabel() };
   const r = await saveRemote({ action: 'updateVaccination', payload: patch });
   if (!r.ok) return;
-  Object.assign(v, { statut_validation: 'valide', valide_par: patch.valide_par, valide_at: patch.valide_at });
+  Object.assign(v, { statut_validation: 'valide', valide_par: patch.valide_par });
   renderVetActiveTab(); checkAlerts();
   toast(r.queued ? 'Confirmé (hors ligne)' : 'Vaccination validée');
 }
@@ -6862,7 +6856,6 @@ function openTraitFaitModal(protoTraitId) {
   document.getElementById('tf-delai').value = '';
   document.getElementById('tf-delai-source').value = '';
   document.getElementById('tf-omsa').checked = false;
-  document.getElementById('tf-obs').value = '';
   document.getElementById('tf-msg').textContent = '';
   document.getElementById('trait-fait-modal').style.display = 'flex';
 }
@@ -6894,7 +6887,6 @@ async function submitTraitFait() {
     molecule: document.getElementById('tf-molecule').value.trim() || null,
     type_acte: document.getElementById('tf-type').value.trim() || null,
     date_traitement: date,
-    jour_cible: ageJourBande(bande, date),
     dose: document.getElementById('tf-dose').value.trim() || null,
     voie: document.getElementById('tf-voie').value.trim() || null,
     duree_jours: (dureeRaw === '' ? null : Math.round(Number(dureeRaw))),
@@ -6904,8 +6896,6 @@ async function submitTraitFait() {
     fait_par: currentUserLabel(),
     statut_validation: manager ? 'valide' : 'a_valider',
     valide_par: manager ? currentUserLabel() : null,
-    valide_at: manager ? new Date().toISOString() : null,
-    observation: document.getElementById('tf-obs').value.trim() || null
   };
   const btn = document.querySelector('#trait-fait-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
@@ -6924,10 +6914,10 @@ async function confirmTraitement(id) {
   if (!isManager()) return;
   const t = STATE.traitements.find(x => x.traitement_id === id);
   if (!t) return;
-  const patch = { traitement_id: id, statut_validation: 'valide', valide_par: currentUserLabel(), valide_at: new Date().toISOString() };
+  const patch = { traitement_id: id, statut_validation: 'valide', valide_par: currentUserLabel() };
   const r = await saveRemote({ action: 'updateTraitement', payload: patch });
   if (!r.ok) return;
-  Object.assign(t, { statut_validation: 'valide', valide_par: patch.valide_par, valide_at: patch.valide_at });
+  Object.assign(t, { statut_validation: 'valide', valide_par: patch.valide_par });
   renderVetActiveTab(); checkAlerts();
   toast(r.queued ? 'Confirmé (hors ligne)' : 'Traitement validé');
 }
@@ -7669,7 +7659,6 @@ function openVideSanitaireModal(id) {
   const bandeOpts = (placeholder) => '<option value="">' + placeholder + '</option>' +
     bandes.map(b => '<option value="' + b.id + '">' + escHtml(b.nom_bande || b.bande_id) + (b.batiment ? ' — ' + escHtml(b.batiment) : '') + '</option>').join('');
   document.getElementById('vs-bande-sortante').innerHTML = bandeOpts('— Premier cycle (aucune) —');
-  document.getElementById('vs-bande-entrante').innerHTML = bandeOpts('— Pas encore connue —');
 
   // Building picker : <select> over the DISTINCT non-null bandes.batiment
   // values (real column since 0025), sorted — free text would drift
@@ -7700,7 +7689,6 @@ function openVideSanitaireModal(id) {
   document.getElementById('vs-batiment').value = v ? (v.batiment || '') : '';
   document.getElementById('vs-operateur').value = v ? (v.operateur || '') : '';
   document.getElementById('vs-bande-sortante').value = (v && v.bande_sortante_id) || '';
-  document.getElementById('vs-bande-entrante').value = (v && v.bande_entrante_id) || '';
   document.getElementById('vs-date-sortie').value = v ? dateOnly(v.date_sortie) : todayStr();
   document.getElementById('vs-date-fin').value = v ? dateOnly(v.date_fin_nettoyage) : '';
   document.getElementById('vs-date-entree').value = v ? dateOnly(v.date_entree) : '';
@@ -7804,7 +7792,6 @@ async function submitVideSanitaire() {
     id: editingId || uuidv4(),
     batiment: batiment,
     bande_sortante_id: emptyToNull(document.getElementById('vs-bande-sortante').value),
-    bande_entrante_id: emptyToNull(document.getElementById('vs-bande-entrante').value),
     date_sortie: dateSortie,
     date_fin_nettoyage: dateOrNull(document.getElementById('vs-date-fin').value),
     date_entree: dateOrNull(document.getElementById('vs-date-entree').value),
