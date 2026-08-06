@@ -120,6 +120,12 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 .btn-ghost { background: transparent; color: var(--color-text-secondary); border-color: var(--color-border); }
 .btn-ghost:hover { background: var(--c-sand-100); }
 .btn-danger-ghost { background: transparent; color: var(--color-danger); border-color: var(--color-border); }
+/* Perte : une perte DÉTRUIT du stock — le bouton ne doit pas être le jumeau
+   orange des CTA d'encaissement (audit Chrome n°6). Danger/contour, flux
+   inchangé : aucune confirmation supplémentaire, la vendeuse reste rapide. */
+.btn-perte { background: transparent; color: var(--color-danger); border-color: var(--color-danger); font-weight: 700; }
+.btn-perte:hover:not(:disabled) { background: var(--color-danger-bg); }
+.btn-perte:disabled { color: var(--c-sand-500); border-color: var(--color-border); cursor: not-allowed; }
 .btn-sm { min-height: 42px; padding: 0 12px; font-size: 14px; }
 
 /* ════════ LOGIN ════════ */
@@ -404,7 +410,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
             <button class="mode-chip" data-perte-motif="autoconso">Autoconsommation</button>
           </div>
         </div>
-        <button id="btn-perte" class="btn btn-primary btn-block"><i data-lucide="trash-2"></i> Enregistrer la perte</button>
+        <button id="btn-perte" class="btn btn-perte btn-block"><i data-lucide="trash-2"></i> Enregistrer la perte</button>
       </div>
 
       <div class="list-card"><h3>Derniers mouvements</h3><div id="mvt-list"></div></div>
