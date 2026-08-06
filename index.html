@@ -3363,7 +3363,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre des vides sanitaires — nettoyage &amp; désinfection entre deux bandes d'un même bâtiment.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <span id="vs-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-        <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="printRegistreVideSanitaire()"><i data-lucide="printer"></i> Imprimer le registre</button>
+          <button class="btn btn-primary" onclick="openVideSanitaireModal()">+ Nouveau vide sanitaire</button>
+        </div>
       </div>
       <div id="vs-list"></div>
     </div>
@@ -3378,7 +3381,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div id="nui-tab-postes">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
           <span id="nui-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-          <button class="btn btn-primary manager-only" onclick="openPosteModal()">+ Nouveau poste</button>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="printRegistreNuisibles()"><i data-lucide="printer"></i> Imprimer le registre</button>
+            <button class="btn btn-primary manager-only" onclick="openPosteModal()">+ Nouveau poste</button>
+          </div>
         </div>
         <div id="nui-postes-list"></div>
       </div>
@@ -3399,7 +3405,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0;margin-bottom:1rem;">Registre d'étalonnage des instruments de mesure — thermomètres, balances.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
         <span id="etal-seuil-info" style="font-size:0.78rem;color:var(--text-muted);"></span>
-        <button class="btn btn-primary manager-only" onclick="openEquipementModal()">+ Nouvel équipement</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="printRegistreEtalonnage()"><i data-lucide="printer"></i> Imprimer le registre</button>
+          <button class="btn btn-primary manager-only" onclick="openEquipementModal()">+ Nouvel équipement</button>
+        </div>
       </div>
       <div id="etal-list"></div>
       <div id="etal-historique"></div>
@@ -6102,8 +6111,12 @@ function renderVetOverview() {
 
   // KPI 1 & 2 : carnet de vaccination (réutilise computeVaccinationStatus — aucun recalcul ailleurs).
   const vstatus = computeVaccinationStatus(bande);
-  const nbActiveV = vstatus.length;
-  const nbDoneV = vstatus.filter(v => v.vacc).length;
+  // Compteurs « du protocole » : les vaccinations orphelines (ligne de
+  // protocole supprimée) restent visibles au carnet/DSV mais ne comptent pas
+  // ici — sinon on pourrait afficher « 7/6 ».
+  const duProto = vstatus.filter(v => !v.orphelin);
+  const nbActiveV = duProto.length;
+  const nbDoneV = duProto.filter(v => v.vacc).length;
   const pendingV = vstatus.filter(v => !v.vacc).sort((a, b) =>
     ((a.plannedDate ? a.plannedDate.getTime() : Infinity) - (b.plannedDate ? b.plannedDate.getTime() : Infinity)));
   let echVal = '—', echSub = 'protocole non défini', echClass = '';
@@ -6183,7 +6196,7 @@ function computeVaccinationStatus(bande, refDateStr) {
   const vaccs = STATE.vaccinations.filter(v => v.bande_id === bande.bande_id);
   const today = parseDayLocal(refDateStr || todayStr());
   const entree = parseDayLocal(bande.date_entree);
-  return protos.map(p => {
+  const rows = protos.map(p => {
     const vacc = vaccs.find(v => v.proto_id === p.proto_id) || null;
     let plannedDate = null, windowEndDate = null;
     if (entree && Number.isFinite(Number(p.jour_cible))) {
@@ -6210,6 +6223,32 @@ function computeVaccinationStatus(bande, refDateStr) {
     }
     return { proto: p, vacc, plannedDate, windowEndDate, status, daysUntil };
   });
+  // Une vaccination FAITE dont la ligne de protocole a été supprimée ou
+  // désactivée ne doit disparaître ni du carnet ni du registre DSV : les
+  // snapshots nom_vaccin/jour_cible pris à la saisie (0017) servent de proto
+  // de repli. `orphelin: true` permet aux compteurs « du protocole » de les
+  // exclure ; les alertes les ignorent déjà (statuts fait_* uniquement).
+  const knownProtoIds = new Set(rows.map(r => r.proto.proto_id));
+  vaccs.filter(v => !knownProtoIds.has(v.proto_id)).forEach(v => {
+    const jc = Number(v.jour_cible);
+    let plannedDate = null;
+    if (entree && Number.isFinite(jc)) {
+      plannedDate = new Date(entree.getTime());
+      plannedDate.setDate(plannedDate.getDate() + (jc - 1));
+    }
+    rows.push({
+      proto: {
+        proto_id: v.proto_id,
+        nom_vaccin: (v.nom_vaccin || 'Vaccin') + ' (retiré du protocole)',
+        jour_cible: v.jour_cible,
+        voie: v.voie || null
+      },
+      vacc: v, plannedDate, windowEndDate: plannedDate,
+      status: (v.statut_validation === 'valide') ? 'fait_valide' : 'fait_a_valider',
+      daysUntil: null, orphelin: true
+    });
+  });
+  return rows;
 }
 
 // Libellé de jour d'un item de protocole : « Jx » ou « Jx–Jy » si fenêtre
@@ -6885,11 +6924,14 @@ function renderVetSante() {
     if (avecSignes.length === 0) {
       html += '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Aucun signe observé consigné dans les saisies de cette bande.</p>';
     } else {
-      html += avecSignes.map(s => '<div class="param-info-row" style="align-items:flex-start;">'
-        + '<span style="white-space:nowrap;">' + fmtDate(s.date_saisie) + ' · J' + (s.jour_bande != null ? s.jour_bande : '?')
+      html += avecSignes.map(s => {
+        const j = computeJourBande(bande, s.date_saisie) || s.jour_bande;
+        return '<div class="param-info-row" style="align-items:flex-start;">'
+        + '<span style="white-space:nowrap;">' + fmtDate(s.date_saisie) + ' · J' + (j != null ? j : '?')
         + ' · mort. ' + (s.mortalite_jour || 0) + '</span>'
         + '<span style="text-align:right;">' + escHtml([s.signes_observes, s.observations].filter(Boolean).join(' · ')) + '</span>'
-        + '</div>').join('');
+        + '</div>';
+      }).join('');
       html += '<p style="font-size:0.75rem;color:var(--text-muted);margin:0.5rem 0 0;">Signes factuels saisis par le terrain — diagnostic à valider par le vétérinaire.</p>';
     }
     html += '</div>';
@@ -6946,6 +6988,9 @@ function moleculeTypeCell(nomProduit, molecule, typeActe) {
 function dsvStatutColor(val) {
   const s = String(val || '');
   if (/retard/i.test(s)) return [150, 52, 44];
+  // Acte non confirmé par le gérant : ambre, AVANT le test « Réalisé/Fait »
+  // (le préfixe rendrait la mention verte).
+  if (/EN ATTENTE|à valider/i.test(s)) return [146, 64, 14];
   if (/^(Fait|Réalisé|Validé)/.test(s)) return [70, 110, 84];
   if (/venir|Prévu/.test(s)) return REPORT_BRAND.muted;
   return null;
@@ -7094,14 +7139,19 @@ async function exportRegistreDSV() {
     const rowsR = realizedT.map(t => {
       const age = ageJourBande(bande, t.date_traitement);
       const clear = traitementClearanceDate(t);
+      // Registre exhaustif : un acte saisi par le chef et non confirmé
+      // S'IMPRIME (jamais exclu) mais porte la mention — le DSV ne doit pas
+      // présenter comme confirmé un acte que le gérant n'a pas validé.
+      const aValider = t.statut_validation === 'a_valider';
       return { key: (age != null ? age : 9998), cells: [
-        'Réalisé',
+        aValider ? 'Réalisé — EN ATTENTE DE VALIDATION' : 'Réalisé',
         fmtDate(t.date_traitement), (age != null ? 'J' + age : '—'),
         (t.nom_produit || '—') + (t.critique_omsa ? ' [OMSA]' : ''),
         moleculeTypeCell(t.nom_produit, t.molecule, t.type_acte), t.voie || '—', (t.dose || '—'),
         (t.duree_jours != null ? t.duree_jours + ' j' : '—'),
         (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner'),
-        (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner')
+        (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner'),
+        t.fait_par || '—'
       ] };
     });
     const rowsP = STATE.protocoleTraitements
@@ -7115,21 +7165,22 @@ async function exportRegistreDSV() {
           p.nom_produit || '—',
           moleculeTypeCell(p.nom_produit, p.molecule, p.type_acte), p.voie || '—', '—',
           (p.duree_jours != null ? p.duree_jours + ' j' : '—'),
-          'à renseigner', '—'
+          'à renseigner', '—', '—'
         ] };
       });
     const traitRows = rowsR.concat(rowsP).sort((a, b) => a.key - b.key).map(r => r.cells);
     y = dsvTablePDF(doc, y, [
-      { label: 'Statut', w: 16, color: dsvStatutColor },
-      { label: 'Date', w: 20 },
-      { label: 'Âge', w: 11 },
-      { label: 'Produit', w: 30 },
-      { label: 'Molécule/Type', w: 24 },
-      { label: 'Voie', w: 22 },
-      { label: 'Dose', w: 14 },
-      { label: 'Durée', w: 11 },
-      { label: 'Délai att.', w: 18 },
-      { label: 'Abattage OK', w: 24 }
+      { label: 'Statut', w: 20, color: dsvStatutColor },
+      { label: 'Date', w: 19 },
+      { label: 'Âge', w: 10 },
+      { label: 'Produit', w: 26 },
+      { label: 'Molécule/Type', w: 20 },
+      { label: 'Voie', w: 17 },
+      { label: 'Dose', w: 12 },
+      { label: 'Durée', w: 10 },
+      { label: 'Délai att.', w: 16 },
+      { label: 'Abattage OK', w: 20 },
+      { label: 'Réalisé par', w: 21 }
     ], traitRows, { emptyMsg: 'Aucun plan de traitements ni traitement enregistré.' });
     y += 6;
 
@@ -7137,7 +7188,7 @@ async function exportRegistreDSV() {
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
     const legend = doc.splitTextToSize(
-      'Registre = protocole prévu + actes réalisés. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / À venir / En retard). Traitements : Statut « Prévu » = plan de référence non encore réalisé ; « Réalisé » = acte effectué (données réelles). Âge : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = dernière administration + délai d\'attente. « À renseigner » = délai non saisi (aucune date devinée). [OMSA] = antibiotique critique (liste OMSA), signalé par l\'utilisateur.',
+      'Registre = protocole prévu + actes réalisés. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / À venir / En retard) ; « (retiré du protocole) » = acte réalisé dont la ligne de protocole a été supprimée depuis (conservé pour exhaustivité). Traitements : Statut « Prévu » = plan de référence non encore réalisé ; « Réalisé » = acte effectué (données réelles) ; « EN ATTENTE DE VALIDATION » = acte saisi par le chef de bande, non encore confirmé par le gérant (imprimé pour exhaustivité du registre). Âge : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = dernière administration + délai d\'attente. « À renseigner » = délai non saisi (aucune date devinée). [OMSA] = antibiotique critique (liste OMSA), signalé par l\'utilisateur.',
       pw - 24);
     doc.text(legend, 12, y); y += legend.length * 3.4 + 6;
 
@@ -7438,6 +7489,72 @@ function videSanitaireDureeInfo(v) {
   return { days: d, label: fmt(d) + ' j écoulés — en cours', closed: false };
 }
 
+// ── Vues imprimables des registres biosécurité/qualité ───────────────────────
+// Restitution minimale exigible en audit : ce qui est saisi doit pouvoir se
+// PROUVER sur papier. window.print() sur une fenêtre dédiée autoportante,
+// zéro lib (jsPDF reste réservé au DSV/rapports). Contenu échappé via escHtml
+// dans le contexte parent avant écriture.
+function openRegistrePrint(titre, sousTitre, bodyHtml) {
+  const w = window.open('', '_blank');
+  if (!w) { toast("Fenêtre d'impression bloquée — autoriser les popups pour ce site", 'error'); return; }
+  w.document.write('<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>'
+    + escHtml(titre) + '</title><style>'
+    + 'body{font-family:Inter,Arial,sans-serif;color:#1a1a1a;margin:24px;font-size:12px;}'
+    + 'h1{font-size:17px;margin:0 0 2px;}'
+    + '.sub{color:#666;font-size:11px;margin:0 0 14px;}'
+    + 'table{border-collapse:collapse;width:100%;margin-bottom:14px;}'
+    + 'th,td{border:0.5px solid #999;padding:4px 6px;text-align:left;vertical-align:top;font-size:10.5px;}'
+    + 'th{background:#f2f2f2;font-size:9.5px;text-transform:uppercase;letter-spacing:0.04em;}'
+    + '.muted{color:#777;}'
+    + '.sig{margin-top:28px;display:flex;gap:40px;}'
+    + '.sig div{flex:1;border-top:1px solid #333;padding-top:4px;font-size:10.5px;}'
+    + '.no-print{margin:0 0 14px;}'
+    + '@media print{.no-print{display:none;}}'
+    + '</style></head><body>'
+    + '<div class="no-print"><button onclick="window.print()">Imprimer</button></div>'
+    + '<h1>' + escHtml(titre) + '</h1>'
+    + '<p class="sub">' + escHtml(sousTitre) + ' · édité le ' + fmtDate(todayStr()) + ' · Coqorico</p>'
+    + bodyHtml
+    + '<div class="sig"><div>Responsable élevage — date &amp; signature</div><div>Contrôleur / auditeur — date &amp; signature</div></div>'
+    + '</body></html>');
+  w.document.close();
+  w.focus();
+  // Lancement direct du dialogue (contenu inline, rien à charger) ; le bouton
+  // dans la page couvre le cas où le navigateur l'ignore.
+  setTimeout(() => { try { w.print(); } catch (e) { /* bouton en secours */ } }, 250);
+}
+
+// Registre des vides sanitaires — inclut ENFIN produits/lots/opérateur/
+// contrôle : ces champs étaient saisis (0031) mais restitués nulle part.
+function printRegistreVideSanitaire() {
+  const list = [...STATE.videsSanitaires].sort((a, b) => (b.date_sortie || '').localeCompare(a.date_sortie || ''));
+  if (!list.length) { toast('Aucun vide sanitaire à imprimer', 'error'); return; }
+  const rows = list.map(v => {
+    const sortante = v.bande_sortante_id ? STATE.bandes.find(b => b.id === v.bande_sortante_id) : null;
+    const duree = videSanitaireDureeInfo(v);
+    const court = duree.closed && duree.days != null && duree.days < VIDE_SANITAIRE_MIN_JOURS;
+    let prodsArr = v.produits;
+    if (typeof prodsArr === 'string') { try { prodsArr = JSON.parse(prodsArr); } catch (e) { prodsArr = null; } }
+    const prods = (Array.isArray(prodsArr) && prodsArr.length)
+      ? prodsArr.map(p => escHtml([p.nom, p.dose ? '(' + p.dose + ')' : '',
+          p.numero_lot ? 'lot ' + p.numero_lot : '',
+          p.date_application ? 'le ' + fmtDate(p.date_application) : ''].filter(Boolean).join(' '))).join('<br>')
+      : '<span class="muted">—</span>';
+    return '<tr><td><strong>' + escHtml(v.batiment || '—') + '</strong></td>'
+      + '<td>' + (sortante ? escHtml(sortante.nom_bande || sortante.bande_id) : 'Premier cycle') + '</td>'
+      + '<td>' + fmtDate(v.date_sortie) + '</td><td>' + fmtDate(v.date_fin_nettoyage) + '</td><td>' + fmtDate(v.date_entree) + '</td>'
+      + '<td>' + escHtml(duree.label) + (court ? ' — ⚠ inférieur à ' + VIDE_SANITAIRE_MIN_JOURS + ' j' : '') + '</td>'
+      + '<td>' + prods + '</td>'
+      + '<td>' + escHtml(v.operateur || '—') + '</td>'
+      + '<td>' + (v.controle_visuel ? 'Oui' : '—') + '</td>'
+      + '<td>' + escHtml(v.observations || '—') + '</td></tr>';
+  }).join('');
+  openRegistrePrint('Registre des vides sanitaires',
+    'Nettoyage & désinfection entre bandes — durée minimale recommandée ' + VIDE_SANITAIRE_MIN_JOURS + ' jours (indicatif)',
+    '<table><thead><tr><th>Bâtiment</th><th>Bande sortante</th><th>Sortie</th><th>Fin nettoyage</th><th>Réoccupation</th><th>Durée</th><th>Produits appliqués (dose, lot, date)</th><th>Opérateur</th><th>Contrôle visuel</th><th>Observations</th></tr></thead><tbody>'
+    + rows + '</tbody></table>');
+}
+
 function initVideSanitairePage() {
   renderVideSanitaireList();
 }
@@ -7722,18 +7839,23 @@ function renderNonConformitesList() {
     return;
   }
 
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Source</th><th>Bande</th><th>Gravité</th><th>Statut</th><th>Responsable</th><th>Échéance</th><th></th></tr></thead><tbody>';
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Source</th><th>Constat</th><th>Bande</th><th>Gravité</th><th>Statut</th><th>Responsable</th><th>Échéance</th><th></th></tr></thead><tbody>';
   list.forEach(n => {
     const bande = n.bande_id ? STATE.bandes.find(b => b.id === n.bande_id) : null;
     const grav = NC_GRAVITES[n.gravite] || { label: n.gravite || '—', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
     const st = NC_STATUTS[n.statut] || { label: n.statut || '—', bg: 'var(--status-neutral-bg)', fg: 'var(--status-neutral-fg)' };
     const retard = nonConformiteEnRetard(n);
+    // Le CŒUR du constat était invisible en liste (il fallait rouvrir chaque
+    // fiche) — extrait tronqué, texte complet au survol.
+    const desc = n.description || '';
+    const descCourt = desc.length > 90 ? desc.slice(0, 90) + '…' : (desc || '—');
     // Open record : the chef progresses it too (RLS 0033) — closed rows are
     // manager-only. Same UI mirror as the vide sanitaire module.
     const ouverte = n.statut !== 'cloturee';
     html += '<tr>' +
       '<td>' + fmtDate(n.date_constat) + '</td>' +
       '<td>' + escHtml(NC_SOURCES[n.source] || n.source || '—') + '</td>' +
+      '<td style="max-width:260px;" title="' + escHtml(desc) + '">' + escHtml(descCourt) + '</td>' +
       '<td>' + (bande ? escHtml(bande.nom_bande || bande.bande_id) : '<span style="color:var(--text-muted);">—</span>') + '</td>' +
       '<td><span class="status-badge" style="background:' + grav.bg + ';color:' + grav.fg + ';">' + grav.label + '</span></td>' +
       '<td><span class="status-badge" style="background:' + st.bg + ';color:' + st.fg + ';">' + st.label + '</span></td>' +
@@ -7811,9 +7933,7 @@ async function submitNonConformite() {
   if (!description) { if (msg) msg.textContent = 'La description du constat est requise.'; return; }
 
   const editingId = ncEditingId;
-  // created_by/created_at come from the DB defaults. The verification
-  // fields are hidden from the chef (manager-only block) but keep their
-  // loaded values, so a chef update resends them unchanged.
+  // created_by/created_at come from the DB defaults.
   const payload = {
     id: editingId || uuidv4(),
     source: document.getElementById('nc-source').value,
@@ -7824,10 +7944,17 @@ async function submitNonConformite() {
     action_corrective: document.getElementById('nc-action').value.trim() || null,
     responsable: document.getElementById('nc-responsable').value.trim() || null,
     echeance: dateOrNull(document.getElementById('nc-echeance').value),
-    verification_efficacite: document.getElementById('nc-verification').value.trim() || null,
-    date_verification: dateOrNull(document.getElementById('nc-date-verification').value),
     statut: document.getElementById('nc-statut').value
   };
+  // Vérification d'efficacité = surface MANAGER (indépendance : celui qui
+  // constate/corrige ne certifie pas l'efficacité). Le chef n'envoie plus
+  // ces clés du tout : un PATCH sans la colonne laisse la valeur stockée
+  // intacte, et la 0043 gèle de toute façon ces colonnes côté RLS (le
+  // masquage UI n'est que défense en profondeur).
+  if (isManager()) {
+    payload.verification_efficacite = document.getElementById('nc-verification').value.trim() || null;
+    payload.date_verification = dateOrNull(document.getElementById('nc-date-verification').value);
+  }
 
   const btn = document.querySelector('#non-conformite-modal .btn-primary');
   btn.disabled = true; btn.textContent = 'Enregistrement...';
@@ -7992,6 +8119,31 @@ function renderEtalonnageHistorique() {
 }
 
 // ── Equipment form (manager-only : the inventory is curated) ──
+// Registre d'étalonnage imprimable — tous les actes, tous instruments
+// (l'historique à l'écran est par-équipement ; l'auditeur veut le tout).
+function printRegistreEtalonnage() {
+  const acts = [...STATE.etalonnages].sort((a, b) => (b.date_etalonnage || '').localeCompare(a.date_etalonnage || ''));
+  if (!acts.length) { toast('Aucun étalonnage à imprimer', 'error'); return; }
+  const rows = acts.map(e => {
+    const eq = STATE.equipements.find(x => x.id === e.equipement_id);
+    const nomEq = eq
+      ? (eq.nom || '—') + (eq.numero_serie ? ' (n° ' + eq.numero_serie + ')' : '')
+      : '(équipement supprimé)';
+    return '<tr><td><strong>' + escHtml(nomEq) + '</strong></td>'
+      + '<td>' + escHtml(eq ? (EQUIPEMENT_TYPES[eq.type] || eq.type || '—') : '—') + '</td>'
+      + '<td>' + fmtDate(e.date_etalonnage) + '</td>'
+      + '<td>' + escHtml(e.realise_par || '—') + '</td>'
+      + '<td>' + escHtml(e.methode || '—') + '</td>'
+      + '<td>' + escHtml(e.ecart_constate || '—') + '</td>'
+      + '<td>' + (e.conforme === false ? '<strong>NON CONFORME</strong>' : 'Conforme') + '</td>'
+      + '<td>' + escHtml(e.observations || '—') + '</td></tr>';
+  }).join('');
+  openRegistrePrint("Registre d'étalonnage",
+    'Instruments de mesure — vérifications périodiques (rappel indicatif ' + ETALONNAGE_ALERTE_JOURS + ' j avant échéance)',
+    '<table><thead><tr><th>Équipement</th><th>Type</th><th>Date</th><th>Réalisé par</th><th>Méthode</th><th>Écart constaté</th><th>Verdict</th><th>Observations</th></tr></thead><tbody>'
+    + rows + '</tbody></table>');
+}
+
 function openEquipementModal(id) {
   if (!isManager()) { toast('Inventaire des équipements réservé au manager', 'error'); return; }
   const eq = id ? STATE.equipements.find(x => x.id === id) : null;
@@ -8228,6 +8380,34 @@ function renderNuisiblesPostes() {
   });
   html += '</tbody></table></div></div>';
   container.innerHTML = html;
+}
+
+// Registre de lutte contre les nuisibles imprimable — tous les relevés.
+// Restitue ENFIN produit + n° de lot du biocide (écrits depuis 0035, jamais
+// affichés) : c'est la trace exigée du plan de lutte.
+function printRegistreNuisibles() {
+  const rels = [...STATE.relevesNuisibles].sort((a, b) =>
+    (b.date_releve || '').localeCompare(a.date_releve || '')
+    || (a.poste_id || '').localeCompare(b.poste_id || ''));
+  if (!rels.length) { toast('Aucun relevé à imprimer', 'error'); return; }
+  const rows = rels.map(r => {
+    const poste = STATE.postesAppatage.find(p => p.id === r.poste_id);
+    const c = NUI_CONSTATS[r.constat] || { label: r.constat || '—' };
+    return '<tr><td>' + fmtDate(r.date_releve) + '</td>'
+      + '<td><strong>' + escHtml(poste ? (poste.numero || '—') : '(poste supprimé)') + '</strong>'
+      + (poste && poste.localisation ? ' — ' + escHtml(poste.localisation) : '') + '</td>'
+      + '<td>' + escHtml(c.label) + (Number(r.quantite) > 0 ? ' × ' + fmt(Number(r.quantite)) : '') + '</td>'
+      + '<td>' + (r.appat_remplace ? 'Oui' : '—') + '</td>'
+      + '<td>' + escHtml(r.produit || '—') + '</td>'
+      + '<td>' + escHtml(r.numero_lot || '—') + '</td>'
+      + '<td>' + escHtml(r.action || '—') + '</td>'
+      + '<td>' + escHtml(r.releve_par || '—') + '</td>'
+      + '<td>' + escHtml(r.observations || '—') + '</td></tr>';
+  }).join('');
+  openRegistrePrint('Registre de lutte contre les nuisibles',
+    'Relevés des postes d\'appâtage & pièges — intervalle indicatif ' + NUISIBLES_INTERVALLE_JOURS + ' jours',
+    '<table><thead><tr><th>Date</th><th>Poste</th><th>Constat</th><th>Appât remplacé</th><th>Produit (biocide)</th><th>N° lot</th><th>Action</th><th>Relevé par</th><th>Observations</th></tr></thead><tbody>'
+    + rows + '</tbody></table>');
 }
 
 // ── Tab 2 : the round — one inline form per active station ──
@@ -8599,7 +8779,11 @@ function computeIndicators(bande) {
   let jourPesee = null;
 
   const dailyData = saisies.map(s => {
-    const jour = Number(s.jour_bande) || computeJourBande(bande, s.date_saisie) || 1;
+    // A7/#147 : le jour vient des DATES (computeJourBande, source unique) ;
+    // le jour_bande STOCKÉ n'est qu'un repli si la date est incalculable —
+    // l'ordre inverse laissait une vieille valeur dénormalisée fausser J,
+    // GMQ, phases, normes d'ambiance et exports.
+    const jour = computeJourBande(bande, s.date_saisie) || Number(s.jour_bande) || 1;
     mortCum += Number(s.mortalite_jour) || 0;
     alimentTotal += Number(s.aliment_consomme_kg) || 0;
     eauTotal += Number(s.eau_consommee_l) || 0;
@@ -9892,16 +10076,19 @@ function renderDashMortalityCharts(batchData) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
+    // A7/#147 : jour recalculé des dates (repli sur le stocké si date
+    // incalculable) — un jour_bande dénormalisé faux décalait la barre.
     const saisies = STATE.saisies
       .filter(s => s.bande_id === bd.bande.bande_id && Number(s.mortalite_jour) > 0)
-      .sort((a, b) => (Number(a.jour_bande) || 0) - (Number(b.jour_bande) || 0));
+      .map(s => ({ ...s, _jour: computeJourBande(bd.bande, s.date_saisie) || Number(s.jour_bande) || 0 }))
+      .sort((a, b) => a._jour - b._jour);
 
-    const maxJour = bd.jour || saisies.reduce((m, s) => Math.max(m, Number(s.jour_bande) || 0), 0);
+    const maxJour = bd.jour || saisies.reduce((m, s) => Math.max(m, s._jour), 0);
     const labels = [];
     const values = [];
     for (let j = 1; j <= maxJour; j++) {
       labels.push('J' + j);
-      const s = saisies.find(x => Number(x.jour_bande) === j);
+      const s = saisies.find(x => x._jour === j);
       values.push(s ? Number(s.mortalite_jour) : 0);
     }
 
@@ -11258,9 +11445,12 @@ function renderRecentSaisies() {
   let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table class="saisies-recent-table"><thead><tr>' +
     '<th>Date · J</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
 
+  const bandeJ = STATE.bandes.find(b => b.bande_id === bandeId);
   recent.forEach(s => {
+    // A7/#147 : jour recalculé des dates, stocké = repli.
+    const j = computeJourBande(bandeJ, s.date_saisie) || s.jour_bande;
     html += `<tr>
-      <td>${fmtDate(s.date_saisie)} · J${s.jour_bande != null ? s.jour_bande : '?'}</td>
+      <td>${fmtDate(s.date_saisie)} · J${j != null ? j : '?'}</td>
       <td>${s.mortalite_jour}</td>
       <td>${fmt(Number(s.aliment_consomme_kg), 1)} kg</td>
       <td>${Number(s.eau_consommee_l) ? fmt(Number(s.eau_consommee_l), 1) + ' L' : '—'}</td>
