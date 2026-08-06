@@ -33,6 +33,18 @@
 -- Policy names stay rls33_* (same table, same register - this file only
 -- re-cuts their content ; pg_policies must never show both generations).
 --
+-- FORM : section 1 is FLAT top-level DDL, NOT wrapped in do $$.
+-- The first delivery wrapped it (0033 style) and the Supabase SQL editor
+-- rejected the paste with "42601 syntax error at or near check" although
+-- vanilla PostgreSQL 16 accepts the wrapped form as a single batch
+-- (verified) : the editor mishandles this dollar-quoted body. Flat
+-- statements are immune to any statement splitter. Safety is unchanged :
+--   - pasted as ONE batch, all statements share one implicit
+--     transaction - the section 0 abort therefore skips everything ;
+--   - if an editor ever runs statements separately, every section 1
+--     statement still fails loudly by itself on a missing table
+--     (undefined_table) - nothing can half-apply silently.
+--
 -- HARD PREREQUISITE : public.non_conformites must exist (0033 executed).
 -- Loud abort otherwise - a silent skip would drop the freeze forever if
 -- the migrations were run out of order.
@@ -54,50 +66,49 @@ end $$;
 
 -- ------------------------------------------------------------
 -- 1) INSERT split per role + chef UPDATE freeze extended
+--    (flat statements - see FORM note in the header)
 -- ------------------------------------------------------------
-do $$
-begin
-  -- INSERT : drop the legacy shared policy, split per role.
-  drop policy if exists "rls33_non_conformites_insert" on public.non_conformites;
 
-  drop policy if exists "rls33_non_conformites_insert_manager" on public.non_conformites;
-  create policy "rls33_non_conformites_insert_manager" on public.non_conformites
-    for insert to authenticated
-    with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'manager');
+drop policy if exists "rls33_non_conformites_insert" on public.non_conformites;
 
-  drop policy if exists "rls33_non_conformites_insert_chef" on public.non_conformites;
-  create policy "rls33_non_conformites_insert_chef" on public.non_conformites
-    for insert to authenticated
-    with check (
-      (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
-      and statut <> 'cloturee'
-      and verification_efficacite is null
-      and date_verification is null
-    );
+drop policy if exists "rls33_non_conformites_insert_manager" on public.non_conformites;
 
-  -- chef UPDATE : 0033 freeze (id / source / date_constat) + the two
-  -- verification columns, null-safe (see header).
-  drop policy if exists "rls33_non_conformites_update_chef" on public.non_conformites;
-  create policy "rls33_non_conformites_update_chef" on public.non_conformites
-    for update to authenticated
-    using (
-      (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
-      and statut <> 'cloturee'
+create policy "rls33_non_conformites_insert_manager" on public.non_conformites
+  for insert to authenticated
+  with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'manager');
+
+drop policy if exists "rls33_non_conformites_insert_chef" on public.non_conformites;
+
+create policy "rls33_non_conformites_insert_chef" on public.non_conformites
+  for insert to authenticated
+  with check (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
+    and statut <> 'cloturee'
+    and verification_efficacite is null
+    and date_verification is null
+  );
+
+drop policy if exists "rls33_non_conformites_update_chef" on public.non_conformites;
+
+create policy "rls33_non_conformites_update_chef" on public.non_conformites
+  for update to authenticated
+  using (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
+    and statut <> 'cloturee'
+  )
+  with check (
+    (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
+    and statut <> 'cloturee'
+    and exists (
+      select 1
+      from public.non_conformites prev
+      where prev.id = non_conformites.id
+        and prev.source = non_conformites.source
+        and prev.date_constat = non_conformites.date_constat
+        and prev.verification_efficacite is not distinct from non_conformites.verification_efficacite
+        and prev.date_verification is not distinct from non_conformites.date_verification
     )
-    with check (
-      (auth.jwt() -> 'app_metadata' ->> 'role') = 'chef_bande'
-      and statut <> 'cloturee'
-      and exists (
-        select 1
-        from public.non_conformites prev
-        where prev.id = non_conformites.id
-          and prev.source = non_conformites.source
-          and prev.date_constat = non_conformites.date_constat
-          and prev.verification_efficacite is not distinct from non_conformites.verification_efficacite
-          and prev.date_verification is not distinct from non_conformites.date_verification
-      )
-    );
-end $$;
+  );
 
 -- ============================================================
 -- VERIFICATION (run AFTER, read-only)
