@@ -5057,6 +5057,7 @@ const ACTION_MAP = {
   // Notifications
   addNotification:    { table: 'notifications',   op: 'insert' },
   updateNotification: { table: 'notifications',   op: 'update', idField: 'notif_id' },
+  claimNotification:  { table: 'notifications',   op: 'claim',  idField: 'notif_id' },
   // Catalogue produits
   addProduit:         { table: 'produits',        op: 'insert' },
   updateProduit:      { table: 'produits',        op: 'update', idField: 'produit_id' },
@@ -5636,6 +5637,17 @@ async function apiPost(body) {
       const idValue = payload[cfg.idField];
       if (idValue == null) throw new Error('ID manquant pour delete: ' + cfg.idField);
       resp = await sb.from(cfg.table).delete().eq(cfg.idField, idValue);
+    } else if (cfg.op === 'claim') {
+      // CAS (compare-and-set) : l'update ne s'applique QUE si la ligne est
+      // encore en_attente — à deux appareils manager, le second apprend le
+      // conflit au lieu d'écraser valide_par/date_validation. .select()
+      // renvoie les lignes réellement modifiées : 0 = déjà traitée ailleurs.
+      const idValue = payload[cfg.idField];
+      if (idValue == null) throw new Error('ID manquant pour claim: ' + cfg.idField);
+      resp = await sb.from(cfg.table).update(payload)
+        .eq(cfg.idField, idValue).eq('statut', 'en_attente').select(cfg.idField);
+      if (resp.error) throw new Error(resp.error.message);
+      return { success: true, claimed: Array.isArray(resp.data) && resp.data.length > 0 };
     } else if (cfg.op === 'rpc') {
       resp = await sb.rpc(cfg.fn, payload);
     } else {
@@ -5804,6 +5816,14 @@ async function processSyncQueue() {
         resp = await sb.from(cfg.table).insert([item.payload]);
       } else if (cfg.op === 'update') {
         resp = await sb.from(cfg.table).update(item.payload).eq(cfg.idField, item.payload[cfg.idField]);
+      } else if (cfg.op === 'claim') {
+        // Rejeu d'un claim mis en file (validation hors ligne) : le CAS
+        // s'applique côté serveur ; 0 ligne modifiée = déjà traitée sur un
+        // autre appareil pendant la coupure — c'est l'issue voulue, on ne
+        // considère PAS ça comme une erreur (le loadAllData de fin de sync
+        // resynchronise l'état local).
+        resp = await sb.from(cfg.table).update(item.payload)
+          .eq(cfg.idField, item.payload[cfg.idField]).eq('statut', 'en_attente');
       } else if (cfg.op === 'delete') {
         resp = await sb.from(cfg.table).delete().eq(cfg.idField, item.payload[cfg.idField]);
       } else if (cfg.op === 'rpc') {
@@ -9259,12 +9279,15 @@ function createNotification(type, action, bandeId, bandeNom, payload) {
     auteur_matricule: currentUser.matricule,
     auteur_nom: currentUser.name,
     date_action: new Date().toISOString(),
-    statut: type === 'saisie' ? 'validee' : 'en_attente',
-    valide_par: type === 'saisie' ? 'auto' : '',
-    date_validation: type === 'saisie' ? new Date().toISOString() : null,
+    statut: 'en_attente',
+    valide_par: '',
+    date_validation: null,
     payload_json: JSON.stringify(payload),
     note_manager: '',
-    lu_par: currentUser.matricule
+    // Retour au chef (lot cockpit D) : l'auteur n'est PLUS inscrit d'office
+    // dans lu_par — c'est ce qui rendait son badge « issues » structurellement
+    // nul (il ne pouvait jamais avoir de non-lu sur ses propres déclarations).
+    lu_par: ''
   };
   STATE.notifications = STATE.notifications || [];
   STATE.notifications.push(notif);
@@ -9323,7 +9346,7 @@ function renderNotifPanel(tab) {
   let html = '';
   notifs.forEach(n => {
     const icon = NOTIF_ICONS[n.type] || '<i data-lucide="bell"></i>';
-    const isUnread = !(n.lu_par || '').includes(currentUser.matricule);
+    const isUnread = !notifEstLu(n);
     const timeAgo = formatTimeAgo(n.date_action);
     let payload = {};
     try { payload = JSON.parse(n.payload_json || '{}'); } catch(e) {}
@@ -9540,11 +9563,54 @@ function openReceptionPricePose(receptionId) {
   }, { title: "Poser le prix d'achat", okLabel: 'Enregistrer le prix', cancelLabel: 'Annuler', noLater: true });
 }
 
-async function performValidateNotif(notif, override, prixRecep) {
-  // Update notification status
-  notif.statut = 'validee';
+// Cockpit D : la transition de statut passe par un CLAIM (CAS) AVANT tout
+// insert métier — à deux appareils manager, le second apprend le conflit ici,
+// avant que la modale prix n'ait pu poser un prix qui serait perdu, et
+// valide_par/date_validation ne sont plus jamais écrasés. Hors ligne : le
+// claim part en file (rejeu CAS silencieux) et on procède en optimiste.
+async function claimNotif(notif, statut, note) {
+  notif.statut = statut;
   notif.valide_par = currentUser.name;
   notif.date_validation = new Date().toISOString();
+  if (note != null) notif.note_manager = note;
+  const patch = {
+    notif_id: notif.notif_id,
+    statut: statut,
+    valide_par: notif.valide_par,
+    date_validation: notif.date_validation,
+    note_manager: notif.note_manager || '',
+    lu_par: notif.lu_par || ''
+  };
+  try {
+    const rc = await apiPost({ action: 'claimNotification', payload: patch });
+    if (rc && rc.claimed === false) {
+      // Déjà traitée sur un autre appareil : rafraîchir l'état réel, ne rien
+      // insérer, prévenir le manager.
+      notif.statut = 'en_attente'; notif.valide_par = ''; notif.date_validation = null;
+      try {
+        const { data } = await sb.from('notifications').select('*').eq('notif_id', notif.notif_id);
+        if (data && data[0]) Object.assign(notif, data[0]);
+      } catch (e) { /* l'état réel reviendra au prochain poll/rechargement */ }
+      toast('Déjà traitée sur un autre appareil — panneau actualisé', 'error');
+      updateBellBadge();
+      renderNotifPanel('pending');
+      return 'conflit';
+    }
+    return 'ok';
+  } catch (err) {
+    if (err && err.message && err.message.includes("file d'attente")) return 'file';
+    notif.statut = 'en_attente'; notif.valide_par = ''; notif.date_validation = null;
+    if (note != null) notif.note_manager = '';
+    toast('Statut de notification NON mis à jour — réessayez. (' + (err && err.message || 'erreur serveur') + ')', 'error');
+    renderNotifPanel('pending');
+    return 'erreur';
+  }
+}
+
+async function performValidateNotif(notif, override, prixRecep) {
+  // 1) Claim du statut (CAS) — voir claimNotif.
+  const claim = await claimNotif(notif, 'validee', null);
+  if (claim === 'conflit' || claim === 'erreur') return;
 
   // Execute the original action
   let payload = {};
@@ -9601,11 +9667,16 @@ async function performValidateNotif(notif, override, prixRecep) {
     // notification, au lieu de la remettre en attente (item coincé).
     const dejaApplique = !r.ok && r.error && /duplicate key/i.test((r.error.message || ''));
     if (!r.ok && !dejaApplique) {
-      // Rejet serveur réel : on annule la validation.
+      // Rejet serveur réel : annuler la validation — y compris CÔTÉ SERVEUR
+      // (le claim a déjà écrit « validee » ; sans dé-claim, la notification
+      // ressusciterait validée SANS donnée métier au prochain rechargement).
       toast("Échec de l'enregistrement : " + ((r.error && r.error.message) || 'erreur serveur'), 'error');
       notif.statut = 'en_attente';
       notif.valide_par = '';
-      notif.date_validation = '';
+      notif.date_validation = null;
+      const undo = await saveRemote({ action: 'updateNotification',
+        payload: { notif_id: notif.notif_id, statut: 'en_attente', valide_par: '', date_validation: null } }, { silent: true });
+      if (!undo.ok) toast('⚠️ Notification restée « validée » côté serveur SANS donnée métier — corrigez la cause puis revalidez depuis un panneau rechargé.', 'error');
       renderNotifPanel('pending');
       return;
     }
@@ -9625,18 +9696,9 @@ async function performValidateNotif(notif, override, prixRecep) {
     }
   }
 
-  // Persist notification update — un échec ICI doit remonter au manager :
-  // sinon la notification ressuscite en_attente au prochain rechargement
-  // (le rejeu est alors géré par la branche « déjà appliqué » ci-dessus).
-  const rn = await saveRemote({ action: 'updateNotification', payload: notif }, { silent: true });
-  if (!rn.ok) {
-    notif.statut = 'en_attente';
-    notif.valide_par = '';
-    notif.date_validation = '';
-    toast('Données enregistrées, mais statut de notification NON mis à jour — revalidez pour réessayer.', 'error');
-  } else {
-    toast(notif.type + ' validé et enregistré');
-  }
+  // 2) Le statut a déjà été persisté par le claim (ou mis en file hors
+  // ligne) — plus de second updateNotification, plus d'écrasement possible.
+  toast(notif.type + ' validé et enregistré');
   updateBellBadge();
   renderNotifPanel('pending');
   // Re-render active page
@@ -9650,23 +9712,10 @@ async function rejectNotif(notifId) {
   const noteInput = document.getElementById('nc-note-' + notifId);
   const note = noteInput ? noteInput.value.trim() : '';
 
-  notif.statut = 'rejetee';
-  notif.valide_par = currentUser.name;
-  notif.date_validation = new Date().toISOString();
-  notif.note_manager = note;
-
-  // D-F3 : un échec de la mise à jour doit remonter (sinon l'item ressuscite
-  // en_attente au rechargement sans que le manager le sache).
-  const rn = await saveRemote({ action: 'updateNotification', payload: notif }, { silent: true });
-  if (!rn.ok) {
-    notif.statut = 'en_attente';
-    notif.valide_par = '';
-    notif.date_validation = '';
-    notif.note_manager = '';
-    toast('Rejet NON enregistré côté serveur — réessayez.', 'error');
-    renderNotifPanel('pending');
-    return;
-  }
+  // Même chemin CAS que la validation (claimNotif gère conflit multi-
+  // appareils, hors ligne et échec serveur — D-F3 conservé).
+  const claim = await claimNotif(notif, 'rejetee', note);
+  if (claim === 'conflit' || claim === 'erreur') return;
 
   toast(notif.type + ' rejeté' + (note ? ' — ' + note : ''));
   updateBellBadge();
@@ -9683,10 +9732,12 @@ function updateBellBadge() {
   if (isManager()) {
     count = (STATE.notifications || []).filter(n => n.statut === 'en_attente').length;
   } else {
+    // Chef : ses déclarations tranchées (validée/rejetée) non lues. Fonctionne
+    // enfin : l'auteur n'est plus pré-inscrit dans lu_par à la création.
     count = (STATE.notifications || []).filter(n =>
       n.auteur_matricule === currentUser.matricule &&
-      !(n.lu_par || '').includes(currentUser.matricule) &&
-      n.statut !== 'en_attente'
+      n.statut !== 'en_attente' &&
+      !notifEstLu(n)
     ).length;
   }
   if (count > 0) {
@@ -9704,29 +9755,93 @@ function updateBellBadge() {
   }
 }
 
+// ── État de lecture (lot cockpit D) ─────────────────────────────────────────
+// « Lu » = lu_par serveur (historique, écrit incidemment au claim manager)
+// OU marque locale d'appareil (localStorage). Pourquoi pas d'écriture chef en
+// base : 0044 retire tout droit UPDATE au chef sur notifications (la RLS est
+// la barrière) — un état de lecture par appareil suffit au badge, et survit
+// aux rechargements. Plafonné aux 400 derniers ids (la table ne purge pas).
+const NOTIF_LUS_KEY = 'coqorico_notifs_lues';
+function notifLusSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(NOTIF_LUS_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function notifEstLu(n) {
+  if (!currentUser) return true;
+  return (n.lu_par || '').includes(currentUser.matricule) || notifLusSet().has(n.notif_id);
+}
 function markNotifsRead() {
+  const lus = notifLusSet();
   (STATE.notifications || []).forEach(n => {
     if (!(n.lu_par || '').includes(currentUser.matricule)) {
       n.lu_par = (n.lu_par ? n.lu_par + ',' : '') + currentUser.matricule;
     }
+    lus.add(n.notif_id);
   });
+  try { localStorage.setItem(NOTIF_LUS_KEY, JSON.stringify([...lus].slice(-400))); }
+  catch (e) { /* stockage plein : le badge repartira du lu_par serveur */ }
 }
 
 function startNotifPolling() {
   if (notifPollInterval) clearInterval(notifPollInterval);
-  if (!isManager()) return;
+  if (!currentUser) return;
+  if (isManager()) {
+    notifPollInterval = setInterval(async () => {
+      if (!isConfigured() || !currentUser) return;
+      try {
+        const data = await apiGet({ action: 'getNotifications', statut: 'en_attente' });
+        const newNotifs = (data || []).filter(n => !(STATE.notifications || []).some(x => x.notif_id === n.notif_id));
+        if (newNotifs.length > 0) {
+          STATE.notifications.push(...newNotifs);
+          toast(newNotifs.length + ' nouvelle(s) action(s) en attente de validation');
+          updateBellBadge();
+        }
+        // Réconciliation multi-appareils (cockpit D) : une notif encore
+        // en_attente ICI mais absente de la liste serveur a été traitée sur
+        // un autre appareil — rafraîchir son statut au lieu de la laisser
+        // « en attente » fantôme jusqu'au prochain rechargement complet.
+        const serverIds = new Set((data || []).map(n => n.notif_id));
+        const stale = (STATE.notifications || []).filter(n => n.statut === 'en_attente' && !serverIds.has(n.notif_id));
+        if (stale.length > 0) {
+          const { data: rows, error } = await sb.from('notifications')
+            .select('*').in('notif_id', stale.map(n => n.notif_id));
+          if (!error && Array.isArray(rows)) {
+            rows.forEach(row => {
+              const local = STATE.notifications.find(x => x.notif_id === row.notif_id);
+              if (local) Object.assign(local, row);
+            });
+            updateBellBadge();
+            const panel = document.getElementById('notif-panel');
+            if (panel && panel.classList.contains('open')) renderNotifPanel('pending');
+          }
+        }
+      } catch(e) { /* silencieux : le poll retentera dans 60 s */ }
+    }, 60000);
+    return;
+  }
+  // Retour au chef (cockpit D) : poll léger (120 s) sur SES déclarations —
+  // dès qu'une passe validée/rejetée, toast + badge, sans rechargement.
   notifPollInterval = setInterval(async () => {
     if (!isConfigured() || !currentUser) return;
     try {
-      const data = await apiGet({ action: 'getNotifications', statut: 'en_attente' });
-      const newNotifs = (data || []).filter(n => !(STATE.notifications || []).some(x => x.notif_id === n.notif_id));
-      if (newNotifs.length > 0) {
-        STATE.notifications.push(...newNotifs);
-        toast(newNotifs.length + ' nouvelle(s) action(s) en attente de validation');
-        updateBellBadge();
-      }
-    } catch(e) { /* silent */ }
-  }, 60000);
+      const { data, error } = await sb.from('notifications')
+        .select('*').eq('auteur_matricule', currentUser.matricule)
+        .order('date_action', { ascending: false }).limit(50);
+      if (error || !Array.isArray(data)) return;
+      data.forEach(row => {
+        const local = (STATE.notifications || []).find(x => x.notif_id === row.notif_id);
+        if (!local) { STATE.notifications.push(row); return; }
+        if (local.statut === 'en_attente' && row.statut !== 'en_attente') {
+          Object.assign(local, row);
+          toast('Votre déclaration « ' + row.action + ' » a été '
+            + (row.statut === 'validee' ? 'validée' : 'rejetée')
+            + (row.note_manager ? ' — ' + row.note_manager : ''),
+            row.statut === 'validee' ? undefined : 'error');
+        }
+      });
+      updateBellBadge();
+    } catch(e) { /* silencieux */ }
+  }, 120000);
 }
 
 // ── Deadline Timers ──
@@ -11464,9 +11579,10 @@ async function submitSaisie() {
     // n'ont pas été écartées, pour que les rendus (fiche, véto…) les voient.
     STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
     saisiePushed = true;
-    if (currentUser && currentUser.role === 'chef_bande') {
-      createNotification('saisie', 'Saisie J' + jourBande + ' — ' + bandeName, bandeId, bandeName, saisiePayload);
-    }
+    // Cockpit D : la notification « saisie » (journal auto-validé) est SORTIE
+    // de la cloche — la table saisies EST le journal, la cloche est réservée
+    // aux actions à VALIDER (intrant/réception/abattage). Les anciennes notifs
+    // saisie restent lisibles dans l'Historique.
 
     // If intrant form is visible and has data
     if (document.getElementById('intrant-subform').style.display !== 'none') {
