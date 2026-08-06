@@ -7194,7 +7194,11 @@ async function exportRegistreDSV() {
         (t.nom_produit || '—') + (t.critique_omsa ? ' [OMSA]' : ''),
         moleculeTypeCell(t.nom_produit, t.molecule, t.type_acte), t.voie || '—', (t.dose || '—'),
         (t.duree_jours != null ? t.duree_jours + ' j' : '—'),
-        (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner'),
+        // Source du délai (2e ligne de la cellule) : la provenance est
+        // exactement ce qu'un inspecteur demande — « — » si non renseignée,
+        // jamais un blanc ambigu.
+        (t.delai_attente_jours != null ? t.delai_attente_jours + ' j' : 'à renseigner')
+          + '\n' + (t.delai_attente_source || '—'),
         (t.delai_attente_jours != null ? (clear ? fmtDate(clear) : '—') : 'à renseigner'),
         t.fait_par || '—'
       ] };
@@ -7210,7 +7214,7 @@ async function exportRegistreDSV() {
           p.nom_produit || '—',
           moleculeTypeCell(p.nom_produit, p.molecule, p.type_acte), p.voie || '—', '—',
           (p.duree_jours != null ? p.duree_jours + ' j' : '—'),
-          'à renseigner', '—', '—'
+          'à renseigner\n—', '—', '—'
         ] };
       });
     const traitRows = rowsR.concat(rowsP).sort((a, b) => a.key - b.key).map(r => r.cells);
@@ -7218,12 +7222,12 @@ async function exportRegistreDSV() {
       { label: 'Statut', w: 20, color: dsvStatutColor },
       { label: 'Date', w: 19 },
       { label: 'Âge', w: 10 },
-      { label: 'Produit', w: 26 },
-      { label: 'Molécule/Type', w: 20 },
+      { label: 'Produit', w: 24 },
+      { label: 'Molécule/Type', w: 18 },
       { label: 'Voie', w: 17 },
       { label: 'Dose', w: 12 },
       { label: 'Durée', w: 10 },
-      { label: 'Délai att.', w: 16 },
+      { label: 'Délai att. (source)', w: 20 },
       { label: 'Abattage OK', w: 20 },
       { label: 'Réalisé par', w: 21 }
     ], traitRows, { emptyMsg: 'Aucun plan de traitements ni traitement enregistré.' });
@@ -7233,7 +7237,7 @@ async function exportRegistreDSV() {
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFontSize(7); doc.setTextColor.apply(doc, REPORT_BRAND.muted);
     const legend = doc.splitTextToSize(
-      'Registre = protocole prévu + actes réalisés. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / À venir / En retard) ; « (retiré du protocole) » = acte réalisé dont la ligne de protocole a été supprimée depuis (conservé pour exhaustivité). Traitements : Statut « Prévu » = plan de référence non encore réalisé ; « Réalisé » = acte effectué (données réelles) ; « EN ATTENTE DE VALIDATION » = acte saisi par le chef de bande, non encore confirmé par le gérant (imprimé pour exhaustivité du registre). Âge : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = dernière administration + délai d\'attente. « À renseigner » = délai non saisi (aucune date devinée). [OMSA] = antibiotique critique (liste OMSA), signalé par l\'utilisateur.',
+      'Registre = protocole prévu + actes réalisés. Vaccinations : toutes les lignes du protocole avec leur statut (Fait / À venir / En retard) ; « (retiré du protocole) » = acte réalisé dont la ligne de protocole a été supprimée depuis (conservé pour exhaustivité). Traitements : Statut « Prévu » = plan de référence non encore réalisé ; « Réalisé » = acte effectué (données réelles) ; « EN ATTENTE DE VALIDATION » = acte saisi par le chef de bande, non encore confirmé par le gérant (imprimé pour exhaustivité du registre). Âge : Jx = jours depuis la mise en place (J1 = mise en place). Abattage OK = dernière administration + délai d\'attente. « À renseigner » = délai non saisi (aucune date devinée). Délai att. (source) : la 2e ligne de la cellule = provenance du délai telle que saisie (notice, RCP, vétérinaire, DSV) ; « — » = non renseignée. [OMSA] = antibiotique critique (liste OMSA), signalé par l\'utilisateur.',
       pw - 24);
     doc.text(legend, 12, y); y += legend.length * 3.4 + 6;
 
@@ -15857,6 +15861,21 @@ function renderReceptions() {
         bandeCell = '<button class="btn btn-outline btn-sm" style="white-space:nowrap;" onclick="createBandeFromReception(\'' + r.reception_id + '\')">Créer la bande</button> ';
       }
     }
+    // 0038, promesse enfin tenue : l'écart couvoir/DOA se LIT sur la ligne.
+    // Calcul d'affichage pur, manager ET chef (colonnes opérationnelles,
+    // présentes dans receptions_ops — exclusions 0042 = prix uniquement).
+    // Rien pour les réceptions d'avant 0038 (effectif_commande NULL).
+    let ecartPoussinHtml = '';
+    if (r.categorie === 'poussin' && r.effectif_commande != null) {
+      const cmd = Number(r.effectif_commande) || 0;
+      const vivants = Number(r.quantite) || 0;
+      const doa = (r.mortalite_transport != null) ? (Number(r.mortalite_transport) || 0) : null;
+      const pct = (doa != null && cmd > 0) ? (doa / cmd) * 100 : null;
+      ecartPoussinHtml = '<div style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;">Commandé ' + fmt(cmd)
+        + ' · reçus vivants ' + fmt(vivants)
+        + (doa != null ? ' · DOA ' + fmt(doa) + (pct != null ? ' (' + fmt(pct, 1) + ' %)' : '') : '')
+        + '</div>';
+    }
     // 1c : l'incrément de stock appliqué (picker SC-1.3) est VISIBLE sur la
     // ligne — 'stock_id|delta|unite', nom résolu localement (0042).
     let stockRefHtml = '';
@@ -15884,7 +15903,7 @@ function renderReceptions() {
       <td>${fourn ? fourn.nom : '—'}</td>
       <td>${r.type_produit}${stockRefHtml}</td>
       <td>${catEmoji(r.categorie)} ${catLabel(r.categorie)}</td>
-      <td>${fmt(Number(r.quantite), 1)} ${r.unite}</td>
+      <td>${fmt(Number(r.quantite), 1)} ${r.unite}${ecartPoussinHtml}</td>
       ${prixCells}
       <td>${r.numero_lot || '—'}</td>
       <td>${inspBadge}</td>
