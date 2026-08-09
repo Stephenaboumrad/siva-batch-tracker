@@ -1018,6 +1018,62 @@ body::before {
   box-shadow:var(--shadow-md);
 }
 
+/* ── Écran employé (RH-2b) : registre de pointage ──────────────────────
+   Pastille mascotte = MÊME traitement que l'écran login (.siva-login-logo)
+   et portail.html (.brand-login .brand-logo) — orange -700 derrière le
+   wordmark COQORICO blanc baké dans le PNG — réduit au format bannière.
+   Exception à la règle mascotte documentée dans CLAUDE.md : surface de
+   registre formelle ; partout ailleurs in-app = wordmark SIVA seul. */
+.emp-mascotte {
+  height:56px; width:auto; display:block; flex:none;
+  padding:8px;
+  background:var(--c-orange-700);
+  border-radius:14px;
+  box-shadow:var(--shadow-md);
+}
+.emp-card {
+  background:#FFFFFF; border-radius:16px;
+  box-shadow:0 32px 80px rgba(0,0,0,0.5); border:1px solid rgba(226,232,240,0.2);
+  width:calc(100% - 24px); max-width:420px; margin:12px auto; padding:22px 18px 12px;
+  position:relative; display:flex; flex-direction:column; gap:14px;
+}
+.emp-avatar {
+  width:44px; height:44px; border-radius:50%; flex:none;
+  background:var(--c-orange-600); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Inter',sans-serif; font-weight:800; font-size:16px;
+}
+.emp-clock {
+  font-family:'JetBrains Mono',monospace; font-size:46px; font-weight:700;
+  color:#0F172A; line-height:1; text-align:center; font-variant-numeric:tabular-nums;
+}
+.emp-badge {
+  display:inline-block; padding:3px 10px; border-radius:999px;
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:700; white-space:nowrap;
+}
+.emp-tl-row {
+  display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:1px solid #E2E8F0; border-radius:12px;
+}
+.emp-tl-dot {
+  width:26px; height:26px; border-radius:50%; flex:none;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid #CBD5E1; color:#fff; font-size:14px;
+}
+.emp-tl-dot.done { background:var(--success); border-color:var(--success); }
+.emp-tl-dot:not(.done) svg, .emp-tl-dot:not(.done) i { display:none; }
+.emp-action {
+  width:100%; min-height:54px; border:none; border-radius:12px;
+  font-family:'Inter',sans-serif; font-size:17px; font-weight:800; letter-spacing:0.02em;
+  color:#fff; background:var(--accent); cursor:pointer; touch-action:manipulation;
+}
+.emp-action:disabled { opacity:0.5; cursor:default; }
+.emp-footer {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-top:2px; padding-top:10px; border-top:1px solid #E2E8F0;
+  font-family:'Inter',sans-serif; font-size:12px; color:#64748B;
+}
+
 /* ── Wordmark SIVA (typographique — remplace la mascotte ; présentation seule) ── */
 .siva-wordmark { display:flex; flex-direction:column; align-items:center; line-height:1; gap:3px; }
 /* ── Wordmark SIVA — COMPOSANT AUTONOME (présentation seule) ──
@@ -3009,27 +3065,73 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
-<!-- Écran employé (RH-1) : pointage uniquement — aucun accès à l'app staff.
-     z-index 999 : SOUS le login-screen (1000), pour que la déconnexion le
-     recouvre proprement. Mobile-first : gros boutons tactiles, zéro nav. -->
-<div id="employe-screen" style="position:fixed;inset:0;background:var(--navbar-deep);display:none;align-items:center;justify-content:center;z-index:999;overflow:hidden;">
-  <div style="position:absolute;inset:0;opacity:0.4;background:conic-gradient(from 180deg at 50% 50%, var(--navbar-deep) 0deg, var(--navbar-bg) 90deg, var(--navbar-deep) 180deg, var(--navbar-active) 270deg, var(--navbar-deep) 360deg);"></div>
-  <div style="background:#FFFFFF;border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,0.5);padding:36px 28px;max-width:420px;width:92%;text-align:center;position:relative;border:1px solid rgba(226,232,240,0.2);">
-    <div style="margin-bottom:22px;">
-      <div class="siva-wordmark"><span class="siva-word">SI<span class="sw-accent">V</span>A</span></div>
-      <div style="font-family:'Inter',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:10px;">Pointage du personnel</div>
-      <div style="width:40px;height:2px;background:var(--accent);margin:14px auto 0;border-radius:1px;"></div>
+<!-- Écran employé (RH-2b) : REGISTRE DE POINTAGE — surface unique du rôle
+     employe, aucun accès à l'app staff. z-index 999 : SOUS le login-screen
+     (1000), pour que la déconnexion le recouvre proprement. Mobile-first
+     ~360px (Android bas de gamme) : colonne verticale, un seul bouton
+     d'action, défilement vertical si écran court. -->
+<div id="employe-screen" style="position:fixed;inset:0;background:var(--navbar-deep);display:none;z-index:999;overflow:auto;">
+  <div style="position:fixed;inset:0;opacity:0.4;background:conic-gradient(from 180deg at 50% 50%, var(--navbar-deep) 0deg, var(--navbar-bg) 90deg, var(--navbar-deep) 180deg, var(--navbar-active) 270deg, var(--navbar-deep) 360deg);pointer-events:none;"></div>
+  <div class="emp-card">
+
+    <!-- a) Bannière : mascotte sur pastille orange (exception CLAUDE.md,
+         surface de registre formelle) + wordmark SIVA -->
+    <div style="text-align:center;">
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;">
+        <img src="./assets/siva-logo-mascotte.png" alt="Coqorico" class="emp-mascotte">
+        <div class="siva-wordmark"><span class="siva-word" style="color:#1A1A1A;font-size:32px;">SI<span class="sw-accent">V</span>A</span></div>
+      </div>
+      <div style="font-family:'Inter',sans-serif;font-size:10px;color:#64748B;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin-top:8px;">Société Ivoirienne de Volailles et Assimilés</div>
+      <div style="font-family:'Inter',sans-serif;font-size:21px;font-weight:800;color:#0F172A;margin-top:6px;">Registre de pointage</div>
+      <div style="width:40px;height:2px;background:var(--accent);margin:10px auto 0;border-radius:1px;"></div>
     </div>
-    <div id="emp-date" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#64748B;text-transform:capitalize;"></div>
-    <div id="emp-nom" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:800;color:#0F172A;margin-top:4px;"></div>
-    <div id="emp-statut" style="font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--accent);margin-top:14px;min-height:1.3rem;"></div>
-    <div id="emp-heures" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#334155;margin-top:6px;min-height:1.2rem;"></div>
-    <button id="emp-btn-arrivee" onclick="employePointer('arrivee')" style="width:100%;margin-top:20px;padding:20px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:18px;font-weight:800;letter-spacing:0.02em;cursor:pointer;min-height:64px;touch-action:manipulation;">Arrivée</button>
-    <button id="emp-btn-depart" onclick="employePointer('depart')" style="width:100%;margin-top:12px;padding:20px 16px;background:#0F172A;color:#fff;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:18px;font-weight:800;letter-spacing:0.02em;cursor:pointer;min-height:64px;touch-action:manipulation;">Départ</button>
-    <div id="emp-confirm" style="color:var(--success);font-size:13px;margin-top:12px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:700;"></div>
-    <div id="emp-error" style="color:#DC2626;font-size:13px;margin-top:2px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:600;"></div>
-    <div style="margin-top:14px;display:flex;justify-content:center;gap:18px;">
-      <a href="#" onclick="employeChargerJour();return false;" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#64748B;text-decoration:underline;">Actualiser</a>
+
+    <!-- b) Identité employé -->
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div id="emp-avatar" class="emp-avatar"></div>
+      <div style="min-width:0;flex:1;">
+        <div id="emp-nom" style="font-family:'Inter',sans-serif;font-size:16px;font-weight:800;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748B;"><span id="emp-matricule"></span><span id="emp-poste"></span></div>
+      </div>
+      <span id="emp-statut-badge" class="emp-badge"></span>
+    </div>
+
+    <!-- c) Horloge (offset serveur — l'heure de l'appareil seule n'est
+         jamais présentée comme faisant foi) -->
+    <div>
+      <div id="emp-clock" class="emp-clock">--:--</div>
+      <div id="emp-date" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#64748B;text-align:center;text-transform:capitalize;margin-top:4px;"></div>
+      <div id="emp-clock-note" style="font-family:'Inter',sans-serif;font-size:10px;color:#94A3B8;text-align:center;min-height:1em;"></div>
+    </div>
+
+    <!-- d) Chronologie du jour -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="emp-tl-row">
+        <span id="emp-tl-dot-arrivee" class="emp-tl-dot"><i data-lucide="check"></i></span>
+        <span style="font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:#0F172A;flex:1;">Arrivée</span>
+        <span id="emp-tl-arrivee" style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#334155;"></span>
+      </div>
+      <div class="emp-tl-row">
+        <span id="emp-tl-dot-depart" class="emp-tl-dot"><i data-lucide="check"></i></span>
+        <span style="font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:#0F172A;flex:1;">Départ</span>
+        <span id="emp-tl-depart" style="font-family:'JetBrains Mono',monospace;font-size:15px;color:#334155;"></span>
+      </div>
+    </div>
+
+    <!-- f) Présence en cours (visible seulement arrivé & pas parti) -->
+    <div id="emp-presence" style="display:none;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:var(--success);text-align:center;"></div>
+
+    <!-- e) Action unique — jamais de bouton quand l'état est inconnu -->
+    <button id="emp-action" class="emp-action" style="display:none;" onclick="employeAction()"></button>
+    <div id="emp-etat-inconnu" style="display:none;text-align:center;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;color:#DC2626;">
+      État inconnu — <a href="#" onclick="employeChargerJour();return false;" style="color:#DC2626;text-decoration:underline;">Actualiser</a>
+    </div>
+    <div id="emp-confirm" style="color:var(--success);font-size:13px;min-height:1.1rem;font-family:'Inter',sans-serif;font-weight:700;text-align:center;"></div>
+    <div id="emp-error" style="color:#DC2626;font-size:13px;min-height:1.1rem;font-family:'Inter',sans-serif;font-weight:600;text-align:center;"></div>
+
+    <!-- g) Pied : indicateur de synchro (motif .sync-dot du header staff) + déconnexion -->
+    <div class="emp-footer">
+      <span style="display:flex;align-items:center;gap:6px;"><span id="emp-sync-dot" class="sync-dot green"></span> <span id="emp-sync-text">En ligne</span></span>
       <a href="#" onclick="employeLogout();return false;" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#64748B;text-decoration:underline;">Déconnexion</a>
     </div>
   </div>
@@ -5149,9 +5251,11 @@ async function logout() {
   // Termine la session côté serveur (révoque/efface le JWT persisté).
   try { await sb.auth.signOut(); } catch (e) { /* on poursuit le reset UI même si offline */ }
   currentUser = null;
-  // RH-1 : masquer l'écran employé s'il était actif (retour au login).
+  // RH-1/RH-2b : masquer l'écran employé s'il était actif (retour au login)
+  // et arrêter le tick de l'horloge du registre.
   const empScreen = document.getElementById('employe-screen');
   if (empScreen) empScreen.style.display = 'none';
+  employeStopClock();
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
   document.getElementById('notif-bell').style.display = 'none';
   const notifPanel = document.getElementById('notif-panel');
@@ -5211,37 +5315,150 @@ function isManager() {
   return currentUser && currentUser.role === 'manager';
 }
 
-// ── Écran employé (RH-1) : pointage Arrivée/Départ ─────────────────────────
+// ── Écran employé (RH-2b) : REGISTRE DE POINTAGE ───────────────────────────
 // Surface UNIQUE du rôle employe : aucune nav, aucun init(), aucun STATE
-// global. Lectures/écritures directes sur `pointages` — la RLS 0045 scope à
-// la ligne du jour de l'employé, et l'heure est réécrite CÔTÉ SERVEUR par le
-// trigger (la valeur envoyée ne sert qu'à marquer l'intention : le serveur
-// fait foi). Pas de file hors ligne dans ce lot : un échec réseau = message
-// explicite + bouton laissé actif pour réessayer.
+// global. Lectures/écritures directes sur `pointages` — la RLS 0045/0046
+// scope à la ligne du jour de l'employé, et l'heure est réécrite CÔTÉ
+// SERVEUR par le trigger (la valeur envoyée ne sert qu'à marquer
+// l'intention : le serveur fait foi). Pas de file hors ligne : un échec
+// d'ÉCRITURE = message explicite + bouton conservé pour réessayer ; un échec
+// de CHARGEMENT d'état = état INCONNU → AUCUN bouton d'action (on ne devine
+// jamais l'état), lien « Actualiser » à la place.
 let employePointageJour = null; // ligne pointages du jour (null = pas pointé)
 let employeReqEnCours = false;  // anti double-tap pendant l'aller-retour réseau
+let employeEtatConnu = false;   // false = état serveur non confirmé → pas de bouton
+let employeClockOffsetMs = null; // serveur − appareil ; null = jamais synchronisée
+let employeClockTimer = null;
+
+const EMP_CLOCK_OFFSET_KEY = 'siva_emp_clock_offset_ms';
+
+// Heure « registre » : appareil + offset serveur. L'heure de l'appareil seule
+// n'est JAMAIS présentée comme faisant foi — offset null → note explicite.
+function employeMaintenant() {
+  return new Date(Date.now() + (employeClockOffsetMs || 0));
+}
 
 function employeDateISO() {
   // UTC = heure locale en Côte d'Ivoire (GMT+0 toute l'année) — même
-  // convention que current_date côté serveur (note 0035/0045).
-  return new Date().toISOString().slice(0, 10);
+  // convention que current_date côté serveur (note 0035/0045). Basée sur
+  // l'heure ajustée serveur pour que la frontière de jour soit la sienne.
+  return employeMaintenant().toISOString().slice(0, 10);
 }
 
 function employeHeure(ts) {
   return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
-async function enterEmployeScreen() {
-  document.getElementById('employe-screen').style.display = 'flex';
-  document.getElementById('emp-nom').textContent = currentUser.name;
+function employeInitiales(nom) {
+  const mots = String(nom || '').trim().split(/\s+/).filter(Boolean);
+  return ((mots[0] || ' ')[0] + (mots.length > 1 ? mots[mots.length - 1][0] : '')).toUpperCase() || '?';
+}
+
+function employeSetClockOffset(ms) {
+  employeClockOffsetMs = ms;
+  try { localStorage.setItem(EMP_CLOCK_OFFSET_KEY, String(Math.round(ms))); } catch (e) { /* stockage indispo */ }
+}
+
+// Offset horloge au chargement : l'en-tête HTTP Date n'est pas exposé en CORS
+// par Supabase (vérifié), donc on force un refresh de session et on lit le
+// claim `iat` (seconde d'émission CÔTÉ SERVEUR) du JWT frais. Repli : dernier
+// offset persisté sur l'appareil (lui aussi dérivé du serveur) ; sinon null →
+// l'horloge est annotée « heure de l'appareil ». Chaque écriture réussie
+// resynchronise ensuite l'offset avec le timestamp que le serveur renvoie.
+async function employeSyncClock() {
+  try {
+    const { data, error } = await sb.auth.refreshSession();
+    const token = !error && data && data.session && data.session.access_token;
+    if (token) {
+      const b = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const claims = JSON.parse(atob(b + '='.repeat((4 - b.length % 4) % 4)));
+      if (claims && claims.iat) {
+        employeSetClockOffset(claims.iat * 1000 - Date.now());
+        employeTickClock();
+        return;
+      }
+    }
+  } catch (e) { /* repli persisté ci-dessous */ }
+  try {
+    const v = localStorage.getItem(EMP_CLOCK_OFFSET_KEY);
+    if (v !== null && isFinite(Number(v))) employeClockOffsetMs = Number(v);
+  } catch (e) { /* stockage indispo → horloge annotée */ }
+  employeTickClock();
+}
+
+function employeStartClock() {
+  employeStopClock();
+  employeTickClock();
+  employeClockTimer = setInterval(employeTickClock, 1000);
+}
+function employeStopClock() {
+  if (employeClockTimer) { clearInterval(employeClockTimer); employeClockTimer = null; }
+}
+
+function employeTickClock() {
+  const clockEl = document.getElementById('emp-clock');
+  if (!clockEl) return;
+  const now = employeMaintenant();
+  clockEl.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('emp-date').textContent =
-    new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('emp-clock-note').textContent =
+    employeClockOffsetMs === null ? 'heure de l’appareil — non synchronisée' : '';
+  // f) présence en cours (arrivé, pas encore parti) — recalculée à chaque tick
+  const p = employePointageJour;
+  const presEl = document.getElementById('emp-presence');
+  if (employeEtatConnu && p && p.heure_arrivee && !p.heure_depart) {
+    const min = Math.max(0, Math.floor((now - new Date(p.heure_arrivee)) / 60000));
+    presEl.textContent = 'Présence en cours · ' + Math.floor(min / 60) + 'h ' + String(min % 60).padStart(2, '0') + 'min';
+    presEl.style.display = '';
+  } else {
+    presEl.style.display = 'none';
+  }
+}
+
+function employeUpdateSync() {
+  const dot = document.getElementById('emp-sync-dot');
+  const txt = document.getElementById('emp-sync-text');
+  if (!dot || !txt) return;
+  const on = navigator.onLine;
+  dot.className = 'sync-dot ' + (on ? 'green' : 'red');
+  txt.textContent = on ? 'En ligne' : 'Hors ligne';
+}
+window.addEventListener('online', employeUpdateSync);
+window.addEventListener('offline', employeUpdateSync);
+
+async function enterEmployeScreen() {
+  document.getElementById('employe-screen').style.display = 'block';
+  // b) identité depuis le JWT (currentUser résolu à la connexion)
+  document.getElementById('emp-nom').textContent = currentUser.name;
+  document.getElementById('emp-matricule').textContent = currentUser.matricule;
+  document.getElementById('emp-poste').textContent = '';
+  document.getElementById('emp-avatar').textContent = employeInitiales(currentUser.name);
+  employeUpdateSync();
+  employeStartClock();
+  employeSyncClock();     // asynchrone, non bloquant
+  employeChargerPoste();  // asynchrone — omis si la RLS ne l'autorise pas
+  if (window.lucide) lucide.createIcons();
   await employeChargerJour();
 }
 
-// Recharge la ligne du jour depuis le serveur (source de vérité). En échec
-// (hors ligne), on rend l'écran quand même : les boutons restent utilisables
-// et l'insert/update échouera avec un message explicite.
+// Poste depuis employes (0046 : jointure par matricule). employes est
+// manager-only (rls7_manager_all) : pour un employe la requête renvoie
+// 0 ligne SANS erreur → le poste est simplement omis. AUCUNE policy n'est
+// affaiblie ici ; si une lecture est un jour ouverte côté RLS, le poste
+// apparaîtra sans changement de code.
+async function employeChargerPoste() {
+  try {
+    const { data } = await sb.from('employes').select('poste')
+      .eq('matricule', currentUser.matricule).limit(1);
+    const poste = data && data[0] && data[0].poste;
+    document.getElementById('emp-poste').textContent = poste ? ' · ' + poste : '';
+  } catch (e) { /* table/droits indisponibles → omis, sans bruit */ }
+}
+
+// Recharge la ligne du jour depuis le serveur (source de vérité). En échec,
+// l'état devient INCONNU : aucun bouton d'action n'est montré (on ne devine
+// jamais), seulement « État inconnu — Actualiser ».
 async function employeChargerJour() {
   const errEl = document.getElementById('emp-error');
   errEl.textContent = '';
@@ -5252,41 +5469,60 @@ async function employeChargerJour() {
       .limit(1);
     if (error) throw error;
     employePointageJour = (data && data[0]) || null;
-    renderEmployeScreen();
+    employeEtatConnu = true;
   } catch (e) {
     employePointageJour = null;
-    renderEmployeScreen();
-    errEl.textContent = 'Chargement impossible — vérifiez la connexion puis « Actualiser ».';
+    employeEtatConnu = false;
   }
-}
-
-function setEmployeBtn(btn, enabled) {
-  btn.disabled = !enabled;
-  btn.style.opacity = enabled ? '1' : '0.35';
-  btn.style.cursor = enabled ? 'pointer' : 'default';
+  renderEmployeScreen();
 }
 
 function renderEmployeScreen() {
   const p = employePointageJour;
-  const arrivee = p && p.heure_arrivee;
-  const depart = p && p.heure_depart;
-  const statutEl = document.getElementById('emp-statut');
-  const heuresEl = document.getElementById('emp-heures');
-  if (!arrivee) {
-    statutEl.textContent = 'Pas encore pointé aujourd’hui';
-    statutEl.style.color = '#64748B';
-    heuresEl.textContent = '';
+  const arrivee = employeEtatConnu && p && p.heure_arrivee;
+  const depart = employeEtatConnu && p && p.heure_depart;
+
+  // b) badge de statut (classes .badge existantes — aucune couleur nouvelle)
+  const badge = document.getElementById('emp-statut-badge');
+  if (!employeEtatConnu) { badge.className = 'emp-badge badge badge-orange'; badge.textContent = 'État inconnu'; }
+  else if (!arrivee) { badge.className = 'emp-badge badge badge-grey'; badge.textContent = 'Pas encore pointé'; }
+  else if (!depart) { badge.className = 'emp-badge badge badge-green'; badge.textContent = 'En poste'; }
+  else { badge.className = 'emp-badge badge badge-orange'; badge.textContent = 'Journée terminée'; }
+
+  // d) chronologie
+  document.getElementById('emp-tl-dot-arrivee').classList.toggle('done', !!arrivee);
+  document.getElementById('emp-tl-dot-depart').classList.toggle('done', !!depart);
+  document.getElementById('emp-tl-arrivee').textContent = arrivee ? employeHeure(p.heure_arrivee) : 'en attente';
+  document.getElementById('emp-tl-depart').textContent = depart ? employeHeure(p.heure_depart) : 'en attente';
+
+  // e) action unique — dérivée de l'ÉTAT, jamais du libellé précédent
+  const btn = document.getElementById('emp-action');
+  const inconnu = document.getElementById('emp-etat-inconnu');
+  if (!employeEtatConnu) {
+    btn.style.display = 'none';
+    inconnu.style.display = '';
+  } else if (!arrivee) {
+    inconnu.style.display = 'none';
+    btn.style.display = '';
+    btn.disabled = employeReqEnCours;
+    btn.textContent = employeReqEnCours ? 'Enregistrement…' : 'Pointer l’arrivée';
   } else if (!depart) {
-    statutEl.textContent = 'En service';
-    statutEl.style.color = 'var(--success)';
-    heuresEl.textContent = 'Arrivée : ' + employeHeure(arrivee);
+    inconnu.style.display = 'none';
+    btn.style.display = '';
+    btn.disabled = employeReqEnCours;
+    btn.textContent = employeReqEnCours ? 'Enregistrement…' : 'Pointer le départ';
   } else {
-    statutEl.textContent = 'Journée terminée';
-    statutEl.style.color = 'var(--accent)';
-    heuresEl.textContent = 'Arrivée : ' + employeHeure(arrivee) + '  ·  Départ : ' + employeHeure(depart);
+    inconnu.style.display = 'none';
+    btn.style.display = 'none';
   }
-  setEmployeBtn(document.getElementById('emp-btn-arrivee'), !arrivee && !employeReqEnCours);
-  setEmployeBtn(document.getElementById('emp-btn-depart'), !!arrivee && !depart && !employeReqEnCours);
+  employeTickClock();
+}
+
+function employeAction() {
+  if (!employeEtatConnu || employeReqEnCours) return;
+  const p = employePointageJour;
+  if (!p || !p.heure_arrivee) employePointer('arrivee');
+  else if (!p.heure_depart) employePointer('depart');
 }
 
 async function employePointer(kind) {
@@ -5323,6 +5559,9 @@ async function employePointer(kind) {
     }
     employePointageJour = res.data[0];
     const rec = kind === 'arrivee' ? res.data[0].heure_arrivee : res.data[0].heure_depart;
+    // Le trigger a réécrit rec à now() serveur : timestamp idéal pour
+    // resynchroniser l'horloge du registre (serveur − appareil).
+    if (rec) employeSetClockOffset(new Date(rec).getTime() - Date.now());
     okEl.textContent = (kind === 'arrivee' ? 'Arrivée enregistrée à ' : 'Départ enregistré à ') + employeHeure(rec);
   } catch (e) {
     const msg = (e && e.message) || '';
@@ -5341,7 +5580,9 @@ async function employePointer(kind) {
 }
 
 function employeLogout() {
+  employeStopClock();
   employePointageJour = null;
+  employeEtatConnu = false;
   logout();
 }
 
