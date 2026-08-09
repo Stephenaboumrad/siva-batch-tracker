@@ -2842,6 +2842,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="tresorerie" title="Trésorerie" onclick="navigate('tresorerie',this)">
       <span class="icon"><i data-lucide="wallet"></i></span> <span class="nav-full">Trésorerie</span><span class="nav-short">Tréso.</span>
     </a>
+    <a href="#" data-page="rh" title="Ressources humaines" onclick="navigate('rh',this)">
+      <span class="icon"><i data-lucide="user"></i></span> <span class="nav-full">RH</span><span class="nav-short">RH</span>
+    </a>
     <a href="#" data-page="iot" title="Monitoring IoT" onclick="navigate('iot',this)">
       <span class="icon"><i data-lucide="activity"></i></span> <span class="nav-full">Monitoring IoT</span><span class="nav-short">IoT</span>
     </a>
@@ -2896,6 +2899,9 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </a>
   <a href="#" data-page="tresorerie" onclick="navigate('tresorerie',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="wallet"></i></span> Trésorerie
+  </a>
+  <a href="#" data-page="rh" onclick="navigate('rh',this);closeMobileMenu()">
+    <span class="icon"><i data-lucide="user"></i></span> RH
   </a>
   <a href="#" data-page="iot" onclick="navigate('iot',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="activity"></i></span> Monitoring IoT
@@ -2952,6 +2958,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
     <a href="#" data-page="tresorerie" onclick="navigateFromSheet('tresorerie')"><span class="icon"><i data-lucide="wallet"></i></span> Trésorerie</a>
+    <a href="#" data-page="rh" onclick="navigateFromSheet('rh')"><span class="icon"><i data-lucide="user"></i></span> RH</a>
     <a href="#" data-page="parametres" onclick="navigateFromSheet('parametres')"><span class="icon"><i data-lucide="settings"></i></span> Paramètres</a>
   </div>
 </div>
@@ -3878,6 +3885,65 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 
   <!-- ═══════════════ PAGE: MONITORING IoT ═══════════════ -->
+  <!-- Page RH (RH-2) : module manager — Équipe / Pointages / Absences & Avances.
+       Manager-only (MANAGER_PAGES + garde navigate). AUCUN calcul de paie ici
+       (la paie vit dans Trésorerie → RH & Paie ; RH-3 ultérieur). -->
+  <div id="page-rh" class="page">
+    <h2><i data-lucide="user"></i> Ressources humaines</h2>
+    <div id="rh2-tabs" class="tabs" style="margin-bottom:1.25rem;">
+      <button class="tab-btn active" data-rh2-tab="equipe" onclick="switchRH2Tab('equipe',this)">Équipe</button>
+      <button class="tab-btn" data-rh2-tab="pointages" onclick="switchRH2Tab('pointages',this)">Pointages</button>
+      <button class="tab-btn" data-rh2-tab="aa" onclick="switchRH2Tab('aa',this)">Absences &amp; Avances</button>
+    </div>
+
+    <!-- Onglet 1 : Équipe -->
+    <div id="rh2-tab-equipe">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Fiches employés — le matricule relie la fiche aux pointages et aux comptes de connexion.</p>
+        <button class="btn btn-primary" onclick="showRH2EmployeModal()">+ Nouvel employé</button>
+      </div>
+      <div id="rh2-equipe-list"></div>
+    </div>
+
+    <!-- Onglet 2 : Pointages (grille semaine) -->
+    <div id="rh2-tab-pointages" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="rh2ChangeWeek(-1)">&larr;</button>
+          <span id="rh2-week-label" style="font-size:0.85rem;font-weight:700;color:var(--text-primary);"></span>
+          <button class="btn btn-outline btn-sm" onclick="rh2ChangeWeek(1)">&rarr;</button>
+          <button class="btn btn-outline btn-sm" onclick="rh2ChangeWeek(0)">Cette semaine</button>
+        </div>
+        <span style="font-size:0.75rem;color:var(--text-muted);">Cliquer une case pour corriger/ajouter un pointage (tracé).</span>
+      </div>
+      <div id="rh2-pointages-anomalies" style="margin-bottom:0.75rem;"></div>
+      <div id="rh2-pointages-grid"></div>
+    </div>
+
+    <!-- Onglet 3 : Absences & Avances -->
+    <div id="rh2-tab-aa" style="display:none;">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <label for="rh2-aa-filtre" style="font-size:0.78rem;color:var(--text-muted);">Employé</label>
+        <select id="rh2-aa-filtre" onchange="rh2SetAAFiltre(this.value)" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);"></select>
+      </div>
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+          <h3 style="font-size:1rem;text-transform:none;letter-spacing:0;"><i data-lucide="calendar"></i> Absences</h3>
+          <button class="btn btn-primary btn-sm" onclick="showRH2AbsenceModal()">+ Nouvelle absence</button>
+        </div>
+        <div id="rh2-absences-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+          <h3 style="font-size:1rem;text-transform:none;letter-spacing:0;"><i data-lucide="hand-coins"></i> Avances</h3>
+          <button class="btn btn-primary btn-sm" onclick="showRH2AvanceModal()">+ Nouvelle avance</button>
+        </div>
+        <div id="rh2-avances-encours" style="margin-bottom:0.75rem;"></div>
+        <div id="rh2-avances-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="page-iot" class="page">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-4);flex-wrap:wrap;gap:var(--space-3);">
       <div>
@@ -4650,6 +4716,124 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Modals RH-2 (page RH) — préfixe rh2* pour ne pas collisionner avec les
+     ids emp-* du modal historique de Trésorerie → RH & Paie ci-dessus. -->
+<div id="rh2-employe-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;">
+    <h3 id="rh2e-title"><i data-lucide="user"></i> Nouvel employé</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Prénom</label><input type="text" id="rh2e-prenom"></div>
+      <div class="form-group"><label>Nom *</label><input type="text" id="rh2e-nom"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Matricule</label><input type="text" id="rh2e-matricule" placeholder="Ex: SIVA-007" style="text-transform:uppercase;"></div>
+      <div class="form-group"><label>Poste</label><input type="text" id="rh2e-poste" placeholder="Ex: Ouvrier avicole"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Type de contrat</label>
+        <select id="rh2e-type" onchange="rh2ToggleSalaryFields()">
+          <option value="permanent">Permanent</option>
+          <option value="journalier">Journalier</option>
+          <option value="prestataire">Prestataire</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Date d'embauche</label><input type="date" id="rh2e-embauche"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Téléphone</label><input type="tel" id="rh2e-tel"></div>
+      <div class="form-group"><label>N° CNPS</label><input type="text" id="rh2e-numcnps" placeholder="Immatriculation CNPS"></div>
+    </div>
+    <div class="form-row" id="rh2e-salary-permanent">
+      <div class="form-group"><label>Salaire mensuel (FCFA)</label><input type="number" id="rh2e-salaire" min="0"></div>
+      <div class="form-group"><label>CNPS patronal %</label><input type="number" id="rh2e-cnps" step="0.1" value="18.6" min="0"></div>
+    </div>
+    <div class="form-row" id="rh2e-salary-journalier" style="display:none;">
+      <div class="form-group"><label>Taux journalier (FCFA)</label><input type="number" id="rh2e-taux-jour" min="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Note</label><input type="text" id="rh2e-note" placeholder="Remarques…"></div>
+      <div class="form-group" id="rh2e-statut-group" style="display:none;"><label>Statut</label>
+        <select id="rh2e-statut">
+          <option value="actif">Actif</option>
+          <option value="inactif">Inactif</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeRH2EmployeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitRH2Employe()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="rh2-pointage-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <h3><i data-lucide="clock"></i> Corriger un pointage</h3>
+    <div id="rh2p-info" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Arrivée</label><input type="time" id="rh2p-arrivee"></div>
+      <div class="form-group"><label>Départ</label><input type="time" id="rh2p-depart"></div>
+    </div>
+    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Correction tracée (corrigé par vous, horodatée). Laisser un champ vide = heure non pointée.</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeRH2PointageModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitRH2Pointage()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="rh2-absence-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:480px;">
+    <h3 id="rh2a-title"><i data-lucide="calendar"></i> Nouvelle absence</h3>
+    <div class="form-group"><label>Employé *</label><select id="rh2a-employe"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Du *</label><input type="date" id="rh2a-debut"></div>
+      <div class="form-group"><label>Au *</label><input type="date" id="rh2a-fin"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Type *</label>
+        <select id="rh2a-type">
+          <option value="conge">Congé</option>
+          <option value="maladie">Maladie</option>
+          <option value="absence_injustifiee">Absence injustifiée</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:0.4rem;margin-top:1.4rem;"><input type="checkbox" id="rh2a-justifiee" style="width:auto;"> Justifiée</label></div>
+    </div>
+    <div class="form-group"><label>Commentaire</label><input type="text" id="rh2a-commentaire"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeRH2AbsenceModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitRH2Absence()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="rh2-avance-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:480px;">
+    <h3 id="rh2v-title"><i data-lucide="hand-coins"></i> Nouvelle avance</h3>
+    <div class="form-group"><label>Employé *</label><select id="rh2v-employe"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Date *</label><input type="date" id="rh2v-date"></div>
+      <div class="form-group"><label>Montant (FCFA) *</label><input type="number" id="rh2v-montant" min="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Mode de paiement</label>
+        <select id="rh2v-mode" onchange="rh2ToggleWaveRef()">
+          <option value="especes">Espèces</option>
+          <option value="wave">Wave</option>
+        </select>
+      </div>
+      <div class="form-group" id="rh2v-ref-group" style="display:none;"><label>Référence Wave</label><input type="text" id="rh2v-ref" placeholder="ID transaction Wave"></div>
+    </div>
+    <div class="form-group"><label>Commentaire</label><input type="text" id="rh2v-commentaire"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeRH2AvanceModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="submitRH2Avance()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Nouvelle dépense RH -->
 <div id="depense-rh-modal" class="modal-overlay" style="display:none;">
   <div class="modal" style="max-width:500px;">
@@ -4866,7 +5050,7 @@ let currentUser = null; // { matricule, name, role } — dérivé de la session 
 // (true → l'onglet IoT réapparaît pour les managers, comportement d'origine.)
 const IOT_ENABLED = false;
 
-const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'supply', 'clients', 'tresorerie', 'iot', 'parametres'];
+const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'supply', 'clients', 'tresorerie', 'rh', 'iot', 'parametres'];
 const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'bandes', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
@@ -5338,11 +5522,20 @@ const ACTION_MAP = {
   updatePosteAppatage:   { table: 'postes_appatage',    op: 'update', idField: 'id' },
   addReleveNuisible:     { table: 'releves_nuisibles',  op: 'insert' },
   updateReleveNuisible:  { table: 'releves_nuisibles',  op: 'update', idField: 'id' },
-  deleteReleveNuisible:  { table: 'releves_nuisibles',  op: 'delete', idField: 'id' }
+  deleteReleveNuisible:  { table: 'releves_nuisibles',  op: 'delete', idField: 'id' },
+  // RH-2 — corrections manager de pointages + registres absences/avances (0046)
+  addPointage:           { table: 'pointages',          op: 'insert' },
+  updatePointage:        { table: 'pointages',          op: 'update', idField: 'id' },
+  addAbsence:            { table: 'absences',           op: 'insert' },
+  updateAbsence:         { table: 'absences',           op: 'update', idField: 'id' },
+  deleteAbsence:         { table: 'absences',           op: 'delete', idField: 'id' },
+  addAvance:             { table: 'avances',            op: 'insert' },
+  updateAvance:          { table: 'avances',            op: 'update', idField: 'id' },
+  deleteAvance:          { table: 'avances',            op: 'delete', idField: 'id' }
 };
 
 // ── State ──
-let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], equipements: [], etalonnages: [], postesAppatage: [], relevesNuisibles: [], parametres: [], loaded: false };
+let STATE = { bandes: [], saisies: [], intrants: [], alimentsPhases: [], matieres: [], formulationsMP: [], fournisseurs: [], receptions: [], inspections: [], stocks: [], clients: [], commandes: [], lignesCommande: [], abattages: [], employes: [], paies: [], depensesRH: [], notifications: [], produits: [], protocoleVaccinal: [], vaccinations: [], protocoleTraitements: [], traitements: [], videsSanitaires: [], nonConformites: [], equipements: [], etalonnages: [], postesAppatage: [], relevesNuisibles: [], pointages: [], absences: [], avances: [], parametres: [], loaded: false };
 let ficheCharts = { poids: null, ic: null, mortalite: null, ambiance: null, eau: null, rentabilite: null };
 
 // ── Multi-sites (fondation — migration schéma 0002_multisite_pos.sql) ──
@@ -5645,13 +5838,15 @@ const ALL_TABLES = [
   ['etalonnages',     'etalonnages'],
   ['postes_appatage', 'postesAppatage'],
   ['releves_nuisibles', 'relevesNuisibles'],
-  ['pointages',       'pointages']
+  ['pointages',       'pointages'],
+  ['absences',        'absences'],
+  ['avances',         'avances']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles', 'pointages']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles', 'pointages', 'absences', 'avances']);
 
 // Source de lecture selon le rôle (0040, fix #142). Tout rôle ≠ manager lit
 // les vues assainies _ops — les colonnes financières y sont ABSENTES CÔTÉ
@@ -6220,7 +6415,7 @@ async function loadAllData() {
     // (ii) Le dépassement de quota n'est PLUS avalé en silence : on le SIGNALE.
     const CACHE_EXCLUDED = ['saisies', 'intrants', 'notifications', 'lignesCommande',
       'commandes', 'abattages', 'receptions', 'inspections', 'paies', 'depensesRH',
-      'pointages'];
+      'pointages', 'absences', 'avances'];
     try {
       const snapshot = {
         bandes: STATE.bandes, saisies: STATE.saisies, intrants: STATE.intrants,
@@ -9031,6 +9226,7 @@ function navigate(page, el) {
     case 'supply': initSupplyPage(); break;
     case 'clients': initClientsPage(); break;
     case 'tresorerie': initTresoreriePage(); break;
+    case 'rh': initRHPage(); break;
     case 'iot': initIoTPage(); break;
     case 'parametres': initParametresPage(); break;
   }
@@ -19732,6 +19928,522 @@ async function toggleEmployeStatut(id) {
   if (!r.ok) return;
   e.statut = ns; renderRHEmployes();
   toast(r.queued ? 'Employé mis à jour (hors ligne — sera synchronisé)' : 'Employé ' + (ns === 'actif' ? 'activé' : 'désactivé'));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── Page RH (RH-2) : Équipe / Pointages / Absences & Avances ──
+// Module manager (page dédiée, gatée par MANAGER_PAGES). AUCUN calcul
+// de paie ici : la paie vit dans Trésorerie → RH & Paie (RH-3 à venir).
+// Colonnes employes : on réutilise la fiche EXISTANTE (type, statut,
+// salaire_base_fcfa, taux_journalier_fcfa, note…) + les ajouts 0046
+// (matricule, numero_cnps). Le matricule est LA clé de jointure vers
+// pointages/absences/avances — jamais l'employe_id.
+// ══════════════════════════════════════════════════════════════════
+let currentRH2Tab = 'equipe';
+let rh2WeekOffset = 0;          // 0 = semaine courante, -1 = précédente…
+let rh2EditingEmployeId = null; // employe_id en édition (null = création)
+let rh2EditingAbsenceId = null;
+let rh2EditingAvanceId = null;
+let rh2AAFiltre = '';           // '' = tous
+let rh2PointageCible = null;    // { matricule, nom, dateISO, row|null }
+
+const RH2_TABS = ['equipe', 'pointages', 'aa'];
+const RH2_ABSENCE_TYPES = { conge: 'Congé', maladie: 'Maladie', absence_injustifiee: 'Absence injustifiée', autre: 'Autre' };
+
+function switchRH2Tab(tab, btn) {
+  currentRH2Tab = RH2_TABS.includes(tab) ? tab : 'equipe';
+  RH2_TABS.forEach(t => {
+    const el = document.getElementById('rh2-tab-' + t);
+    if (el) el.style.display = (t === currentRH2Tab) ? '' : 'none';
+  });
+  document.querySelectorAll('#rh2-tabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.rh2Tab === currentRH2Tab));
+  if (currentRH2Tab === 'equipe') renderRH2Equipe();
+  else if (currentRH2Tab === 'pointages') renderRH2Pointages();
+  else renderRH2AA();
+}
+
+function initRHPage() { switchRH2Tab(currentRH2Tab); }
+
+function rh2NomComplet(e) { return (((e.prenom || '') + ' ' + (e.nom || '')).trim()) || e.employe_id; }
+function rh2Hm(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function rh2Pointages() { return STATE.pointages || []; }
+function rh2Absences() { return STATE.absences || []; }
+function rh2Avances() { return STATE.avances || []; }
+
+// Actifs d'abord, puis alphabétique — la désactivation ne masque jamais.
+function rh2EmployesTries() {
+  return STATE.employes.slice().sort((a, b) => {
+    const ai = a.statut === 'inactif' ? 1 : 0, bi = b.statut === 'inactif' ? 1 : 0;
+    if (ai !== bi) return ai - bi;
+    return rh2NomComplet(a).localeCompare(rh2NomComplet(b));
+  });
+}
+
+// ── Onglet Équipe ──────────────────────────────────────────────────
+function renderRH2Equipe() {
+  const container = document.getElementById('rh2-equipe-list');
+  const employes = rh2EmployesTries();
+  if (employes.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun employé — créez la première fiche.</p></div>';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const moisActuel = todayStr().slice(0, 7);
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
+    '<th>Nom</th><th>Matricule</th><th>Poste</th><th>Type</th>' +
+    '<th>Dernier pointage</th><th>Présences (mois)</th><th>Avances en cours</th><th>Statut</th><th></th>' +
+    '</tr></thead><tbody>';
+  employes.forEach(e => {
+    const inactive = e.statut === 'inactif';
+    const m = e.matricule || '';
+    let dernier = '—', presences = '—', avancesTxt = '—';
+    if (m) {
+      const ps = rh2Pointages().filter(p => p.employe_matricule === m);
+      const last = ps.slice().sort((a, b) => (b.date_pointage || '').localeCompare(a.date_pointage || ''))[0];
+      dernier = last ? (fmtDate(last.date_pointage) + (last.heure_arrivee ? ' ' + rh2Hm(last.heure_arrivee) : '')) : 'Jamais';
+      presences = String(ps.filter(p => (p.date_pointage || '').slice(0, 7) === moisActuel && p.heure_arrivee).length) + ' j';
+      const enCours = rh2Avances().filter(a => a.employe_matricule === m && !a.rembourse)
+        .reduce((s, a) => s + (Number(a.montant) || 0), 0);
+      avancesTxt = enCours > 0 ? fmt(enCours) + ' FCFA' : '0';
+    }
+    html += '<tr class="' + (inactive ? 'row-inactive' : '') + '">' +
+      '<td><strong>' + rh2NomComplet(e) + '</strong></td>' +
+      '<td>' + (m || '<span style="color:var(--text-muted);" title="Sans matricule : pas de lien pointages/absences/avances">—</span>') + '</td>' +
+      '<td>' + (e.poste || '—') + '</td>' +
+      '<td><span class="badge ' + (e.type === 'permanent' ? 'badge-green' : 'badge-orange') + '">' + (e.type || '—') + '</span></td>' +
+      '<td>' + dernier + '</td>' +
+      '<td>' + presences + '</td>' +
+      '<td>' + avancesTxt + '</td>' +
+      '<td><span class="badge ' + (inactive ? 'badge-grey' : 'badge-green') + '">' + (inactive ? 'Inactif' : 'Actif') + '</span></td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="btn btn-outline btn-sm" onclick="showRH2EmployeModal(\'' + e.employe_id + '\')" title="Modifier la fiche"><i data-lucide="pencil"></i></button> ' +
+        '<button class="btn btn-outline btn-sm" onclick="rh2ToggleStatut(\'' + e.employe_id + '\')" title="' + (inactive ? 'Réactiver' : 'Désactiver (jamais de suppression)') + '">' + (inactive ? 'Activer' : 'Désactiver') + '</button>' +
+      '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function rh2ToggleSalaryFields() {
+  const t = document.getElementById('rh2e-type').value;
+  document.getElementById('rh2e-salary-permanent').style.display = t === 'permanent' ? '' : 'none';
+  document.getElementById('rh2e-salary-journalier').style.display = t === 'journalier' ? '' : 'none';
+}
+
+function showRH2EmployeModal(employeId) {
+  rh2EditingEmployeId = employeId || null;
+  const e = employeId ? STATE.employes.find(x => x.employe_id === employeId) : null;
+  document.getElementById('rh2e-title').innerHTML = '<i data-lucide="user"></i> ' + (e ? 'Fiche employé' : 'Nouvel employé');
+  document.getElementById('rh2e-prenom').value = e ? (e.prenom || '') : '';
+  document.getElementById('rh2e-nom').value = e ? (e.nom || '') : '';
+  document.getElementById('rh2e-matricule').value = e ? (e.matricule || '') : '';
+  document.getElementById('rh2e-poste').value = e ? (e.poste || '') : '';
+  document.getElementById('rh2e-type').value = e ? (e.type || 'permanent') : 'permanent';
+  document.getElementById('rh2e-embauche').value = e ? (e.date_embauche || '') : todayStr();
+  document.getElementById('rh2e-tel').value = e ? (e.telephone || '') : '';
+  document.getElementById('rh2e-numcnps').value = e ? (e.numero_cnps || '') : '';
+  document.getElementById('rh2e-salaire').value = e && e.salaire_base_fcfa ? e.salaire_base_fcfa : '';
+  document.getElementById('rh2e-cnps').value = e && e.cnps_patronal_pct != null ? e.cnps_patronal_pct : '18.6';
+  document.getElementById('rh2e-taux-jour').value = e && e.taux_journalier_fcfa ? e.taux_journalier_fcfa : '';
+  document.getElementById('rh2e-note').value = e ? (e.note || '') : '';
+  document.getElementById('rh2e-statut-group').style.display = e ? '' : 'none';
+  document.getElementById('rh2e-statut').value = e ? (e.statut || 'actif') : 'actif';
+  rh2ToggleSalaryFields();
+  document.getElementById('rh2-employe-modal').style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+function closeRH2EmployeModal() { document.getElementById('rh2-employe-modal').style.display = 'none'; rh2EditingEmployeId = null; }
+
+async function submitRH2Employe() {
+  const nom = document.getElementById('rh2e-nom').value.trim();
+  if (!nom) { toast('Nom requis', 'error'); return; }
+  const matricule = document.getElementById('rh2e-matricule').value.trim().toUpperCase();
+  const fiche = {
+    nom, prenom: document.getElementById('rh2e-prenom').value.trim(),
+    matricule: matricule || null,
+    poste: document.getElementById('rh2e-poste').value.trim(),
+    type: document.getElementById('rh2e-type').value,
+    date_embauche: document.getElementById('rh2e-embauche').value || null,
+    telephone: document.getElementById('rh2e-tel').value.trim(),
+    numero_cnps: document.getElementById('rh2e-numcnps').value.trim(),
+    salaire_base_fcfa: parseFloat(document.getElementById('rh2e-salaire').value) || 0,
+    cnps_patronal_pct: parseFloat(document.getElementById('rh2e-cnps').value) || 18.6,
+    taux_journalier_fcfa: parseFloat(document.getElementById('rh2e-taux-jour').value) || 0,
+    note: document.getElementById('rh2e-note').value.trim()
+  };
+  let r;
+  if (rh2EditingEmployeId) {
+    fiche.employe_id = rh2EditingEmployeId;
+    fiche.statut = document.getElementById('rh2e-statut').value;
+    r = await saveRemote({ action: 'updateEmploye', payload: fiche });
+    if (!r.ok) return;
+    const e = STATE.employes.find(x => x.employe_id === rh2EditingEmployeId);
+    if (e) Object.assign(e, fiche);
+  } else {
+    fiche.employe_id = 'emp-' + uuid();
+    fiche.statut = 'actif';
+    r = await saveRemote({ action: 'addEmploye', payload: fiche });
+    if (!r.ok) return;
+    STATE.employes.push(fiche);
+  }
+  closeRH2EmployeModal();
+  renderRH2Equipe();
+  toast(r.queued ? 'Fiche enregistrée (hors ligne — sera synchronisée)' : 'Fiche enregistrée');
+}
+
+async function rh2ToggleStatut(id) {
+  const e = STATE.employes.find(x => x.employe_id === id); if (!e) return;
+  const ns = e.statut === 'inactif' ? 'actif' : 'inactif';
+  const r = await saveRemote({ action: 'updateEmploye', payload: { employe_id: id, statut: ns } });
+  if (!r.ok) return;
+  e.statut = ns;
+  renderRH2Equipe();
+  toast(r.queued ? 'Employé mis à jour (hors ligne — sera synchronisé)' : 'Employé ' + (ns === 'actif' ? 'réactivé' : 'désactivé'));
+}
+
+// ── Onglet Pointages : grille semaine ──────────────────────────────
+function rh2WeekDays() {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + rh2WeekOffset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+function rh2ChangeWeek(delta) {
+  rh2WeekOffset = delta === 0 ? 0 : rh2WeekOffset + delta;
+  renderRH2Pointages();
+}
+
+// Anomalies AFFICHAGE UNIQUEMENT (aucune écriture) : départ manquant sur
+// jour passé, journée > 12 h, absent sans absence enregistrée.
+function renderRH2Pointages() {
+  const days = rh2WeekDays();
+  const aujourdhui = todayStr();
+  document.getElementById('rh2-week-label').textContent =
+    fmtDate(days[0]) + ' — ' + fmtDate(days[6]) + (rh2WeekOffset === 0 ? ' (courante)' : '');
+  const grid = document.getElementById('rh2-pointages-grid');
+  const actifs = rh2EmployesTries().filter(e => e.statut !== 'inactif');
+  const avecMat = actifs.filter(e => e.matricule);
+  if (avecMat.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun employé actif avec matricule — renseignez les matricules dans l’onglet Équipe.</p></div>';
+    document.getElementById('rh2-pointages-anomalies').innerHTML = '';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  const parCle = {};
+  rh2Pointages().forEach(p => { parCle[p.employe_matricule + '|' + p.date_pointage] = p; });
+  const absenceCouvre = (m, d) =>
+    rh2Absences().some(a => a.employe_matricule === m && a.date_debut <= d && a.date_fin >= d);
+
+  const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  let nbSansDepart = 0, nbLongues = 0, nbAbsInconnues = 0;
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Employé</th>' +
+    days.map((d, i) => '<th style="text-align:center;' + (d === aujourdhui ? 'color:var(--accent);' : '') + '">' + JOURS[i] + ' ' + d.slice(8, 10) + '/' + d.slice(5, 7) + '</th>').join('') +
+    '</tr></thead><tbody>';
+  avecMat.forEach(e => {
+    html += '<tr><td><strong>' + rh2NomComplet(e) + '</strong><br><span style="font-size:0.72rem;color:var(--text-muted);">' + e.matricule + '</span></td>';
+    days.forEach(d => {
+      const p = parCle[e.matricule + '|' + d];
+      const passe = d < aujourdhui;
+      let contenu = '—', badges = '';
+      if (p && p.heure_arrivee && p.heure_depart) {
+        contenu = rh2Hm(p.heure_arrivee) + '–' + rh2Hm(p.heure_depart);
+        if (new Date(p.heure_depart) - new Date(p.heure_arrivee) > 12 * 3600 * 1000) {
+          badges += ' <span class="badge badge-orange" title="Plus de 12 h entre arrivée et départ">&gt;12h</span>'; nbLongues++;
+        }
+      } else if (p && p.heure_arrivee) {
+        contenu = rh2Hm(p.heure_arrivee) + '–?';
+        if (passe) { badges += ' <span class="badge badge-orange" title="Départ non pointé">départ ?</span>'; nbSansDepart++; }
+      } else if (p) {
+        contenu = '?–' + (p.heure_depart ? rh2Hm(p.heure_depart) : '?');
+      } else if (absenceCouvre(e.matricule, d)) {
+        const abs = rh2Absences().find(a => a.employe_matricule === e.matricule && a.date_debut <= d && a.date_fin >= d);
+        contenu = '<span class="badge badge-grey">' + (RH2_ABSENCE_TYPES[abs.type] || abs.type) + '</span>';
+      } else if (passe) {
+        contenu = '<span class="badge badge-orange" title="Aucun pointage et aucune absence enregistrée">abs. ?</span>'; nbAbsInconnues++;
+      }
+      const corrige = p && p.corrige_le ? ' <span title="Corrigé manuellement le ' + fmtDate(p.corrige_le) + '" style="color:var(--text-muted);">✎</span>' : '';
+      html += '<td style="text-align:center;cursor:pointer;font-variant-numeric:tabular-nums;" onclick="showRH2PointageModal(\'' + e.matricule + '\',\'' + rh2NomComplet(e).replace(/'/g, "\\'") + '\',\'' + d + '\')">' + contenu + corrige + badges + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  grid.innerHTML = html;
+
+  const anom = [];
+  if (nbSansDepart) anom.push(nbSansDepart + ' départ(s) manquant(s)');
+  if (nbLongues) anom.push(nbLongues + ' journée(s) &gt; 12 h');
+  if (nbAbsInconnues) anom.push(nbAbsInconnues + ' absence(s) non enregistrée(s)');
+  document.getElementById('rh2-pointages-anomalies').innerHTML = anom.length
+    ? '<span class="badge badge-orange"><i data-lucide="alert-triangle"></i> ' + anom.join(' · ') + '</span>'
+    : '<span class="badge badge-green">Aucune anomalie sur la semaine affichée</span>';
+  if (window.lucide) lucide.createIcons();
+}
+
+function showRH2PointageModal(matricule, nom, dateISO) {
+  const row = rh2Pointages().find(p => p.employe_matricule === matricule && p.date_pointage === dateISO) || null;
+  rh2PointageCible = { matricule, nom, dateISO, row };
+  document.getElementById('rh2p-info').textContent = nom + ' (' + matricule + ') — ' + fmtDate(dateISO);
+  document.getElementById('rh2p-arrivee').value = row && row.heure_arrivee ? rh2Hm(row.heure_arrivee) : '';
+  document.getElementById('rh2p-depart').value = row && row.heure_depart ? rh2Hm(row.heure_depart) : '';
+  document.getElementById('rh2-pointage-modal').style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+function closeRH2PointageModal() { document.getElementById('rh2-pointage-modal').style.display = 'none'; rh2PointageCible = null; }
+
+// Correction manager : écrit DIRECTEMENT pointages (policies manager 0045) ;
+// heure conservée telle quelle (le trigger 0045 ne réécrit que l'employe).
+// Chaque écriture est TRACÉE : corrige_par (uid manager) + corrige_le (0046).
+async function submitRH2Pointage() {
+  const t = rh2PointageCible; if (!t) return;
+  const va = document.getElementById('rh2p-arrivee').value;
+  const vd = document.getElementById('rh2p-depart').value;
+  if (!t.row && !va && !vd) { toast('Renseignez au moins une heure', 'error'); return; }
+  if (va && vd && vd < va) { toast('Départ avant l’arrivée — vérifiez les heures', 'error'); return; }
+  const iso = hm => hm ? new Date(t.dateISO + 'T' + hm + ':00').toISOString() : null;
+  let uid = null;
+  try { const s = await sb.auth.getSession(); uid = s.data.session.user.id; } catch (e) { /* trace uid absente hors session — corrige_le suffit */ }
+  const trace = { corrige_par: uid, corrige_le: new Date().toISOString() };
+  let r;
+  if (t.row) {
+    const payload = Object.assign({ id: t.row.id, heure_arrivee: iso(va), heure_depart: iso(vd) }, trace);
+    r = await saveRemote({ action: 'updatePointage', payload });
+    if (!r.ok) return;
+    Object.assign(t.row, payload);
+  } else {
+    const payload = Object.assign({
+      id: uuid(), employe_matricule: t.matricule, employe_nom: t.nom,
+      date_pointage: t.dateISO, heure_arrivee: iso(va), heure_depart: iso(vd)
+    }, trace);
+    r = await saveRemote({ action: 'addPointage', payload });
+    if (!r.ok) return;
+    rh2Pointages().push(payload);
+  }
+  closeRH2PointageModal();
+  renderRH2Pointages();
+  toast(r.queued ? 'Pointage enregistré (hors ligne — sera synchronisé)' : 'Pointage enregistré');
+}
+
+// ── Onglet Absences & Avances ──────────────────────────────────────
+function rh2EmployesAvecMatricule() {
+  return rh2EmployesTries().filter(e => e.matricule);
+}
+
+function rh2SetAAFiltre(v) { rh2AAFiltre = v; renderRH2AA(); }
+
+function rh2RemplirSelectEmployes(selectId, valeur) {
+  const sel = document.getElementById(selectId);
+  const employes = rh2EmployesAvecMatricule();
+  if (employes.length === 0) {
+    sel.innerHTML = '<option value="">Aucun employé avec matricule — renseignez la fiche d’abord</option>';
+    return;
+  }
+  sel.innerHTML = employes.map(e =>
+    '<option value="' + e.matricule + '"' + (e.matricule === valeur ? ' selected' : '') + '>' + rh2NomComplet(e) + ' (' + e.matricule + ')</option>').join('');
+}
+
+function rh2NomDeMatricule(m) {
+  const e = STATE.employes.find(x => x.matricule === m);
+  return e ? rh2NomComplet(e) : m;
+}
+
+function renderRH2AA() {
+  // Filtre commun
+  const filtreSel = document.getElementById('rh2-aa-filtre');
+  const employes = rh2EmployesAvecMatricule();
+  filtreSel.innerHTML = '<option value="">Tous les employés</option>' + employes.map(e =>
+    '<option value="' + e.matricule + '"' + (e.matricule === rh2AAFiltre ? ' selected' : '') + '>' + rh2NomComplet(e) + ' (' + e.matricule + ')</option>').join('');
+
+  // Absences
+  const absList = document.getElementById('rh2-absences-list');
+  let absences = rh2Absences().slice().sort((a, b) => (b.date_debut || '').localeCompare(a.date_debut || ''));
+  if (rh2AAFiltre) absences = absences.filter(a => a.employe_matricule === rh2AAFiltre);
+  if (absences.length === 0) {
+    absList.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Aucune absence enregistrée.</p>';
+  } else {
+    absList.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Employé</th><th>Du</th><th>Au</th><th>Type</th><th>Justifiée</th><th>Commentaire</th><th></th></tr></thead><tbody>' +
+      absences.map(a =>
+        '<tr><td>' + rh2NomDeMatricule(a.employe_matricule) + '</td>' +
+        '<td>' + fmtDate(a.date_debut) + '</td><td>' + fmtDate(a.date_fin) + '</td>' +
+        '<td><span class="badge ' + (a.type === 'absence_injustifiee' ? 'badge-orange' : 'badge-grey') + '">' + (RH2_ABSENCE_TYPES[a.type] || a.type) + '</span></td>' +
+        '<td>' + (a.justifiee ? 'Oui' : 'Non') + '</td>' +
+        '<td>' + (a.commentaire || '—') + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn btn-outline btn-sm" onclick="showRH2AbsenceModal(\'' + a.id + '\')" title="Modifier"><i data-lucide="pencil"></i></button> ' +
+          '<button class="btn btn-outline btn-sm" onclick="deleteRH2Absence(\'' + a.id + '\')" title="Supprimer"><i data-lucide="trash-2"></i></button>' +
+        '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+
+  // Avances — totaux non remboursés par employé, puis liste
+  const totaux = {};
+  rh2Avances().forEach(a => {
+    if (!a.rembourse) totaux[a.employe_matricule] = (totaux[a.employe_matricule] || 0) + (Number(a.montant) || 0);
+  });
+  const chips = Object.keys(totaux).sort()
+    .filter(m => !rh2AAFiltre || m === rh2AAFiltre)
+    .map(m => '<span class="badge badge-orange" style="margin-right:0.4rem;">' + rh2NomDeMatricule(m) + ' : ' + fmt(totaux[m]) + ' FCFA</span>');
+  document.getElementById('rh2-avances-encours').innerHTML = chips.length
+    ? '<span style="font-size:0.78rem;color:var(--text-muted);margin-right:0.4rem;">En cours (non remboursées) :</span>' + chips.join('')
+    : '<span style="font-size:0.78rem;color:var(--text-muted);">Aucune avance en cours.</span>';
+
+  const avList = document.getElementById('rh2-avances-list');
+  let avances = rh2Avances().slice().sort((a, b) => (b.date_avance || '').localeCompare(a.date_avance || ''));
+  if (rh2AAFiltre) avances = avances.filter(a => a.employe_matricule === rh2AAFiltre);
+  if (avances.length === 0) {
+    avList.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Aucune avance enregistrée.</p>';
+  } else {
+    avList.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Employé</th><th>Date</th><th>Montant</th><th>Mode</th><th>Réf. Wave</th><th>Remboursée</th><th>Commentaire</th><th></th></tr></thead><tbody>' +
+      avances.map(a =>
+        '<tr><td>' + rh2NomDeMatricule(a.employe_matricule) + '</td>' +
+        '<td>' + fmtDate(a.date_avance) + '</td>' +
+        '<td><strong>' + fmt(Number(a.montant)) + ' FCFA</strong></td>' +
+        '<td>' + (a.mode_paiement === 'wave' ? '<span class="badge badge-grey">Wave</span>' : 'Espèces') + '</td>' +
+        '<td>' + (a.mode_paiement === 'wave' ? (a.reference_wave || '<span class="badge badge-orange" title="Référence Wave à renseigner (rapprochement manuel)">à rapprocher</span>') : '—') + '</td>' +
+        '<td><button class="btn btn-outline btn-sm" onclick="rh2ToggleRembourse(\'' + a.id + '\')">' + (a.rembourse ? '<span class="badge badge-green">Oui</span>' : '<span class="badge badge-orange">Non</span>') + '</button></td>' +
+        '<td>' + (a.commentaire || '—') + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn btn-outline btn-sm" onclick="showRH2AvanceModal(\'' + a.id + '\')" title="Modifier"><i data-lucide="pencil"></i></button> ' +
+          '<button class="btn btn-outline btn-sm" onclick="deleteRH2Avance(\'' + a.id + '\')" title="Supprimer"><i data-lucide="trash-2"></i></button>' +
+        '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── Absences : CRUD ──
+function showRH2AbsenceModal(id) {
+  rh2EditingAbsenceId = id || null;
+  const a = id ? rh2Absences().find(x => x.id === id) : null;
+  document.getElementById('rh2a-title').innerHTML = '<i data-lucide="calendar"></i> ' + (a ? 'Modifier l’absence' : 'Nouvelle absence');
+  rh2RemplirSelectEmployes('rh2a-employe', a ? a.employe_matricule : rh2AAFiltre);
+  document.getElementById('rh2a-debut').value = a ? a.date_debut : todayStr();
+  document.getElementById('rh2a-fin').value = a ? a.date_fin : todayStr();
+  document.getElementById('rh2a-type').value = a ? a.type : 'conge';
+  document.getElementById('rh2a-justifiee').checked = a ? !!a.justifiee : false;
+  document.getElementById('rh2a-commentaire').value = a ? (a.commentaire || '') : '';
+  document.getElementById('rh2-absence-modal').style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+function closeRH2AbsenceModal() { document.getElementById('rh2-absence-modal').style.display = 'none'; rh2EditingAbsenceId = null; }
+
+async function submitRH2Absence() {
+  const m = document.getElementById('rh2a-employe').value;
+  const debut = document.getElementById('rh2a-debut').value;
+  const fin = document.getElementById('rh2a-fin').value;
+  if (!m || !debut || !fin) { toast('Employé et dates requis', 'error'); return; }
+  if (fin < debut) { toast('La fin est avant le début', 'error'); return; }
+  const payload = {
+    employe_matricule: m, date_debut: debut, date_fin: fin,
+    type: document.getElementById('rh2a-type').value,
+    justifiee: document.getElementById('rh2a-justifiee').checked,
+    commentaire: document.getElementById('rh2a-commentaire').value.trim()
+  };
+  let r;
+  if (rh2EditingAbsenceId) {
+    payload.id = rh2EditingAbsenceId;
+    r = await saveRemote({ action: 'updateAbsence', payload });
+    if (!r.ok) return;
+    const a = rh2Absences().find(x => x.id === rh2EditingAbsenceId);
+    if (a) Object.assign(a, payload);
+  } else {
+    payload.id = uuid();
+    r = await saveRemote({ action: 'addAbsence', payload });
+    if (!r.ok) return;
+    rh2Absences().push(payload);
+  }
+  closeRH2AbsenceModal();
+  renderRH2AA();
+  toast(r.queued ? 'Absence enregistrée (hors ligne — sera synchronisée)' : 'Absence enregistrée');
+}
+
+async function deleteRH2Absence(id) {
+  if (!confirm('Supprimer cette absence ?')) return;
+  const r = await saveRemote({ action: 'deleteAbsence', payload: { id } });
+  if (!r.ok) return;
+  STATE.absences = rh2Absences().filter(x => x.id !== id);
+  renderRH2AA();
+  toast(r.queued ? 'Absence supprimée (hors ligne — sera synchronisée)' : 'Absence supprimée');
+}
+
+// ── Avances : CRUD ──
+function rh2ToggleWaveRef() {
+  document.getElementById('rh2v-ref-group').style.display =
+    document.getElementById('rh2v-mode').value === 'wave' ? '' : 'none';
+}
+
+function showRH2AvanceModal(id) {
+  rh2EditingAvanceId = id || null;
+  const a = id ? rh2Avances().find(x => x.id === id) : null;
+  document.getElementById('rh2v-title').innerHTML = '<i data-lucide="hand-coins"></i> ' + (a ? 'Modifier l’avance' : 'Nouvelle avance');
+  rh2RemplirSelectEmployes('rh2v-employe', a ? a.employe_matricule : rh2AAFiltre);
+  document.getElementById('rh2v-date').value = a ? a.date_avance : todayStr();
+  document.getElementById('rh2v-montant').value = a ? a.montant : '';
+  document.getElementById('rh2v-mode').value = a ? (a.mode_paiement || 'especes') : 'especes';
+  document.getElementById('rh2v-ref').value = a ? (a.reference_wave || '') : '';
+  document.getElementById('rh2v-commentaire').value = a ? (a.commentaire || '') : '';
+  rh2ToggleWaveRef();
+  document.getElementById('rh2-avance-modal').style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+}
+function closeRH2AvanceModal() { document.getElementById('rh2-avance-modal').style.display = 'none'; rh2EditingAvanceId = null; }
+
+async function submitRH2Avance() {
+  const m = document.getElementById('rh2v-employe').value;
+  const montant = parseFloat(document.getElementById('rh2v-montant').value);
+  if (!m) { toast('Employé requis', 'error'); return; }
+  if (!(montant > 0)) { toast('Montant strictement positif requis', 'error'); return; }
+  const mode = document.getElementById('rh2v-mode').value;
+  const payload = {
+    employe_matricule: m,
+    date_avance: document.getElementById('rh2v-date').value || todayStr(),
+    montant,
+    mode_paiement: mode,
+    reference_wave: mode === 'wave' ? document.getElementById('rh2v-ref').value.trim() : null,
+    commentaire: document.getElementById('rh2v-commentaire').value.trim()
+  };
+  let r;
+  if (rh2EditingAvanceId) {
+    payload.id = rh2EditingAvanceId;
+    r = await saveRemote({ action: 'updateAvance', payload });
+    if (!r.ok) return;
+    const a = rh2Avances().find(x => x.id === rh2EditingAvanceId);
+    if (a) Object.assign(a, payload);
+  } else {
+    payload.id = uuid();
+    payload.rembourse = false;
+    r = await saveRemote({ action: 'addAvance', payload });
+    if (!r.ok) return;
+    rh2Avances().push(payload);
+  }
+  closeRH2AvanceModal();
+  renderRH2AA();
+  toast(r.queued ? 'Avance enregistrée (hors ligne — sera synchronisée)' : 'Avance enregistrée');
+}
+
+async function rh2ToggleRembourse(id) {
+  const a = rh2Avances().find(x => x.id === id); if (!a) return;
+  const nv = !a.rembourse;
+  const r = await saveRemote({ action: 'updateAvance', payload: { id, rembourse: nv } });
+  if (!r.ok) return;
+  a.rembourse = nv;
+  renderRH2AA();
+  toast(nv ? 'Avance marquée remboursée' : 'Avance rouverte');
+}
+
+async function deleteRH2Avance(id) {
+  if (!confirm('Supprimer cette avance ?')) return;
+  const r = await saveRemote({ action: 'deleteAvance', payload: { id } });
+  if (!r.ok) return;
+  STATE.avances = rh2Avances().filter(x => x.id !== id);
+  renderRH2AA();
+  toast(r.queued ? 'Avance supprimée (hors ligne — sera synchronisée)' : 'Avance supprimée');
 }
 
 // ── Paies ──

@@ -54,11 +54,30 @@ working rules for every task in this repository.
   screen in `index.html` (`enterSession` short-circuits before `init()`).
   Accounts are created manually in Supabase Auth with app_metadata
   `{role:'employe', matricule, name}`.
-- `pointages` (0045, RH-1 foundation): one time-clock row per
-  (employe_matricule, day). Arrival/departure times are rewritten to `now()`
-  by a BEFORE trigger for employe writes — client clock values are never
-  trusted; manager and SQL-editor writes keep explicit values (correction
-  path). Full HR manager module is a LATER lot.
+- `pointages` (0045, RH-1): one time-clock row per (employe_matricule, day).
+  Arrival/departure times are rewritten to `now()` by a BEFORE trigger for
+  employe writes — client clock values are never trusted; manager and
+  SQL-editor writes keep explicit values (correction path). 0046 added
+  `corrige_par uuid` + `corrige_le timestamptz` (manager correction trace;
+  frozen for the employe role by the rls46_* insert/update policies that
+  superseded the two rls45_* employe policies).
+- HR module (RH-2, 0046): top-level `rh` page (manager-only) with
+  Équipe / Pointages / Absences & Avances tabs. Payroll stays in
+  Trésorerie → RH & Paie (RH-3 later; no pay computation in the RH page).
+  `absences` and `avances` are manager-only (rls46 FOR ALL); the employe
+  role has no access. `avances.mode_paiement 'wave'` carries a manual
+  `reference_wave` (no Wave API).
+- **`employes` column aliasing (0046 — do NOT add duplicate columns):**
+  the canonical columns are the ORIGINAL ones, read by the payroll code:
+  `type` (permanent|journalier|prestataire) NOT type_contrat,
+  `statut` ('actif'|'inactif') NOT an `actif` boolean,
+  `salaire_base_fcfa` NOT salaire_mensuel,
+  `taux_journalier_fcfa` NOT taux_journalier,
+  `note` NOT notes. 0046 added only `matricule` (nullable, partial unique
+  index; THE join key to pointages/absences/avances and to auth accounts'
+  `app_metadata.matricule` — never join HR data on `employe_id`) and
+  `numero_cnps` (CNPS registration number; `cnps_patronal_pct` is a rate,
+  a different thing).
 - New tables go into `ALL_TABLES` **and** `OPTIONAL_TABLES` in `index.html`,
   so a front deploy before the SQL is run degrades cleanly (empty lists,
   clean write errors) instead of breaking the whole app.
