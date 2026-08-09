@@ -3861,25 +3861,39 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <!-- Select caché : alimente exportPDF()/exportExcel() (Registre de Bande) -->
     <select id="export-bande-select" style="display:none;"></select>
 
-    <!-- Onglets Trésorerie | RH & Paie | Caisse PDV. Le badge d'écart signale
-         une dernière clôture de caisse non équilibrée (ecart_fcfa ≠ 0) —
-         côté Trésorerie uniquement, rien sur le Dashboard (v1). -->
+    <!-- Onglets Vue d'ensemble | Mouvements | Caisse PDV (refonte trésorerie).
+         L'onglet « RH & Paie » est SUPPRIMÉ : la gestion vit en page RH, les
+         charges de paie deviennent une catégorie de décaissement ici, les
+         dépenses RH vivent dans Mouvements. Le badge d'écart signale une
+         dernière clôture de caisse non équilibrée (ecart_fcfa ≠ 0). -->
     <div id="treso-tabs" class="tabs" style="margin-bottom:1.25rem;">
-      <button class="tab-btn active" onclick="switchTresoTab('general',this)">Trésorerie</button>
-      <button class="tab-btn" onclick="switchTresoTab('rh',this)">RH &amp; Paie</button>
+      <button class="tab-btn active" onclick="switchTresoTab('vue',this)">Vue d'ensemble</button>
+      <button class="tab-btn" onclick="switchTresoTab('mouvements',this)">Mouvements</button>
       <button class="tab-btn manager-only" onclick="switchTresoTab('caisse',this)">Caisse PDV <span id="caisse-ecart-badge" class="sidebar-badge" style="display:none;"></span></button>
     </div>
 
-    <!-- Tab 1: Trésorerie — atterrissage 4 zones (refonte position) :
-         1 « Où est l'argent » · 2 « Activité du mois » (B2B/B2C/Total)
-         · 3 bandes denses + graphiques conditionnels · 4 flux replié. -->
-    <div id="treso-tab-general">
+    <!-- Tab 1 : Vue d'ensemble — bilan une-page : 4 KPI (Encaissé / Décaissé /
+         Net / Position de caisse) + 2 cartes symétriques Encaissements /
+         Décaissements. Les blocs détaillés historiques suivent en accordéons
+         REPLIÉS, contenus / ids / FORMULES intacts (règle dure : présentation
+         seulement, jamais un calcul). -->
+    <div id="treso-tab-vue">
 
-    <!-- Zone 1: Où est l'argent — 4 cartes -->
+    <!-- 4 KPI du mois -->
     <div id="treso-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
 
-    <!-- Zone 2: Activité du mois — B2B / B2C / Total (suit #treso-period) -->
-    <div id="treso-activite" class="card" style="margin-bottom:1.5rem;"></div>
+    <!-- Cartes symétriques Encaissements / Décaissements -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:1rem;margin-bottom:1.5rem;">
+      <div class="card" id="treso-enc-card"></div>
+      <div class="card" id="treso-dec-card"></div>
+    </div>
+
+    <!-- Détail Activité du mois (ex-zone 2) — replié ; ids intacts, toujours
+         rempli par fetchTresoPosition (B2B/B2C/Total, sorties, net). -->
+    <details class="card" style="margin-bottom:1.5rem;">
+      <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Activité du mois — détail B2B / B2C</summary>
+      <div id="treso-activite" style="margin-top:0.75rem;"></div>
+    </details>
 
     <!-- C3 (audit AI) : Analyse commerciale (ex-onglet « Tableau commercial »
          de Commercial & Ventes) — REPLIÉE par défaut, contenu et ids intacts
@@ -3910,68 +3924,64 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
     </details>
 
-    <!-- Zone 2b: Créances clients (détail par client du « En attente B2B ») -->
-    <div id="treso-creances" class="manager-only" style="margin-bottom:1.5rem;"></div>
+    <!-- Créances clients (détail par client) — replié, contenu/ids intacts -->
+    <details class="card manager-only" style="margin-bottom:1.5rem;">
+      <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Créances clients — détail par client</summary>
+      <div id="treso-creances" style="margin-top:0.75rem;"></div>
+    </details>
 
-    <!-- Zone 3: bandes denses + graphiques (rendus seulement si séries non nulles) -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Bandes — coûts engagés → CA réalisé</h3></div>
-      <div class="table-wrap" id="treso-table"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;margin-bottom:1.5rem;">
-      <div class="card" id="treso-costs-card">
-        <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décomposition des coûts</h3></div>
+    <!-- Bandes + décomposition des coûts (ex-zone 3) — replié. Le doughnut est
+         (re)créé À L'OUVERTURE (motif Analyse commerciale : un canvas dans un
+         details fermé a une taille nulle). Table et légende pré-rendues. -->
+    <details class="card" id="treso-bandes-details" style="margin-bottom:1.5rem;" ontoggle="if (this.open) renderTresoCostsChart()">
+      <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Bandes — coûts engagés → CA réalisé</summary>
+      <div class="table-wrap" id="treso-table" style="margin-top:0.75rem;"></div>
+      <div id="treso-costs-card" style="margin-top:1rem;">
+        <h4 style="font-size:0.9rem;color:var(--primary-dark);margin-bottom:0.5rem;">Décomposition des coûts</h4>
         <div style="position:relative;height:280px;"><canvas id="chart-treso-costs"></canvas></div>
         <div id="treso-costs-legend" style="margin-top:0.75rem;font-size:0.8rem;line-height:1.8;"></div>
       </div>
-      <!-- (C5 : graphique « CA réalisé vs Coûts par bande » supprimé —
-           doublon moins précis de la table zone 3 juste au-dessus.) -->
-    </div>
+    </details>
 
-    <!-- Zone 4: Flux de trésorerie mensuel — replié par défaut -->
+    <!-- Flux de trésorerie mensuel — replié par défaut (inchangé) -->
     <details class="card" id="treso-flux-details">
       <summary style="cursor:pointer;font-size:1rem;font-weight:700;color:var(--text-primary);padding:0.25rem 0;">Flux de trésorerie mensuel (6 derniers mois)</summary>
       <div class="table-wrap" id="treso-flux" style="margin-top:0.75rem;"></div>
     </details>
-    </div><!-- /treso-tab-general -->
+    </div><!-- /treso-tab-vue -->
 
-    <!-- Tab 2: RH & Paie — VUE DE CHARGES uniquement (RH-3). La GESTION de la
-         paie (génération, validation, bulletins) et la fiche employé unique
-         vivent dans le module RH (page rh, onglets Paie / Équipe). Ici :
-         sorties de trésorerie — charges de paie du mois en lecture seule +
-         Dépenses RH. Les totaux (computeRHMoisTotal, flux mensuel) lisent
-         STATE.paies/depensesRH comme avant : rien ne change côté chiffres. -->
-    <div id="treso-tab-rh" style="display:none;">
-      <div id="rh-subtabs" class="tabs" style="margin-bottom:1.25rem;">
-        <button class="tab-btn active" onclick="switchRHSubTab('charges',this)">Charges de paie</button>
-        <button class="tab-btn" onclick="switchRHSubTab('depenses',this)">Dépenses RH</button>
-      </div>
-
-      <!-- Sous-onglet Charges de paie (lecture seule — la gestion vit en page RH) -->
-      <div id="rh-sub-charges">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <label for="treso-paie-mois" style="font-size:0.78rem;color:var(--text-muted);">Mois</label>
-            <input type="month" id="treso-paie-mois" onchange="renderTresoCharges()" title="Mois des charges" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
-          </div>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="rh3GoRH('paie')">Gérer la paie → RH</button>
-            <button class="btn btn-outline btn-sm" onclick="rh3GoRH('equipe')">Fiches employés → RH</button>
-          </div>
+    <!-- Tab 2 : Mouvements — journal financier unifié, LECTURE sur les tables
+         existantes (commandes payées, paiements caisse agrégés/jour/PDV,
+         paies du mois, dépenses RH, réceptions + intrants, écarts de clôture).
+         Aucune écriture nouvelle : seul le CRUD Dépenses RH historique vit
+         ici (bouton + modal + suppression par ligne — actions inchangées). -->
+    <div id="treso-tab-mouvements" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+          <label for="mvt-mois" style="font-size:0.78rem;color:var(--text-muted);">Mois</label>
+          <input type="month" id="mvt-mois" onchange="renderMouvements()" title="Mois du journal" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+          <label for="mvt-cat" style="font-size:0.78rem;color:var(--text-muted);">Catégorie</label>
+          <select id="mvt-cat" onchange="renderMouvements()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+            <option value="">Toutes</option>
+            <option value="b2b">Ventes B2B</option>
+            <option value="caisse">Caisse</option>
+            <option value="paie">Paie</option>
+            <option value="drh">Dépense RH</option>
+            <option value="appro">Aliment &amp; intrants</option>
+            <option value="ecart">Écart</option>
+          </select>
+          <label for="mvt-dir" style="font-size:0.78rem;color:var(--text-muted);">Sens</label>
+          <select id="mvt-dir" onchange="renderMouvements()" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+            <option value="">Tous</option>
+            <option value="in">Entrées</option>
+            <option value="out">Sorties</option>
+          </select>
         </div>
-        <div id="treso-rh-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
-        <div id="treso-paie-view"></div>
+        <button class="btn btn-primary btn-sm" onclick="showDepenseRHModal()">+ Dépense RH</button>
       </div>
-
-      <!-- Sous-onglet Dépenses RH -->
-      <div id="rh-sub-depenses" style="display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-          <div id="rh-depenses-total" style="font-size:0.85rem;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;"></div>
-          <button class="btn btn-primary manager-only" onclick="showDepenseRHModal()">+ Nouvelle dépense</button>
-        </div>
-        <div id="rh-depenses-list"></div>
-      </div>
-    </div><!-- /treso-tab-rh -->
+      <div id="mvt-note" style="margin-bottom:0.5rem;"></div>
+      <div id="mvt-list"></div>
+    </div><!-- /treso-tab-mouvements -->
 
     <!-- Tab 3: Caisse PDV (POS 0027) — LECTURE SEULE, manager-only. Les
          tables POS restent volontairement HORS getAll/ALL_TABLES : requêtes
@@ -13475,45 +13485,32 @@ async function deleteIntrant(intrantId) {
 // ── Exports ──
 let tresoCharts = { costs: null };
 
-let currentTresoTab = 'general';
-let currentRHSubTab = 'charges';
+let currentTresoTab = 'vue';
 
 function initExportsPage() { initTresoreriePage(); }
 
-// Phase 3 a fusionné les anciens onglets bandes/flux dans la page Trésorerie :
-// trois onglets réels (general | rh | caisse). La liste ci-dessous doit
-// correspondre aux boutons de #treso-tabs (correspondance PAR INDEX).
-const TRESO_TABS = ['general', 'rh', 'caisse'];
+// Refonte trésorerie : trois onglets (vue | mouvements | caisse) — la liste
+// correspond PAR INDEX aux boutons de #treso-tabs. L'onglet « RH & Paie »
+// n'existe plus (gestion en page RH ; charges de paie = catégorie de
+// décaissement de la Vue d'ensemble ; dépenses RH = journal Mouvements).
+// Chaque switch re-rend son onglet — l'écran suit toujours l'état frais.
+const TRESO_TABS = ['vue', 'mouvements', 'caisse'];
 function switchTresoTab(tab, btn) {
-  currentTresoTab = tab;
+  currentTresoTab = TRESO_TABS.includes(tab) ? tab : 'vue';
   TRESO_TABS.forEach(t => {
     const el = document.getElementById('treso-tab-' + t);
-    if (el) el.style.display = t === tab ? '' : 'none';
+    if (el) el.style.display = t === currentTresoTab ? '' : 'none';
   });
   document.querySelectorAll('#treso-tabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', TRESO_TABS[i] === tab);
+    b.classList.toggle('active', TRESO_TABS[i] === currentTresoTab);
   });
-  if (tab === 'rh') switchRHSubTab(currentRHSubTab);
-  if (tab === 'caisse') renderCaissePdv();
+  if (currentTresoTab === 'vue') renderTresoVue();
+  else if (currentTresoTab === 'mouvements') renderMouvements();
+  else renderCaissePdv();
 }
 
-// RH-3 : l'onglet Trésorerie → RH & Paie est réduit à la VUE DE CHARGES
-// (charges de paie du mois en lecture seule + Dépenses RH). La gestion
-// (génération/validation/bulletins) et la fiche employé vivent en page RH.
-function switchRHSubTab(tab, btn) {
-  currentRHSubTab = ['charges', 'depenses'].includes(tab) ? tab : 'charges';
-  ['charges', 'depenses'].forEach(t => {
-    const el = document.getElementById('rh-sub-' + t);
-    if (el) el.style.display = t === currentRHSubTab ? '' : 'none';
-  });
-  document.querySelectorAll('#rh-subtabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['charges', 'depenses'][i] === currentRHSubTab);
-  });
-  if (currentRHSubTab === 'charges') renderTresoCharges();
-  else renderDepensesRH();
-}
-
-// Lien Trésorerie → module RH (onglet ciblé).
+// Lien Trésorerie → module RH (onglet ciblé) — utilisé par la carte
+// Décaissements (« Gérer → RH »).
 function rh3GoRH(tab) {
   navigate('rh', document.querySelector('[data-page="rh"]'));
   switchRH2Tab(tab);
@@ -14264,20 +14261,31 @@ function initTresoreriePage() {
   select.innerHTML = STATE.bandes.map(b =>
     '<option value="' + b.bande_id + '">' + bandeLabel(b, { statut: true }) + '</option>'
   ).join('');
-  // Badge d'écart dès l'arrivée sur la page (sans ouvrir l'onglet Caisse) ;
-  // si l'onglet Caisse est actif, re-rendre (le CA mensuel suit #treso-period).
+  // Badge d'écart dès l'arrivée sur la page (sans ouvrir l'onglet Caisse),
+  // puis rendu de l'onglet ACTIF (refonte : un renderer par onglet ; les
+  // callers #149 — écart résolu, fond corrigé — continuent d'appeler ici).
   updateCaisseEcartBadge();
-  if (currentTresoTab === 'caisse') renderCaissePdv();
+  if (currentTresoTab === 'caisse') { renderCaissePdv(); return; }
+  if (currentTresoTab === 'mouvements') { renderMouvements(); return; }
+  renderTresoVue();
+}
 
+// ── Vue d'ensemble (refonte) : 4 KPI + Encaissements / Décaissements ───────
+// RÈGLE DURE : chaque chiffre est un déplacement de PRÉSENTATION — toutes les
+// formules ci-dessous sont reprises VERBATIM de l'ancien onglet Trésorerie
+// (#52 / PR-D, fetchTresoPosition, computeRHMoisTotal…) ; les seules
+// agrégations nouvelles sont des sommes de sources existantes par mois
+// (réceptions/intrants datés, paies.mois, depenses_rh.date_depense).
+function renderTresoVue() {
   const thisMonth = getBilanPeriod();              // période sélectionnée (#treso-period), défaut mois courant
   const periodLabel = frMonthLabel(thisMonth) || thisMonth;
   const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
 
   // ── Calculs B2B (#52 / PR-D — sémantiques INCHANGÉES) ──
   // caEncaisse = CA LIVRÉ (livrée + date_commande du mois) : pilote toujours la
-  // réconciliation #52 (table par-bande, zone 3). caPaye = réglé par DATE_PAIEMENT
-  // du mois. creances = livré NON payé, CUMULATIF (même test que la carte PR-B).
-  // Montants HT ; la TVA reste affichage facture (PR-C).
+  // réconciliation #52 (table par-bande, accordéon Bandes). caPaye = réglé par
+  // DATE_PAIEMENT du mois. creances = livré NON payé, CUMULATIF (même test que
+  // la carte PR-B). Montants HT ; la TVA reste affichage facture (PR-C).
   const caEncaisse = STATE.commandes
     .filter(c => c.statut === 'livree' && c.date_commande && c.date_commande.startsWith(thisMonth))
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
@@ -14287,15 +14295,11 @@ function initTresoreriePage() {
   const creances = STATE.commandes
     .filter(c => c.statut === 'livree' && c.statut_paiement !== 'paye')
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
-  const coutsEngages = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
 
-  // ── Zone 1 : « Où est l'argent » — 4 cartes ──
-  // (a) espèces théoriques et (b) écarts arrivent en ASYNC (fetchTresoPosition,
-  // tables POS hors ALL_TABLES — lectures bornées à la demande, comme #131).
-  // (d) à payer ce mois = masse salariale permanents + CNPS (MÊME formule que
-  // renderTresoCharges (ex-renderRHEmployes) — vérifiée : lit
-  // employes.salaire_base_fcfa + cnps_patronal_pct, défaut 18.6, sur actifs
-  // permanents) − paies déjà enregistrées (montant_total_charge_fcfa).
+  // ── Décaissements SYNC du mois (sommes de sources existantes) ──
+  // Charges de paie = MÊME source que computeRHMoisTotal (paies.mois,
+  // montant_total_charge_fcfa — CNPS inclus) ; masse salariale théorique
+  // conservée en sous-ligne (ex-KPI « À payer ce mois »).
   const permanents = STATE.employes.filter(e => e.statut === 'actif' && e.type === 'permanent');
   const masseSalariale = permanents.reduce((s, e) => {
     const sal = Number(e.salaire_base_fcfa) || 0;
@@ -14303,26 +14307,68 @@ function initTresoreriePage() {
   }, 0);
   const paiesMoisCharges = STATE.paies.filter(p => p.mois === thisMonth)
     .reduce((s, p) => s + (Number(p.montant_total_charge_fcfa) || 0), 0);
-  const aPayer = Math.max(0, masseSalariale - paiesMoisCharges);
+  const depensesRHMois = STATE.depensesRH
+    .filter(d => d.date_depense && String(d.date_depense).startsWith(thisMonth))
+    .reduce((s, d) => s + (Number(d.montant_fcfa) || 0), 0);
+  const approMois = STATE.receptions
+    .filter(r => r.date_reception && String(r.date_reception).startsWith(thisMonth))
+    .reduce((s, r) => s + (Number(r.cout_total_fcfa) || 0), 0)
+    + STATE.intrants
+    .filter(i => i.date_intrant && String(i.date_intrant).startsWith(thisMonth))
+    .reduce((s, i) => s + (Number(i.cout_total_fcfa) || 0), 0);
 
+  // ── 4 KPI — les composantes caisse (B2C, sorties, position, écarts)
+  // arrivent en ASYNC via fetchTresoPosition (tables POS hors ALL_TABLES,
+  // lectures bornées #131) ; en attendant : « … », jamais un faux zéro. ──
   document.getElementById('treso-kpis').innerHTML =
-    '<div class="dash-kpi dk-headline"><div class="dk-value" id="treso-kpi-especes">…</div><div class="dk-label">Espèces théoriques en caisse</div><div class="dk-sub" id="treso-kpi-especes-sub">FCFA · calcul…</div></div>' +
-    '<div class="dash-kpi" id="treso-kpi-ecarts-card"><div class="dk-value" id="treso-kpi-ecarts">…</div><div class="dk-label">Écarts de clôture non résolus</div><div class="dk-sub" id="treso-kpi-ecarts-sub">dernière clôture par PDV</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(creances) + '</div><div class="dk-label">Créances (livré non payé)</div><div class="dk-sub">FCFA HT · cumul, détail ci-dessous</div></div>' +
-    '<div class="dash-kpi' + (aPayer > 0 ? ' dk-danger' : '') + '"><div class="dk-value">' + fmt(aPayer) + '</div><div class="dk-label">À payer ce mois (RH) — ' + periodLabel + '</div><div class="dk-sub">masse ' + fmt(masseSalariale) + ' − enregistré ' + fmt(paiesMoisCharges) + '</div></div>';
+    '<div class="dash-kpi"><div class="dk-value" id="tk-enc">…</div><div class="dk-label">Encaissé — ' + periodLabel + '</div><div class="dk-sub" id="tk-enc-sub">FCFA · B2B ' + fmt(caPaye) + ' · caisse…</div></div>' +
+    '<div class="dash-kpi"><div class="dk-value" id="tk-dec">…</div><div class="dk-label">Décaissé — ' + periodLabel + '</div><div class="dk-sub" id="tk-dec-sub">FCFA · calcul…</div></div>' +
+    '<div class="dash-kpi dk-headline"><div class="dk-value" id="tk-net">…</div><div class="dk-label">Net du mois</div><div class="dk-sub" id="tk-net-sub">encaissé − décaissé</div></div>' +
+    '<div class="dash-kpi" id="treso-kpi-ecarts-card"><div class="dk-value" id="treso-kpi-especes">…</div><div class="dk-label">Position de caisse</div><div class="dk-sub" id="treso-kpi-especes-sub">FCFA · calcul…</div></div>';
 
-  // ── Zone 2 : « Activité du mois » — B2B / B2C / Total (rendue par
-  // fetchTresoPosition, la colonne B2C vient des tables POS) ──
+  // ── Cartes symétriques ──
+  const kv = 'display:flex;justify-content:space-between;gap:0.75rem;padding:6px 0;font-size:0.88rem;';
+  const mono = 'font-family:var(--font-mono);font-variant-numeric:tabular-nums;';
+  document.getElementById('treso-enc-card').innerHTML =
+    '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Encaissements — ' + periodLabel + '</h3></div>' +
+    '<div style="' + kv + '"><span>CA encaissé B2C (caisse)</span><strong id="enc-b2c" style="' + mono + 'color:var(--color-success);">…</strong></div>' +
+    '<div style="' + kv + '"><span>CA encaissé B2B (commandes)</span><strong style="' + mono + 'color:var(--color-success);">+ ' + fmt(caPaye) + '</strong></div>' +
+    '<div style="' + kv + 'border-top:var(--border-hairline);"><span><strong>Total encaissé</strong></span><strong id="enc-total" style="' + mono + 'color:var(--color-success);">…</strong></div>' +
+    '<div style="' + kv + '"><span style="color:var(--text-muted);">Créances (livré non payé, cumul — hors total)</span><span style="' + mono + 'color:var(--text-muted);">' + fmt(creances) + '</span></div>';
+  document.getElementById('treso-dec-card').innerHTML =
+    '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Décaissements par catégorie — ' + periodLabel + '</h3></div>' +
+    '<div style="' + kv + '"><span>Aliment &amp; intrants (réceptions + intrants datés du mois)</span><strong style="' + mono + 'color:var(--color-danger);">− ' + fmt(approMois) + '</strong></div>' +
+    '<div style="' + kv + '"><span>Charges de paie (CNPS incl.) <a href="#" onclick="rh3GoRH(\'paie\');return false;" style="font-size:0.78rem;">Gérer → RH</a></span><strong style="' + mono + 'color:var(--color-danger);">− ' + fmt(paiesMoisCharges) + '</strong></div>' +
+    '<div style="font-size:0.75rem;color:var(--text-muted);margin:-2px 0 2px;">masse salariale théorique ' + fmt(masseSalariale) + ' · enregistré ' + fmt(paiesMoisCharges) + '</div>' +
+    '<div style="' + kv + '"><span>Dépenses RH</span><strong style="' + mono + 'color:var(--color-danger);">− ' + fmt(depensesRHMois) + '</strong></div>' +
+    '<div style="' + kv + '"><span>Sorties de caisse &amp; autres (dépenses + versements ferme)</span><strong id="dec-caisse" style="' + mono + 'color:var(--color-danger);">…</strong></div>' +
+    '<div style="' + kv + 'border-top:var(--border-hairline);"><span><strong>Total décaissé</strong></span><strong id="dec-total" style="' + mono + 'color:var(--color-danger);">…</strong></div>';
+
+  // ── Détail Activité du mois (accordéon, ids intacts) ──
   document.getElementById('treso-activite').innerHTML =
     '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
     '<p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Chargement des données caisse…</p>';
-  fetchTresoPosition(thisMonth, periodLabel, { caEncaisse, caPaye, creances });
+  fetchTresoPosition(thisMonth, periodLabel, { caEncaisse, caPaye, creances, paiesMoisCharges, depensesRHMois, approMois });
 
-  // ── Zone 3 : une ligne DENSE par bande — jour / effectif / coûts engagés →
-  // CA réalisé du mois. Le CA reste la sémantique #52 (caLivreMois, réconciliée
-  // avec la colonne B2B de la zone 2) ; les coûts sont CUMULÉS cycle de vie
-  // (pas attribuables au mois — inchangé). Marges : registre / rapport de
-  // clôture, jamais ici.
+  // ── Blocs détaillés (accordéons) — contenus/formules INCHANGÉS ──
+  renderCreances();
+  renderTresoBandes();
+  renderTresoFlux();
+}
+
+// ── Accordéon Bandes : table dense + décomposition des coûts (ex-zone 3) ──
+// Formules VERBATIM de l'ancien onglet : CA = sémantique #52 (caLivreMois,
+// réconciliée avec la colonne B2B de l'activité) ; coûts CUMULÉS cycle de vie
+// (pas attribuables au mois). Marges : registre / rapport de clôture, jamais
+// ici. Le doughnut est (re)créé à l'ouverture du details (canvas fermé =
+// taille nulle) — données mémorisées dans _tresoCostData.
+let _tresoCostData = null;
+function renderTresoBandes() {
+  const thisMonth = getBilanPeriod();
+  const periodLabel = frMonthLabel(thisMonth) || thisMonth;
+  const allBF = STATE.bandes.map(b => ({ bande: b, fin: computeBandeFinancials(b) }));
+  const coutsEngages = allBF.reduce((s, bf) => s + bf.fin.coutTotal, 0);
+
   let tblHtml = '<table><thead><tr><th>Bande</th><th>Statut</th><th class="num">J</th><th class="num">Effectif</th><th class="num">Coûts engagés</th><th class="num">CA réalisé (' + periodLabel + ')</th></tr></thead><tbody>';
   let totCA = 0;
   allBF.forEach(bf => {
@@ -14346,7 +14392,7 @@ function initTresoreriePage() {
     totCA += caMois;
   });
   // Ligne Portail / Hors-bande : livrées du mois sans bande (NULL) ou bande inconnue.
-  // Complément exact pour que totCA boucle sur le CA B2B de la zone 2 (#52).
+  // Complément exact pour que totCA boucle sur le CA B2B de l'activité (#52).
   const caHorsBande = caLivreHorsBande(thisMonth);
   if (caHorsBande > 0) {
     tblHtml += '<tr>' +
@@ -14362,16 +14408,7 @@ function initTresoreriePage() {
     '<td class="num">' + fmt(totCA) + '</td></tr></tfoot></table>';
   document.getElementById('treso-table').innerHTML = tblHtml;
 
-  // ── Zone 2b: Créances clients (livré non payé) — cumulatif, indépendant du mois ──
-  renderCreances();
-
-  // ── Zone 3 (suite) : graphiques — rendus SEULEMENT si au moins une série
-  // est non nulle (bug 3 : plus jamais d'axes nus sur données vides ; la
-  // carte entière est masquée). destroy() systématique avant re-création.
-  if (tresoCharts.costs) { tresoCharts.costs.destroy(); tresoCharts.costs = null; }
-
-  const t = chartTokens();
-
+  // Décomposition des coûts — données + légende (le chart attend l'ouverture)
   const totPoussins = allBF.reduce((s, bf) => s + bf.fin.coutPoussins, 0);
   const totAliment = allBF.reduce((s, bf) => s + bf.fin.coutAliment, 0); // coût aliment résolu (forfait OU formulation, jamais les deux)
   const totIntrants = allBF.reduce((s, bf) => s + bf.fin.coutIntrants, 0);
@@ -14381,31 +14418,40 @@ function initTresoreriePage() {
   const costLabels = ['Poussins', 'Aliment', 'Intrants / Vaccins', 'Abattage', 'Charges RH'];
   const costColors = ['#2563EB', '#0E9488', '#168A53', '#B7791F', '#8A95A1']; // palette sobre : bleu / teal / forêt / ambre / ardoise (plus d'orange vif)
   const costTotal = costData.reduce((a, b) => a + b, 0);
+  _tresoCostData = { labels: costLabels, data: costData, colors: costColors, total: costTotal };
 
   const costsCardEl = document.getElementById('treso-costs-card');
   if (costTotal <= 0) {
     if (costsCardEl) costsCardEl.style.display = 'none';
   } else {
     if (costsCardEl) costsCardEl.style.display = '';
-    const ctx1 = document.getElementById('chart-treso-costs');
-    if (ctx1) {
-      tresoCharts.costs = new Chart(ctx1.getContext('2d'), {
-        type: 'doughnut',
-        data: { labels: costLabels, datasets: [{ data: costData, backgroundColor: costColors }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-      });
-    }
     document.getElementById('treso-costs-legend').innerHTML = costLabels.map((l, i) =>
       '<span style="display:inline-flex;align-items:center;gap:0.3rem;margin-right:1rem;">' +
       '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + costColors[i] + ';"></span>' +
       l + ' : ' + fmt(costData[i]) + ' FCFA (' + Math.round(costData[i] / costTotal * 100) + '%)</span>'
     ).join('');
   }
+  renderTresoCostsChart();
+}
 
-  // (C5 : graphique « CA réalisé vs Coûts » supprimé — la table zone 3
-  // porte les mêmes chiffres, en précis et cliquable.)
+// (Re)crée le doughnut si l'accordéon Bandes est OUVERT — appelé au rendu et
+// par le ontoggle du details. destroy() systématique avant re-création.
+function renderTresoCostsChart() {
+  const det = document.getElementById('treso-bandes-details');
+  if (tresoCharts.costs) { tresoCharts.costs.destroy(); tresoCharts.costs = null; }
+  if (!det || !det.open || !_tresoCostData || _tresoCostData.total <= 0) return;
+  const ctx1 = document.getElementById('chart-treso-costs');
+  if (ctx1) {
+    tresoCharts.costs = new Chart(ctx1.getContext('2d'), {
+      type: 'doughnut',
+      data: { labels: _tresoCostData.labels, datasets: [{ data: _tresoCostData.data, backgroundColor: _tresoCostData.colors }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+}
 
-  // ── Zone 4: Flux mensuel (6 derniers mois, replié par défaut) ──
+// ── Accordéon Flux mensuel (6 derniers mois) — VERBATIM ex-zone 4 ──────────
+function renderTresoFlux() {
   // BUG FIX (doublon « Mar 2026 ») : l'ancien code faisait
   // `new Date(); d.setMonth(d.getMonth() - i)` — sur un 29/30/31 du mois,
   // reculer vers un mois plus court déborde sur le mois suivant (ex. 31 mai
@@ -14510,17 +14556,18 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
     document.getElementById('treso-kpi-especes-sub').textContent =
       'FCFA · ' + pdvIds.size + ' PDV, logique clôture caisse' + (partiel ? ' · fenêtre 60 j (partiel)' : '');
 
-    // ── Zone 1b : écarts non résolus — ROUGE quel que soit le signe ──
+    // ── Écarts non résolus → ALERTE en sous-titre de la carte Position de
+    // caisse (refonte) — ROUGE quel que soit le signe, mêmes tests
+    // ecartNonResolu qu'avant. Sans écart : le sous-titre PDV posé ci-dessus
+    // reste en place.
     const ecarts = Object.values(derniere).filter(ecartNonResolu).map(c => Number(c.ecart_fcfa) || 0);
-    const kEc = document.getElementById('treso-kpi-ecarts');
     const kEcCard = document.getElementById('treso-kpi-ecarts-card');
     if (ecarts.length) {
       const somme = ecarts.reduce((s, e) => s + e, 0);
-      kEc.textContent = ecarts.length + ' · ' + (somme > 0 ? '+' : '') + fmt(somme);
+      document.getElementById('treso-kpi-especes-sub').textContent =
+        '⚠ ' + ecarts.length + ' écart(s) non résolu(s) · ' + (somme > 0 ? '+' : '') + fmt(somme) + ' FCFA — onglet Caisse PDV';
       kEcCard.classList.add('dk-danger');
-      document.getElementById('treso-kpi-ecarts-sub').textContent = 'FCFA · à résoudre (onglet Caisse PDV)';
     } else {
-      kEc.textContent = 'Aucun';
       kEcCard.classList.remove('dk-danger');
     }
 
@@ -14550,6 +14597,27 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
       .reduce((s, p) => s + (Number(p.montant_fcfa) || 0), 0);
     const creditB2C = Math.max(0, txCli - paiCli);
 
+    // ── KPI refonte + cartes symétriques : Encaissé / Décaissé / Net ──
+    // MÊMES composantes que netEncaisse (encaissé B2B + B2C, sorties caisse),
+    // plus les décaissements hors caisse passés en SYNC via b2b (paies du
+    // mois, dépenses RH, appro) — aucune formule nouvelle, une addition
+    // d'affichage de sources existantes.
+    const encTotal = b2b.caPaye + encB2C;
+    const sortiesCaisse = sortiesDep + sortiesVer;
+    const decTotal = (b2b.approMois || 0) + (b2b.paiesMoisCharges || 0) + (b2b.depensesRHMois || 0) + sortiesCaisse;
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('tk-enc', fmt(encTotal));
+    setTxt('tk-enc-sub', 'FCFA · B2B ' + fmt(b2b.caPaye) + ' · B2C ' + fmt(encB2C));
+    setTxt('tk-dec', fmt(decTotal));
+    setTxt('tk-dec-sub', 'FCFA · appro ' + fmt(b2b.approMois || 0) + ' · paie ' + fmt(b2b.paiesMoisCharges || 0) + ' · RH ' + fmt(b2b.depensesRHMois || 0) + ' · caisse ' + fmt(sortiesCaisse));
+    setTxt('tk-net', fmt(encTotal - decTotal));
+    const netEl = document.getElementById('tk-net');
+    if (netEl) netEl.style.color = encTotal - decTotal >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+    setTxt('enc-b2c', '+ ' + fmt(encB2C));
+    setTxt('enc-total', '+ ' + fmt(encTotal));
+    setTxt('dec-caisse', '− ' + fmt(sortiesCaisse));
+    setTxt('dec-total', '− ' + fmt(decTotal));
+
     const kv = 'display:flex;justify-content:space-between;padding:5px 0;font-size:0.88rem;';
     const mono = 'font-family:var(--font-mono);';
     const netEncaisse = b2b.caPaye + encB2C - sortiesDep - sortiesVer;
@@ -14568,11 +14636,23 @@ async function fetchTresoPosition(mois, periodLabel, b2b) {
   } catch (e) {
     kEsp.textContent = '—';
     document.getElementById('treso-kpi-especes-sub').textContent = 'Caisse indisponible';
-    document.getElementById('treso-kpi-ecarts').textContent = '—';
     // Le « — » d'indisponibilité ne doit pas hériter du rouge d'un rendu
     // précédent (la règle #146 rend dk-danger réellement visible ici).
     const kEcErrCard = document.getElementById('treso-kpi-ecarts-card');
     if (kEcErrCard) kEcErrCard.classList.remove('dk-danger');
+    // KPI refonte : JAMAIS un faux zéro — B2B + sync seuls, dits comme tels.
+    const decSans = (b2b.approMois || 0) + (b2b.paiesMoisCharges || 0) + (b2b.depensesRHMois || 0);
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt('tk-enc', fmt(b2b.caPaye));
+    setTxt('tk-enc-sub', 'FCFA · B2B seul — caisse indisponible');
+    setTxt('tk-dec', fmt(decSans));
+    setTxt('tk-dec-sub', 'FCFA · hors sorties de caisse (indisponibles)');
+    setTxt('tk-net', fmt(b2b.caPaye - decSans));
+    setTxt('tk-net-sub', 'partiel — caisse indisponible');
+    setTxt('enc-b2c', '—');
+    setTxt('enc-total', '+ ' + fmt(b2b.caPaye) + ' (B2B seul)');
+    setTxt('dec-caisse', '—');
+    setTxt('dec-total', '− ' + fmt(decSans) + ' (partiel)');
     box.innerHTML =
       '<div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Activité du mois — ' + periodLabel + '</h3></div>' +
       '<div class="table-wrap"><table><thead><tr><th></th><th class="num">B2B (commandes)</th></tr></thead><tbody>' +
@@ -20081,45 +20161,159 @@ function computeRHMoisTotal(mois) {
 //  La fiche employé UNIQUE vit dans RH → Équipe : rh2-employe-modal,
 //  submitRH2Employe, rh2ToggleStatut.)
 
-// ── Trésorerie → RH & Paie : VUE DE CHARGES (RH-3, lecture seule) ──────────
-// Mêmes formules que l'ancien onglet (masse salariale permanents + CNPS,
-// computeRHMoisTotal) : aucun total de trésorerie ne change.
-function renderTresoCharges() {
-  const moisEl = document.getElementById('treso-paie-mois');
+// ── Onglet Mouvements : journal financier unifié (refonte trésorerie) ──────
+// (Remplace renderTresoCharges — l'onglet « RH & Paie » n'existe plus ; ses
+// données lecture-seule sont absorbées ici et dans la Vue d'ensemble.)
+// LECTURE SEULE sur les sources existantes — chaque ligne est un mouvement
+// daté et signé. Les totaux de pied portent sur le MOIS COMPLET (pas la vue
+// filtrée) et utilisent les MÊMES formules que les KPI de la Vue d'ensemble :
+// la réconciliation est garantie par construction. Les écarts de clôture
+// sont listés (badge) mais HORS totaux — un écart est une anomalie de caisse
+// constatée, pas un flux (la Vue d'ensemble ne les compte pas non plus).
+// Choix documenté PR : une paie = UNE ligne à la charge totale (CNPS
+// inclus), rattachée à son MOIS de paie (badge « en attente » si non payée)
+// — même périmètre que la catégorie « Charges de paie ».
+const MVT_CATS = { b2b: 'Vente B2B', caisse: 'Caisse', paie: 'Paie', drh: 'Dépense RH', appro: 'Aliment & intrants', ecart: 'Écart' };
+let _mvtCaisse = { mois: null, lignes: null, err: false }; // cache par mois (motif #131)
+
+async function renderMouvements() {
+  const moisEl = document.getElementById('mvt-mois');
   if (moisEl && !moisEl.value) moisEl.value = todayStr().slice(0, 7);
   const mois = moisEl ? moisEl.value : todayStr().slice(0, 7);
+  const cat = (document.getElementById('mvt-cat') || {}).value || '';
+  const dir = (document.getElementById('mvt-dir') || {}).value || '';
+  const list = document.getElementById('mvt-list');
+  if (!list) return;
 
-  const actifs = STATE.employes.filter(e => e.statut === 'actif');
-  const permanents = actifs.filter(e => e.type === 'permanent');
-  const masseSalariale = permanents.reduce((s, e) => {
-    const sal = Number(e.salaire_base_fcfa) || 0;
-    return s + sal + sal * (Number(e.cnps_patronal_pct) || 18.6) / 100;
-  }, 0);
-  document.getElementById('treso-rh-kpis').innerHTML =
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(masseSalariale) + '</div><div class="dk-label">Masse salariale mensuelle</div><div class="dk-sub">FCFA (permanents + CNPS)</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + permanents.length + '</div><div class="dk-label">Permanents actifs</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(computeRHMoisTotal(mois)) + '</div><div class="dk-label">Charge RH du mois</div><div class="dk-sub">paies + dépenses RH</div></div>';
+  // ── Sources SYNC (STATE) — mêmes filtres que la Vue d'ensemble ──
+  const lignes = [];
+  STATE.commandes
+    .filter(c => c.statut_paiement === 'paye' && c.date_paiement && c.date_paiement.startsWith(mois))
+    .forEach(c => {
+      const cl = STATE.clients.find(x => x.client_id === c.client_id);
+      lignes.push({ date: String(c.date_paiement).slice(0, 10), cat: 'b2b', sens: 1,
+        montant: Number(c.montant_total_fcfa) || 0,
+        libelle: 'Commande ' + String(c.commande_id).slice(-6).toUpperCase() + (cl ? ' — ' + cl.nom : '') });
+    });
+  STATE.paies.filter(p => p.mois === mois).forEach(p => {
+    const e = STATE.employes.find(x => x.employe_id === p.employe_id);
+    lignes.push({ date: p.date_paiement ? String(p.date_paiement).slice(0, 10) : mois + '-01',
+      cat: 'paie', sens: -1,
+      montant: Number(p.montant_total_charge_fcfa) || 0,
+      libelle: 'Paie ' + (e ? rh2NomComplet(e) : p.employe_id) + ' — charge totale (CNPS incl.)',
+      attente: p.statut !== 'paye' });
+  });
+  STATE.depensesRH
+    .filter(d => d.date_depense && String(d.date_depense).startsWith(mois))
+    .forEach(d => {
+      lignes.push({ date: String(d.date_depense).slice(0, 10), cat: 'drh', sens: -1,
+        montant: Number(d.montant_fcfa) || 0,
+        libelle: 'Dépense RH — ' + (d.description || d.type || ''),
+        delId: d.depense_id });
+    });
+  STATE.receptions
+    .filter(r => r.date_reception && String(r.date_reception).startsWith(mois))
+    .forEach(r => {
+      const m = Number(r.cout_total_fcfa) || 0;
+      if (m > 0) lignes.push({ date: String(r.date_reception).slice(0, 10), cat: 'appro', sens: -1,
+        montant: m, libelle: 'Réception — ' + (r.type_produit || 'approvisionnement') });
+    });
+  STATE.intrants
+    .filter(i => i.date_intrant && String(i.date_intrant).startsWith(mois))
+    .forEach(i => {
+      const m = Number(i.cout_total_fcfa) || 0;
+      if (m > 0) lignes.push({ date: String(i.date_intrant).slice(0, 10), cat: 'appro', sens: -1,
+        montant: m, libelle: 'Intrant — ' + (i.nom_produit || '') });
+    });
 
-  const paiesMois = STATE.paies.filter(p => p.mois === mois);
-  const box = document.getElementById('treso-paie-view');
-  if (paiesMois.length === 0) {
-    box.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune fiche de paie pour ' + frMonthLabel(mois) + ' — la gestion se fait dans le module RH → Paie.</p></div>';
-    if (window.lucide) lucide.createIcons();
-    return;
+  // ── Source CAISSE (async, bornée au mois, cache — motif fetchTresoPosition) ──
+  if (_mvtCaisse.mois !== mois) {
+    list.innerHTML = '<div class="card"><p style="color:var(--text-muted);font-size:0.85rem;margin:0;">Chargement des données caisse…</p></div>';
+    _mvtCaisse = { mois: mois, lignes: null, err: false };
+    try { _mvtCaisse.lignes = await fetchMvtCaisse(mois); }
+    catch (e) { _mvtCaisse.err = true; }
+    if ((document.getElementById('mvt-mois') || {}).value !== mois) return;
   }
-  let tot = 0;
-  box.innerHTML = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Employé</th><th style="text-align:right;">Net</th><th style="text-align:right;">Charge totale</th><th>Statut</th><th>Payée le</th></tr></thead><tbody>' +
-    paiesMois.map(p => {
-      const e = STATE.employes.find(x => x.employe_id === p.employe_id);
-      tot += Number(p.montant_total_charge_fcfa) || 0;
-      return '<tr><td><strong>' + (e ? rh2NomComplet(e) : p.employe_id) + '</strong></td>' +
-        '<td style="text-align:right;">' + fmt(Number(p.montant_net_fcfa)) + '</td>' +
-        '<td style="text-align:right;">' + fmt(Number(p.montant_total_charge_fcfa)) + '</td>' +
-        '<td><span class="badge ' + (p.statut === 'paye' ? 'badge-green' : 'badge-orange') + '">' + (p.statut === 'paye' ? 'Payée' : 'En attente') + '</span></td>' +
-        '<td>' + (p.date_paiement ? fmtDate(p.date_paiement) : '—') + '</td></tr>';
-    }).join('') +
-    '</tbody></table></div><div style="margin-top:0.5rem;font-size:0.85rem;font-weight:700;">Total charges de paie du mois : ' + fmt(tot) + ' FCFA</div></div>';
+  const toutes = lignes.concat(_mvtCaisse.lignes || []);
+
+  document.getElementById('mvt-note').innerHTML = _mvtCaisse.err
+    ? '<span class="badge badge-orange">Caisse indisponible — journal et totaux PARTIELS (sans lignes caisse)</span>'
+    : '';
+
+  // Totaux MOIS COMPLET (hors écarts) — réconciliés avec la Vue d'ensemble.
+  const entrees = toutes.filter(l => l.sens > 0 && !l.horsTotaux).reduce((s, l) => s + l.montant, 0);
+  const sorties = toutes.filter(l => l.sens < 0 && !l.horsTotaux).reduce((s, l) => s + l.montant, 0);
+
+  // Vue filtrée, triée date DESC
+  let vue = toutes.slice();
+  if (cat) vue = vue.filter(l => l.cat === cat);
+  if (dir === 'in') vue = vue.filter(l => l.sens > 0);
+  if (dir === 'out') vue = vue.filter(l => l.sens < 0);
+  vue.sort((a, b) => b.date.localeCompare(a.date) || a.libelle.localeCompare(b.libelle));
+
+  const mono = 'font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;';
+  if (vue.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun mouvement pour ces critères.</p></div>';
+  } else {
+    list.innerHTML = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th class="num">Montant</th><th></th></tr></thead><tbody>' +
+      vue.map(l =>
+        '<tr' + (l.horsTotaux ? ' style="opacity:0.85;"' : '') + '>' +
+        '<td style="white-space:nowrap;">' + fmtDate(l.date) + '</td>' +
+        '<td>' + escHtml(l.libelle) +
+          (l.attente ? ' <span class="badge badge-orange" title="Fiche non encore payée — rattachée à son mois de paie">en attente</span>' : '') +
+          (l.horsTotaux ? ' <span style="font-size:0.72rem;color:var(--text-muted);">(hors totaux)</span>' : '') + '</td>' +
+        '<td><span class="badge ' + (l.cat === 'ecart' ? 'badge-orange' : l.sens > 0 ? 'badge-green' : 'badge-grey') + '">' + MVT_CATS[l.cat] + '</span></td>' +
+        '<td style="' + mono + 'color:' + (l.sens > 0 ? 'var(--color-success)' : 'var(--color-danger)') + ';font-weight:700;">' + (l.sens > 0 ? '+' : '−') + ' ' + fmt(l.montant) + '</td>' +
+        '<td>' + (l.delId ? '<button class="btn btn-outline btn-sm" onclick="deleteDepenseRH(\'' + l.delId + '\')" title="Supprimer la dépense RH"><i data-lucide="trash-2"></i></button>' : '') + '</td>' +
+        '</tr>').join('') +
+      '</tbody><tfoot><tr>' +
+      '<td colspan="3"><strong>Totaux du mois complet' + (_mvtCaisse.err ? ' (partiels)' : '') + '</strong> — entrées / sorties / net (hors écarts)</td>' +
+      '<td style="' + mono + '"><span style="color:var(--color-success);font-weight:700;">+ ' + fmt(entrees) + '</span><br>' +
+      '<span style="color:var(--color-danger);font-weight:700;">− ' + fmt(sorties) + '</span><br>' +
+      '<span style="font-weight:700;color:' + (entrees - sorties >= 0 ? 'var(--color-success)' : 'var(--color-danger)') + ';">= ' + fmt(entrees - sorties) + '</span></td>' +
+      '<td></td></tr></tfoot></table></div></div>';
+  }
   if (window.lucide) lucide.createIcons();
+}
+
+// Lignes caisse du journal : paiements du mois agrégés par (jour, PDV,
+// nature) + écarts de clôture du mois. MÊMES filtres statut/sens que
+// fetchTresoPosition — présentation seulement, aucune écriture.
+async function fetchMvtCaisse(mois) {
+  const debut = mois + '-01';
+  const fin = new Date(Date.UTC(+mois.slice(0, 4), +mois.slice(5, 7), 1)).toISOString().slice(0, 10);
+  const [paiR, cloR, pdvR] = await Promise.all([
+    sb.from('paiements').select('pdv_id, date_paiement, montant_fcfa, sens, statut')
+      .gte('date_paiement', debut).lt('date_paiement', fin).not('pdv_id', 'is', null).limit(2000),
+    sb.from('cloture_caisse').select('pdv_id, date_cloture, ecart_fcfa')
+      .gte('date_cloture', debut).lt('date_cloture', fin).limit(200),
+    sb.from('points_de_vente').select('pdv_id, nom').limit(50)
+  ]);
+  for (const r of [paiR, cloR, pdvR]) { if (r.error) throw r.error; }
+  const pdvNom = {};
+  (pdvR.data || []).forEach(p => { pdvNom[p.pdv_id] = p.nom || p.pdv_id; });
+  const agg = {};
+  (paiR.data || []).filter(p => !p.statut || p.statut === 'confirme').forEach(p => {
+    const nature = p.sens === 'depense' ? 'dep' : p.sens === 'versement' ? 'ver'
+      : (!p.sens || p.sens === 'encaissement') ? 'enc' : null;
+    if (!nature) return;
+    const k = String(p.date_paiement).slice(0, 10) + '|' + p.pdv_id + '|' + nature;
+    agg[k] = (agg[k] || 0) + (Number(p.montant_fcfa) || 0);
+  });
+  const out = [];
+  Object.keys(agg).forEach(k => {
+    const parts = k.split('|');
+    const lbl = { enc: 'encaissements', dep: 'sortie de caisse', ver: 'versement ferme' }[parts[2]];
+    out.push({ date: parts[0], cat: 'caisse', sens: parts[2] === 'enc' ? 1 : -1,
+      montant: agg[k], libelle: 'Caisse ' + (pdvNom[parts[1]] || parts[1]) + ' — ' + lbl });
+  });
+  (cloR.data || []).forEach(c => {
+    const e = Number(c.ecart_fcfa) || 0;
+    if (e !== 0) out.push({ date: String(c.date_cloture).slice(0, 10), cat: 'ecart',
+      sens: e > 0 ? 1 : -1, montant: Math.abs(e), horsTotaux: true,
+      libelle: 'Écart de clôture ' + (pdvNom[c.pdv_id] || c.pdv_id) + (e > 0 ? ' (surplus)' : ' (manquant)') });
+  });
+  return out;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -21033,28 +21227,9 @@ async function exportBulletinsPDF() {
 }
 
 // ── Dépenses RH ──
-function renderDepensesRH() {
-  const mois = todayStr().slice(0, 7);
-  const depensesMois = STATE.depensesRH.filter(d => d.date_depense && d.date_depense.startsWith(mois));
-  const totalMois = depensesMois.reduce((s, d) => s + (Number(d.montant_fcfa) || 0), 0);
-  document.getElementById('rh-depenses-total').textContent = 'Dépenses RH ce mois : ' + fmt(totalMois) + ' FCFA';
-
-  const container = document.getElementById('rh-depenses-list');
-  const list = [...STATE.depensesRH].sort((a,b) => (b.date_depense||'').localeCompare(a.date_depense||''));
-  if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune dépense RH.</p></div>';
-    return;
-  }
-  const typeLabels = { formation:'Formation', equipement_protection:'Équipement protection', transport:'Transport', repas:'Repas', autre:'Autre' };
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Employé</th><th style="text-align:right;">Montant</th><th class="manager-only"></th></tr></thead><tbody>';
-  list.forEach(d => {
-    const emp = d.employe_id ? STATE.employes.find(e => e.employe_id === d.employe_id) : null;
-    html += '<tr><td>' + fmtDate(d.date_depense) + '</td><td>' + (typeLabels[d.type]||d.type) + '</td><td>' + (d.description||'—') + '</td><td>' + (emp ? (emp.prenom||'') + ' ' + emp.nom : '—') + '</td><td style="text-align:right;font-weight:700;">' + fmt(Number(d.montant_fcfa)) + ' FCFA</td>' +
-      '<td class="manager-only"><button class="btn btn-danger btn-sm" onclick="deleteDepenseRH(\'' + d.depense_id + '\')"><i data-lucide="x"></i></button></td></tr>';
-  });
-  html += '</tbody></table></div></div>';
-  container.innerHTML = html;
-}
+// (Refonte trésorerie : renderDepensesRH est SUPPRIMÉE — les dépenses RH
+//  vivent dans le journal Mouvements, catégorie « Dépense RH », avec le même
+//  bouton d'ajout (+ Dépense RH) et la même suppression par ligne.)
 
 function showDepenseRHModal() {
   document.getElementById('drh-date').value = todayStr();
@@ -21082,9 +21257,9 @@ async function submitDepenseRH() {
   btn.disabled = true; btn.textContent = 'Enregistrement...';
   try {
     await apiPost({ action: 'addDepenseRH', payload });
-    STATE.depensesRH.push(payload); closeDepenseRHModal(); renderDepensesRH(); toast('Dépense ajoutée');
+    STATE.depensesRH.push(payload); closeDepenseRHModal(); renderMouvements(); toast('Dépense ajoutée');
   } catch (err) {
-    if (err.message.includes("file d'attente")) { STATE.depensesRH.push(payload); closeDepenseRHModal(); renderDepensesRH(); toast('Enregistré (hors ligne)'); }
+    if (err.message.includes("file d'attente")) { STATE.depensesRH.push(payload); closeDepenseRHModal(); renderMouvements(); toast('Enregistré (hors ligne)'); }
     else toast('Erreur : ' + err.message, 'error');
   } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
 }
@@ -21094,7 +21269,7 @@ async function deleteDepenseRH(id) {
   const r = await saveRemote({ action: 'deleteDepenseRH', payload: { depense_id: id } });
   if (!r.ok) return;
   STATE.depensesRH = STATE.depensesRH.filter(d => d.depense_id !== id);
-  renderDepensesRH();
+  renderMouvements();
   toast(r.queued ? 'Dépense supprimée (hors ligne — sera synchronisée)' : 'Dépense supprimée');
 }
 
