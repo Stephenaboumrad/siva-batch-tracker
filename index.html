@@ -10249,19 +10249,24 @@ function renderDashCycle(batchData) {
       jalonHtml = '<span style="white-space:nowrap;' + (urgent ? 'color:var(--color-danger);font-weight:600;' : 'color:var(--text-secondary);') + '">'
         + 'vaccin « ' + escHtml(nx.proto.nom_vaccin) + ' » ' + protoJourLabel(nx.proto) + (quand ? ' (' + quand + ')' : '') + '</span>';
     }
-    // Abattage autorisé vs forecast — signal visuel quand le forecast
-    // PRÉCÈDE la date légale.
+    // Abattage autorisé vs forecast. La ligne est INCONDITIONNELLE sur une
+    // bande active : une absence se lit comme « rien à signaler » alors qu'elle
+    // ne dit rien du tout, et c'est précisément le statut réglementaire qu'on
+    // ne veut pas laisser deviner. Deux états seulement — délai en cours
+    // (date) / pas de délai en cours. Seul le badge de conflit est
+    // conditionnel. La sortie estimée n'est pas répétée ici : chaque carte de
+    // bande porte déjà sa forecast-chip plus bas sur la même page.
     const wd = ind.earliestSlaughterDate;
     const fDate = (bd.forecast && bd.forecast.status === 'projected' && bd.forecast.date) ? bd.forecast.date : null;
-    let abattageHtml = '';
+    let abattageHtml;
     if (wd && today && wd > today) {
       const conflit = fDate && fDate < wd;
       abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">abattage autorisé dès <strong>' + fmtDate(wd) + '</strong></span>'
         + (conflit
           ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:9px;padding:1px 6px;">⚠ sortie estimée ' + fmtDate(fDate) + ' AVANT la date autorisée</span>'
           : '');
-    } else if (fDate) {
-      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">sortie estimée ' + fmtDate(fDate) + '</span>';
+    } else {
+      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">abattage autorisé <span style="color:var(--text-muted);">(aucun délai en cours)</span></span>';
     }
     return '<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding:0.5rem 0;border-bottom:var(--border-hairline);">'
       + '<span style="min-width:150px;"><strong>' + escHtml(b.nom_bande) + '</strong>' + (b.batiment ? ' <span style="color:var(--text-muted);font-size:0.78rem;">· ' + escHtml(b.batiment) + '</span>' : '') + '</span>'
