@@ -3935,38 +3935,32 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </details>
     </div><!-- /treso-tab-general -->
 
-    <!-- Tab 2: RH & Paie — Employés / Paies / Dépenses (module restauré, audit A-F1) -->
+    <!-- Tab 2: RH & Paie — VUE DE CHARGES uniquement (RH-3). La GESTION de la
+         paie (génération, validation, bulletins) et la fiche employé unique
+         vivent dans le module RH (page rh, onglets Paie / Équipe). Ici :
+         sorties de trésorerie — charges de paie du mois en lecture seule +
+         Dépenses RH. Les totaux (computeRHMoisTotal, flux mensuel) lisent
+         STATE.paies/depensesRH comme avant : rien ne change côté chiffres. -->
     <div id="treso-tab-rh" style="display:none;">
       <div id="rh-subtabs" class="tabs" style="margin-bottom:1.25rem;">
-        <button class="tab-btn active" onclick="switchRHSubTab('employes',this)">Employés</button>
-        <button class="tab-btn" onclick="switchRHSubTab('paies',this)">Paies</button>
+        <button class="tab-btn active" onclick="switchRHSubTab('charges',this)">Charges de paie</button>
         <button class="tab-btn" onclick="switchRHSubTab('depenses',this)">Dépenses RH</button>
       </div>
 
-      <!-- Sous-onglet Employés -->
-      <div id="rh-sub-employes">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-          <h3 style="font-size:1rem;color:var(--primary-dark);">Employés</h3>
-          <button class="btn btn-primary manager-only" onclick="showEmployeModal()">+ Nouvel employé</button>
-        </div>
-        <div id="rh-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
-        <div id="rh-employes-list"></div>
-      </div>
-
-      <!-- Sous-onglet Paies -->
-      <div id="rh-sub-paies" style="display:none;">
+      <!-- Sous-onglet Charges de paie (lecture seule — la gestion vit en page RH) -->
+      <div id="rh-sub-charges">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
           <div style="display:flex;align-items:center;gap:0.5rem;">
-            <label for="rh-paie-mois" style="font-size:0.78rem;color:var(--text-muted);">Mois</label>
-            <input type="month" id="rh-paie-mois" onchange="renderPaies()" title="Mois de paie" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+            <label for="treso-paie-mois" style="font-size:0.78rem;color:var(--text-muted);">Mois</label>
+            <input type="month" id="treso-paie-mois" onchange="renderTresoCharges()" title="Mois des charges" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
           </div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-            <button id="btn-gen-paies" class="btn btn-primary manager-only" onclick="generateAllPaies()">Générer toutes les fiches</button>
-            <button class="btn btn-outline btn-sm" onclick="exportBulletinsPDF()"><i data-lucide="file-text"></i> Bulletins PDF</button>
+            <button class="btn btn-outline btn-sm" onclick="rh3GoRH('paie')">Gérer la paie → RH</button>
+            <button class="btn btn-outline btn-sm" onclick="rh3GoRH('equipe')">Fiches employés → RH</button>
           </div>
         </div>
-        <div id="rh-paies-list" style="margin-bottom:1rem;"></div>
-        <div id="rh-paies-totals"></div>
+        <div id="treso-rh-kpis" class="dash-kpi-bar" style="margin-bottom:1.5rem;"></div>
+        <div id="treso-paie-view"></div>
       </div>
 
       <!-- Sous-onglet Dépenses RH -->
@@ -3996,6 +3990,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <button class="tab-btn active" data-rh2-tab="equipe" onclick="switchRH2Tab('equipe',this)">Équipe</button>
       <button class="tab-btn" data-rh2-tab="pointages" onclick="switchRH2Tab('pointages',this)">Pointages</button>
       <button class="tab-btn" data-rh2-tab="aa" onclick="switchRH2Tab('aa',this)">Absences &amp; Avances</button>
+      <button class="tab-btn" data-rh2-tab="paie" onclick="switchRH2Tab('paie',this)">Paie</button>
     </div>
 
     <!-- Onglet 1 : Équipe -->
@@ -4043,6 +4038,28 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <div id="rh2-avances-encours" style="margin-bottom:0.75rem;"></div>
         <div id="rh2-avances-list"></div>
       </div>
+    </div>
+
+    <!-- Onglet 4 : Paie (RH-3) — gestion déménagée depuis Trésorerie → RH & Paie.
+         Les ids rh-paie-mois / btn-gen-paies / rh-paies-list / rh-paies-totals
+         sont CONSERVÉS (renderPaies / generateAllPaies / exportBulletinsPDF les
+         référencent) ; le panneau de calcul rh3 s'ajoute au-dessus. -->
+    <div id="rh2-tab-paie" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <label for="rh-paie-mois" style="font-size:0.78rem;color:var(--text-muted);">Mois</label>
+          <input type="month" id="rh-paie-mois" onchange="renderRH3PaieTab()" title="Mois de paie" style="padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-primary);background:var(--card-bg);">
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <button id="btn-gen-paies" class="btn btn-primary" onclick="generateAllPaies()">Générer les fiches du mois</button>
+          <button class="btn btn-outline btn-sm" onclick="exportBulletinsPDF()"><i data-lucide="file-text"></i> Bulletins PDF</button>
+        </div>
+      </div>
+      <h3 style="font-size:0.95rem;color:var(--primary-dark);margin-bottom:0.5rem;">Préparation — bases calculées depuis les pointages</h3>
+      <div id="rh3-calc-panel" style="margin-bottom:1.25rem;"></div>
+      <h3 style="font-size:0.95rem;color:var(--primary-dark);margin-bottom:0.5rem;">Fiches du mois</h3>
+      <div id="rh-paies-list" style="margin-bottom:1rem;"></div>
+      <div id="rh-paies-totals"></div>
     </div>
   </div>
 
@@ -4781,39 +4798,20 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
 </div>
 
 <!-- Modal: Nouvel employé -->
-<div id="employe-modal" class="modal-overlay" style="display:none;">
-  <div class="modal" style="max-width:550px;">
-    <h3><i data-lucide="user"></i> Nouvel employé</h3>
-    <div class="form-row">
-      <div class="form-group"><label>Prénom</label><input type="text" id="emp-prenom"></div>
-      <div class="form-group"><label>Nom</label><input type="text" id="emp-nom"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Poste</label><input type="text" id="emp-poste" placeholder="Ex: Chef de bande"></div>
-      <div class="form-group"><label>Type</label>
-        <select id="emp-type" onchange="toggleEmpSalaryFields()">
-          <option value="permanent">Permanent</option>
-          <option value="journalier">Journalier</option>
-          <option value="prestataire">Prestataire</option>
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Date d'embauche</label><input type="date" id="emp-embauche"></div>
-      <div class="form-group"><label>Téléphone</label><input type="tel" id="emp-tel"></div>
-    </div>
-    <div class="form-row" id="emp-salary-permanent">
-      <div class="form-group"><label>Salaire mensuel (FCFA)</label><input type="number" id="emp-salaire" min="0" oninput="updateEmpCharge()"></div>
-      <div class="form-group"><label>CNPS patronal %</label><input type="number" id="emp-cnps" step="0.1" value="18.6" min="0" oninput="updateEmpCharge()"></div>
-    </div>
-    <div class="form-row" id="emp-salary-journalier" style="display:none;">
-      <div class="form-group"><label>Taux journalier (FCFA)</label><input type="number" id="emp-taux-jour" min="0"></div>
-    </div>
-    <div id="emp-charge-calc" style="font-size:0.85rem;color:var(--accent);margin-bottom:0.75rem;"></div>
-    <div class="form-group"><label>Note</label><input type="text" id="emp-note" placeholder="Remarques…"></div>
+<!-- (RH-3 : le modal fiche employé hérité de Trésorerie est SUPPRIMÉ — la
+     fiche unique vit dans RH → Équipe, modal rh2-employe-modal.) -->
+
+<!-- Modal RH-3 : valider une paie + retenue d'avances (trace 0047) -->
+<div id="rh3-payer-modal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:520px;">
+    <h3><i data-lucide="hand-coins"></i> Valider la paie</h3>
+    <div id="rh3p-resume" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem;"></div>
+    <div id="rh3p-avances" style="margin-bottom:0.5rem;"></div>
+    <div id="rh3p-net" style="font-size:0.9rem;font-weight:700;color:var(--text-primary);margin-bottom:0.75rem;"></div>
+    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0;">Les avances cochées passent « remboursées » avec trace (date + fiche de paie — migration 0047). Aucune déduction automatique d'absence : ajustez les primes/notes à la main si besoin.</p>
     <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeEmployeModal()">Annuler</button>
-      <button class="btn btn-primary" onclick="submitEmploye()">Enregistrer</button>
+      <button class="btn btn-outline" onclick="closeRH3PayerModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmRH3Payer()">Marquer payée</button>
     </div>
   </div>
 </div>
@@ -6417,6 +6415,12 @@ function updateSyncStatus() {
 // d'insertion en ligne). Un groupe = une migration : 0024 peut être appliquée
 // sans 0029 (ou l'inverse) — on ne retire que le groupe que l'erreur nomme.
 const QUEUE_COLUMN_FALLBACKS = {
+  // RH-3 (0047) : trace de remboursement d'avance — rejouable sans la trace
+  // si la migration n'est pas encore appliquée (le drapeau rembourse passe).
+  updateAvance: [
+    { cols: ['rembourse_le', 'rembourse_paie_ref'],
+      msg: '⚠️ Migration 0047 non appliquée — remboursement rejoué sans trace.' }
+  ],
   addSaisie: [
     {
       cols: ['temperature_observee_c', 'observations', 'signes_observes'],
@@ -6637,6 +6641,12 @@ async function loadAllData() {
     STATE.etalonnages = data.etalonnages || [];
     STATE.postesAppatage = data.postesAppatage || [];
     STATE.relevesNuisibles = data.relevesNuisibles || [];
+    // RH-3 fix : getAll rapportait déjà ces trois tables (ALL_TABLES, RH-1/2)
+    // mais loadAllData ne les assignait JAMAIS → module RH vide après chaque
+    // rechargement (les écritures, elles, persistaient bien en base).
+    STATE.pointages = data.pointages || [];
+    STATE.absences = data.absences || [];
+    STATE.avances = data.avances || [];
     STATE.parametres = data.parametres || [];
     STATE.loaded = true;
     isOnline = true;
@@ -6719,6 +6729,11 @@ async function loadAllData() {
       STATE.etalonnages = cached.etalonnages || [];
       STATE.postesAppatage = cached.postesAppatage || [];
       STATE.relevesNuisibles = cached.relevesNuisibles || [];
+      // RH : tables CACHE_EXCLUDED → jamais dans le cache, repli [] explicite
+      // (hors ligne, le module RH repart vide — même politique que saisies).
+      STATE.pointages = cached.pointages || [];
+      STATE.absences = cached.absences || [];
+      STATE.avances = cached.avances || [];
       STATE.parametres = cached.parametres || [];
       STATE.loaded = true;
       isOnline = false;
@@ -13461,8 +13476,7 @@ async function deleteIntrant(intrantId) {
 let tresoCharts = { costs: null };
 
 let currentTresoTab = 'general';
-let currentRHSubTab = 'employes';
-let expandedEmployeId = null;
+let currentRHSubTab = 'charges';
 
 function initExportsPage() { initTresoreriePage(); }
 
@@ -13479,26 +13493,30 @@ function switchTresoTab(tab, btn) {
   document.querySelectorAll('#treso-tabs .tab-btn').forEach((b, i) => {
     b.classList.toggle('active', TRESO_TABS[i] === tab);
   });
-  if (tab === 'rh') renderRHEmployes();
+  if (tab === 'rh') switchRHSubTab(currentRHSubTab);
   if (tab === 'caisse') renderCaissePdv();
 }
 
+// RH-3 : l'onglet Trésorerie → RH & Paie est réduit à la VUE DE CHARGES
+// (charges de paie du mois en lecture seule + Dépenses RH). La gestion
+// (génération/validation/bulletins) et la fiche employé vivent en page RH.
 function switchRHSubTab(tab, btn) {
-  currentRHSubTab = tab;
-  ['employes','paies','depenses'].forEach(t => {
+  currentRHSubTab = ['charges', 'depenses'].includes(tab) ? tab : 'charges';
+  ['charges', 'depenses'].forEach(t => {
     const el = document.getElementById('rh-sub-' + t);
-    if (el) el.style.display = t === tab ? '' : 'none';
+    if (el) el.style.display = t === currentRHSubTab ? '' : 'none';
   });
   document.querySelectorAll('#rh-subtabs .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['employes','paies','depenses'][i] === tab);
+    b.classList.toggle('active', ['charges', 'depenses'][i] === currentRHSubTab);
   });
-  if (tab === 'employes') renderRHEmployes();
-  if (tab === 'paies') {
-    const moisEl = document.getElementById('rh-paie-mois');
-    if (moisEl && !moisEl.value) moisEl.value = todayStr().slice(0, 7);
-    renderPaies();
-  }
-  if (tab === 'depenses') renderDepensesRH();
+  if (currentRHSubTab === 'charges') renderTresoCharges();
+  else renderDepensesRH();
+}
+
+// Lien Trésorerie → module RH (onglet ciblé).
+function rh3GoRH(tab) {
+  navigate('rh', document.querySelector('[data-page="rh"]'));
+  switchRH2Tab(tab);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -14275,9 +14293,9 @@ function initTresoreriePage() {
   // (a) espèces théoriques et (b) écarts arrivent en ASYNC (fetchTresoPosition,
   // tables POS hors ALL_TABLES — lectures bornées à la demande, comme #131).
   // (d) à payer ce mois = masse salariale permanents + CNPS (MÊME formule que
-  // renderRHEmployes — vérifiée : lit employes.salaire_base_fcfa +
-  // cnps_patronal_pct, défaut 18.6, sur actifs permanents) − paies déjà
-  // enregistrées sur la période (montant_total_charge_fcfa, le tout-chargé).
+  // renderTresoCharges (ex-renderRHEmployes) — vérifiée : lit
+  // employes.salaire_base_fcfa + cnps_patronal_pct, défaut 18.6, sur actifs
+  // permanents) − paies déjà enregistrées (montant_total_charge_fcfa).
   const permanents = STATE.employes.filter(e => e.statut === 'actif' && e.type === 'permanent');
   const masseSalariale = permanents.reduce((s, e) => {
     const sal = Number(e.salaire_base_fcfa) || 0;
@@ -20058,117 +20076,191 @@ function computeRHMoisTotal(mois) {
   return totalCharges + totalDepenses;
 }
 
-function renderRHEmployes() {
-  // KPIs
+// (RH-3 : l'ancien sous-onglet Employés de Trésorerie — renderRHEmployes,
+//  showEmployeModal, submitEmploye, toggleEmployeStatut… — est SUPPRIMÉ.
+//  La fiche employé UNIQUE vit dans RH → Équipe : rh2-employe-modal,
+//  submitRH2Employe, rh2ToggleStatut.)
+
+// ── Trésorerie → RH & Paie : VUE DE CHARGES (RH-3, lecture seule) ──────────
+// Mêmes formules que l'ancien onglet (masse salariale permanents + CNPS,
+// computeRHMoisTotal) : aucun total de trésorerie ne change.
+function renderTresoCharges() {
+  const moisEl = document.getElementById('treso-paie-mois');
+  if (moisEl && !moisEl.value) moisEl.value = todayStr().slice(0, 7);
+  const mois = moisEl ? moisEl.value : todayStr().slice(0, 7);
+
   const actifs = STATE.employes.filter(e => e.statut === 'actif');
   const permanents = actifs.filter(e => e.type === 'permanent');
   const masseSalariale = permanents.reduce((s, e) => {
     const sal = Number(e.salaire_base_fcfa) || 0;
-    const cnps = sal * (Number(e.cnps_patronal_pct) || 18.6) / 100;
-    return s + sal + cnps;
+    return s + sal + sal * (Number(e.cnps_patronal_pct) || 18.6) / 100;
   }, 0);
-  const moisActuel = todayStr().slice(0, 7);
-  const coutRHMois = computeRHMoisTotal(moisActuel);
-
-  document.getElementById('rh-kpis').innerHTML =
+  document.getElementById('treso-rh-kpis').innerHTML =
     '<div class="dash-kpi"><div class="dk-value">' + fmt(masseSalariale) + '</div><div class="dk-label">Masse salariale mensuelle</div><div class="dk-sub">FCFA (permanents + CNPS)</div></div>' +
     '<div class="dash-kpi"><div class="dk-value">' + permanents.length + '</div><div class="dk-label">Permanents actifs</div></div>' +
-    '<div class="dash-kpi"><div class="dk-value">' + fmt(coutRHMois) + '</div><div class="dk-label">Charge RH ce mois</div><div class="dk-sub">FCFA</div></div>';
+    '<div class="dash-kpi"><div class="dk-value">' + fmt(computeRHMoisTotal(mois)) + '</div><div class="dk-label">Charge RH du mois</div><div class="dk-sub">paies + dépenses RH</div></div>';
 
-  // Table
-  const container = document.getElementById('rh-employes-list');
-  if (STATE.employes.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun employé enregistré.</p></div>';
+  const paiesMois = STATE.paies.filter(p => p.mois === mois);
+  const box = document.getElementById('treso-paie-view');
+  if (paiesMois.length === 0) {
+    box.innerHTML = '<div class="empty-state"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucune fiche de paie pour ' + frMonthLabel(mois) + ' — la gestion se fait dans le module RH → Paie.</p></div>';
+    if (window.lucide) lucide.createIcons();
     return;
   }
-  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Nom</th><th>Poste</th><th>Type</th><th>Salaire/Taux</th><th>CNPS</th><th>Charge totale</th><th>Statut</th></tr></thead><tbody>';
-  STATE.employes.forEach(e => {
-    const sal = Number(e.salaire_base_fcfa) || 0;
+  let tot = 0;
+  box.innerHTML = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Employé</th><th style="text-align:right;">Net</th><th style="text-align:right;">Charge totale</th><th>Statut</th><th>Payée le</th></tr></thead><tbody>' +
+    paiesMois.map(p => {
+      const e = STATE.employes.find(x => x.employe_id === p.employe_id);
+      tot += Number(p.montant_total_charge_fcfa) || 0;
+      return '<tr><td><strong>' + (e ? rh2NomComplet(e) : p.employe_id) + '</strong></td>' +
+        '<td style="text-align:right;">' + fmt(Number(p.montant_net_fcfa)) + '</td>' +
+        '<td style="text-align:right;">' + fmt(Number(p.montant_total_charge_fcfa)) + '</td>' +
+        '<td><span class="badge ' + (p.statut === 'paye' ? 'badge-green' : 'badge-orange') + '">' + (p.statut === 'paye' ? 'Payée' : 'En attente') + '</span></td>' +
+        '<td>' + (p.date_paiement ? fmtDate(p.date_paiement) : '—') + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div><div style="margin-top:0.5rem;font-size:0.85rem;font-weight:700;">Total charges de paie du mois : ' + fmt(tot) + ' FCFA</div></div>';
+  if (window.lucide) lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ── RH-3 : câblage pointages → paie ──
+// Période de paie = MOIS CIVIL — confirmé par le schéma réel : paies.mois
+// (YYYY-MM) + contrainte unique paies_employe_mois_uniq (0022).
+// ══════════════════════════════════════════════════════════════════
+
+function rh3JoursDuMois(mois) {
+  const parts = mois.split('-').map(Number);
+  const last = new Date(Date.UTC(parts[0], parts[1], 0)).getUTCDate();
+  return { debut: mois + '-01', fin: mois + '-' + String(last).padStart(2, '0'), nbJours: last };
+}
+
+// Présence d'un employé (par matricule) sur un mois : jour compté = pointage
+// avec heure_arrivee (un départ manquant n'annule PAS le jour — signalé).
+function rh3Presence(matricule, mois) {
+  if (!matricule) return null;
+  const jours = rh2Pointages().filter(p =>
+    p.employe_matricule === matricule &&
+    (p.date_pointage || '').slice(0, 7) === mois &&
+    p.heure_arrivee);
+  return {
+    joursPointes: jours.length,
+    sansDepart: jours.filter(p => !p.heure_depart).length
+  };
+}
+
+// Jours d'absence injustifiée ∩ mois — INFORMATION uniquement, aucune
+// déduction automatique dans ce lot (le manager ajuste à la main).
+function rh3AbsencesInjustifiees(matricule, mois) {
+  if (!matricule) return 0;
+  const bornes = rh3JoursDuMois(mois);
+  let n = 0;
+  rh2Absences().forEach(a => {
+    if (a.employe_matricule !== matricule) return;
+    if (!(a.type === 'absence_injustifiee' || a.justifiee === false)) return;
+    const d0 = a.date_debut > bornes.debut ? a.date_debut : bornes.debut;
+    const d1 = a.date_fin < bornes.fin ? a.date_fin : bornes.fin;
+    if (d1 >= d0) n += Math.round((new Date(d1) - new Date(d0)) / 86400000) + 1;
+  });
+  return n;
+}
+
+function rh3AvancesOuvertes(matricule) {
+  return rh2Avances().filter(a => a.employe_matricule === matricule && !a.rembourse);
+}
+
+// Base de paie + dérivation LISIBLE (aucune boîte noire) :
+//  - journalier  : jours pointés × taux_journalier_fcfa
+//  - permanent   : salaire_base_fcfa (+ CNPS) ; pointages = contrôle de
+//                  présence, PAS le moteur du montant
+//  - prestataire : hors génération (comportement hérité conservé — l'ancien
+//                  module ne générait rien pour ce type)
+function rh3ComputePaie(e, mois) {
+  const pres = rh3Presence(e.matricule, mois);
+  const absInj = rh3AbsencesInjustifiees(e.matricule, mois);
+  const avOuv = e.matricule ? rh3AvancesOuvertes(e.matricule) : [];
+  const avTotal = avOuv.reduce((s, a) => s + (Number(a.montant) || 0), 0);
+  if (e.type === 'journalier') {
     const taux = Number(e.taux_journalier_fcfa) || 0;
-    const cnpsPct = Number(e.cnps_patronal_pct) || 18.6;
-    const cnps = e.type === 'permanent' ? Math.round(sal * cnpsPct / 100) : 0;
-    const charge = e.type === 'permanent' ? sal + cnps : taux;
-    const inactive = e.statut === 'inactif';
-    html += '<tr class="' + (inactive ? 'row-inactive' : '') + '" style="cursor:pointer;" onclick="toggleEmployeExpand(\'' + e.employe_id + '\')">' +
-      '<td><strong>' + (e.prenom || '') + ' ' + (e.nom || '') + '</strong></td>' +
-      '<td>' + (e.poste || '—') + '</td>' +
-      '<td><span class="badge ' + (e.type === 'permanent' ? 'badge-green' : 'badge-orange') + '">' + e.type + '</span></td>' +
-      '<td>' + (e.type === 'permanent' ? fmt(sal) + ' FCFA/mois' : fmt(taux) + ' FCFA/jour') + '</td>' +
-      '<td>' + (e.type === 'permanent' ? fmt(cnps) + ' FCFA' : '—') + '</td>' +
-      '<td><strong>' + (e.type === 'permanent' ? fmt(charge) + ' FCFA' : '—') + '</strong></td>' +
-      '<td><span class="badge ' + (inactive ? 'badge-grey' : 'badge-green') + '">' + (inactive ? 'Inactif' : 'Actif') + '</span></td></tr>';
-    if (expandedEmployeId === e.employe_id) {
-      const recentPaies = STATE.paies.filter(p => p.employe_id === e.employe_id).sort((a,b) => (b.mois||'').localeCompare(a.mois||'')).slice(0, 3);
-      let paieRows = recentPaies.length === 0 ? '<tr><td colspan="3" style="text-align:center;color:#9e9e9e;">Aucune paie</td></tr>' :
-        recentPaies.map(p => '<tr><td>' + p.mois + '</td><td>' + fmt(Number(p.montant_brut_fcfa)) + ' FCFA</td><td><span class="badge ' + (p.statut === 'paye' ? 'badge-green' : 'badge-orange') + '">' + (p.statut === 'paye' ? 'Payé' : 'En attente') + '</span></td></tr>').join('');
-      html += '<tr><td colspan="7" style="padding:0;"><div class="expand-panel">' +
-        '<div style="margin-bottom:0.5rem;"><strong>Tél :</strong> ' + (e.telephone || '—') + ' | <strong>Embauche :</strong> ' + fmtDate(e.date_embauche) + ' | <strong>Note :</strong> ' + (e.note || '—') + '</div>' +
-        '<h4>3 dernières paies</h4><table><thead><tr><th>Mois</th><th>Brut</th><th>Statut</th></tr></thead><tbody>' + paieRows + '</tbody></table>' +
-        '<div style="margin-top:0.5rem;" class="manager-only"><button class="btn btn-outline btn-sm" onclick="event.stopPropagation();toggleEmployeStatut(\'' + e.employe_id + '\')">' + (inactive ? 'Activer' : 'Désactiver') + '</button></div>' +
-        '</div></td></tr>';
-    }
+    const jours = pres ? pres.joursPointes : 0;
+    const brut = jours * taux;
+    return {
+      generable: !!e.matricule && jours > 0 && taux > 0,
+      motifNonGenerable: !e.matricule ? 'sans matricule — pointages non reliables'
+        : taux <= 0 ? 'taux journalier non renseigné (fiche Équipe)'
+        : 'aucun jour pointé sur le mois',
+      brut: brut, cnps: 0, net: brut, charge: brut, nbJours: jours,
+      derivation: jours + ' j pointés × ' + fmt(taux) + ' = ' + fmt(brut) + ' FCFA'
+        + (pres && pres.sansDepart ? ' (dont ' + pres.sansDepart + ' j sans départ)' : ''),
+      pres: pres, absInj: absInj, avOuv: avOuv, avTotal: avTotal
+    };
+  }
+  if (e.type === 'permanent') {
+    const sal = Number(e.salaire_base_fcfa) || 0;
+    const pct = Number(e.cnps_patronal_pct) || 18.6;
+    const cnps = Math.round(sal * pct / 100);
+    return {
+      generable: sal > 0,
+      motifNonGenerable: 'salaire de base non renseigné (fiche Équipe)',
+      brut: sal, cnps: cnps, net: sal, charge: sal + cnps,
+      nbJours: pres ? pres.joursPointes : 0,
+      derivation: 'salaire ' + fmt(sal) + ' + CNPS ' + pct + ' % (' + fmt(cnps) + ') = ' + fmt(sal + cnps) + ' FCFA charge',
+      pres: pres, absInj: absInj, avOuv: avOuv, avTotal: avTotal
+    };
+  }
+  return {
+    generable: false, motifNonGenerable: 'prestataire — hors génération (comportement hérité)',
+    brut: 0, cnps: 0, net: 0, charge: 0, nbJours: 0, derivation: '—',
+    pres: pres, absInj: absInj, avOuv: avOuv, avTotal: avTotal
+  };
+}
+
+function renderRH3PaieTab() {
+  const moisEl = document.getElementById('rh-paie-mois');
+  if (moisEl && !moisEl.value) moisEl.value = todayStr().slice(0, 7);
+  renderRH3Calc();
+  renderPaies();
+}
+
+// Panneau de préparation : une ligne par employé actif, avec la dérivation
+// de la base, le contrôle de présence, les absences injustifiées et les
+// avances en cours — puis le bouton Générer (permanent/journalier).
+function renderRH3Calc() {
+  const moisEl = document.getElementById('rh-paie-mois');
+  const mois = moisEl ? moisEl.value : '';
+  const box = document.getElementById('rh3-calc-panel');
+  if (!box || !mois) return;
+  const actifs = rh2EmployesTries().filter(e => e.statut !== 'inactif');
+  if (actifs.length === 0) {
+    box.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Aucun employé actif.</p>';
+    return;
+  }
+  const bornes = rh3JoursDuMois(mois);
+  const aujourdhui = todayStr();
+  const joursEcoules = aujourdhui.slice(0, 7) === mois ? Number(aujourdhui.slice(8, 10))
+    : (aujourdhui.slice(0, 7) > mois ? bornes.nbJours : 0);
+  let html = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Employé</th><th>Type</th><th>Calcul de la base</th><th>Présence</th><th>Abs. injust.</th><th style="text-align:right;">Avances en cours</th><th></th></tr></thead><tbody>';
+  actifs.forEach(e => {
+    const c = rh3ComputePaie(e, mois);
+    const dejaPaie = STATE.paies.some(p => p.employe_id === e.employe_id && p.mois === mois);
+    const presTxt = c.pres === null
+      ? '<span style="color:var(--text-muted);" title="Sans matricule : pointages non reliables">—</span>'
+      : c.pres.joursPointes + ' j / ' + joursEcoules + ' j écoulés'
+        + (c.pres.sansDepart ? ' <span class="badge badge-orange" title="Arrivée sans départ — le jour compte, à corriger dans Pointages">' + c.pres.sansDepart + ' sans départ</span>' : '');
+    html += '<tr>' +
+      '<td><strong>' + rh2NomComplet(e) + '</strong>' + (e.matricule ? '<br><span style="font-size:0.72rem;color:var(--text-muted);font-family:\'JetBrains Mono\',monospace;">' + e.matricule + '</span>' : '') + '</td>' +
+      '<td><span class="badge ' + (e.type === 'permanent' ? 'badge-green' : 'badge-orange') + '">' + (e.type || '—') + '</span></td>' +
+      '<td>' + c.derivation + '</td>' +
+      '<td>' + presTxt + '</td>' +
+      '<td>' + (c.absInj > 0 ? '<span class="badge badge-orange">' + c.absInj + ' j</span>' : '0') + '</td>' +
+      '<td style="text-align:right;">' + (c.avTotal > 0 ? fmt(c.avTotal) + ' FCFA (' + c.avOuv.length + ')' : '—') + '</td>' +
+      '<td>' + (dejaPaie ? '<span class="badge badge-green">Fiche générée</span>'
+        : c.generable ? '<button class="btn btn-outline btn-sm" onclick="generatePaieFor(\'' + e.employe_id + '\',\'' + mois + '\',this)">Générer</button>'
+        : '<span style="font-size:0.75rem;color:var(--text-muted);">' + c.motifNonGenerable + '</span>') + '</td>' +
+      '</tr>';
   });
   html += '</tbody></table></div></div>';
-  container.innerHTML = html;
-}
-
-function toggleEmployeExpand(id) { expandedEmployeId = expandedEmployeId === id ? null : id; renderRHEmployes(); }
-
-function showEmployeModal() {
-  ['emp-prenom','emp-nom','emp-poste','emp-tel','emp-note'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('emp-type').value = 'permanent';
-  document.getElementById('emp-embauche').value = todayStr();
-  document.getElementById('emp-salaire').value = '';
-  document.getElementById('emp-cnps').value = '18.6';
-  document.getElementById('emp-taux-jour').value = '';
-  document.getElementById('emp-charge-calc').textContent = '';
-  toggleEmpSalaryFields();
-  document.getElementById('employe-modal').style.display = 'flex';
-}
-function closeEmployeModal() { document.getElementById('employe-modal').style.display = 'none'; }
-
-function toggleEmpSalaryFields() {
-  const t = document.getElementById('emp-type').value;
-  document.getElementById('emp-salary-permanent').style.display = t === 'permanent' ? '' : 'none';
-  document.getElementById('emp-salary-journalier').style.display = t === 'journalier' ? '' : 'none';
-}
-function updateEmpCharge() {
-  const sal = parseFloat(document.getElementById('emp-salaire').value) || 0;
-  const cnps = sal * (parseFloat(document.getElementById('emp-cnps').value) || 18.6) / 100;
-  document.getElementById('emp-charge-calc').textContent = 'Charge mensuelle totale : ' + fmt(sal) + ' + ' + fmt(Math.round(cnps)) + ' CNPS = ' + fmt(Math.round(sal + cnps)) + ' FCFA';
-}
-
-async function submitEmploye() {
-  const nom = document.getElementById('emp-nom').value.trim();
-  if (!nom) { toast('Nom requis', 'error'); return; }
-  const payload = {
-    employe_id: 'emp-' + uuid(), nom, prenom: document.getElementById('emp-prenom').value.trim(),
-    poste: document.getElementById('emp-poste').value.trim(), type: document.getElementById('emp-type').value,
-    date_embauche: document.getElementById('emp-embauche').value,
-    salaire_base_fcfa: parseFloat(document.getElementById('emp-salaire').value) || 0,
-    taux_journalier_fcfa: parseFloat(document.getElementById('emp-taux-jour').value) || 0,
-    cnps_patronal_pct: parseFloat(document.getElementById('emp-cnps').value) || 18.6,
-    telephone: document.getElementById('emp-tel').value.trim(), statut: 'actif',
-    note: document.getElementById('emp-note').value.trim()
-  };
-  const btn = document.querySelector('#employe-modal .btn-primary');
-  btn.disabled = true; btn.textContent = 'Enregistrement...';
-  try {
-    await apiPost({ action: 'addEmploye', payload });
-    STATE.employes.push(payload); closeEmployeModal(); renderRHEmployes(); toast('Employé ajouté');
-  } catch (err) {
-    if (err.message.includes("file d'attente")) { STATE.employes.push(payload); closeEmployeModal(); renderRHEmployes(); toast('Enregistré (hors ligne)'); }
-    else toast('Erreur : ' + err.message, 'error');
-  } finally { btn.disabled = false; btn.textContent = 'Enregistrer'; }
-}
-
-async function toggleEmployeStatut(id) {
-  const e = STATE.employes.find(x => x.employe_id === id); if (!e) return;
-  const ns = e.statut === 'actif' ? 'inactif' : 'actif';
-  const r = await saveRemote({ action: 'updateEmploye', payload: { employe_id: id, statut: ns } });
-  if (!r.ok) return;
-  e.statut = ns; renderRHEmployes();
-  toast(r.queued ? 'Employé mis à jour (hors ligne — sera synchronisé)' : 'Employé ' + (ns === 'actif' ? 'activé' : 'désactivé'));
+  box.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -20188,7 +20280,7 @@ let rh2EditingAvanceId = null;
 let rh2AAFiltre = '';           // '' = tous
 let rh2PointageCible = null;    // { matricule, nom, dateISO, row|null }
 
-const RH2_TABS = ['equipe', 'pointages', 'aa'];
+const RH2_TABS = ['equipe', 'pointages', 'aa', 'paie'];
 const RH2_ABSENCE_TYPES = { conge: 'Congé', maladie: 'Maladie', absence_injustifiee: 'Absence injustifiée', autre: 'Autre' };
 
 function switchRH2Tab(tab, btn) {
@@ -20201,7 +20293,12 @@ function switchRH2Tab(tab, btn) {
     b.classList.toggle('active', b.dataset.rh2Tab === currentRH2Tab));
   if (currentRH2Tab === 'equipe') renderRH2Equipe();
   else if (currentRH2Tab === 'pointages') renderRH2Pointages();
-  else renderRH2AA();
+  else if (currentRH2Tab === 'aa') renderRH2AA();
+  else {
+    const moisEl = document.getElementById('rh-paie-mois');
+    if (moisEl && !moisEl.value) moisEl.value = todayStr().slice(0, 7);
+    renderRH3PaieTab();
+  }
 }
 
 function initRHPage() { switchRH2Tab(currentRH2Tab); }
@@ -20710,10 +20807,9 @@ function renderPaies() {
         '<td style="text-align:right;font-weight:700;">' + fmt(net) + '</td>' +
         '<td><span class="badge ' + (p.statut === 'paye' ? 'badge-green' : 'badge-orange') + '">' + (p.statut === 'paye' ? 'Payé' : 'En attente') + '</span></td>' +
         '<td class="manager-only">' + (p.statut !== 'paye' ? '<button class="btn btn-primary btn-sm" onclick="markPaiePaye(\'' + p.paie_id + '\')">Payer</button>' : '') + '</td></tr>';
-    } else if (e.type === 'permanent') {
-      html += '<tr style="color:#9e9e9e;"><td>' + (e.prenom||'') + ' ' + e.nom + '</td><td>' + (e.poste||'') + '</td><td colspan="5" style="text-align:center;">Fiche non générée</td><td></td>' +
-        '<td class="manager-only"><button class="btn btn-outline btn-sm" onclick="generatePaieFor(\'' + e.employe_id + '\',\'' + mois + '\',this)">Générer</button></td></tr>';
     }
+    // (RH-3 : plus de ligne « Fiche non générée » ici — la génération et ses
+    //  bases calculées vivent dans le panneau de préparation au-dessus.)
   });
   html += '</tbody></table></div></div>';
   container.innerHTML = html;
@@ -20724,32 +20820,38 @@ function renderPaies() {
 
 // btn (optionnel) = bouton « Générer » de la ligne, désactivé pendant l'envoi.
 // Renvoie true si une fiche a réellement été créée (compteur de generateAllPaies).
+// RH-3 : la base vient de rh3ComputePaie (journalier = jours pointés × taux ;
+// permanent = salaire + CNPS, inchangé) ; la dérivation est écrite dans
+// paies.note pour l'audit — la fiche dit toujours d'où vient son montant.
 async function generatePaieFor(empId, mois, btn) {
   const e = STATE.employes.find(x => x.employe_id === empId); if (!e) return false;
   if (STATE.paies.some(p => p.employe_id === empId && p.mois === mois)) {
     toast('Paie déjà générée pour ce mois');
     return false;
   }
-  const sal = Number(e.salaire_base_fcfa) || 0;
-  const cnpsPct = Number(e.cnps_patronal_pct) || 18.6;
-  const cnps = Math.round(sal * cnpsPct / 100);
+  const c = rh3ComputePaie(e, mois);
+  if (!c.generable) {
+    toast('Fiche non générable : ' + c.motifNonGenerable, 'error');
+    return false;
+  }
   const payload = {
     paie_id: 'paie-' + uuid(), employe_id: empId, mois,
-    salaire_base_fcfa: sal, nb_jours_travailles: 0,
-    montant_brut_fcfa: sal, cnps_patronal_fcfa: cnps,
+    salaire_base_fcfa: e.type === 'permanent' ? c.brut : 0,
+    nb_jours_travailles: c.nbJours,
+    montant_brut_fcfa: c.brut, cnps_patronal_fcfa: c.cnps,
     primes_fcfa: 0, avances_fcfa: 0,
-    montant_net_fcfa: sal, montant_total_charge_fcfa: sal + cnps,
-    statut: 'en_attente', date_paiement: null, note: ''
+    montant_net_fcfa: c.net, montant_total_charge_fcfa: c.charge,
+    statut: 'en_attente', date_paiement: null, note: c.derivation
   };
   if (btn) { btn.disabled = true; btn.textContent = 'Génération...'; }
   try {
     await apiPost({ action: 'addPaie', payload });
-    STATE.paies.push(payload); renderPaies();
+    STATE.paies.push(payload); renderRH3PaieTab();
     toast('Fiche générée');
     return true;
   } catch (err) {
     if (err.message.includes("file d'attente")) {
-      STATE.paies.push(payload); renderPaies();
+      STATE.paies.push(payload); renderRH3PaieTab();
       toast('Fiche générée (hors ligne — sera synchronisée)');
       return true;
     }
@@ -20772,27 +20874,107 @@ async function generateAllPaies() {
   const btn = document.getElementById('btn-gen-paies');
   if (btn) { btn.disabled = true; btn.textContent = 'Génération...'; }
   try {
-    const actifs = STATE.employes.filter(e => e.statut === 'actif' && e.type === 'permanent');
-    let count = 0;
+    // RH-3 : permanents ET journaliers (le journalier est désormais généré à
+    // jours pointés × taux). Prestataires : hors génération (hérité).
+    const actifs = STATE.employes.filter(e => e.statut === 'actif' && (e.type === 'permanent' || e.type === 'journalier'));
+    let count = 0, skipped = 0;
     for (const e of actifs) {
       // Test rejoué sur STATE.paies à chaque itération (pas d'instantané) : un
       // second lancement pendant la boucle ne régénère pas les fiches déjà créées.
       if (STATE.paies.some(p => p.mois === mois && p.employe_id === e.employe_id)) continue;
+      if (!rh3ComputePaie(e, mois).generable) { skipped++; continue; }
       if (await generatePaieFor(e.employe_id, mois)) count++;
     }
-    toast(count > 0 ? count + ' fiche(s) générée(s)' : 'Toutes les fiches existent déjà');
+    toast((count > 0 ? count + ' fiche(s) générée(s)' : 'Aucune nouvelle fiche')
+      + (skipped ? ' — ' + skipped + ' non générable(s), motifs dans le panneau' : ''));
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Générer toutes les fiches'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Générer les fiches du mois'; }
   }
 }
 
+// ── Validation d'une paie (RH-3) : retenue d'avances tracée ────────────────
+let rh3PayerPaieId = null;
+
+// Bouton « Payer » : s'il existe des avances OUVERTES pour l'employé, modal de
+// retenue ; sinon validation directe. (Nom conservé — renderPaies l'appelle.)
 async function markPaiePaye(paieId) {
   const p = STATE.paies.find(x => x.paie_id === paieId); if (!p) return;
-  const payload = { paie_id: paieId, statut: 'paye', date_paiement: todayStr() };
+  const e = STATE.employes.find(x => x.employe_id === p.employe_id);
+  const avOuv = e && e.matricule ? rh3AvancesOuvertes(e.matricule) : [];
+  if (avOuv.length === 0) { await confirmRH3PayerDirect(paieId, []); return; }
+  rh3PayerPaieId = paieId;
+  document.getElementById('rh3p-resume').innerHTML =
+    '<strong>' + (e ? rh2NomComplet(e) : p.employe_id) + '</strong> — ' + frMonthLabel(p.mois) +
+    ' · brut ' + fmt(Number(p.montant_brut_fcfa)) + ' + primes ' + fmt(Number(p.primes_fcfa)) + ' FCFA' +
+    (p.note ? '<br><span style="font-size:0.75rem;">' + p.note + '</span>' : '');
+  document.getElementById('rh3p-avances').innerHTML =
+    '<div style="font-size:0.8rem;font-weight:700;margin-bottom:0.35rem;">Avances en cours — cocher celles retenues sur cette paie :</div>' +
+    avOuv.map(a =>
+      '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;margin-bottom:0.25rem;">' +
+      '<input type="checkbox" class="rh3p-av" value="' + a.id + '" onchange="rh3UpdatePayerNet()" style="width:auto;"> ' +
+      fmtDate(a.date_avance) + ' — ' + fmt(Number(a.montant)) + ' FCFA' +
+      (a.mode_paiement === 'wave' ? ' (Wave' + (a.reference_wave ? ' ' + a.reference_wave : '') + ')' : '') +
+      '</label>').join('');
+  document.getElementById('rh3-payer-modal').style.display = 'flex';
+  rh3UpdatePayerNet();
+  if (window.lucide) lucide.createIcons();
+}
+
+function rh3AvancesCochees() {
+  return Array.from(document.querySelectorAll('.rh3p-av:checked')).map(cb => cb.value);
+}
+
+function rh3UpdatePayerNet() {
+  const p = STATE.paies.find(x => x.paie_id === rh3PayerPaieId); if (!p) return;
+  const ids = rh3AvancesCochees();
+  const tot = rh2Avances().filter(a => ids.includes(a.id)).reduce((s, a) => s + (Number(a.montant) || 0), 0);
+  const net = (Number(p.montant_brut_fcfa) || 0) + (Number(p.primes_fcfa) || 0) - tot;
+  document.getElementById('rh3p-net').textContent =
+    'Retenue : ' + fmt(tot) + ' FCFA — Net à payer : ' + fmt(net) + ' FCFA';
+}
+
+function closeRH3PayerModal() {
+  document.getElementById('rh3-payer-modal').style.display = 'none';
+  rh3PayerPaieId = null;
+}
+
+async function confirmRH3Payer() {
+  if (!rh3PayerPaieId) return;
+  const paieId = rh3PayerPaieId;
+  const ids = rh3AvancesCochees();
+  closeRH3PayerModal();
+  await confirmRH3PayerDirect(paieId, ids);
+}
+
+// Écrit la validation : paie → payée (avances_fcfa posé, net recalculé
+// brut + primes − retenues), puis chaque avance cochée → rembourse=true +
+// trace 0047 (rembourse_le, rembourse_paie_ref). Si 0047 n'est pas encore
+// appliquée (colonne inconnue), on retente SANS la trace et on le SIGNALE —
+// le drapeau rembourse n'est jamais perdu en silence.
+async function confirmRH3PayerDirect(paieId, avanceIds) {
+  const p = STATE.paies.find(x => x.paie_id === paieId); if (!p) return;
+  const avances = rh2Avances().filter(a => avanceIds.includes(a.id));
+  const totAv = avances.reduce((s, a) => s + (Number(a.montant) || 0), 0);
+  const net = (Number(p.montant_brut_fcfa) || 0) + (Number(p.primes_fcfa) || 0) - totAv;
+  const payload = { paie_id: paieId, statut: 'paye', date_paiement: todayStr(),
+    avances_fcfa: totAv, montant_net_fcfa: net };
   const r = await saveRemote({ action: 'updatePaie', payload });
   if (!r.ok) return;
-  Object.assign(p, payload); renderPaies();
-  toast(r.queued ? 'Paie marquée payée (hors ligne — sera synchronisée)' : 'Paie marquée payée');
+  Object.assign(p, payload);
+  const nowIso = new Date().toISOString();
+  for (const a of avances) {
+    let ra = await saveRemote({ action: 'updateAvance', payload: {
+      id: a.id, rembourse: true, rembourse_le: nowIso, rembourse_paie_ref: paieId } }, { silent: true });
+    if (!ra.ok && ra.error && /column|schema cache/i.test(ra.error.message || '')) {
+      ra = await saveRemote({ action: 'updateAvance', payload: { id: a.id, rembourse: true } }, { silent: true });
+      if (ra.ok) toast('⚠️ Migration 0047 non appliquée — avance remboursée SANS trace.', 'error');
+    }
+    if (ra.ok) { a.rembourse = true; a.rembourse_le = nowIso; a.rembourse_paie_ref = paieId; }
+    else toast('Avance non marquée remboursée : ' + ((ra.error && ra.error.message) || 'erreur serveur'), 'error');
+  }
+  renderRH3PaieTab();
+  toast(r.queued ? 'Paie validée (hors ligne — sera synchronisée)'
+    : 'Paie validée' + (totAv > 0 ? ' — ' + fmt(totAv) + ' FCFA d\'avances retenues' : ''));
 }
 
 async function exportBulletinsPDF() {

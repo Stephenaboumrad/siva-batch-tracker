@@ -61,12 +61,24 @@ working rules for every task in this repository.
   `corrige_par uuid` + `corrige_le timestamptz` (manager correction trace;
   frozen for the employe role by the rls46_* insert/update policies that
   superseded the two rls45_* employe policies).
-- HR module (RH-2, 0046): top-level `rh` page (manager-only) with
-  Équipe / Pointages / Absences & Avances tabs. Payroll stays in
-  Trésorerie → RH & Paie (RH-3 later; no pay computation in the RH page).
-  `absences` and `avances` are manager-only (rls46 FOR ALL); the employe
-  role has no access. `avances.mode_paiement 'wave'` carries a manual
-  `reference_wave` (no Wave API).
+- HR module (RH-2/RH-3, 0046/0047): top-level `rh` page (manager-only) with
+  Équipe / Pointages / Absences & Avances / Paie tabs. The `rh` page OWNS
+  payroll management (generation, validation, bulletins); Trésorerie →
+  RH & Paie is the EXPENSE VIEW only (read-only monthly charges + Dépenses
+  RH) and must never regrow management UI. The SINGLE employee fiche editor
+  is RH → Équipe (the legacy Trésorerie fiche was removed in RH-3).
+  Pay period is the calendar month (`paies.mois` YYYY-MM, unique
+  (employe_id, mois) — 0022). Pay bases: journalier = days with a pointage
+  carrying heure_arrivee × `taux_journalier_fcfa` (a missing départ flags
+  but does not void the day); permanent = `salaire_base_fcfa` + CNPS
+  (pointages are presence control only); prestataire = never generated
+  (legacy behaviour). The derivation is written into `paies.note`.
+  Unjustified absences are surfaced, never auto-deducted. Avances deducted
+  on pay validation write `rembourse=true` + trace `rembourse_le` /
+  `rembourse_paie_ref` (0047; front retries without the trace columns and
+  warns if 0047 is not yet applied). `absences`/`avances` are manager-only
+  (rls46 FOR ALL); the employe role has no access. `avances.mode_paiement
+  'wave'` carries a manual `reference_wave` (no Wave API).
 - **`employes` column aliasing (0046 — do NOT add duplicate columns):**
   the canonical columns are the ORIGINAL ones, read by the payroll code:
   `type` (permanent|journalier|prestataire) NOT type_contrat,
