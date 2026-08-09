@@ -338,34 +338,82 @@
    NB : on garde volontairement les couleurs de STATUT sémantiques des cartes
    bandes (mortalité/IC/GMQ/ambiance/progression cycle) — signaux opérationnels.
    ══════════════════════════════════════════════════════════════════════ */
-/* KPIs — panneau unifié « instruments » à filets 0.5px (4 KPI) */
-#page-dashboard #dash-kpis {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: var(--bw-hairline); background: var(--color-border-subtle);
+/* Tuiles — panneau unifié « instruments » à filets 0.5px. Le gabarit était
+   attaché à l'id #dash-kpis ; il est porté par la classe .dash-tiles depuis
+   le Dashboard v2, qui en aligne TROIS rangées (cycle, ressources, argent)
+   sur exactement la même tuile. Le nombre de colonnes n'est plus figé à 4 :
+   auto-fit, et la rangée dense (8 tuiles de cycle) resserre son minimum. */
+/* Les filets viennent des BORDURES des tuiles, pas du fond du conteneur :
+   avec un fond gris et un gap, une dernière rangée incomplète (8 tuiles sur
+   3 colonnes) laissait une cellule grise fantôme. Bordures + overflow hidden :
+   une rangée partielle reste blanche, quel que soit le nombre de tuiles. */
+#page-dashboard .dash-tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0; background: var(--color-surface);
   border: var(--border-hairline); border-radius: var(--radius-lg);
   overflow: hidden; box-shadow: var(--shadow-sm); margin-bottom: 1.25rem;
 }
-#page-dashboard #dash-kpis .dash-kpi {
+#page-dashboard .dash-tiles.tiles-sm { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+#page-dashboard .dash-tiles .dash-kpi {
   background: var(--color-surface); border: none; border-radius: 0;
+  border-right: var(--border-hairline); border-bottom: var(--border-hairline);
   box-shadow: none; margin: 0; padding: var(--space-4) var(--space-5);
 }
-#page-dashboard #dash-kpis .dash-kpi::before { display: none; }
-#page-dashboard #dash-kpis .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
-#page-dashboard #dash-kpis .dk-value { font-size: 23px; color: var(--color-text); }
-#page-dashboard #dash-kpis .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
-#page-dashboard #dash-kpis .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
-/* #146 (même famille que Trésorerie) : le compteur « Alertes actives » porte
-   dk-danger mais restait en encre par défaut — même écrasure de spécificité. */
-#page-dashboard #dash-kpis .dash-kpi.dk-danger .dk-value { color: var(--color-danger); }
-@media (max-width: 900px) { #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); } }
-/* Mobile (≤560px) : 4 KPI pairs → 2 colonnes compactes (au lieu de 4 blocs très hauts).
-   Densité resserrée (padding + valeur) pour tenir ~1 écran. Même style (cartes blanches,
-   chiffres mono, accent orange) — seule la disposition change. */
+#page-dashboard .dash-tiles.tiles-sm .dash-kpi { padding: var(--space-3) var(--space-4); }
+#page-dashboard .dash-tiles .dash-kpi::before { display: none; }
+#page-dashboard .dash-tiles .dash-kpi:hover { transform: none; box-shadow: none; background: var(--color-surface-alt); }
+#page-dashboard .dash-tiles .dk-value { font-size: 23px; color: var(--color-text); }
+#page-dashboard .dash-tiles.tiles-sm .dk-value { font-size: 20px; }
+#page-dashboard .dash-tiles .dk-label { font-size: 10.5px; letter-spacing: 0.08em; margin-top: 8px; }
+#page-dashboard .dash-tiles .dk-headline .dk-value { color: var(--color-accent); }  /* orange = UNIQUE métrique vedette */
+/* #146 (même famille que Trésorerie) : un compteur porte dk-danger mais
+   restait en encre par défaut — même écrasure de spécificité. */
+#page-dashboard .dash-tiles .dash-kpi.dk-danger .dk-value { color: var(--color-danger); }
+#page-dashboard .dash-tiles .dash-kpi.dk-warn .dk-value { color: var(--color-warning); }
+#page-dashboard .dash-tiles .dash-kpi.dk-success .dk-value { color: var(--color-success); }
+/* Toute tuile mène quelque part : le curseur doit le dire. */
+#page-dashboard .dash-tiles .dash-kpi[role="button"] { cursor: pointer; }
 @media (max-width: 560px) {
-  #page-dashboard #dash-kpis { grid-template-columns: repeat(2, 1fr); }
-  #page-dashboard #dash-kpis .dash-kpi { padding: var(--space-3) var(--space-3); }
-  #page-dashboard #dash-kpis .dk-value { font-size: 20px; }
+  #page-dashboard .dash-tiles .dash-kpi { padding: var(--space-3) var(--space-3); }
+  #page-dashboard .dash-tiles .dk-value { font-size: 20px; }
+  #page-dashboard .dash-tiles.tiles-sm .dk-value { font-size: 17px; }
 }
+
+/* ── Dashboard v2, rangée 1 : CHIPS compteurs ──────────────────────────────
+   Le Dashboard n'affiche plus AUCUNE ligne de texte par défaut : les alertes,
+   validations et échéances se résument à quatre compteurs. Le détail (les
+   anciennes lignes, inchangées) se déplie sous le chip qu'on tape. Un chip à
+   zéro reste neutre et non cliquable — pas de fausse invite. */
+#page-dashboard .dash-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: 1.25rem; }
+#page-dashboard .dash-chip {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 7px 14px; border-radius: var(--radius-full);
+  border: var(--border-hairline); background: var(--color-surface);
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  color: var(--color-text-secondary); transition: all .15s var(--ease);
+}
+#page-dashboard .dash-chip .dc-n {
+  font-family: var(--mono); font-size: 17px; font-weight: 700;
+  line-height: 1; font-variant-numeric: tabular-nums; color: var(--color-text);
+}
+#page-dashboard .dash-chip[role="button"] { cursor: pointer; }
+#page-dashboard .dash-chip[role="button"]:hover { background: var(--color-surface-alt); }
+#page-dashboard .dash-chip.is-open { border-color: var(--anthracite); background: var(--color-surface-alt); }
+#page-dashboard .dash-chip.dc-danger { border-color: var(--status-danger-bd); background: var(--status-danger-bg); color: var(--status-danger-fg); }
+#page-dashboard .dash-chip.dc-danger .dc-n { color: var(--status-danger-fg); }
+#page-dashboard .dash-chip.dc-warn { border-color: var(--status-warning-bd); background: var(--status-warning-bg); color: var(--status-warning-fg); }
+#page-dashboard .dash-chip.dc-warn .dc-n { color: var(--status-warning-fg); }
+/* Zéro : le chip reste à sa place (le compteur informe) mais s'efface. */
+#page-dashboard .dash-chip.is-zero { color: var(--color-text-muted); }
+#page-dashboard .dash-chip.is-zero .dc-n { color: var(--color-text-muted); }
+
+/* ── Dashboard v2, rangée 2 : en-tête de bande au-dessus de ses tuiles ──── */
+#page-dashboard .dash-cycle-head {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: var(--space-2); font-size: 13px; color: var(--color-text-secondary);
+}
+#page-dashboard .dash-cycle-head .dch-nom { font-weight: 700; color: var(--color-text); font-size: 14px; }
+#page-dashboard .dash-cycle-head .dch-j { font-family: var(--mono); font-weight: 600; color: var(--color-text); }
 
 /* Cartes allégées : filet fin, pas d'ombre, plus de barre orange au survol */
 #page-dashboard .card { border: var(--border-hairline); box-shadow: none; border-radius: var(--radius-lg); }
@@ -2972,32 +3020,30 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
         <button class="btn btn-outline btn-sm" onclick="exportDashboardExcel()"><i data-lucide="sheet"></i> Snapshot Excel</button>
       </div>
     </div>
-    <!-- Zone 1 : À TRAITER (cockpit F, variante A) — validations en attente
-         (manager) puis bandeau alertes + échéances fusionné. -->
-    <div id="dash-validations"></div>
-    <div id="dash-alerts"></div>
-    <!-- Zone 1b : CYCLE EN COURS — une ligne par bande active (absorbe
-         l'ancienne sidebar « Bande active » qui n'en montrait qu'une). -->
+    <!-- ── Dashboard v2 « synthétique » ─────────────────────────────────────
+         Toute information est un CHIFFRE dans une tuile ; le texte ne
+         s'affiche qu'au clic. Quatre rangées : R1 chips compteurs (détail
+         dépliable), R2 cycle (en-tête + 8 tuiles par bande active), R3
+         ressources, R4 argent (manager). Chaque tuile mène à sa page.
+         Le chef voit R1/R2/R3, jamais R4.
+         Ce qui a disparu : cartes bande détaillées (le détail vit sur la
+         Fiche), graphiques de mortalité, barre des 4 KPI agrégés (fusionnée
+         dans R2), listes de texte permanentes (commandes de la semaine et
+         stocks à surveiller — leur contenu est dans les chips et R3). -->
+    <div id="dash-chips" class="dash-chips"></div>
+    <div id="dash-chip-detail"></div>
     <div id="dash-cycle"></div>
-    <!-- Zone 1c : ARGENT (manager-only) — POS async à l'entrée (arbitrage :
-         un strip B2B-seul mentirait tout le cycle 1). -->
-    <div id="dash-argent" class="manager-only"></div>
-    <!-- Zone 2: KPIs agrégés -->
-    <div id="dash-kpis" class="dash-kpi-bar"></div>
-    <!-- Zone 3: Bandes actives -->
-    <div id="dash-grid" class="dash-grid">
-      <div class="empty-state" id="dash-empty">
-        <div class="icon"><i data-lucide="inbox"></i></div>
-        <p>Aucune bande active.<br>Créez une bande pour commencer le suivi.</p>
-        <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouvelle bande</button>
-      </div>
+    <!-- Prend la place de la rangée Cycle quand il n'y a pas de bande, et
+         reste HORS du flux de rendu des rangées : plus personne ne peut le
+         détruire (l'ancien vivait DANS la grille de cartes, qui l'écrasait à
+         chaque rendu — cause du crash de re-rendu corrigé en #166). -->
+    <div class="empty-state" id="dash-empty" style="display:none;">
+      <div class="icon"><i data-lucide="inbox"></i></div>
+      <p>Aucune bande active.<br>Créez une bande pour commencer le suivi.</p>
+      <button class="btn btn-primary manager-only" style="margin-top:1rem;" onclick="navigate('bandes',null)">Nouvelle bande</button>
     </div>
-    <!-- Zone 3b: Mortality chart -->
-    <div id="dash-mortality" style="margin-bottom:var(--space-4);"></div>
-    <!-- Zone 4: Commandes à livrer cette semaine -->
-    <div id="dash-commandes"></div>
-    <!-- Zone 5: Stocks à surveiller -->
-    <div id="dash-stocks-watch"></div>
+    <div id="dash-ressources"></div>
+    <div id="dash-argent" class="manager-only"></div>
   </div>
 
   <!-- ═══════════════ PAGE: BANDES ═══════════════ -->
@@ -5002,6 +5048,10 @@ const NUISIBLES_INTERVALLE_JOURS = 30;
 const ALIMENT_ALERTE_JOURS = 5;
 // Moving-average window (calendar days) for the daily feed consumption.
 const ALIMENT_CONSO_FENETRE_JOURS = 7;
+// Pharmacy tile (Dashboard v2) : a medicine lot counts as "expiring soon" when
+// its expiry date falls within this many days. Same 30-day horizon already used
+// by the stock report. DISPLAY only, same move-to-`parametres` (0028) intent.
+const PHARMA_PEREMPTION_JOURS = 30;
 
 // ── Config (Supabase) ──
 // NB : on évite d'écrire `const supabase = ...` au top-level. Le bundle UMD
@@ -8978,7 +9028,8 @@ function computeIndicators(bande) {
 // ── Alerts system ──
 // Convertit une alerte "riche" {bande,metric,value,threshold} des générateurs dédiés
 // (getStockAlerts/getCommandeAlerts/getInspectionAlerts) vers le format {level,icon,text}
-// attendu par renderAlerts, pour que le rendu reste cohérent avec les alertes existantes.
+// attendu par les chips du Dashboard (renderDashChipDetail), pour que le rendu
+// reste cohérent avec les alertes existantes.
 function richAlertToText(a) {
   let t = a.metric || a.text || '';
   if (a.value) t += ' — ' + a.value;
@@ -9141,104 +9192,128 @@ function checkAlerts() {
   return alerts;
 }
 
-// Fraîcheur : cellule KPI « Alertes actives » — une seule fabrique pour les
-// deux branches de renderDashboard ET le rafraîchissement live (ids stables).
-function dashKpiAlertesHtml(alerts, cls) {
-  return '<div class="dash-kpi card-stagger ' + cls + '" id="dash-kpi-alertes"><div class="dk-value" id="dash-kpi-alertes-val">' + alerts.length + '</div><div class="dk-label">Alertes actives</div><div class="dk-sub" id="dash-kpi-alertes-sub">' + alerts.map(a => a.icon).join(' ') + '</div></div>';
+// ══════════════════════════════════════════════════════════════════════════
+// Dashboard v2, RANGÉE 1 — chips compteurs + détail à la demande
+// ══════════════════════════════════════════════════════════════════════════
+// Le Dashboard n'affiche plus de texte par défaut : critiques, avertissements,
+// validations et échéances sont QUATRE compteurs. Taper un chip déplie en
+// dessous les lignes détaillées — exactement les rangées de l'ancien bandeau,
+// navigation A5 comprise. Un seul chip ouvert à la fois.
+let dashChipOpen = null;
+// Dernières données calculées, pour que les rendus « partiels » (badge cloche)
+// ne recalculent pas checkAlerts — qui rappelle refreshDashAlertsLive et
+// boucherait la boucle.
+let _dashChipData = { alerts: [], deadlines: [] };
+
+function toggleDashChip(kind) {
+  dashChipOpen = (dashChipOpen === kind) ? null : kind;
+  renderDashChips();
+  renderDashChipDetail();
 }
 
-// Fraîcheur : le panneau d'alertes, le compteur KPI et le bloc Stocks du
-// Dashboard étaient un instantané (seul le badge nav vivait). Appelé par
-// checkAlerts() — même source, même fraîcheur, dans les deux sens. Quand
-// renderDashboard appelle lui-même checkAlerts, le double rendu est bénin
-// (mêmes données, mêmes conteneurs) ; aucune récursion (rien ici ne rappelle
-// renderDashboard ni checkAlerts).
+function renderDashChips(alerts, deadlines) {
+  if (alerts) _dashChipData = { alerts: alerts, deadlines: deadlines || [] };
+  const box = document.getElementById('dash-chips');
+  if (!box) return;
+  const crit = _dashChipData.alerts.filter(a => a.level === 'critical');
+  const warn = _dashChipData.alerts.filter(a => a.level !== 'critical');
+  const dls = _dashChipData.deadlines;
+  const nValid = (STATE.notifications || []).filter(x => x.statut === 'en_attente').length;
+
+  // n = 0 → chip neutre, sans rôle ni curseur : rien à ouvrir, aucune fausse
+  // invite au clic.
+  const chip = (n, label, cls, onclick, sub) => {
+    const zero = n === 0;
+    const open = !zero && dashChipOpen === onclick;
+    const attrs = zero ? '' :
+      ' role="button" tabindex="0" onclick="' + (onclick === 'validations'
+        ? 'toggleNotifPanel()' : "toggleDashChip('" + onclick + "')") + '"';
+    return '<div class="dash-chip ' + (zero ? 'is-zero' : cls) + (open ? ' is-open' : '') + '"' + attrs + '>'
+      + '<span class="dc-n">' + n + '</span> ' + escHtml(label)
+      + (sub && !zero ? ' <span style="opacity:.7;">· ' + escHtml(sub) + '</span>' : '')
+      + (zero ? '' : ' <span style="opacity:.45;">' + (onclick === 'validations' ? '›' : (open ? '▴' : '▾')) + '</span>')
+      + '</div>';
+  };
+
+  // Échéance la plus proche — computeDeadlines trie déjà par daysLeft.
+  const proche = dls.length
+    ? (dls[0].daysLeft < 0 ? 'en retard' : dls[0].daysLeft === 0 ? "aujourd'hui" : 'J-' + dls[0].daysLeft)
+    : '';
+
+  let html = chip(crit.length, crit.length > 1 ? 'critiques' : 'critique', 'dc-danger', 'critiques')
+    + chip(warn.length, warn.length > 1 ? 'avertissements' : 'avertissement', 'dc-warn', 'avertissements');
+  // Les validations sont la file du manager ; le chef n'en a aucune à trancher.
+  if (isManager()) html += chip(nValid, nValid > 1 ? 'validations' : 'validation', 'dc-warn', 'validations');
+  html += chip(dls.length, dls.length > 1 ? 'échéances' : 'échéance', '', 'echeances', proche);
+
+  box.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+// Le détail = les rangées de l'ancien bandeau, à l'identique (icône, texte,
+// navigation A5). Rendu UNIQUEMENT quand un chip est ouvert.
+function renderDashChipDetail() {
+  const box = document.getElementById('dash-chip-detail');
+  if (!box) return;
+  if (!dashChipOpen) { box.innerHTML = ''; return; }
+
+  const navAttrs = (nav) => Array.isArray(nav)
+    ? ' role="button" tabindex="0" style="cursor:pointer;" onclick="alertNavigate(' +
+      nav.map(x => x == null ? 'null' : "'" + String(x).replace(/'/g, "\\'") + "'").join(',') + ')"'
+    : '';
+
+  let rows = '';
+  if (dashChipOpen === 'echeances') {
+    _dashChipData.deadlines.forEach(dl => {
+      const late = dl.daysLeft <= 0;
+      const compte = dl.daysLeft < 0 ? 'EN RETARD' : (dl.daysLeft === 0 ? 'AUJOURD\'HUI' : 'J-' + dl.daysLeft);
+      const attrs = navAttrs(dl.nav);
+      rows += '<div class="alert-item ' + (late ? 'warning' : 'info') + '"' + attrs + '>'
+        + '<span class="alert-icon"><i data-lucide="calendar"></i></span>'
+        + '<strong>' + compte + '</strong> · ' + escHtml(dl.label) + ' — ' + escHtml(dl.sub)
+        + ' · ' + dl.date.toLocaleDateString('fr-FR')
+        + (attrs ? ' <span style="opacity:.45;">›</span>' : '')
+        + '</div>';
+    });
+  } else {
+    const veutCrit = dashChipOpen === 'critiques';
+    _dashChipData.alerts
+      .filter(a => (a.level === 'critical') === veutCrit)
+      .forEach(a => {
+        const attrs = navAttrs(a.nav);
+        rows += '<div class="alert-item ' + (veutCrit ? 'critical' : 'warning') + '"' + attrs + '>'
+          + '<span class="alert-icon">' + a.icon + '</span>'
+          + a.text + (attrs ? ' <span style="opacity:.45;">›</span>' : '')
+          + '</div>';
+      });
+  }
+
+  box.innerHTML = rows ? '<div class="alerts-section" style="margin-bottom:1.25rem;">' + rows + '</div>' : '';
+  if (window.lucide) lucide.createIcons();
+}
+
+// Fraîcheur : les chips, le bloc Cycle et les Ressources du Dashboard étaient
+// un instantané (seul le badge nav vivait). Appelé par checkAlerts() — même
+// source, même fraîcheur, dans les deux sens. Aucune récursion : rien ici ne
+// rappelle renderDashboard ni checkAlerts.
 function refreshDashAlertsLive(alerts) {
   const page = document.getElementById('page-dashboard');
   if (!page || !page.classList.contains('active')) return;
   const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
   if (activeBandes.length === 0) {
-    // Miroir de la branche vide de renderDashboard : bandeau sans échéances,
-    // KPI unique si alertes, bloc Stocks laissé vide.
-    renderAlerts(alerts);
-    renderDashValidations();
-    const kpis = document.getElementById('dash-kpis');
-    if (kpis) kpis.innerHTML = alerts.length > 0 ? dashKpiAlertesHtml(alerts, 'dk-danger') : '';
+    renderDashChips(alerts, []);
   } else {
-    // Échéances : même recette que renderDashboard — le bandeau fusionne
-    // alertes + échéances, les rendre sans échéances les ferait disparaître.
     const batchData = activeBandes.map(b => ({ bande: b, ind: computeIndicators(b), jour: 0, forecast: null }));
     batchData.forEach(bd => {
       bd.jour = bd.ind.jourActuel || bd.ind.dernierJour || (daysBetween(bd.bande.date_entree, todayStr()) + 1);
       bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
     });
-    renderAlerts(alerts, computeDeadlines(batchData));
-    // Cockpit F : le rafraîchissement live couvre aussi la tête validations
-    // et le bloc Cycle (saisie du jour, jalons) — mêmes données, même source.
-    renderDashValidations();
+    renderDashChips(alerts, computeDeadlines(batchData));
     renderDashCycle(batchData);
-    const card = document.getElementById('dash-kpi-alertes');
-    if (card) {
-      card.classList.toggle('dk-danger', alerts.length > 0);
-      card.classList.toggle('dk-success', alerts.length === 0);
-      document.getElementById('dash-kpi-alertes-val').textContent = alerts.length;
-      document.getElementById('dash-kpi-alertes-sub').innerHTML = alerts.map(a => a.icon).join(' ');
-    }
-    renderDashStocksWatch();
+    renderDashRessources();
   }
+  renderDashChipDetail();
   if (window.lucide) lucide.createIcons();
-}
-
-// C5 (audit AI) : LE bandeau unique — alertes TRIÉES (critiques, puis
-// avertissements, ordre d'origine préservé dans chaque classe) suivies des
-// ÉCHÉANCES datées (ex-zone « Échéances à venir », fusionnée ici — le
-// panneau « attention », sous-ensemble redondant, est mort). Les rangées
-// gardent leur navigation A5.
-function renderAlerts(alerts, deadlines) {
-  const container = document.getElementById('dash-alerts');
-  deadlines = deadlines || [];
-  if (alerts.length === 0 && deadlines.length === 0) {
-    container.innerHTML = '<p style="color:#27AE60;font-size:0.85rem;margin-bottom:0.75rem;"><i data-lucide="circle-check"></i> Tout est normal</p>';
-    return;
-  }
-
-  const tri = alerts.slice().sort((a, b) =>
-    (a.level === 'critical' ? 0 : 1) - (b.level === 'critical' ? 0 : 1));
-
-  let html = '<div class="alerts-section">';
-  tri.forEach(a => {
-    const cls = a.level === 'critical' ? 'critical' : 'warning';
-    // UX A5 : une alerte taguée nav se TAPE — elle mène là où l'action se
-    // fait (saisie manquante → Saisie ; ambiance → fiche ; vaccin → Carnet).
-    const attrs = Array.isArray(a.nav)
-      ? ' role="button" tabindex="0" style="cursor:pointer;" onclick="alertNavigate(' +
-        a.nav.map(x => x == null ? 'null' : "'" + String(x).replace(/'/g, "\\'") + "'").join(',') + ')"'
-      : '';
-    html += `<div class="alert-item ${cls}"${attrs}>
-      <span class="alert-icon">${a.icon}</span>
-      ${a.text}${attrs ? ' <span style="opacity:.45;">›</span>' : ''}
-    </div>`;
-  });
-  // Échéances (déjà triées par computeDeadlines) : rangées neutres datées —
-  // en retard / aujourd'hui = warning, sinon info.
-  deadlines.forEach(dl => {
-    const late = dl.daysLeft <= 0;
-    const compte = dl.daysLeft < 0 ? 'EN RETARD' : (dl.daysLeft === 0 ? 'AUJOURD\'HUI' : 'J-' + dl.daysLeft);
-    // Cockpit F : les échéances mènent là où l'action se fait (fiche de la
-    // bande, page Commandes) — même idiome A5 que les alertes taguées nav.
-    const attrs = Array.isArray(dl.nav)
-      ? ' role="button" tabindex="0" style="cursor:pointer;" onclick="alertNavigate(' +
-        dl.nav.map(x => x == null ? 'null' : "'" + String(x).replace(/'/g, "\\'") + "'").join(',') + ')"'
-      : '';
-    html += '<div class="alert-item ' + (late ? 'warning' : 'info') + '"' + attrs + '>'
-      + '<span class="alert-icon"><i data-lucide="calendar"></i></span>'
-      + '<strong>' + compte + '</strong> · ' + escHtml(dl.label) + ' — ' + escHtml(dl.sub)
-      + ' · ' + dl.date.toLocaleDateString('fr-FR')
-      + (attrs ? ' <span style="opacity:.45;">›</span>' : '')
-      + '</div>';
-  });
-  html += '</div>';
-  container.innerHTML = html;
 }
 
 // UX A5 : cible de navigation d'une alerte. fiche → openFiche (sélectionne la
@@ -9798,9 +9873,11 @@ function updateBellBadge() {
     mtbBadge.textContent = count;
     mtbBadge.style.display = count > 0 ? 'flex' : 'none';
   }
-  // Cockpit F : la tête « validations en attente » du Dashboard suit le même
-  // compte que la cloche (validation/rejet/poll → tout passe par ici).
-  try { renderDashValidations(); } catch (e) { /* rendu au mieux */ }
+  // Le chip « validations » du Dashboard suit le même compte que la cloche
+  // (validation/rejet/poll → tout passe par ici). Appel sans argument : il
+  // relit STATE.notifications et réutilise les alertes déjà calculées, sans
+  // repasser par checkAlerts (qui rappellerait ce rendu en boucle).
+  try { renderDashChips(); } catch (e) { /* rendu au mieux */ }
 }
 
 // ── État de lecture (lot cockpit D) ─────────────────────────────────────────
@@ -9980,47 +10057,24 @@ function computeDeadlines(batchData) {
 
 // ── Dashboard ──
 function renderDashboard() {
-  const grid = document.getElementById('dash-grid');
-  const emptyDiv = document.getElementById('dash-empty');
   const activeBandes = STATE.bandes.filter(b => b.statut === 'en_cours' && !b.archivee);
-
-  // Zone 1: Alerts
+  const emptyDiv = document.getElementById('dash-empty');
   const alerts = checkAlerts();
 
-  // Clean up previous hero card & attention panel
-  document.querySelectorAll('.hero-batch-card, .attention-panel').forEach(el => el.remove());
-
   if (activeBandes.length === 0) {
-    grid.innerHTML = '';
-    if (emptyDiv) { grid.appendChild(emptyDiv); emptyDiv.style.display = ''; }
-    // Les alertes hors-bande (stock bas, livraisons, réceptions non inspectées)
-    // existent aussi entre deux cycles : l'en-tête doit refléter la même liste
-    // que le badge de navigation (posé par checkAlerts ci-dessus).
-    renderAlerts(alerts);
-    // Cockpit F : entre deux cycles, les validations et l'ARGENT continuent
-    // d'exister — seuls le bloc Cycle et les zones par-bande se vident.
-    renderDashValidations();
+    if (emptyDiv) emptyDiv.style.display = '';
+    renderDashChips(alerts, []);
+    renderDashChipDetail();
     document.getElementById('dash-cycle').innerHTML = '';
+    // Entre deux cycles, les ressources et l'argent existent toujours : seul
+    // le bloc Cycle se vide.
+    renderDashRessources();
     renderDashArgent();
-    document.getElementById('dash-kpis').innerHTML = alerts.length > 0
-      ? dashKpiAlertesHtml(alerts, 'dk-danger')
-      : '';
-    document.getElementById('dash-commandes').innerHTML = '';
-    document.getElementById('dash-stocks-watch').innerHTML = '';
-    document.getElementById('dash-mortality').innerHTML = '';
+    if (window.lucide) lucide.createIcons();
     return;
   }
-
-  // Bug latent (découvert au smoke PR2, PRÉ-EXISTANT) : le rendu des cartes
-  // (grid.innerHTML plus bas) DÉTRUISAIT #dash-empty → tout renderDashboard
-  // suivant crashait ici sur null — le dashboard cessait silencieusement de
-  // se re-rendre (sync, validation de notif, pull-to-refresh) jusqu'au
-  // rechargement. Garde + ré-adoption du nœud après le rendu des cartes.
   if (emptyDiv) emptyDiv.style.display = 'none';
-  // C5 : le bandeau se rend plus bas, une fois batchData construit (il
-  // fusionne alertes + échéances datées).
 
-  // Pre-compute indicators for all active batches
   const batchData = activeBandes.map(b => ({
     bande: b,
     ind: computeIndicators(b),
@@ -10032,268 +10086,190 @@ function renderDashboard() {
     bd.forecast = computeSlaughterForecast(bd.bande, bd.ind);
   });
 
-  // ── Carte « hero » retirée (dédup — issue 1) : la bande primaire est désormais
-  //    affichée UNE seule fois, via la grille de cartes détaillées ci-dessous. ──
-
-  // ── Zone 2: KPIs agrégés ──
-  const totalOiseaux = batchData.reduce((s, bd) => s + bd.ind.effectifActuel, 0);
-  const nearestForecast = batchData
-    .filter(bd => bd.forecast && bd.forecast.status === 'projected')
-    .sort((a, b) => a.forecast.daysLeft - b.forecast.daysLeft)[0];
-
-  let forecastHtml = '—';
-  let forecastSub = '';
-  let forecastCls = '';
-  if (nearestForecast) {
-    const dl = nearestForecast.forecast.daysLeft;
-    forecastHtml = dl <= 0 ? "aujourd'hui" : 'dans ' + dl + ' jour' + (dl > 1 ? 's' : '');
-    forecastSub = nearestForecast.bande.nom_bande;
-    forecastCls = dl < 7 ? '' : ' dk-success';
-  }
-
-  // Average IP across active batches
-  const avgIP = batchData.filter(bd => bd.ind.ip > 0).length > 0
-    ? Math.round(batchData.filter(bd => bd.ind.ip > 0).reduce((s, bd) => s + bd.ind.ip, 0) / batchData.filter(bd => bd.ind.ip > 0).length)
-    : 0;
-  const ipCls = avgIP >= 300 ? ' dk-success' : avgIP >= 250 ? '' : ' dk-danger';
-
-  document.getElementById('dash-kpis').innerHTML =
-    '<div class="dash-kpi card-stagger dk-headline"><div class="dk-value">' + fmt(totalOiseaux) + '</div><div class="dk-label">Oiseaux en production</div><div class="dk-sub">' + activeBandes.length + ' bande(s) active(s)</div></div>' +
-    '<div class="dash-kpi card-stagger' + ipCls + '"><div class="dk-value">' + (avgIP > 0 ? avgIP : '—') + '</div><div class="dk-label">Indice de Performance</div><div class="dk-sub">IP moyen (&gt;300 = excellent)</div></div>' +
-    '<div class="dash-kpi card-stagger' + forecastCls + '"><div class="dk-value">' + forecastHtml + '</div><div class="dk-label">Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G/1000) + ' kg carc.)</div>' + (forecastSub ? '<div class="dk-sub">' + forecastSub + '</div>' : '') + '</div>' +
-    dashKpiAlertesHtml(alerts, alerts.length > 0 ? 'dk-danger' : 'dk-success');
-
-  // ── C5 : bandeau unique = alertes triées + échéances datées ──
-  renderAlerts(alerts, computeDeadlines(batchData));
-  // Cockpit F : tête de bloc À TRAITER + Cycle en cours + strip Argent.
-  renderDashValidations();
+  renderDashChips(alerts, computeDeadlines(batchData));
+  renderDashChipDetail();
   renderDashCycle(batchData);
+  renderDashRessources();
   renderDashArgent();
-
-  // (C5 : panneau « Ce qui demande de l'attention » supprimé — c'était un
-  // sous-ensemble du bandeau, désormais trié critiques-d'abord.)
-
-  // ── Zone 3: Enriched batch cards ──
-  function getCobbGmq(day) {
-    if (day <= 10) return 50;
-    if (day <= 21) return 70;
-    return 80;
-  }
-
-  let cardsHtml = '';
-  batchData.forEach(bd => {
-    const { bande: b, ind, jour, forecast } = bd;
-    const mortClass = ind.tauxMort < 3 ? 'green' : ind.tauxMort <= 5 ? 'orange' : 'red';
-
-    // Phase pill with dynamic colors
-    const phase = getCurrentPhase(jour);
-    const phasePill = `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:var(--status-neutral-bg);color:var(--status-neutral-fg);border:1px solid var(--status-neutral-bd);">${phase.label}</span>`;
-
-    // Progress bar — cycle J42
-    const pctJour = Math.min(100, Math.round((jour / CYCLE_DURATION_DAYS) * 100));
-    const barColor = pctJour < 60 ? '#F97316' : pctJour < 85 ? '#F59E0B' : '#E74C3C';
-
-    // Carcass target progress (basé sur la dernière pesée réelle, 0 si jamais pesé)
-    const carcEst = Math.round(ind.carcasseEstimee);
-    const pctCarcasse = Math.min(100, Math.round(carcEst / TARGET_CARCASS_WEIGHT_G * 100));
-    const carcColor = pctCarcasse < 50 ? '#3B82F6' : pctCarcasse < 90 ? '#F97316' : '#EA580C';
-
-    // GMQ vs Cobb norm
-    const expectedGmq = getCobbGmq(jour);
-    const gmqRatio = (ind.gmq != null && expectedGmq > 0) ? ind.gmq / expectedGmq : null;
-    let gmqHtml;
-    if (gmqRatio == null) gmqHtml = '<div class="gmq-norm"><i data-lucide="scale"></i> Pas encore de pesée</div>';
-    else if (gmqRatio >= 0.95) gmqHtml = '<div class="gmq-norm good"><i data-lucide="check"></i> GMQ dans la norme Cobb</div>';
-    else if (gmqRatio >= 0.80) gmqHtml = '<div class="gmq-norm medium">~ GMQ légèrement faible</div>';
-    else gmqHtml = '<div class="gmq-norm bad">&#8595; GMQ sous la norme</div>';
-
-    // Ambiance mini-panel
-    let ambianceHtml = '';
-    if (ind.lastTemp != null || ind.lastHumidite != null) {
-      const norm = getAmbianceNorm(jour);
-      const tempOk = ind.lastTemp != null && ind.lastTemp >= norm.tempMin && ind.lastTemp <= norm.tempMax;
-      const humOk = ind.lastHumidite != null && ind.lastHumidite >= norm.humMin && ind.lastHumidite <= norm.humMax;
-      ambianceHtml = `<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;">`;
-      if (ind.lastTemp != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${tempOk ? 'var(--color-accent-soft)' : '#FEF2F2'};color:${tempOk ? 'var(--accent)' : '#DC2626'};font-weight:600;"><i data-lucide="thermometer"></i> ${fmt(ind.lastTemp,1)}°C</span>`;
-      }
-      if (ind.lastHumidite != null) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:${humOk ? 'var(--color-accent-soft)' : '#FEF2F2'};color:${humOk ? 'var(--accent)' : '#DC2626'};font-weight:600;"><i data-lucide="droplet"></i> ${fmt(ind.lastHumidite,0)}%</span>`;
-      }
-      if (ind.eauTotal > 0) {
-        ambianceHtml += `<span style="padding:2px 8px;border-radius:4px;background:#EFF6FF;color:#3B82F6;font-weight:600;"><i data-lucide="droplets"></i> ${fmt(ind.eauTotal,0)} L</span>`;
-      }
-      ambianceHtml += `</div>`;
-    }
-
-    // IP badge
-    const ipVal = ind.ip || 0;
-    const ipColor = ipVal >= 300 ? '#22C55E' : ipVal >= 250 ? '#F97316' : '#EF4444';
-    const ipHtml = ipVal > 0 ? `<span style="padding:2px 8px;border-radius:4px;background:${ipColor}12;color:${ipColor};font-weight:700;font-size:11px;">IP ${fmt(ipVal, 0)}</span>` : '';
-
-    cardsHtml += `
-      <div class="card card-stagger">
-        <div class="card-header">
-          <h3 style="font-size:1rem;font-weight:800;text-transform:none;letter-spacing:0;">${b.nom_bande}</h3>
-          <div style="display:flex;gap:6px;align-items:center;">${ipHtml} ${phasePill}</div>
-        </div>
-        <div class="mini-bar-wrap">
-          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pctJour}%;background:${barColor};"></div></div>
-          <span class="mini-bar-label">J${jour} / J${CYCLE_DURATION_DAYS}</span>
-        </div>
-        <div class="mini-bar-wrap" style="margin-top:2px;">
-          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pctCarcasse}%;background:${carcColor};"></div></div>
-          <span class="mini-bar-label">${fmt(carcEst)}g / ${TARGET_CARCASS_WEIGHT_G}g carc.</span>
-        </div>
-        <div class="stat-grid">
-          <div class="stat-item"><div class="label">Effectif</div><div class="value">${fmt(ind.effectifActuel)}</div></div>
-          <div class="stat-item"><div class="label">Viabilité</div><div class="value" style="color:var(--${mortClass === 'green' ? 'accent-green' : mortClass === 'orange' ? 'accent-amber' : 'accent-red'})">${fmt(ind.viabilite,1)}%</div></div>
-          <div class="stat-item"><div class="label">IC</div><div class="value">${ind.ic != null ? fmt(ind.ic, 2) : '—'}</div></div>
-          <div class="stat-item"><div class="label">GMQ</div><div class="value">${ind.gmq != null ? fmt(ind.gmq,1) + ' g/j' : '—'}</div></div>
-          <div class="stat-item"><div class="label">Poids vif</div><div class="value">${ind.hasWeighing ? fmt(ind.poidsMesure) + ' g' : '—'}</div></div>
-          <div class="stat-item"><div class="label">Aliment</div><div class="value">${fmt(ind.alimentTotal,0)} kg</div></div>
-        </div>
-        ${gmqHtml}
-        ${ambianceHtml}
-        <div class="forecast-chip">${forecast.text}</div>
-        <div class="quick-actions">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openSaisieFor('${b.bande_id}')">Saisie terrain &#8599;</button>
-          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openFiche('${b.bande_id}')">Voir les courbes &#8599;</button>
-        </div>
-      </div>`;
-  });
-  grid.innerHTML = cardsHtml;
-  // Ré-adoption de #dash-empty (caché) : il doit SURVIVRE au rendu des
-  // cartes pour que la branche « aucune bande » le retrouve au cycle suivant.
-  if (emptyDiv) { emptyDiv.style.display = 'none'; grid.appendChild(emptyDiv); }
-
-  // ── Zone 3b: Mortality chart ──
-  renderDashMortalityCharts(batchData);
-
-  // ── Zone 4: Commandes à livrer cette semaine ──
-  const today = new Date();
-  const weekEnd = new Date(today);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekEndS = weekEnd.toISOString().slice(0, 10);
-  const todayS = todayStr();
-  const upcomingCmds = STATE.commandes.filter(c => {
-    const d = dateOnly(c.date_livraison_souhaitee);
-    return (c.statut === 'confirmee' || c.statut === 'en_preparation') && d >= todayS && d <= weekEndS;
-  }).sort((a, b) => (a.date_livraison_souhaitee || '').localeCompare(b.date_livraison_souhaitee || ''));
-
-  let cmdHtml = '<div class="dash-section-title">Commandes à livrer cette semaine</div>';
-  if (upcomingCmds.length === 0) {
-    cmdHtml += '<p style="font-size:0.85rem;color:#9e9e9e;margin-bottom:1rem;">Aucune livraison prévue cette semaine</p>';
-  } else {
-    cmdHtml += '<div class="card" style="padding:0.75rem 1.25rem;">';
-    upcomingCmds.forEach(c => {
-      const cl = STATE.clients.find(x => x.client_id === c.client_id);
-      const lignes = STATE.lignesCommande.filter(l => l.commande_id === c.commande_id);
-      const prodDesc = lignes.map(l => fmt(Number(l.quantite_kg), 0) + 'kg ' + ligneProduitNom(l)).join(', ') || '—';
-      const daysUntil = Math.ceil((new Date(c.date_livraison_souhaitee) - today) / 86400000);
-      let dateCls = '';
-      if (daysUntil <= 1) dateCls = ' urgent';
-      else if (daysUntil <= 3) dateCls = ' soon';
-      const statBadge = c.statut === 'en_preparation'
-        ? '<span class="status-badge status-en_preparation">En préparation</span>'
-        : '<span class="status-badge status-confirmee">Confirmée</span>';
-      cmdHtml += '<div class="dash-cmd-row">' +
-        '<span class="dash-cmd-client">' + (cl ? cl.nom : '?') + '</span>' +
-        '<span class="dash-cmd-detail">' + prodDesc + '</span>' +
-        '<span class="dash-cmd-date' + dateCls + '">' + fmtDate(c.date_livraison_souhaitee) + '</span>' +
-        statBadge +
-        '</div>';
-    });
-    cmdHtml += '</div>';
-  }
-  document.getElementById('dash-commandes').innerHTML = cmdHtml;
-
-  // ── Zone 5: Stocks à surveiller ── (extrait en renderDashStocksWatch —
-  // aussi rappelé par refreshDashAlertsLive : le bandeau autonomie aliment +
-  // seuils suit les mutations de stock sans attendre un rechargement.)
-  renderDashStocksWatch();
+  if (window.lucide) lucide.createIcons();
 }
 
-// ── Cockpit F (variante A) : bloc À TRAITER, tête « validations » ──────────
-// La vraie file d'action du manager (la cloche) apparaît ENFIN sur le
-// Dashboard — un clic ouvre le panneau. Manager uniquement ; le chef a ses
-// items dans le bandeau d'alertes (saisie du jour, vaccins, registres).
-function renderDashValidations() {
-  const box = document.getElementById('dash-validations');
-  if (!box) return;
-  if (!isManager()) { box.innerHTML = ''; return; }
-  const n = (STATE.notifications || []).filter(x => x.statut === 'en_attente').length;
-  box.innerHTML = n > 0
-    ? '<div class="alert-item warning" role="button" tabindex="0" style="cursor:pointer;" onclick="toggleNotifPanel()">'
-      + '<span class="alert-icon"><i data-lucide="bell"></i></span>'
-      + '<strong>' + n + ' validation' + (n > 1 ? 's' : '') + ' en attente</strong>&nbsp;— intrants, réceptions, abattages déclarés par le chef '
-      + '<span style="opacity:.45;">›</span></div>'
-    : '';
-  if (n > 0 && window.lucide) lucide.createIcons();
+// Fabrique de tuile — UNE seule pour les trois rangées, pour qu'une tuile de
+// cycle, de ressource et d'argent soient rigoureusement le même objet.
+// cls : '' | 'dk-headline' | 'dk-success' | 'dk-warn' | 'dk-danger'.
+function dashTile(valeur, label, sub, cls, onclick, titre) {
+  const attrs = onclick
+    ? ' role="button" tabindex="0" onclick="' + onclick + '"' + (titre ? ' title="' + escHtml(titre) + '"' : '')
+    : (titre ? ' title="' + escHtml(titre) + '"' : '');
+  return '<div class="dash-kpi ' + (cls || '') + '"' + attrs + '>'
+    + '<div class="dk-value">' + valeur + '</div>'
+    + '<div class="dk-label">' + escHtml(label) + '</div>'
+    + (sub ? '<div class="dk-sub">' + sub + '</div>' : '')
+    + '</div>';
 }
 
-// ── Cockpit F : bloc CYCLE EN COURS — une ligne PAR bande active ───────────
-// Absorbe l'ancienne sidebar « Bande active » (qui n'en montrait qu'une) et
-// répond à « où en est le cycle ? » : J/42, phase, effectif, saisie du jour
-// faite/pas faite, prochain jalon vaccinal, et LE correctif de cohérence :
-// la date d'abattage AUTORISÉE (earliestSlaughterDate, délai d'attente 0015/
-// 0018) confrontée au forecast — une sortie estimée AVANT la date légale
-// n'était signalée nulle part.
+// ══════════════════════════════════════════════════════════════════════════
+// Dashboard v2, RANGÉE 2 — CYCLE : une ligne d'en-tête + 8 tuiles PAR bande
+// ══════════════════════════════════════════════════════════════════════════
+// Absorbe les cartes bande détaillées ET la barre des 4 KPI agrégés : les
+// mêmes chiffres, une fois, sans graphique ni paragraphe. Le détail (courbes,
+// décomposition, ambiance) vit sur la Fiche — chaque tuile y mène.
 function renderDashCycle(batchData) {
   const box = document.getElementById('dash-cycle');
   if (!box) return;
   if (!batchData || batchData.length === 0) { box.innerHTML = ''; return; }
   const today = parseDayLocal(todayStr());
-  const rows = batchData.map(bd => {
+
+  const blocs = batchData.map(bd => {
     const b = bd.bande, ind = bd.ind;
     const phase = getCurrentPhase(bd.jour);
-    const saisieFaite = hasSaisieOn(b.bande_id, todayStr());
-    const saisieHtml = saisieFaite
-      ? '<span style="color:var(--color-success);font-weight:600;white-space:nowrap;"><i data-lucide="check" style="width:13px;height:13px;"></i> saisie du jour faite</span>'
-      : '<button class="btn btn-sm btn-outline" style="white-space:nowrap;" onclick="openSaisieFor(\'' + escHtml(b.bande_id) + '\')">Saisir aujourd\'hui</button>';
-    // Prochain jalon vaccinal — même sélection que la vue d'ensemble véto
-    // (orphelines exclues : elles ne sont plus « du protocole »).
-    const pend = computeVaccinationStatus(b).filter(v => !v.vacc && !v.orphelin)
-      .sort((x, y) => ((x.plannedDate ? x.plannedDate.getTime() : Infinity) - (y.plannedDate ? y.plannedDate.getTime() : Infinity)));
-    const nx = pend[0] || null;
-    let jalonHtml = '';
-    if (nx) {
-      const urgent = nx.status === 'retard' || nx.status === 'due';
-      const quand = nx.status === 'retard' ? 'EN RETARD' : nx.status === 'due' ? 'aujourd\'hui'
-        : (nx.daysUntil != null ? 'dans ' + nx.daysUntil + ' j' : '');
-      jalonHtml = '<span style="white-space:nowrap;' + (urgent ? 'color:var(--color-danger);font-weight:600;' : 'color:var(--text-secondary);') + '">'
-        + 'vaccin « ' + escHtml(nx.proto.nom_vaccin) + ' » ' + protoJourLabel(nx.proto) + (quand ? ' (' + quand + ')' : '') + '</span>';
-    }
-    // Abattage autorisé vs forecast. La ligne est INCONDITIONNELLE sur une
-    // bande active : une absence se lit comme « rien à signaler » alors qu'elle
-    // ne dit rien du tout, et c'est précisément le statut réglementaire qu'on
-    // ne veut pas laisser deviner. Deux états seulement — délai en cours
-    // (date) / pas de délai en cours. Seul le badge de conflit est
-    // conditionnel. La sortie estimée n'est pas répétée ici : chaque carte de
-    // bande porte déjà sa forecast-chip plus bas sur la même page.
+    const bid = String(b.bande_id).replace(/'/g, "\\'");
+    const versFiche = "openFiche('" + bid + "')";
+
+    // ── En-tête : identité, avancement, statut réglementaire d'abattage ──
+    // La ligne d'abattage reste INCONDITIONNELLE (#167) : une absence se lit
+    // comme « rien à signaler » alors qu'elle ne dit rien du tout. Seul le
+    // badge de conflit forecast < date légale est conditionnel.
     const wd = ind.earliestSlaughterDate;
     const fDate = (bd.forecast && bd.forecast.status === 'projected' && bd.forecast.date) ? bd.forecast.date : null;
     let abattageHtml;
     if (wd && today && wd > today) {
       const conflit = fDate && fDate < wd;
-      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">abattage autorisé dès <strong>' + fmtDate(wd) + '</strong></span>'
+      abattageHtml = '<span>abattage autorisé dès <strong>' + fmtDate(wd) + '</strong></span>'
         + (conflit
           ? ' <span class="status-badge" style="background:var(--status-danger-bg);color:var(--status-danger-fg);font-size:9px;padding:1px 6px;">⚠ sortie estimée ' + fmtDate(fDate) + ' AVANT la date autorisée</span>'
           : '');
     } else {
-      abattageHtml = '<span style="white-space:nowrap;color:var(--text-secondary);">abattage autorisé <span style="color:var(--text-muted);">(aucun délai en cours)</span></span>';
+      abattageHtml = '<span>abattage autorisé <span style="color:var(--text-muted);">(aucun délai en cours)</span></span>';
     }
-    return '<div style="display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;padding:0.5rem 0;border-bottom:var(--border-hairline);">'
-      + '<span style="min-width:150px;"><strong>' + escHtml(b.nom_bande) + '</strong>' + (b.batiment ? ' <span style="color:var(--text-muted);font-size:0.78rem;">· ' + escHtml(b.batiment) + '</span>' : '') + '</span>'
-      + '<span style="font-family:var(--font-mono);white-space:nowrap;">J' + bd.jour + '/' + CYCLE_DURATION_DAYS + '</span>'
-      + '<span style="font-size:0.78rem;font-weight:600;color:' + phase.color + ';white-space:nowrap;">' + escHtml(phase.label) + '</span>'
-      + '<span style="white-space:nowrap;color:var(--text-secondary);">' + fmt(ind.effectifActuel) + ' oiseaux</span>'
-      + saisieHtml
-      + [jalonHtml, abattageHtml].filter(Boolean).join(' ')
+
+    const head = '<div class="dash-cycle-head">'
+      + '<span class="dch-nom">' + escHtml(b.nom_bande) + '</span>'
+      + (b.batiment ? '<span style="color:var(--text-muted);">· ' + escHtml(b.batiment) + '</span>' : '')
+      + '<span class="dch-j">J' + bd.jour + '/' + CYCLE_DURATION_DAYS + '</span>'
+      + '<span style="font-weight:600;color:' + phase.color + ';">' + escHtml(phase.label) + '</span>'
+      + abattageHtml
+      + '</div>';
+
+    // ── Les 8 tuiles ──
+    // 1. Oiseaux — SEULE métrique vedette (orange), comme l'ancien KPI.
+    const tOiseaux = dashTile(fmt(ind.effectifActuel), 'Oiseaux', null, 'dk-headline', versFiche, 'Effectif actuel — ouvrir la fiche');
+
+    // 2. Viabilité — mêmes seuils que les cartes v1 (3 % / 5 % de mortalité).
+    const viabCls = ind.tauxMort < 3 ? 'dk-success' : ind.tauxMort <= 5 ? 'dk-warn' : 'dk-danger';
+    const tViab = dashTile(fmt(ind.viabilite, 1) + '<span style="font-size:14px;">%</span>', 'Viabilité', null, viabCls, versFiche, 'Mortalité cumulée ' + fmt(ind.tauxMort, 1) + ' %');
+
+    // 3. IP — mêmes seuils que l'ancien KPI agrégé (300 / 250).
+    const ipVal = ind.ip || 0;
+    const ipCls = ipVal <= 0 ? '' : ipVal >= 300 ? 'dk-success' : ipVal >= 250 ? '' : 'dk-danger';
+    const tIP = dashTile(ipVal > 0 ? fmt(ipVal, 0) : '—', 'IP', ipVal > 0 ? null : 'pas encore calculable', ipCls, versFiche, 'Indice de performance (> 300 = excellent)');
+
+    // 4. IC — mêmes seuils que checkAlerts (2,2 / 2,5).
+    const icCls = ind.ic == null ? '' : ind.ic > 2.5 ? 'dk-danger' : ind.ic > 2.2 ? 'dk-warn' : '';
+    const tIC = dashTile(ind.ic != null ? fmt(ind.ic, 2) : '—', 'IC', ind.ic != null ? null : 'pas encore calculable', icCls, versFiche, 'Indice de consommation cumulé');
+
+    // 5. GMQ
+    const tGMQ = dashTile(ind.gmq != null ? fmt(ind.gmq, 1) : '—', 'GMQ', ind.gmq != null ? 'g/j' : 'pas de pesée', '', versFiche, 'Gain moyen quotidien');
+
+    // 6. Poids vif
+    const tPoids = dashTile(ind.hasWeighing ? fmt(ind.poidsMesure) : '—', 'Poids vif', ind.hasWeighing ? 'g' : 'pas de pesée', '', versFiche, 'Dernière pesée');
+
+    // 7. Sortie estimée — en J-x, l'unité de temps du terrain.
+    let sortieVal = '—', sortieSub = 'non projetée', sortieCls = '';
+    if (bd.forecast && bd.forecast.status === 'projected' && bd.forecast.date) {
+      const dl = bd.forecast.daysLeft;
+      sortieVal = dl <= 0 ? "auj." : 'J-' + dl;
+      sortieSub = fmtDate(bd.forecast.date);
+      sortieCls = dl <= 7 ? 'dk-warn' : '';
+    }
+    const tSortie = dashTile(sortieVal, 'Sortie', sortieSub, sortieCls, versFiche, 'Sortie estimée (' + (TARGET_CARCASS_WEIGHT_G / 1000) + ' kg carcasse)');
+
+    // 8. Saisie du jour — faite (vert) ou bouton d'action. Pas de tuile
+    // cliquable quand le bouton est là : une seule cible, pas deux.
+    const saisieFaite = hasSaisieOn(b.bande_id, todayStr());
+    const tSaisie = saisieFaite
+      ? dashTile('<i data-lucide="check" style="width:22px;height:22px;"></i>', 'Saisie du jour', 'faite', 'dk-success', "openSaisieFor('" + bid + "')", 'Saisie du jour enregistrée')
+      : dashTile('<button class="btn btn-primary btn-sm" onclick="openSaisieFor(\'' + bid + '\')">Saisir</button>', 'Saisie du jour', 'à faire', 'dk-warn', null, "Aucune saisie aujourd'hui");
+
+    return head + '<div class="dash-tiles tiles-sm">'
+      + tOiseaux + tViab + tIP + tIC + tGMQ + tPoids + tSortie + tSaisie
       + '</div>';
   }).join('');
-  box.innerHTML = '<div class="dash-section-title">Cycle en cours</div>'
-    + '<div class="card" style="padding:0.4rem 1.25rem;margin-bottom:1.25rem;">' + rows + '</div>';
+
+  box.innerHTML = '<div class="dash-section-title">Cycle en cours</div>' + blocs;
+  if (window.lucide) lucide.createIcons();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Dashboard v2, RANGÉE 3 — RESSOURCES : aliment, pharmacie, magasin MP
+// ══════════════════════════════════════════════════════════════════════════
+// ZÉRO nouvelle requête : tout vient de STATE (stocks, saisies, receptions),
+// déjà chargé par getAll.
+function renderDashRessources() {
+  const box = document.getElementById('dash-ressources');
+  if (!box) return;
+
+  // ── 1. Aliment : autonomie SC-1.4 (computeJoursAliment, inchangé) ──
+  // « conso inconnue » reste dit explicitement — jamais un faux « ∞ ».
+  const alim = computeJoursAliment();
+  let aVal = '—', aSub = 'aucune ligne de stock aliment', aCls = '';
+  if (alim) {
+    aVal = fmt(alim.stockKg, 0) + '<span style="font-size:14px;"> kg</span>';
+    if (alim.jours != null) {
+      aSub = '≈ ' + fmt(alim.jours, 1) + ' j de stock';
+      aCls = alim.jours <= ALIMENT_ALERTE_JOURS ? 'dk-danger'
+        : alim.jours <= ALIMENT_ALERTE_JOURS * 2 ? 'dk-warn' : 'dk-success';
+    } else {
+      aSub = 'conso inconnue (aucune saisie sur ' + ALIMENT_CONSO_FENETRE_JOURS + ' j)';
+    }
+    if (alim.horsKg > 0) aSub += ' · ' + alim.horsKg + ' ligne(s) hors kg';
+  }
+  const tAliment = dashTile(aVal, 'Aliment', aSub, aCls, "openStocks('aliment')", 'Ouvrir les stocks aliment');
+
+  // ── 2. Pharmacie ──
+  // Sous seuil : comparaison canonique du reste de l'app (getStockAlerts,
+  // stockCardReal) — seuil > 0 obligatoire, sinon le défaut SQL 0 mettrait
+  // tout article vide en alerte.
+  const meds = STATE.stocks.filter(s => s.categorie === 'medicament');
+  const nBas = meds.filter(s => {
+    const seuil = Number(s.seuil_alerte) || 0;
+    return seuil > 0 && (Number(s.quantite_actuelle) || 0) <= seuil;
+  }).length;
+  // Péremptions : date_peremption n'existe QUE sur receptions — elle n'est ni
+  // portée par stocks ni recopiée lors de l'upsert de réception. On compte
+  // donc des LIGNES DE RÉCEPTION médicament dont la date tombe dans les 30
+  // jours à venir (les lots déjà expirés depuis longtemps ne gonflent pas le
+  // compteur). Limite assumée, documentée dans le corps de PR.
+  const nPerem = (STATE.receptions || []).filter(r => {
+    if (r.categorie !== 'medicament' || !r.date_peremption) return false;
+    const d = daysBetween(todayStr(), r.date_peremption);
+    return d != null && d >= 0 && d <= PHARMA_PEREMPTION_JOURS;
+  }).length;
+  const nPharma = nBas + nPerem;
+  const pSub = nPharma === 0
+    ? (meds.length ? meds.length + ' référence(s) suivie(s)' : 'aucune ligne suivie')
+    : [nBas ? nBas + ' sous seuil' : '', nPerem ? nPerem + ' périme < ' + PHARMA_PEREMPTION_JOURS + ' j' : '']
+      .filter(Boolean).join(' · ');
+  const tPharma = dashTile(nPharma > 0 ? String(nPharma) : '0', 'Pharmacie', pSub,
+    nPharma > 0 ? 'dk-warn' : '', "openStocks('medicament')", 'Ouvrir les stocks médicaments');
+
+  // ── 3. Magasin MP ──
+  // Les cartes « placeholder » de la page Stocks (matières connues jamais
+  // approvisionnées) n'entrent JAMAIS dans STATE.stocks : le compte ci-dessous
+  // est celui des lignes réellement suivies, et il est normal qu'il soit
+  // inférieur au nombre de cartes affichées.
+  const mp = STATE.stocks.filter(s => s.categorie === 'mp');
+  const mpKg = mp.filter(l => (l.unite || 'kg') === 'kg')
+    .reduce((s, l) => s + (Number(l.quantite_actuelle) || 0), 0);
+  const mpHorsKg = mp.length - mp.filter(l => (l.unite || 'kg') === 'kg').length;
+  const tMP = dashTile(
+    fmt(mpKg / 1000, 1) + '<span style="font-size:14px;"> t</span>',
+    'Magasin MP',
+    mp.length + ' ligne(s) suivie(s)' + (mpHorsKg > 0 ? ' · ' + mpHorsKg + ' hors kg' : ''),
+    '', "openStocks('mp')", 'Ouvrir les stocks matières premières');
+
+  box.innerHTML = '<div class="dash-section-title">Ressources</div>'
+    + '<div class="dash-tiles">' + tAliment + tPharma + tMP + '</div>';
   if (window.lucide) lucide.createIcons();
 }
 
@@ -10315,25 +10291,29 @@ function dashArgentHtml() {
     .reduce((s, c) => s + (Number(c.montant_total_fcfa) || 0), 0);
   const nPrix = countPrixManquants();
   const p = _dashArgentPos;
-  const seg = (label, valHtml, page, titre) =>
-    '<div role="button" tabindex="0" style="cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:140px;" title="' + titre + '" onclick="navigate(\'' + page + '\', null)">'
-    + '<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">' + label + '</span>'
-    + '<span style="font-family:var(--font-mono);font-size:15px;font-weight:700;">' + valHtml + '</span></div>';
-  const caVal = p.err
-    ? fmt(caPayeB2B) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · B2B seul — caisse indisponible</span>'
-    : (p.encB2C == null
-      ? fmt(caPayeB2B) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · + caisse…</span>'
-      : fmt(caPayeB2B + p.encB2C) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA · B2B + caisse</span>');
-  const ecartsVal = p.err
-    ? '<span style="color:var(--text-muted);">—</span>'
-    : (p.ecartsN > 0
-      ? '<span style="color:var(--color-danger);">' + p.ecartsN + ' · ' + (p.ecartsSomme > 0 ? '+' : '') + fmt(p.ecartsSomme) + '</span>'
-      : (p.encB2C == null ? '…' : 'Aucun'));
-  return '<div class="card" style="margin-bottom:1.25rem;padding:0.7rem 1.25rem;display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">'
-    + seg('CA encaissé (mois)', caVal, 'tresorerie', 'Ouvrir la Trésorerie')
-    + seg('Créances', fmt(creances) + ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;">FCFA</span>', 'tresorerie', 'Livré non payé, cumul — détail en Trésorerie')
-    + seg('Écarts caisse', ecartsVal, 'tresorerie', 'Écarts de clôture non résolus — onglet Caisse PDV')
-    + seg('Prix manquants', (nPrix > 0 ? '<span style="color:#B45309;">' + nPrix + '</span>' : 'Aucun'), 'supply', 'Réceptions sans prix d\'achat — à poser en Supply')
+  // Dashboard v2 : même gabarit de tuile que les rangées Cycle et Ressources
+  // (dashTile). Contenu et formules INCHANGÉS — sémantique #52 intacte, la
+  // caisse reste asynchrone et se DIT indisponible plutôt que de valoir zéro.
+  const caSub = p.err ? 'FCFA · B2B seul — caisse indisponible'
+    : (p.encB2C == null ? 'FCFA · + caisse…' : 'FCFA · B2B + caisse');
+  const caVal = fmt(p.err || p.encB2C == null ? caPayeB2B : caPayeB2B + p.encB2C);
+
+  let ecartsVal, ecartsSub, ecartsCls = '';
+  if (p.err) { ecartsVal = '—'; ecartsSub = 'caisse indisponible'; }
+  else if (p.encB2C == null) { ecartsVal = '…'; ecartsSub = 'lecture en cours'; }
+  else if (p.ecartsN > 0) {
+    ecartsVal = String(p.ecartsN);
+    ecartsSub = (p.ecartsSomme > 0 ? '+' : '') + fmt(p.ecartsSomme) + ' FCFA';
+    ecartsCls = 'dk-danger';
+  } else { ecartsVal = '0'; ecartsSub = 'aucun écart ouvert'; }
+
+  return '<div class="dash-section-title">Argent</div><div class="dash-tiles">'
+    + dashTile(caVal, 'CA encaissé (mois)', caSub, '', "navigate('tresorerie', null)", 'Ouvrir la Trésorerie')
+    + dashTile(fmt(creances), 'Créances', 'FCFA', '', "navigate('tresorerie', null)", 'Livré non payé, cumul — détail en Trésorerie')
+    + dashTile(ecartsVal, 'Écarts caisse', ecartsSub, ecartsCls, "navigate('tresorerie', null)", 'Écarts de clôture non résolus — onglet Caisse PDV')
+    + dashTile(nPrix > 0 ? String(nPrix) : '0', 'Prix manquants',
+        nPrix > 0 ? 'réception(s) à chiffrer' : 'aucune réception à chiffrer',
+        nPrix > 0 ? 'dk-warn' : '', "navigate('supply', null)", "Réceptions sans prix d'achat — à poser en Supply")
     + '</div>';
 }
 function renderDashArgent() {
@@ -10374,140 +10354,10 @@ async function fetchDashArgentPos() {
   if (box && page && page.classList.contains('active') && canSee('finance')) box.innerHTML = dashArgentHtml();
 }
 
-// Bandeau « jours d'aliment restant » (SC-1.4) : L'ALERTE critique d'un
-// élevage chair — Σ stock catégorie 'aliment' ÷ conso moyenne glissante
-// (computeJoursAliment). Rendu seulement si au moins une ligne de stock
-// aliment est suivie ; sans saisie sur la fenêtre (avant J0), le stock
-// s'affiche seul avec « conso inconnue » — jamais un faux « ∞ ».
-function renderDashStocksWatch() {
-  const box = document.getElementById('dash-stocks-watch');
-  if (!box) return;
-  const alim = computeJoursAliment();
-  let feedHtml = '';
-  if (alim) {
-    const j = alim.jours;
-    const couleur = j == null ? 'var(--text-secondary)'
-      : j <= ALIMENT_ALERTE_JOURS ? '#E74C3C'
-      : j <= ALIMENT_ALERTE_JOURS * 2 ? '#F59E0B' : 'var(--color-success)';
-    const titre = j != null
-      ? '≈ ' + fmt(j, 1) + ' jour' + (j >= 2 ? 's' : '') + ' d\'aliment restant'
-      : fmt(alim.stockKg, 0) + ' kg d\'aliment en stock';
-    const detail = j != null
-      ? fmt(alim.stockKg, 0) + ' kg en stock · conso moyenne ' + fmt(alim.conso, 1)
-        + ' kg/j (fenêtre ' + ALIMENT_CONSO_FENETRE_JOURS + ' j)'
-      : 'Conso inconnue — aucune saisie d\'aliment sur ' + ALIMENT_CONSO_FENETRE_JOURS + ' j.';
-    // C5 : plus de carte dédiée — la ligne aliment ouvre LA carte Stocks.
-    feedHtml = '<div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;padding-bottom:0.5rem;">'
-      + '<i data-lucide="wheat" style="width:20px;height:20px;flex:none;color:' + couleur + ';"></i>'
-      + '<div style="flex:1;min-width:200px;">'
-      + '<div style="font-weight:700;color:' + couleur + ';">' + titre + '</div>'
-      + '<div style="font-size:0.78rem;color:var(--text-muted);">' + detail
-      + (alim.horsKg > 0 ? ' · ' + alim.horsKg + ' ligne(s) aliment hors kg non comptée(s)' : '') + '</div>'
-      + '</div></div>';
-  }
-
-  const watchStocks = STATE.stocks.filter(s => {
-    const qty = Number(s.quantite_actuelle) || 0;
-    const seuil = Number(s.seuil_alerte) || 0;
-    return seuil > 0 && qty <= seuil * 1.5;
-  });
-
-  // C5 (audit AI) : UN seul bloc « Stocks » — la ligne d'autonomie aliment
-  // (SC-1.4) et les seuils à surveiller vivaient en deux cartes titrées
-  // côte à côte pour le même sujet.
-  let stkRows = '';
-  watchStocks.forEach(s => {
-    const qty = Number(s.quantite_actuelle) || 0;
-    const seuil = Number(s.seuil_alerte) || 0;
-    const pct = seuil > 0 ? Math.min(100, Math.round((qty / seuil) * 100)) : 100;
-    const barColor = qty <= seuil ? '#E74C3C' : '#F59E0B';
-    // (Cockpit F : le bouton « Commander » inerte est mort — un bouton qui
-    // ne fait rien apprend aux utilisateurs à ne pas cliquer.)
-    stkRows += '<div class="dash-stock-row">' +
-      '<span class="dash-stock-name">' + s.type_produit + '</span>' +
-      '<span class="dash-stock-levels">' + fmt(qty, 0) + ' ' + s.unite + ' / seuil ' + fmt(seuil, 0) + ' ' + s.unite + '</span>' +
-      '<div class="dash-stock-bar"><div class="dash-stock-bar-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
-      '</div>';
-  });
-  box.innerHTML = (feedHtml || stkRows)
-    ? '<div class="dash-section-title">Stocks</div><div class="card" style="padding:0.75rem 1.25rem;">' + feedHtml + stkRows + '</div>'
-    : '';
-}
-
-// ── Dashboard Mortality Charts ──
-let dashMortalityCharts = {};
-
-function renderDashMortalityCharts(batchData) {
-  const container = document.getElementById('dash-mortality');
-  if (!batchData || batchData.length === 0) { container.innerHTML = ''; return; }
-
-  // Destroy old charts
-  Object.keys(dashMortalityCharts).forEach(k => { if (dashMortalityCharts[k]) { dashMortalityCharts[k].destroy(); } });
-  dashMortalityCharts = {};
-  const t = chartTokens();
-
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:var(--space-4);">';
-  batchData.forEach((bd, idx) => {
-    const canvasId = 'chart-mortality-dash-' + idx;
-    html += '<div class="card"><div class="card-header"><h3 style="font-size:0.9rem;text-transform:none;letter-spacing:0;">Mortalité journalière — ' + bd.bande.nom_bande + '</h3></div>' +
-      '<div class="chart-container"><canvas id="' + canvasId + '"></canvas></div></div>';
-  });
-  html += '</div>';
-  container.innerHTML = html;
-
-  batchData.forEach((bd, idx) => {
-    const canvasId = 'chart-mortality-dash-' + idx;
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-
-    // A7/#147 : jour recalculé des dates (repli sur le stocké si date
-    // incalculable) — un jour_bande dénormalisé faux décalait la barre.
-    const saisies = STATE.saisies
-      .filter(s => s.bande_id === bd.bande.bande_id && Number(s.mortalite_jour) > 0)
-      .map(s => ({ ...s, _jour: computeJourBande(bd.bande, s.date_saisie) || Number(s.jour_bande) || 0 }))
-      .sort((a, b) => a._jour - b._jour);
-
-    const maxJour = bd.jour || saisies.reduce((m, s) => Math.max(m, s._jour), 0);
-    const labels = [];
-    const values = [];
-    for (let j = 1; j <= maxJour; j++) {
-      labels.push('J' + j);
-      const s = saisies.find(x => x._jour === j);
-      values.push(s ? Number(s.mortalite_jour) : 0);
-    }
-
-    dashMortalityCharts[idx] = new Chart(ctx.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Morts',
-          data: values,
-          backgroundColor: chartFill(t.red, 0.55),
-          borderColor: t.red,
-          borderWidth: 1,
-          borderRadius: 2
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { color: t.axis, stepSize: 1 },
-            grid: { color: t.grid, drawTicks: false }, border: { display: false },
-            title: { display: true, text: 'Oiseaux morts', color: t.axis }
-          },
-          x: {
-            ticks: { color: t.axis, maxTicksLimit: 20 },
-            grid: { display: false }, border: { color: t.grid }
-          }
-        }
-      }
-    });
-  });
-}
+// (Dashboard v2 : renderDashStocksWatch et renderDashMortalityCharts sont
+// morts. Le bandeau « Stocks » est devenu la rangée RESSOURCES en tuiles
+// (renderDashRessources) ; les graphiques de mortalité quittent le Dashboard
+// — la courbe reste sur la Fiche, où le détail a sa place.)
 
 // (Cockpit F : updateSidebarLotActif supprimé — le bloc « Cycle en cours »
 // du Dashboard montre TOUTES les bandes actives, plus seulement la 1ʳᵉ.)
@@ -15922,9 +15772,29 @@ let currentSupplyTab = 'fournisseurs';
 let lastReceptionId = null; // for inspection prompt after reception
 let expandedFournisseurId = null;
 
+// Onglet et filtre demandés par l'appelant (tuiles Ressources du Dashboard),
+// consommés UNE fois puis remis à zéro — même patron que bandesTabTarget /
+// biosecTabTarget. Sans ça, Supply retombait toujours sur Fournisseurs et une
+// tuile « pharmacie » aurait mené à un écran sans rapport.
+let supplyTabTarget = null;
+let stocksCatFilter = null;
 function initSupplyPage() {
-  currentSupplyTab = 'fournisseurs';
-  switchSupplyTab('fournisseurs');
+  const tab = supplyTabTarget || 'fournisseurs';
+  // Une entrée « normale » (clic dans la nav) repart sans filtre : seul un
+  // appelant explicite (openStocks) en pose un, et il ne survit pas à la
+  // visite suivante.
+  if (!supplyTabTarget) stocksCatFilter = null;
+  supplyTabTarget = null;
+  currentSupplyTab = tab;
+  switchSupplyTab(tab);
+}
+
+// Point d'entrée unique « ouvrir les Stocks », éventuellement filtrés sur une
+// categorie ('medicament', 'mp', 'aliment'…). Passer null = tout le stock.
+function openStocks(categorie) {
+  stocksCatFilter = categorie || null;
+  supplyTabTarget = 'stocks';
+  navigate('supply', null);
 }
 
 function switchSupplyTab(tab) {
@@ -16720,11 +16590,18 @@ function renderStocks() {
   DEFAULT_MEDS.forEach(m =>
     refItems.push({ nom: m.nom, categorie: 'medicament', unite: m.unite || 'dose' }));
 
+  // Filtre catégorie posé par openStocks (tuiles du Dashboard). Il doit
+  // s'appliquer AUX DEUX passes : les placeholders de référence sont produits
+  // indépendamment de STATE.stocks, donc filtrer la seconde passe seule
+  // laisserait toutes les cartes MP à l'écran malgré un filtre médicaments.
+  const cat = stocksCatFilter;
+  const gardeCat = (c) => !cat || c === cat;
+
   const usedIds = new Set();
   const cards = [];
 
   // 1) Une carte par article de référence : stock réel s'il existe, sinon placeholder à 0.
-  refItems.forEach(ref => {
+  refItems.filter(ref => gardeCat(ref.categorie)).forEach(ref => {
     const match = STATE.stocks.find(s =>
       !usedIds.has(s.stock_id) &&
       s.categorie === ref.categorie &&
@@ -16735,11 +16612,21 @@ function renderStocks() {
   });
 
   // 2) Stocks réels hors liste de référence (équipement, autre, articles personnalisés…).
-  STATE.stocks.forEach(s => { if (!usedIds.has(s.stock_id)) cards.push(stockCardReal(s)); });
+  STATE.stocks.forEach(s => { if (!usedIds.has(s.stock_id) && gardeCat(s.categorie)) cards.push(stockCardReal(s)); });
 
-  container.innerHTML = cards.length
+  // Un filtre actif DOIT se voir et se retirer : arriver ici depuis une tuile
+  // du Dashboard ne doit jamais donner l'impression que le stock est vide.
+  const banniere = cat
+    ? '<div style="grid-column:1/-1;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;padding:0.5rem 0.85rem;border:var(--border-hairline);border-radius:var(--radius-md);background:var(--color-surface-alt);font-size:0.82rem;">'
+      + '<strong>' + catEmoji(cat) + ' ' + escHtml(catLabel(cat)) + '</strong>'
+      + '<span style="color:var(--text-muted);">filtre actif — ' + cards.length + ' article(s)</span>'
+      + '<button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="stocksCatFilter=null;renderStocks();">Tout afficher</button>'
+      + '</div>'
+    : '';
+
+  container.innerHTML = banniere + (cards.length
     ? cards.join('')
-    : '<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun stock enregistré.</p></div>';
+    : '<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><i data-lucide="inbox"></i></div><p>Aucun stock enregistré.</p></div>');
 }
 
 // Carte d'un stock RÉEL (markup historique inchangé — flux « Mettre à jour »/saveStockEdit intact).
