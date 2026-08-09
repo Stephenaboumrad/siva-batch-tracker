@@ -10143,12 +10143,34 @@ function renderDashCycle(batchData) {
       abattageHtml = '<span>abattage autorisé <span style="color:var(--text-muted);">(aucun délai en cours)</span></span>';
     }
 
+    // ── Prochain jalon vaccinal, format court « · prochain : <vaccin> J-x » ──
+    // C'est la seule ANTICIPATION du bloc : les chips ne montrent un vaccin
+    // qu'à 3 jours (checkAlerts), donc sans cette ligne rien n'annonce un
+    // rappel à J-10. Même sélection que la vue d'ensemble véto : les
+    // orphelines sont exclues, elles ne sont plus « du protocole ».
+    const pend = computeVaccinationStatus(b).filter(v => !v.vacc && !v.orphelin)
+      .sort((x, y) => ((x.plannedDate ? x.plannedDate.getTime() : Infinity) - (y.plannedDate ? y.plannedDate.getTime() : Infinity)));
+    const nx = pend[0] || null;
+    let jalonHtml = '';
+    if (nx) {
+      // J-x n'a de sens que dans le futur : un retard ou un jalon du jour se
+      // NOMME, il ne se compte pas (« J-0 » et « J--2 » ne veulent rien dire).
+      const urgent = nx.status === 'retard' || nx.status === 'due';
+      const quand = nx.status === 'retard' ? 'EN RETARD'
+        : nx.status === 'due' ? "aujourd'hui"
+        : (nx.daysUntil != null ? 'J-' + nx.daysUntil : '');
+      jalonHtml = '<span style="' + (urgent ? 'color:var(--color-danger);font-weight:600;' : 'color:var(--text-muted);') + '">'
+        + '· prochain : ' + escHtml(nx.proto.nom_vaccin) + (quand ? ' <strong>' + quand + '</strong>' : '')
+        + '</span>';
+    }
+
     const head = '<div class="dash-cycle-head">'
       + '<span class="dch-nom">' + escHtml(b.nom_bande) + '</span>'
       + (b.batiment ? '<span style="color:var(--text-muted);">· ' + escHtml(b.batiment) + '</span>' : '')
       + '<span class="dch-j">J' + bd.jour + '/' + CYCLE_DURATION_DAYS + '</span>'
       + '<span style="font-weight:600;color:' + phase.color + ';">' + escHtml(phase.label) + '</span>'
       + abattageHtml
+      + jalonHtml
       + '</div>';
 
     // ── Les 8 tuiles ──
@@ -10239,7 +10261,10 @@ function renderDashRessources() {
   // portée par stocks ni recopiée lors de l'upsert de réception. On compte
   // donc des LIGNES DE RÉCEPTION médicament dont la date tombe dans les 30
   // jours à venir (les lots déjà expirés depuis longtemps ne gonflent pas le
-  // compteur). Limite assumée, documentée dans le corps de PR.
+  // compteur). Le libellé DIT « réceptions » et pas « lots » : une réception
+  // entièrement consommée compte encore, et laisser croire à un suivi par lot
+  // serait un mensonge d'affichage. Le vrai suivi par lot est au backlog
+  // inter-cycle, à côté de SC-2.1.
   const nPerem = (STATE.receptions || []).filter(r => {
     if (r.categorie !== 'medicament' || !r.date_peremption) return false;
     const d = daysBetween(todayStr(), r.date_peremption);
@@ -10248,10 +10273,16 @@ function renderDashRessources() {
   const nPharma = nBas + nPerem;
   const pSub = nPharma === 0
     ? (meds.length ? meds.length + ' référence(s) suivie(s)' : 'aucune ligne suivie')
-    : [nBas ? nBas + ' sous seuil' : '', nPerem ? nPerem + ' périme < ' + PHARMA_PEREMPTION_JOURS + ' j' : '']
+    : [nBas ? nBas + ' sous seuil' : '',
+       nPerem ? nPerem + ' réception(s) ≤ ' + PHARMA_PEREMPTION_JOURS + ' j' : '']
       .filter(Boolean).join(' · ');
+  const pTitre = 'Ouvrir les stocks médicaments'
+    + (nBas ? ' — ' + nBas + ' ligne(s) de stock au niveau du seuil d\'alerte ou en dessous' : '')
+    + (nPerem ? ' — ' + nPerem + ' réception(s) de médicament dont la date de péremption tombe dans les '
+        + PHARMA_PEREMPTION_JOURS + ' jours. La péremption est portée par la RÉCEPTION, pas par le lot en stock :'
+        + ' une réception déjà consommée compte encore.' : '');
   const tPharma = dashTile(nPharma > 0 ? String(nPharma) : '0', 'Pharmacie', pSub,
-    nPharma > 0 ? 'dk-warn' : '', "openStocks('medicament')", 'Ouvrir les stocks médicaments');
+    nPharma > 0 ? 'dk-warn' : '', "openStocks('medicament')", pTitre);
 
   // ── 3. Magasin MP ──
   // Les cartes « placeholder » de la page Stocks (matières connues jamais
