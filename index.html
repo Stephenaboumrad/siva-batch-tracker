@@ -1328,7 +1328,22 @@ tfoot td, tfoot th { font-weight:700; background:linear-gradient(180deg, var(--c
 }
 @keyframes modalIn { from{opacity:0;transform:translateY(28px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
 .modal h3 { font-family:var(--sans); color:var(--text-primary); margin-bottom:var(--space-5); font-weight:600; font-size:18px; letter-spacing:-0.02em; }
-.modal-actions { display:flex; gap:var(--space-2); justify-content:flex-end; margin-top:var(--space-6); }
+/* ── Pied de modale ──────────────────────────────────────────────────────
+   Il ne doit JAMAIS rogner ses libellés. Piège : .btn porte overflow:hidden
+   (pour le ripple), ce qui annule la taille minimale automatique de l'item
+   flex — le pied pouvait donc comprimer les boutons SOUS la largeur de leur
+   texte, coupé des deux côtés à la fois par white-space:nowrap + centrage.
+   D'où flex-shrink:0 (largeur naturelle préservée) + wrap (on passe à la
+   ligne au lieu de comprimer). Un bouton n'est plus jamais illisible. ── */
+.modal-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); justify-content:flex-end; margin-top:var(--space-6); }
+.modal-actions .btn { flex-shrink:0; }
+/* Sur téléphone, la feuille du bas est trop étroite pour aligner : on empile
+   pleine largeur, dans l'ordre du DOM (l'action principale reste la plus
+   basse, donc la plus proche du pouce). Palier 480 et pas 768 : sur tablette
+   le wrap ci-dessus suffit et un bouton pleine largeur y serait disgracieux. */
+@media (max-width:480px) {
+  .modal-actions { flex-direction:column; align-items:stretch; }
+}
 
 /* ══════════════ TABS ══════════════ */
 .tabs { display:flex; gap:2px; border-bottom:2px solid var(--border-subtle); margin-bottom:var(--space-5); }
@@ -9511,7 +9526,7 @@ function openReceptionPriceConfirm(p, onConfirm, opts) {
   overlay.className = 'modal-overlay';
   overlay.id = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal" style="max-width:440px;">
+    <div class="modal" style="max-width:500px;">
       <h3><i data-lucide="package"></i> ${opts.title || "Valider la réception — prix d'achat"}</h3>
       <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:1rem;">
         ${escHtml(p.type_produit || '—')} — ${fmt(qte, 1)} ${escHtml(p.unite || '')} · ${escHtml(fourn ? fourn.nom : 'fournisseur ?')}
@@ -9530,8 +9545,8 @@ function openReceptionPriceConfirm(p, onConfirm, opts) {
       </div>
       <p style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">Sans prix, la réception passe en « Prix manquant » (badge dans la liste) — les coûts de réception alimenteront la marge : renseigner maintenant évite une ressaisie.</p>
       <div class="modal-actions">
-        <button class="btn btn-outline" onclick="_recepPriceCb=null;closeModal()">${opts.cancelLabel || 'Annuler (reste en attente)'}</button>
-        ${opts.noLater ? '' : '<button class="btn btn-outline" onclick="confirmReceptionPriceLater()">Prix à définir plus tard</button>'}
+        <button class="btn btn-outline" onclick="_recepPriceCb=null;closeModal()">${opts.cancelLabel || 'Annuler'}</button>
+        ${opts.noLater ? '' : '<button class="btn btn-outline" onclick="confirmReceptionPriceLater()">Valider sans prix</button>'}
         <button class="btn btn-primary" id="recep-valid-ok" onclick="confirmReceptionPrice()" ${Number(p.prix_unitaire_fcfa) > 0 ? '' : 'disabled'}>${opts.okLabel || 'Valider avec ce prix'}</button>
       </div>
     </div>`;
