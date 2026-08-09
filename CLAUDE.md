@@ -89,6 +89,11 @@ working rules for every task in this repository.
 
 - French UI labels, English code and comments.
 - Reuse existing design tokens. No new colours, no new fonts.
+- Mascot rule: in-app surfaces are SIVA wordmark ONLY — the mascot never
+  appears in the app, with ONE exception (decided 2026-08-09): the employee
+  clock-in screen banner (RH-1) MAY carry the mascot with its orange
+  pastille, that screen being a formal register surface. Everywhere else
+  in-app stays wordmark-only.
 - Verify lucide icon names exist in the pinned bundle (`lucide@1.21.0`)
   before using them — an unknown name renders as an empty box.
 - PDV stock is aggregated by `type_produit` (the product NAME) in
