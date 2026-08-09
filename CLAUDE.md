@@ -47,7 +47,18 @@ working rules for every task in this repository.
 - Supabase (PostgreSQL) backend; Railway auto-deploys on every merge to main.
   The front can therefore ship BEFORE its SQL has been run.
 - Roles (in `auth.jwt() -> 'app_metadata' ->> 'role'`): `manager`,
-  `chef_bande`, `vendeur`, `client`.
+  `chef_bande`, `vendeur`, `client`, `employe`.
+  `employe` (RH-1, 0045) has DELIBERATELY EMPTY default access: no nav page,
+  no section in `ROLE_VISIBILITY`, no RLS policy on any table except
+  `pointages` (own rows). Its only surface is the dedicated time-clock
+  screen in `index.html` (`enterSession` short-circuits before `init()`).
+  Accounts are created manually in Supabase Auth with app_metadata
+  `{role:'employe', matricule, name}`.
+- `pointages` (0045, RH-1 foundation): one time-clock row per
+  (employe_matricule, day). Arrival/departure times are rewritten to `now()`
+  by a BEFORE trigger for employe writes — client clock values are never
+  trusted; manager and SQL-editor writes keep explicit values (correction
+  path). Full HR manager module is a LATER lot.
 - New tables go into `ALL_TABLES` **and** `OPTIONAL_TABLES` in `index.html`,
   so a front deploy before the SQL is run degrades cleanly (empty lists,
   clean write errors) instead of breaking the whole app.

@@ -3002,6 +3002,32 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
 </div>
 
+<!-- Écran employé (RH-1) : pointage uniquement — aucun accès à l'app staff.
+     z-index 999 : SOUS le login-screen (1000), pour que la déconnexion le
+     recouvre proprement. Mobile-first : gros boutons tactiles, zéro nav. -->
+<div id="employe-screen" style="position:fixed;inset:0;background:var(--navbar-deep);display:none;align-items:center;justify-content:center;z-index:999;overflow:hidden;">
+  <div style="position:absolute;inset:0;opacity:0.4;background:conic-gradient(from 180deg at 50% 50%, var(--navbar-deep) 0deg, var(--navbar-bg) 90deg, var(--navbar-deep) 180deg, var(--navbar-active) 270deg, var(--navbar-deep) 360deg);"></div>
+  <div style="background:#FFFFFF;border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,0.5);padding:36px 28px;max-width:420px;width:92%;text-align:center;position:relative;border:1px solid rgba(226,232,240,0.2);">
+    <div style="margin-bottom:22px;">
+      <div class="siva-wordmark"><span class="siva-word">SI<span class="sw-accent">V</span>A</span></div>
+      <div style="font-family:'Inter',sans-serif;font-size:11px;color:#64748B;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:10px;">Pointage du personnel</div>
+      <div style="width:40px;height:2px;background:var(--accent);margin:14px auto 0;border-radius:1px;"></div>
+    </div>
+    <div id="emp-date" style="font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:#64748B;text-transform:capitalize;"></div>
+    <div id="emp-nom" style="font-family:'Inter',sans-serif;font-size:20px;font-weight:800;color:#0F172A;margin-top:4px;"></div>
+    <div id="emp-statut" style="font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--accent);margin-top:14px;min-height:1.3rem;"></div>
+    <div id="emp-heures" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#334155;margin-top:6px;min-height:1.2rem;"></div>
+    <button id="emp-btn-arrivee" onclick="employePointer('arrivee')" style="width:100%;margin-top:20px;padding:20px 16px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:18px;font-weight:800;letter-spacing:0.02em;cursor:pointer;min-height:64px;touch-action:manipulation;">Arrivée</button>
+    <button id="emp-btn-depart" onclick="employePointer('depart')" style="width:100%;margin-top:12px;padding:20px 16px;background:#0F172A;color:#fff;border:none;border-radius:12px;font-family:'Inter',sans-serif;font-size:18px;font-weight:800;letter-spacing:0.02em;cursor:pointer;min-height:64px;touch-action:manipulation;">Départ</button>
+    <div id="emp-confirm" style="color:var(--success);font-size:13px;margin-top:12px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:700;"></div>
+    <div id="emp-error" style="color:#DC2626;font-size:13px;margin-top:2px;min-height:1.2rem;font-family:'Inter',sans-serif;font-weight:600;"></div>
+    <div style="margin-top:14px;display:flex;justify-content:center;gap:18px;">
+      <a href="#" onclick="employeChargerJour();return false;" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#64748B;text-decoration:underline;">Actualiser</a>
+      <a href="#" onclick="employeLogout();return false;" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:#64748B;text-decoration:underline;">Déconnexion</a>
+    </div>
+  </div>
+</div>
+
 <!-- Main Content -->
 <div id="main">
 
@@ -4844,7 +4870,9 @@ const MANAGER_PAGES = ['dashboard', 'bandes', 'saisie', 'fiche', 'veterinaire', 
 const CHEF_BANDE_PAGES = ['dashboard', 'saisie', 'fiche', 'veterinaire', 'biosecurite', 'bandes', 'supply', 'clients', 'parametres'];
 
 // Pages autorisées pour le rôle courant (sert au gating nav ET à la garde navigate).
+// RH-1 : employe = AUCUNE page de l'app staff (écran pointage dédié uniquement).
 function rolePages() {
+  if (currentUser && currentUser.role === 'employe') return [];
   return (currentUser && currentUser.role === 'manager') ? MANAGER_PAGES : CHEF_BANDE_PAGES;
 }
 function roleAllowsPage(page) {
@@ -4913,6 +4941,17 @@ async function enterSession(session) {
     routeVendeurToCaisse();
     return;
   }
+  // RH-1 : un compte employe n'entre PAS dans l'app staff — écran pointage
+  // dédié, sans nav, sans init() (aucun chargement de données globales).
+  if (currentUser && currentUser.role === 'employe') {
+    const errE = document.getElementById('login-error');
+    if (errE) errE.textContent = '';
+    const pwdE = document.getElementById('login-password');
+    if (pwdE) pwdE.value = '';
+    document.getElementById('login-screen').style.display = 'none';
+    await enterEmployeScreen();
+    return;
+  }
   const errEl = document.getElementById('login-error');
   if (errEl) errEl.textContent = '';
   const pwd = document.getElementById('login-password');
@@ -4926,6 +4965,9 @@ async function logout() {
   // Termine la session côté serveur (révoque/efface le JWT persisté).
   try { await sb.auth.signOut(); } catch (e) { /* on poursuit le reset UI même si offline */ }
   currentUser = null;
+  // RH-1 : masquer l'écran employé s'il était actif (retour au login).
+  const empScreen = document.getElementById('employe-screen');
+  if (empScreen) empScreen.style.display = 'none';
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
   document.getElementById('notif-bell').style.display = 'none';
   const notifPanel = document.getElementById('notif-panel');
@@ -4985,6 +5027,140 @@ function isManager() {
   return currentUser && currentUser.role === 'manager';
 }
 
+// ── Écran employé (RH-1) : pointage Arrivée/Départ ─────────────────────────
+// Surface UNIQUE du rôle employe : aucune nav, aucun init(), aucun STATE
+// global. Lectures/écritures directes sur `pointages` — la RLS 0045 scope à
+// la ligne du jour de l'employé, et l'heure est réécrite CÔTÉ SERVEUR par le
+// trigger (la valeur envoyée ne sert qu'à marquer l'intention : le serveur
+// fait foi). Pas de file hors ligne dans ce lot : un échec réseau = message
+// explicite + bouton laissé actif pour réessayer.
+let employePointageJour = null; // ligne pointages du jour (null = pas pointé)
+let employeReqEnCours = false;  // anti double-tap pendant l'aller-retour réseau
+
+function employeDateISO() {
+  // UTC = heure locale en Côte d'Ivoire (GMT+0 toute l'année) — même
+  // convention que current_date côté serveur (note 0035/0045).
+  return new Date().toISOString().slice(0, 10);
+}
+
+function employeHeure(ts) {
+  return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function enterEmployeScreen() {
+  document.getElementById('employe-screen').style.display = 'flex';
+  document.getElementById('emp-nom').textContent = currentUser.name;
+  document.getElementById('emp-date').textContent =
+    new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  await employeChargerJour();
+}
+
+// Recharge la ligne du jour depuis le serveur (source de vérité). En échec
+// (hors ligne), on rend l'écran quand même : les boutons restent utilisables
+// et l'insert/update échouera avec un message explicite.
+async function employeChargerJour() {
+  const errEl = document.getElementById('emp-error');
+  errEl.textContent = '';
+  try {
+    const { data, error } = await sb.from('pointages')
+      .select('*')
+      .eq('date_pointage', employeDateISO())
+      .limit(1);
+    if (error) throw error;
+    employePointageJour = (data && data[0]) || null;
+    renderEmployeScreen();
+  } catch (e) {
+    employePointageJour = null;
+    renderEmployeScreen();
+    errEl.textContent = 'Chargement impossible — vérifiez la connexion puis « Actualiser ».';
+  }
+}
+
+function setEmployeBtn(btn, enabled) {
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? '1' : '0.35';
+  btn.style.cursor = enabled ? 'pointer' : 'default';
+}
+
+function renderEmployeScreen() {
+  const p = employePointageJour;
+  const arrivee = p && p.heure_arrivee;
+  const depart = p && p.heure_depart;
+  const statutEl = document.getElementById('emp-statut');
+  const heuresEl = document.getElementById('emp-heures');
+  if (!arrivee) {
+    statutEl.textContent = 'Pas encore pointé aujourd’hui';
+    statutEl.style.color = '#64748B';
+    heuresEl.textContent = '';
+  } else if (!depart) {
+    statutEl.textContent = 'En service';
+    statutEl.style.color = 'var(--success)';
+    heuresEl.textContent = 'Arrivée : ' + employeHeure(arrivee);
+  } else {
+    statutEl.textContent = 'Journée terminée';
+    statutEl.style.color = 'var(--accent)';
+    heuresEl.textContent = 'Arrivée : ' + employeHeure(arrivee) + '  ·  Départ : ' + employeHeure(depart);
+  }
+  setEmployeBtn(document.getElementById('emp-btn-arrivee'), !arrivee && !employeReqEnCours);
+  setEmployeBtn(document.getElementById('emp-btn-depart'), !!arrivee && !depart && !employeReqEnCours);
+}
+
+async function employePointer(kind) {
+  if (employeReqEnCours) return;
+  const errEl = document.getElementById('emp-error');
+  const okEl = document.getElementById('emp-confirm');
+  errEl.textContent = '';
+  okEl.textContent = '';
+  employeReqEnCours = true;
+  renderEmployeScreen();
+  try {
+    let res;
+    if (kind === 'arrivee') {
+      // date_pointage / created_by = défauts serveur ; l'heure envoyée est
+      // réécrite par le trigger 0045 (le serveur fait foi).
+      res = await sb.from('pointages').insert({
+        employe_matricule: currentUser.matricule,
+        employe_nom: currentUser.name,
+        heure_arrivee: new Date().toISOString()
+      }).select();
+    } else {
+      res = await sb.from('pointages')
+        .update({ heure_depart: new Date().toISOString() })
+        .eq('id', employePointageJour.id)
+        .select();
+    }
+    if (res.error) throw res.error;
+    if (!res.data || !res.data[0]) {
+      // 0 ligne renvoyée = refus RLS ou conflit (traité sur un autre
+      // appareil) : recharger l'état réel plutôt qu'afficher un faux succès.
+      await employeChargerJour();
+      errEl.textContent = 'Pointage non enregistré — état actualisé, réessayez.';
+      return;
+    }
+    employePointageJour = res.data[0];
+    const rec = kind === 'arrivee' ? res.data[0].heure_arrivee : res.data[0].heure_depart;
+    okEl.textContent = (kind === 'arrivee' ? 'Arrivée enregistrée à ' : 'Départ enregistré à ') + employeHeure(rec);
+  } catch (e) {
+    const msg = (e && e.message) || '';
+    if (/duplicate key/i.test(msg)) {
+      // Contrainte pointages_matricule_jour_uniq : ligne du jour déjà créée
+      // (autre appareil, ou par le manager — alors invisible via la RLS).
+      await employeChargerJour();
+      errEl.textContent = 'Un pointage existe déjà pour aujourd’hui — état actualisé.';
+    } else {
+      errEl.textContent = 'Échec de l’enregistrement (hors ligne ?) — réessayez.';
+    }
+  } finally {
+    employeReqEnCours = false;
+    renderEmployeScreen();
+  }
+}
+
+function employeLogout() {
+  employePointageJour = null;
+  logout();
+}
+
 // ── Visibilité par rôle (axe téléologique systémique) ──────────────────────
 // SOURCE DE VÉRITÉ UNIQUE : chaque rôle ne voit que les indicateurs liés aux
 // attentes dont il est responsable. Gating UI/affichage UNIQUEMENT — la vraie
@@ -4997,7 +5173,10 @@ const ROLE_VISIBILITY = {
   manager:    ['finance', 'operations', 'veterinary', 'pos'],
   chef_bande: ['operations', 'veterinary'],
   volailler:  ['operations'],
-  vendeur:    ['pos']
+  vendeur:    ['pos'],
+  // RH-1 : accès par défaut DÉLIBÉRÉMENT VIDE — l'employé ne voit que
+  // l'écran pointage dédié (enterSession court-circuite nav + init).
+  employe:    []
 };
 function canSee(section) {
   if (!currentUser) return false;
@@ -5465,13 +5644,14 @@ const ALL_TABLES = [
   ['equipements',     'equipements'],
   ['etalonnages',     'etalonnages'],
   ['postes_appatage', 'postesAppatage'],
-  ['releves_nuisibles', 'relevesNuisibles']
+  ['releves_nuisibles', 'relevesNuisibles'],
+  ['pointages',       'pointages']
 ];
 
 // Tables dont la migration peut ne pas être encore appliquée en prod : getAll
 // tolère une relation manquante (repli []), pour ne PAS casser toute l'app si le
 // front est déployé (Railway auto-deploy) avant l'exécution SQL manuelle (0018).
-const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles']);
+const OPTIONAL_TABLES = new Set(['protocole_traitements', 'traitements', 'vides_sanitaires', 'non_conformites', 'equipements', 'etalonnages', 'postes_appatage', 'releves_nuisibles', 'pointages']);
 
 // Source de lecture selon le rôle (0040, fix #142). Tout rôle ≠ manager lit
 // les vues assainies _ops — les colonnes financières y sont ABSENTES CÔTÉ
@@ -6039,7 +6219,8 @@ async function loadAllData() {
     //     hors ligne, ces tables repartent vides (le repli fait déjà `|| []`).
     // (ii) Le dépassement de quota n'est PLUS avalé en silence : on le SIGNALE.
     const CACHE_EXCLUDED = ['saisies', 'intrants', 'notifications', 'lignesCommande',
-      'commandes', 'abattages', 'receptions', 'inspections', 'paies', 'depensesRH'];
+      'commandes', 'abattages', 'receptions', 'inspections', 'paies', 'depensesRH',
+      'pointages'];
     try {
       const snapshot = {
         bandes: STATE.bandes, saisies: STATE.saisies, intrants: STATE.intrants,
