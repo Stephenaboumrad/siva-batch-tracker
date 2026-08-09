@@ -117,6 +117,16 @@ working rules for every task in this repository.
   clock-in screen banner (RH-1) MAY carry the mascot with its orange
   pastille, that screen being a formal register surface. Everywhere else
   in-app stays wordmark-only.
+- Portal (portail.html) shell follows the SIVA conventions: header = SIVA
+  wordmark (Orbitron 900) + "Portail client B2B" + client name; the mascot
+  (orange pastille) appears ONLY on the login lockup and as the default
+  product-image placeholder (commercial-brand contexts). Pricing LABEL rule:
+  the computation is always qty × price (identical to caisse and the
+  place_order RPC) and the label follows `produits.unite` — never display
+  "/kg" for a per-piece product. Weight-bracket pricing ("grille tarifaire
+  par tranches de poids") is NOT modeled anywhere — flagged for a dedicated
+  lot; do not fake it in labels. The short order ref (CMD-XXXXXXXX) is
+  DISPLAY-ONLY — stored `commande_id` never changes.
 - Verify lucide icon names exist in the pinned bundle (`lucide@1.21.0`)
   before using them — an unknown name renders as an empty box.
 - PDV stock is aggregated by `type_produit` (the product NAME) in

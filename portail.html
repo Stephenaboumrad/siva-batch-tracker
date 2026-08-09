@@ -105,11 +105,13 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 }
 .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: var(--space-3); }
 .brand-logo { width: auto; display: block; }                 /* mascotte SIVA partagée — même asset qu'index.html */
-/* ── Lockup COQORICO — le portail est une surface CLIENT (B2B) : la
-   marque produit prime, l'entité légale SIVA vit dans le pied de page
-   (miroir du reçu caisse). Le wordmark SIVA (.siva-word) est réservé aux
-   surfaces STAFF : index.html et caisse.html. ── */
+/* ── Marque (harmonisation portail) : le LOGIN garde le lockup COQORICO +
+   mascotte sur pastille orange (contexte marque commerciale) ; le CHROME
+   INTÉRIEUR (header) parle SIVA — wordmark Orbitron 900, règle documentée
+   dans CLAUDE.md : mascotte uniquement login + visuel produit par défaut. ── */
 .brand-name { font-family: 'Orbitron', var(--font-sans); font-size: 20px; font-weight: 800; letter-spacing: 0.06em; }
+.siva-word { font-family: 'Orbitron', var(--font-sans); font-size: 19px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; line-height: 1; }
+.siva-word .sw-accent { color: var(--navbar-accent); }
 .brand-col { display: flex; flex-direction: column; min-width: 0; }
 .brand-context { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--navbar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
@@ -190,17 +192,27 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   display: flex; flex-direction: column;
 }
 .prod-img { width: 100%; aspect-ratio: 16/10; object-fit: cover; background: var(--c-sand-100); }
-.prod-img-ph { width: 100%; aspect-ratio: 16/10; background: linear-gradient(135deg, var(--c-sand-100), var(--c-sand-200)); display: flex; align-items: center; justify-content: center; color: var(--c-sand-400); font-size: 34px; }
+/* Visuel produit par défaut : mascotte Coqorico sur pastille orange (même
+   traitement que le login — CONTEXTE MARQUE COMMERCIALE, la seule place
+   in-chrome où la mascotte est admise avec le login). Une vraie photo
+   (image_url) remplace ce bloc sans changement de gabarit. */
+.prod-img-ph { width: 100%; aspect-ratio: 16/10; background: var(--c-orange-700); display: flex; align-items: center; justify-content: center; }
+.prod-img-ph img { height: 68%; width: auto; display: block; }
 .prod-body { padding: var(--space-3) var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .prod-nom { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: var(--radius-full); background: var(--c-sand-100); color: var(--color-text-secondary); }
-.chip-cat { background: var(--c-forest-50); color: var(--c-forest-700); }
+.chip-ok { background: var(--c-forest-50); color: var(--c-forest-700); }
 .prod-price { font-size: 18px; font-weight: 700; color: var(--color-text); margin-top: 2px; }
 .prod-price small { font-size: 12px; font-weight: 600; color: var(--color-text-muted); }
 .prod-add { display: flex; gap: 8px; align-items: stretch; margin-top: auto; }
 .qty-input { width: 84px; min-height: 48px; text-align: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0 8px; }
 .prod-add .btn { flex: 1; }
+/* Stepper quantité (− / +) — cibles tactiles ≥ 44px */
+.qty-step { display: inline-flex; align-items: stretch; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: var(--color-surface); }
+.qty-step button { min-width: 44px; min-height: 48px; border: none; background: var(--c-sand-100); color: var(--color-text); font-size: 19px; font-weight: 700; line-height: 1; }
+.qty-step button:active { background: var(--c-sand-200); }
+.qty-step .qty-input { border: none; border-radius: 0; width: 62px; min-height: 48px; padding: 0 4px; }
 
 /* ── Panier ── */
 .cart-line {
@@ -251,18 +263,29 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 .oh-id { font-size: 12px; color: var(--color-text-muted); font-family: ui-monospace, monospace; }
 .oh-right { display: flex; align-items: center; gap: 10px; }
 .oh-total { font-size: 15px; font-weight: 700; white-space: nowrap; }
-.statut-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--radius-full); text-transform: capitalize; }
+.statut-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: var(--radius-full); }
 .statut-soumise { background: var(--color-accent-soft); color: var(--c-orange-700); }
+.statut-confirmee { background: var(--c-forest-50); color: var(--c-forest-700); }
+.statut-en_preparation { background: var(--c-sand-100); color: var(--c-sand-600); }
+.statut-livree { background: var(--c-forest-50); color: var(--c-forest-600); }
+.statut-annulee { background: #F8E9E8; color: var(--c-red-600); }
 .statut-default { background: var(--c-sand-100); color: var(--color-text-secondary); }
+.oh-expl { font-size: 12px; color: var(--color-text-muted); padding: 0 var(--space-4) var(--space-3); }
 .order-lines { padding: 0 var(--space-4) var(--space-3); }
 .order-lines table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .order-lines th { text-align: left; color: var(--color-text-muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--color-border-subtle); font-size: 12px; }
 .order-lines td { padding: 7px 4px; border-bottom: 1px solid var(--color-border-subtle); }
 .order-lines td.num, .order-lines th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-/* ── États vides / chargement ── */
+/* ── États vides / chargement — icône lucide sobre, plus d'emoji ── */
 .empty, .loading { text-align: center; color: var(--color-text-muted); padding: var(--space-8) var(--space-4); }
 .empty .ic { font-size: 40px; display: block; margin-bottom: var(--space-3); color: var(--c-sand-300); }
+.empty .ic [data-lucide], .empty .ic svg.lucide { width: 40px; height: 40px; stroke-width: 1.5; }
+
+/* ── Pied de statut (motif footer app : point de synchro + identité) ── */
+.app-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: var(--space-8); padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); font-size: 12px; color: var(--color-text-muted); }
+.app-foot .sync-dot { width: 7px; height: 7px; border-radius: var(--radius-full); display: inline-block; background: var(--color-success); flex: none; }
+.app-foot .sync-dot.off { background: var(--c-red-500); }
 .spinner { width: 22px; height: 22px; border: 2px solid var(--c-sand-200); border-top-color: var(--c-orange-600); border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; vertical-align: -4px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -283,9 +306,12 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 <section id="screen-login">
   <div class="login-card">
     <div class="brand brand-login">
+      <!-- Mascotte sur pastille orange : admise sur le LOGIN (contexte marque
+           commerciale — règle CLAUDE.md). La CSS existait, l'img manquait. -->
+      <img class="brand-logo" src="./assets/siva-logo-mascotte.png" alt="Coqorico">
       <div class="brand-name">COQORICO</div>
     </div>
-    <p class="login-sub">Portail client</p>
+    <p class="login-sub">Portail client B2B</p>
 
     <div id="login-error" class="login-error hidden"></div>
 
@@ -311,8 +337,8 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   <header class="app-header">
     <div class="brand">
       <div class="brand-col">
-        <div class="brand-name">COQORICO</div>
-        <span class="brand-context" id="brand-context">Portail client</span>
+        <div class="siva-word">SI<span class="sw-accent">V</span>A</div>
+        <span class="brand-context" id="brand-context">Portail client B2B</span>
       </div>
     </div>
     <div class="header-right">
@@ -342,6 +368,12 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
     <div id="view-historique" class="view hidden">
       <h1 class="view-title">Mes commandes</h1>
       <div id="historique-content"><div class="loading"><span class="spinner"></span> Chargement…</div></div>
+    </div>
+
+    <!-- Pied de statut (motif footer app : synchro + identité connectée) -->
+    <div class="app-foot">
+      <span style="display:flex;align-items:center;gap:6px;"><span id="foot-dot" class="sync-dot"></span><span id="foot-sync">En ligne</span></span>
+      <span id="foot-id">SIVA — Société Ivoirienne de Volailles et Assimilés</span>
     </div>
   </main>
 
@@ -396,6 +428,46 @@ function paiementBadgePortail(c) {
   if (c.statut === 'livree') return '<span class="statut-badge" style="background:#FFF3E8;color:#B84E0A;">À régler</span>';
   return '';
 }
+// ── Unités & libellés (harmonisation) ──
+// Le CALCUL est toujours qty × prix (identique caisse B2C et RPC place_order :
+// round(qte × prix_base_kg_fcfa)) ; seule l'ÉTIQUETTE suit produits.unite.
+// RÈGLE (CLAUDE.md) : ne jamais afficher « /kg » si l'unité est la pièce.
+// NB : la grille tarifaire par tranches de poids n'est PAS modélisée — lot
+// dédié à venir ; ici on ne change aucun calcul.
+function uniteLabel(u) { return u === 'unite' ? 'pièce' : 'kg'; }
+function uniteQteLabel(u) { return u === 'unite' ? 'Qté (pièces)' : 'Qté (kg)'; }
+function uniteDe(produit_id) {
+  const p = catalogue.find(x => x.produit_id === produit_id);
+  return p ? p.unite : null;
+}
+// Référence courte — AFFICHAGE SEUL, l'identifiant stocké (cmd-<uuid>) ne
+// change jamais ; la réf longue reste visible en title/detail.
+function refCourte(commande_id) {
+  const hex = String(commande_id || '').replace(/^cmd-/, '');
+  return 'CMD-' + hex.slice(0, 8).toUpperCase();
+}
+// Statuts réels du schéma (boucle fulfillment PR #38) : libellé + explication
+// une-ligne de la suite. Statut inconnu → brut, badge neutre (échec ouvert).
+const STATUTS_PORTAIL = {
+  soumise:        { label: 'Soumise',        cls: 'statut-soumise' },
+  confirmee:      { label: 'Confirmée',      cls: 'statut-confirmee' },
+  en_preparation: { label: 'En préparation', cls: 'statut-en_preparation' },
+  livree:         { label: 'Livrée',         cls: 'statut-livree' },
+  annulee:        { label: 'Annulée',        cls: 'statut-annulee' }
+};
+function statutInfo(statut) {
+  return STATUTS_PORTAIL[statut] || { label: statut || '—', cls: 'statut-default' };
+}
+function statutExpl(c) {
+  const tel = clientFiche && clientFiche.telephone ? ' au ' + clientFiche.telephone : '';
+  if (c.statut === 'soumise') return 'Votre commande sera confirmée par SIVA — vous serez contacté' + tel + '.';
+  if (c.statut === 'confirmee') return 'Commande confirmée par SIVA — en attente de préparation.';
+  if (c.statut === 'en_preparation') return 'Votre commande est en cours de préparation.';
+  if (c.statut === 'livree') return c.statut_paiement === 'paye' ? 'Commande livrée et réglée. Merci !' : 'Commande livrée — règlement à effectuer auprès de SIVA.';
+  if (c.statut === 'annulee') return 'Commande annulée — contactez SIVA pour toute question.';
+  return '';
+}
+
 function $(id) { return document.getElementById(id); }
 function icons() { try { window.lucide.createIcons(); } catch (e) {} }
 function toast(msg, type) {
@@ -475,10 +547,11 @@ async function enterApp() {
 /* ════════════════ DONNÉES ════════════════ */
 // SELECT sa propre fiche (RLS rls_client_clients_select restreint au client_id du claim).
 async function loadClientFiche() {
-  const { data, error } = await sb.from('clients').select('client_id, nom, ville').limit(1);
+  const { data, error } = await sb.from('clients').select('client_id, nom, ville, telephone').limit(1);
   if (!error && data && data.length) {
     clientFiche = data[0];
-    $('brand-context').textContent = 'Portail client' + (clientFiche.nom ? ' — ' + clientFiche.nom : '');
+    $('brand-context').textContent = 'Portail client B2B' + (clientFiche.nom ? ' — ' + clientFiche.nom : '');
+    if (clientFiche.nom) $('foot-id').textContent = 'Connecté : ' + clientFiche.nom + ' · SIVA';
   }
 }
 
@@ -491,7 +564,8 @@ async function loadCatalogue() {
     .select('produit_id, nom, categorie, calibre, unite, prix_kg_fcfa, description, image_url, ordre_affichage')
     .order('ordre_affichage', { ascending: true });
   if (error) {
-    box.innerHTML = '<div class="empty"><span class="ic">⚠️</span>Catalogue indisponible pour le moment.</div>';
+    box.innerHTML = '<div class="empty"><span class="ic"><i data-lucide="alert-triangle"></i></span>Catalogue indisponible pour le moment.</div>';
+    icons();
     return;
   }
   catalogue = data || [];
@@ -499,30 +573,45 @@ async function loadCatalogue() {
 }
 
 /* ════════════════ CATALOGUE ════════════════ */
+// Vignette par défaut : mascotte sur pastille orange (une vraie photo via
+// image_url la remplace sans changement de gabarit — même bloc, même ratio).
+function prodImgPlaceholder() {
+  return '<div class="prod-img-ph"><img src="./assets/siva-logo-mascotte.png" alt=""></div>';
+}
 function renderCatalogue() {
   const box = $('catalogue-content');
   if (!catalogue.length) {
-    box.innerHTML = '<div class="empty"><span class="ic">🐔</span>Aucun produit disponible pour le moment.</div>';
+    box.innerHTML = '<div class="empty"><span class="ic"><i data-lucide="package-open"></i></span>Aucun produit disponible pour le moment.</div>';
+    icons();
     return;
   }
   box.innerHTML = '<div class="cat-grid">' + catalogue.map(p => {
     const img = p.image_url
-      ? '<img class="prod-img" src="' + esc(p.image_url) + '" alt="' + esc(p.nom) + '" loading="lazy" onerror="this.outerHTML=\'<div class=&quot;prod-img-ph&quot;>🐔</div>\'">'
-      : '<div class="prod-img-ph">🐔</div>';
-    const unite = p.unite === 'unite' ? 'unité' : 'kg';
+      ? '<img class="prod-img" src="' + esc(p.image_url) + '" alt="' + esc(p.nom) + '" loading="lazy" onerror="this.outerHTML=prodImgPlaceholder()">'
+      : prodImgPlaceholder();
+    // Étiquette de prix = l'unité RÉELLE du produit (le calcul reste qty × prix
+    // partout — caisse, RPC). Jamais « /kg » pour un produit à la pièce.
+    // (La catégorie slug interne — ex. poulet_entier — n'est plus affichée.)
+    const parPiece = p.unite === 'unite';
     const chips =
-      (p.categorie ? '<span class="chip chip-cat">' + esc(p.categorie) + '</span>' : '') +
-      (p.calibre ? '<span class="chip">' + esc(p.calibre) + '</span>' : '');
+      (p.calibre ? '<span class="chip">Calibre ' + esc(p.calibre) + '</span>' : '') +
+      '<span class="chip chip-ok">Disponible</span>';
+    const step = parPiece ? '1' : '0.5';
+    const min = parPiece ? '1' : '0.5';
     return '' +
       '<div class="prod-card">' + img +
         '<div class="prod-body">' +
           '<div class="prod-nom">' + esc(p.nom) + '</div>' +
-          (chips ? '<div class="chips">' + chips + '</div>' : '') +
+          '<div class="chips">' + chips + '</div>' +
           (p.description ? '<div class="cl-meta">' + esc(p.description) + '</div>' : '') +
-          '<div class="prod-price mono-num">' + fcfa(p.prix_kg_fcfa) + ' <small>/ ' + unite + '</small></div>' +
+          '<div class="prod-price mono-num">' + fcfa(p.prix_kg_fcfa) + ' <small>/ ' + uniteLabel(p.unite) + '</small></div>' +
           '<div class="prod-add">' +
-            '<input class="qty-input mono-num" type="number" inputmode="decimal" min="0.5" step="0.5" value="1" ' +
-                   'aria-label="Quantité en kg" id="qty-' + esc(p.produit_id) + '">' +
+            '<span class="qty-step">' +
+              '<button type="button" data-step="qty-' + esc(p.produit_id) + '|-1" aria-label="Diminuer">−</button>' +
+              '<input class="qty-input mono-num" type="number" inputmode="decimal" min="' + min + '" step="' + step + '" value="1" ' +
+                     'aria-label="Quantité (' + uniteLabel(p.unite) + ')" id="qty-' + esc(p.produit_id) + '">' +
+              '<button type="button" data-step="qty-' + esc(p.produit_id) + '|1" aria-label="Augmenter">+</button>' +
+            '</span>' +
             '<button class="btn btn-primary" data-add="' + esc(p.produit_id) + '"><i data-lucide="plus"></i> Ajouter</button>' +
           '</div>' +
         '</div>' +
@@ -538,10 +627,11 @@ function addToCart(produit_id) {
   const input = $('qty-' + produit_id);
   let qte = input ? parseFloat(input.value) : 1;
   if (!(qte > 0)) { toast('Quantité invalide', 'error'); return; }
-  qte = Math.round(qte * 100) / 100;
+  // Produit à la pièce : quantités entières (le stepper les impose déjà).
+  qte = p.unite === 'unite' ? Math.max(1, Math.round(qte)) : Math.round(qte * 100) / 100;
   const existing = cart.find(l => l.produit_id === produit_id);
   if (existing) existing.quantite_kg = Math.round((existing.quantite_kg + qte) * 100) / 100;
-  else cart.push({ produit_id, nom: p.nom, prix_kg_fcfa: Number(p.prix_kg_fcfa), quantite_kg: qte });
+  else cart.push({ produit_id, nom: p.nom, unite: p.unite, prix_kg_fcfa: Number(p.prix_kg_fcfa), quantite_kg: qte });
   saveCart(); updateCartBadge();
   toast(p.nom + ' ajouté au panier');
 }
@@ -558,20 +648,29 @@ function updateCartBadge() {
 function renderPanier() {
   const box = $('panier-content');
   if (!cart.length) {
-    box.innerHTML = '<div class="empty"><span class="ic">🛒</span>Votre panier est vide.<br><br>' +
+    box.innerHTML = '<div class="empty"><span class="ic"><i data-lucide="shopping-cart"></i></span>Votre panier est vide.<br><br>' +
       '<button class="btn btn-ghost" data-view="catalogue">Parcourir le catalogue</button></div>';
+    icons();
     return;
   }
   const lines = cart.map((l, i) => {
     const sub = Math.round(l.quantite_kg * l.prix_kg_fcfa);
+    // unite : posée à l'ajout ; paniers persistés d'avant l'harmonisation →
+    // repli sur le catalogue, sinon étiquette neutre (jamais un « /kg » menti).
+    const u = l.unite || uniteDe(l.produit_id);
+    const parPiece = u === 'unite';
     return '' +
       '<div class="cart-line">' +
         '<div><div class="cl-nom">' + esc(l.nom) + '</div>' +
-             '<div class="cl-meta mono-num">' + fcfa(l.prix_kg_fcfa) + ' / kg</div></div>' +
+             '<div class="cl-meta mono-num">' + fcfa(l.prix_kg_fcfa) + (u ? ' / ' + uniteLabel(u) : '') + '</div></div>' +
         '<button class="btn-icon" data-remove="' + i + '" aria-label="Retirer"><i data-lucide="trash-2"></i></button>' +
-        '<div class="cl-qty"><label>Qté (kg)</label>' +
-          '<input class="qty-input mono-num" type="number" inputmode="decimal" min="0.5" step="0.5" ' +
-                 'value="' + l.quantite_kg + '" data-qty="' + i + '"></div>' +
+        '<div class="cl-qty"><label>' + (u ? uniteQteLabel(u) : 'Qté') + '</label>' +
+          '<span class="qty-step">' +
+            '<button type="button" data-lstep="' + i + '|-1" aria-label="Diminuer">−</button>' +
+            '<input class="qty-input mono-num" type="number" inputmode="decimal" min="' + (parPiece ? '1' : '0.5') + '" step="' + (parPiece ? '1' : '0.5') + '" ' +
+                   'value="' + l.quantite_kg + '" data-qty="' + i + '">' +
+            '<button type="button" data-lstep="' + i + '|1" aria-label="Augmenter">+</button>' +
+          '</span></div>' +
         '<div class="cl-sub mono-num">' + fcfa(sub) + '</div>' +
       '</div>';
   }).join('');
@@ -594,8 +693,20 @@ function renderPanier() {
 function updateLineQty(i, val) {
   let q = parseFloat(val);
   if (!(q > 0)) return;
-  cart[i].quantite_kg = Math.round(q * 100) / 100;
+  const u = cart[i].unite || uniteDe(cart[i].produit_id);
+  cart[i].quantite_kg = u === 'unite' ? Math.max(1, Math.round(q)) : Math.round(q * 100) / 100;
   saveCart(); updateCartBadge(); renderPanier();
+}
+
+// Stepper − / + : ajuste l'input (respecte min/step), déclenche le change.
+function stepInput(input, dir) {
+  if (!input) return;
+  const step = parseFloat(input.step) || 1;
+  const min = parseFloat(input.min) || step;
+  let v = (parseFloat(input.value) || 0) + dir * step;
+  v = Math.max(min, Math.round(v * 100) / 100);
+  input.value = v;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 function removeLine(i) {
   cart.splice(i, 1);
@@ -646,16 +757,18 @@ function renderConfirm() {
   const box = $('confirm-content');
   if (!lastOrder) { box.innerHTML = ''; return; }
   const s = lastOrder.snapshot;
-  const rows = s.items.map(l =>
-    '<div class="cs-row"><span>' + esc(l.nom) + ' — ' + fmt(l.quantite_kg) + ' kg</span>' +
-    '<span class="mono-num">' + fcfa(Math.round(l.quantite_kg * l.prix_kg_fcfa)) + '</span></div>'
-  ).join('');
+  const rows = s.items.map(l => {
+    const u = l.unite || uniteDe(l.produit_id);
+    return '<div class="cs-row"><span>' + esc(l.nom) + ' — ' + fmt(l.quantite_kg) + (u ? ' ' + uniteLabel(u) + (u !== 'unite' ? '' : (l.quantite_kg > 1 ? 's' : '')) : '') + '</span>' +
+      '<span class="mono-num">' + fcfa(Math.round(l.quantite_kg * l.prix_kg_fcfa)) + '</span></div>';
+  }).join('');
   box.innerHTML =
     '<div class="confirm-card">' +
       '<div class="confirm-icon"><i data-lucide="check"></i></div>' +
       '<h2>Commande enregistrée</h2>' +
-      '<p class="muted">Statut : <strong style="color:var(--c-orange-700)">soumise</strong></p>' +
-      '<div class="confirm-id">' + esc(lastOrder.commande_id) + '</div>' +
+      '<p class="muted"><span class="statut-badge statut-soumise">Soumise</span></p>' +
+      '<p class="muted" style="font-size:13px;">' + esc(statutExpl({ statut: 'soumise' })) + '</p>' +
+      '<div class="confirm-id" title="' + esc(lastOrder.commande_id) + '">' + esc(refCourte(lastOrder.commande_id)) + '</div>' +
       (s.date ? '<p class="muted">Livraison souhaitée : ' + fmtDate(s.date) + '</p>' : '') +
       '<div class="confirm-summary">' + rows +
         '<div class="cs-row" style="border-bottom:none;font-weight:700;font-size:16px;"><span>Total</span>' +
@@ -678,27 +791,31 @@ async function loadHistorique() {
     .select('commande_id, date_commande, date_livraison_souhaitee, statut, montant_total_fcfa, statut_paiement')
     .order('date_commande', { ascending: false });
   if (error) {
-    box.innerHTML = '<div class="empty"><span class="ic">⚠️</span>Impossible de charger vos commandes.</div>';
+    box.innerHTML = '<div class="empty"><span class="ic"><i data-lucide="alert-triangle"></i></span>Impossible de charger vos commandes.</div>';
+    icons();
     return;
   }
   if (!data.length) {
-    box.innerHTML = '<div class="empty"><span class="ic">📦</span>Aucune commande pour le moment.</div>';
+    box.innerHTML = '<div class="empty"><span class="ic"><i data-lucide="package"></i></span>Aucune commande pour le moment.</div>';
+    icons();
     return;
   }
   box.innerHTML = data.map(c => {
-    const statutClass = c.statut === 'soumise' ? 'statut-soumise' : 'statut-default';
+    const si = statutInfo(c.statut);
+    const expl = statutExpl(c);
     return '' +
       '<div class="order-card">' +
         '<button class="order-head" data-order="' + esc(c.commande_id) + '">' +
           '<span class="oh-left"><span class="oh-date">' + fmtDate(c.date_commande) + '</span>' +
-            '<span class="oh-id">' + esc(c.commande_id) + '</span></span>' +
+            '<span class="oh-id" title="' + esc(c.commande_id) + '">' + esc(refCourte(c.commande_id)) + '</span></span>' +
           '<span class="oh-right">' +
-            '<span class="statut-badge ' + statutClass + '">' + esc(c.statut || '—') + '</span>' +
+            '<span class="statut-badge ' + si.cls + '">' + esc(si.label) + '</span>' +
             paiementBadgePortail(c) +
             '<span class="oh-total mono-num">' + fcfa(c.montant_total_fcfa) + '</span>' +
             '<i data-lucide="chevron-down"></i>' +
           '</span>' +
         '</button>' +
+        (expl ? '<div class="oh-expl">' + esc(expl) + '</div>' : '') +
         '<div class="order-lines hidden" id="lines-' + esc(c.commande_id) + '"></div>' +
       '</div>';
   }).join('');
@@ -714,18 +831,23 @@ async function toggleOrderLines(commande_id) {
   box.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
   const { data, error } = await sb
     .from('lignes_commande')
-    .select('description, produit, quantite_kg, prix_kg_fcfa, montant_fcfa')
+    .select('description, produit, produit_id, quantite_kg, prix_kg_fcfa, montant_fcfa')
     .eq('commande_id', commande_id);
   if (error) { box.innerHTML = '<p class="muted" style="padding:8px 4px">Détail indisponible.</p>'; return; }
   box.dataset.loaded = '1';
+  // En-tête « Qté » NEUTRE : lignes_commande stocke quantite_kg quelle que
+  // soit l'unité (héritage) — l'unité réelle est résolue par produit via le
+  // catalogue quand c'est possible, sinon la quantité s'affiche sans unité
+  // (jamais un « kg » menti sur un produit à la pièce).
   box.innerHTML =
-    '<table><thead><tr><th>Produit</th><th class="num">Qté (kg)</th><th class="num">PU</th><th class="num">Montant</th></tr></thead><tbody>' +
-    (data || []).map(l =>
-      '<tr><td>' + esc(l.description || l.produit || '—') + '</td>' +
-        '<td class="num mono-num">' + fmt(l.quantite_kg) + '</td>' +
+    '<table><thead><tr><th>Produit</th><th class="num">Qté</th><th class="num">PU</th><th class="num">Montant</th></tr></thead><tbody>' +
+    (data || []).map(l => {
+      const u = uniteDe(l.produit_id);
+      return '<tr><td>' + esc(l.description || l.produit || '—') + '</td>' +
+        '<td class="num mono-num">' + fmt(l.quantite_kg) + (u ? ' <small class="muted">' + (u === 'unite' ? 'pcs' : 'kg') + '</small>' : '') + '</td>' +
         '<td class="num mono-num">' + fmt(l.prix_kg_fcfa) + '</td>' +
-        '<td class="num mono-num">' + fcfa(l.montant_fcfa) + '</td></tr>'
-    ).join('') +
+        '<td class="num mono-num">' + fcfa(l.montant_fcfa) + '</td></tr>';
+    }).join('') +
     '</tbody></table>';
   icons();
 }
@@ -755,8 +877,21 @@ function wireEvents() {
   document.querySelectorAll('.tab').forEach(t =>
     t.addEventListener('click', () => switchView(t.dataset.view)));
 
-  // Délégation : clics (ajout panier, retrait, soumission, navigation interne)
+  // Délégation : clics (ajout panier, retrait, stepper, soumission, navigation)
   document.addEventListener('click', (e) => {
+    const st = e.target.closest('[data-step]');
+    if (st) {
+      const parts = st.dataset.step.split('|');
+      stepInput($(parts[0]), parseInt(parts[1], 10));
+      return;
+    }
+    const ls = e.target.closest('[data-lstep]');
+    if (ls) {
+      const parts = ls.dataset.lstep.split('|');
+      const input = document.querySelector('[data-qty="' + parts[0] + '"]');
+      stepInput(input, parseInt(parts[1], 10));
+      return;
+    }
     const add = e.target.closest('[data-add]');
     if (add) { addToCart(add.dataset.add); return; }
     const rm = e.target.closest('[data-remove]');
@@ -774,6 +909,17 @@ function wireEvents() {
     const q = e.target.closest('[data-qty]');
     if (q) updateLineQty(parseInt(q.dataset.qty, 10), q.value);
   });
+
+  // Pied de statut : indicateur en ligne / hors ligne (motif footer app).
+  const majSync = () => {
+    const dot = $('foot-dot'), txt = $('foot-sync');
+    if (!dot || !txt) return;
+    dot.classList.toggle('off', !navigator.onLine);
+    txt.textContent = navigator.onLine ? 'En ligne' : 'Hors ligne';
+  };
+  window.addEventListener('online', majSync);
+  window.addEventListener('offline', majSync);
+  majSync();
 }
 
 /* ── Démarrage ── */
