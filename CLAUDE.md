@@ -79,6 +79,17 @@ working rules for every task in this repository.
   warns if 0047 is not yet applied). `absences`/`avances` are manager-only
   (rls46 FOR ALL); the employe role has no access. `avances.mode_paiement
   'wave'` carries a manual `reference_wave` (no Wave API).
+- Trésorerie page = three tabs: **Vue d'ensemble** (4 KPIs Encaissé/Décaissé/
+  Net/Position de caisse + symmetric Encaissements/Décaissements cards +
+  historical blocks in collapsed accordions), **Mouvements** (unified
+  read-only financial journal over existing tables — B2B paid orders, POS
+  payments aggregated per day/PDV, paies of the month at full charge incl.
+  CNPS, dépenses RH with their CRUD, réceptions+intrants, clôture écarts
+  listed but excluded from totals), **Caisse PDV**. The old "RH & Paie" tab
+  is REMOVED (RH-3bis): payroll MANAGEMENT lives in the RH page; payroll
+  charges are a TREASURY CATEGORY here. Journal footer totals must always
+  reconcile with the Vue d'ensemble KPIs (same formulas by construction) —
+  every figure move is presentation-only, never a computation change.
 - **`employes` column aliasing (0046 — do NOT add duplicate columns):**
   the canonical columns are the ORIGINAL ones, read by the payroll code:
   `type` (permanent|journalier|prestataire) NOT type_contrat,
