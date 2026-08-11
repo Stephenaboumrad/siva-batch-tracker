@@ -112,6 +112,9 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 .brand-name { font-family: 'Orbitron', var(--font-sans); font-size: 20px; font-weight: 800; letter-spacing: 0.06em; }
 .siva-word { font-family: 'Orbitron', var(--font-sans); font-size: 19px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; line-height: 1; }
 .siva-word .sw-accent { color: var(--navbar-accent); }
+/* Login : carte blanche → wordmark near-black, V orange marque (écho index). */
+.login-card .siva-word { color: #1A1A1A; font-size: 30px; }
+.login-card .siva-word .sw-accent { color: var(--color-accent); }
 .brand-col { display: flex; flex-direction: column; min-width: 0; }
 .brand-context { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--navbar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
@@ -191,13 +194,16 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden;
   display: flex; flex-direction: column;
 }
-.prod-img { width: 100%; aspect-ratio: 16/10; object-fit: cover; background: var(--c-sand-100); }
-/* Visuel produit par défaut : mascotte Coqorico sur pastille orange (même
-   traitement que le login — CONTEXTE MARQUE COMMERCIALE, la seule place
-   in-chrome où la mascotte est admise avec le login). Une vraie photo
-   (image_url) remplace ce bloc sans changement de gabarit. */
-.prod-img-ph { width: 100%; aspect-ratio: 16/10; background: var(--c-orange-700); display: flex; align-items: center; justify-content: center; }
+/* Visuel produit : PASTILLE ARRONDIE (même famille de rayons que le login —
+   28px, 24px ≤480px), pas un bloc carré pleine largeur (recette post-#177).
+   La mascotte sur fond orange = visuel par défaut (contexte marque
+   commerciale) ; une vraie photo (image_url) reçoit le MÊME gabarit
+   arrondi et remplace la pastille sans changement de layout. */
+.prod-img, .prod-img-ph { width: calc(100% - 28px); margin: 14px auto 0; aspect-ratio: 16/10; border-radius: 28px; }
+.prod-img { object-fit: cover; background: var(--c-sand-100); display: block; }
+.prod-img-ph { background: var(--c-orange-700); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md); }
 .prod-img-ph img { height: 68%; width: auto; display: block; }
+@media (max-width: 480px) { .prod-img, .prod-img-ph { border-radius: 24px; } }
 .prod-body { padding: var(--space-3) var(--space-4) var(--space-4); display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .prod-nom { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -307,9 +313,11 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
   <div class="login-card">
     <div class="brand brand-login">
       <!-- Mascotte sur pastille orange : admise sur le LOGIN (contexte marque
-           commerciale — règle CLAUDE.md). La CSS existait, l'img manquait. -->
+           commerciale — règle CLAUDE.md). Wordmark SIVA (recette post-#177 :
+           le COQORICO texte est remplacé — la marque produit vit déjà dans
+           le PNG de la mascotte, l'entité qui parle est SIVA). -->
       <img class="brand-logo" src="./assets/siva-logo-mascotte.png" alt="Coqorico">
-      <div class="brand-name">COQORICO</div>
+      <div class="siva-word">SI<span class="sw-accent">V</span>A</div>
     </div>
     <p class="login-sub">Portail client B2B</p>
 
@@ -440,32 +448,50 @@ function uniteDe(produit_id) {
   const p = catalogue.find(x => x.produit_id === produit_id);
   return p ? p.unite : null;
 }
+// Calibre normalisé « Calibre ~1100 g » (espace + tilde) quel que soit le
+// format brut du catalogue ('1100g', '~1100 g', '1000-1200g'…). Dérivation
+// d'AFFICHAGE seule — la valeur stockée ne bouge pas.
+function calibreLabel(raw) {
+  if (!raw) return null;
+  let v = String(raw).trim().replace(/^~\s*/, '');
+  v = v.replace(/\s*g\s*$/i, '');
+  return 'Calibre ~' + v + ' g';
+}
 // Référence courte — AFFICHAGE SEUL, l'identifiant stocké (cmd-<uuid>) ne
 // change jamais ; la réf longue reste visible en title/detail.
 function refCourte(commande_id) {
   const hex = String(commande_id || '').replace(/^cmd-/, '');
   return 'CMD-' + hex.slice(0, 8).toUpperCase();
 }
-// Statuts réels du schéma (boucle fulfillment PR #38) : libellé + explication
-// une-ligne de la suite. Statut inconnu → brut, badge neutre (échec ouvert).
+// Statuts réels du schéma (boucle fulfillment PR #38) : libellé + classe +
+// EXPLICATION une-ligne portée par l'entrée elle-même (recette d : chaque
+// statut connu a la sienne, même motif que Soumise). Les segments dynamiques
+// ({tel}, {regle}) sont résolus dans statutExpl. Statut inconnu → libellé
+// brut, badge neutre, AUCUNE explication inventée (échec ouvert).
 const STATUTS_PORTAIL = {
-  soumise:        { label: 'Soumise',        cls: 'statut-soumise' },
-  confirmee:      { label: 'Confirmée',      cls: 'statut-confirmee' },
-  en_preparation: { label: 'En préparation', cls: 'statut-en_preparation' },
-  livree:         { label: 'Livrée',         cls: 'statut-livree' },
-  annulee:        { label: 'Annulée',        cls: 'statut-annulee' }
+  soumise:        { label: 'Soumise',        cls: 'statut-soumise',
+                    expl: 'Votre commande sera confirmée par SIVA — vous serez contacté{tel}.' },
+  confirmee:      { label: 'Confirmée',      cls: 'statut-confirmee',
+                    expl: 'Commande confirmée par SIVA — en attente de préparation.' },
+  en_preparation: { label: 'En préparation', cls: 'statut-en_preparation',
+                    expl: 'Votre commande est en cours de préparation.' },
+  livree:         { label: 'Livrée',         cls: 'statut-livree',
+                    expl: 'Commande livrée{regle}' },
+  annulee:        { label: 'Annulée',        cls: 'statut-annulee',
+                    expl: 'Commande annulée — contactez SIVA pour toute question.' }
 };
 function statutInfo(statut) {
   return STATUTS_PORTAIL[statut] || { label: statut || '—', cls: 'statut-default' };
 }
 function statutExpl(c) {
+  const si = STATUTS_PORTAIL[c.statut];
+  if (!si || !si.expl) return '';
   const tel = clientFiche && clientFiche.telephone ? ' au ' + clientFiche.telephone : '';
-  if (c.statut === 'soumise') return 'Votre commande sera confirmée par SIVA — vous serez contacté' + tel + '.';
-  if (c.statut === 'confirmee') return 'Commande confirmée par SIVA — en attente de préparation.';
-  if (c.statut === 'en_preparation') return 'Votre commande est en cours de préparation.';
-  if (c.statut === 'livree') return c.statut_paiement === 'paye' ? 'Commande livrée et réglée. Merci !' : 'Commande livrée — règlement à effectuer auprès de SIVA.';
-  if (c.statut === 'annulee') return 'Commande annulée — contactez SIVA pour toute question.';
-  return '';
+  return si.expl
+    .replace('{tel}', tel)
+    .replace('{regle}', c.statut_paiement === 'paye'
+      ? ' et réglée — merci !'
+      : ' — règlement à effectuer auprès de SIVA.');
 }
 
 function $(id) { return document.getElementById(id); }
@@ -484,7 +510,11 @@ async function init() {
   if (session && isClient(session)) {
     await enterApp();
   } else {
-    if (session) { try { await sb.auth.signOut(); } catch (e) {} } // session non-client → on sort
+    // Session non-client → on sort. Scope LOCAL uniquement (recette : le
+    // scope global — défaut supabase-js — révoquait TOUTES les sessions du
+    // compte, y compris d'autres appareils/onglets, d'où flashs de login en
+    // cascade pendant les recettes parallèles).
+    if (session) { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {} }
     showLogin();
   }
 }
@@ -529,7 +559,12 @@ async function handleLogin(e) {
 }
 
 async function handleSignout() {
-  try { await sb.auth.signOut(); } catch (e) {}
+  // Scope LOCAL : ne révoque que CETTE session (voir note dans init()).
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  // Le panier est vidé À LA DÉCONNEXION UNIQUEMENT (confidentialité sur
+  // appareil partagé) — c'est l'explication innocente du « panier passé à
+  // [] » observé en recette après un logout, PAS une soumission.
+  console.info('[portail] déconnexion : panier local vidé (confidentialité).');
   cart = []; saveCart(); catalogue = []; clientFiche = null; lastOrder = null;
   showLogin();
 }
@@ -594,7 +629,7 @@ function renderCatalogue() {
     // (La catégorie slug interne — ex. poulet_entier — n'est plus affichée.)
     const parPiece = p.unite === 'unite';
     const chips =
-      (p.calibre ? '<span class="chip">Calibre ' + esc(p.calibre) + '</span>' : '') +
+      (p.calibre ? '<span class="chip">' + esc(calibreLabel(p.calibre)) + '</span>' : '') +
       '<span class="chip chip-ok">Disponible</span>';
     const step = parPiece ? '1' : '0.5';
     const min = parPiece ? '1' : '0.5';
@@ -713,8 +748,20 @@ function removeLine(i) {
   saveCart(); updateCartBadge(); renderPanier();
 }
 
-/* ── Soumission : garde anti double-clic STRICTE ── */
+/* ── Soumission : garde anti double-clic STRICTE + gardes anti-fantôme ── */
 async function submitOrder() {
+  // Breadcrumb d'audit (recette commande fantôme) : chaque invocation est
+  // tracée avec son horodatage — une commande sans clic redevient attribuable.
+  console.info('[portail] submitOrder invoqué', new Date().toISOString());
+  // GARDE : la soumission n'est légitime que depuis l'onglet Panier RENDU
+  // (bouton présent et visible). Tout appel programmatique hors contexte est
+  // refusé — un panier restauré atterrit dans l'onglet Panier, jamais en
+  // soumission automatique.
+  const btnGuard = $('submit-order');
+  if (!btnGuard || btnGuard.offsetParent === null) {
+    console.warn('[portail] submitOrder refusé : panier non affiché.');
+    return;
+  }
   if (submitting) return;          // garde 1 : ré-entrance
   if (!cart.length) return;
   submitting = true;
@@ -899,7 +946,19 @@ function wireEvents() {
     const order = e.target.closest('[data-order]');
     if (order) { toggleOrderLines(order.dataset.order); return; }
     const submit = e.target.closest('#submit-order');
-    if (submit) { submitOrder(); return; }
+    if (submit) {
+      // GARDE ANTI-COMMANDE-FANTÔME (recette post-#177) : SEUL un clic
+      // UTILISATEUR réel (isTrusted) soumet. Un clic synthétique dispatché
+      // par script/extension est ignoré et tracé. La soumission n'a AUCUN
+      // autre point d'entrée (pas de file de rejeu, pas de listener
+      // auth/visibility/storage) — invariant à préserver.
+      if (!e.isTrusted) {
+        console.warn('[portail] clic synthétique sur #submit-order IGNORÉ (isTrusted=false).');
+        return;
+      }
+      submitOrder();
+      return;
+    }
     const nav = e.target.closest('[data-view]');
     if (nav && !nav.classList.contains('tab')) { switchView(nav.dataset.view); return; }
   });
