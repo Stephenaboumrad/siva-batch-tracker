@@ -1103,7 +1103,7 @@ body::before {
 
 /* ── Sidebar Nav ── */
 #top-header .hdr-nav {
-  display:flex; flex-direction:column; gap:6px;
+  display:flex; flex-direction:column; gap:4px;   /* resserré : 11 entrées tiennent en 768px de haut sans défiler */
   padding:0 var(--space-3); flex:1;
   overflow-y:auto; overflow-x:hidden;
   /* UX C3 : le rail défile déjà, mais sans affordance — barre fine visible. */
@@ -1111,17 +1111,20 @@ body::before {
 }
 #top-header .hdr-nav::-webkit-scrollbar { width:4px; }
 #top-header .hdr-nav::-webkit-scrollbar-thumb { background:var(--sidebar-icon); border-radius:2px; }
+/* Libellés : JAMAIS de troncature — retour à la ligne autorisé (2 lignes max
+   en pratique), icône calée sur la PREMIÈRE ligne. La barre active (border-
+   left) couvre toute la hauteur de l'item, une ou deux lignes. */
 #top-header .hdr-nav a {
   color:var(--sidebar-text); text-decoration:none;
   font-family:var(--sans); font-size:11px; font-weight:600;
-  letter-spacing:0.02em;
-  padding:11px 12px; height:auto;
-  display:flex; align-items:center; gap:10px;
+  letter-spacing:0.02em; line-height:1.25;
+  padding:8px 12px; height:auto;
+  display:flex; align-items:flex-start; gap:10px;
   border-bottom:none; border-left:3px solid transparent;
   border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-  white-space:nowrap; transition:all .15s var(--ease);
+  white-space:normal; transition:all .15s var(--ease);
 }
-#top-header .hdr-nav a .icon { display:inline; font-size:14px; width:20px; text-align:center; flex-shrink:0; color:var(--sidebar-icon); }
+#top-header .hdr-nav a .icon { display:inline; font-size:14px; line-height:1; width:20px; text-align:center; flex-shrink:0; color:var(--sidebar-icon); }
 #top-header .hdr-nav .nav-short { display:none; }
 #top-header .hdr-nav .nav-full { display:inline; }
 #top-header .hdr-nav a:hover { color:var(--sidebar-text-active); background:var(--sidebar-hover); }
@@ -2881,10 +2884,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <span class="icon"><i data-lucide="chart-line"></i></span> <span class="nav-full">Fiche de bande</span><span class="nav-short">Fiche</span>
     </a>
     <a href="#" data-page="veterinaire" title="Vétérinaire & Santé" onclick="navigate('veterinaire',this)">
-      <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire & Santé</span><span class="nav-short">Véto</span>
+      <span class="icon"><i data-lucide="stethoscope"></i></span> <span class="nav-full">Vétérinaire</span><span class="nav-short">Véto</span>
     </a>
     <a href="#" data-page="biosecurite" title="Biosécurité &amp; Conformité" onclick="navigate('biosecurite',this)">
-      <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité &amp; Conformité</span><span class="nav-short">Bioséc.</span>
+      <span class="icon"><i data-lucide="shield-check"></i></span> <span class="nav-full">Biosécurité</span><span class="nav-short">Bioséc.</span>
     </a>
     <a href="#" data-page="bandes" title="Bandes &amp; Transformation" onclick="navigate('bandes',this)">
       <span class="icon"><i data-lucide="package"></i></span> <span class="nav-full">Bandes &amp; Transformation</span><span class="nav-short">Lots</span>
@@ -2939,10 +2942,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     <span class="icon"><i data-lucide="chart-line"></i></span> Fiche de bande
   </a>
   <a href="#" data-page="veterinaire" onclick="navigate('veterinaire',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé
+    <span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire
   </a>
   <a href="#" data-page="biosecurite" onclick="navigate('biosecurite',this);closeMobileMenu()">
-    <span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité
+    <span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité
   </a>
   <a href="#" data-page="bandes" onclick="navigate('bandes',this);closeMobileMenu()">
     <span class="icon"><i data-lucide="package"></i></span> Bandes &amp; Transformation
@@ -3008,8 +3011,8 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   <div id="plus-sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
     <a href="#" data-page="bandes" onclick="navigateFromSheet('bandes')"><span class="icon"><i data-lucide="chart-line"></i></span> Bandes &amp; Transformation</a>
-    <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire & Santé</a>
-    <a href="#" data-page="biosecurite" onclick="navigateFromSheet('biosecurite')"><span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité &amp; Conformité</a>
+    <a href="#" data-page="veterinaire" onclick="navigateFromSheet('veterinaire')"><span class="icon"><i data-lucide="stethoscope"></i></span> Vétérinaire</a>
+    <a href="#" data-page="biosecurite" onclick="navigateFromSheet('biosecurite')"><span class="icon"><i data-lucide="shield-check"></i></span> Biosécurité</a>
 
     <a href="#" data-page="supply" onclick="navigateFromSheet('supply')"><span class="icon"><i data-lucide="truck"></i></span> Supply Chain</a>
     <a href="#" data-page="clients" onclick="navigateFromSheet('clients')"><span class="icon"><i data-lucide="banknote"></i></span> Commercial & Ventes</a>
