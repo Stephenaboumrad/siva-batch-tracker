@@ -22,15 +22,23 @@ working rules for every task in this repository.
   ONE legitimate final run, right before J0, with the GO-LIVE guard at the
   top of the script ARMED (set the `go_live` constant to the real placement
   date — an armed guard aborts the whole transaction if any bande has
-  `date_entree >= go_live`). Revision 2 (2026-08) covers the RH tables
-  0045-0047: 28 tables wiped (children before parents, DELETE only, never
-  TRUNCATE CASCADE), 13 reference tables kept — `clients` is now KEPT
-  (real B2B fiches survive; revision 1 wiped it). Test residues in
-  reference tables (employes SIVA-010, clients CLI-TEST-001, optional
-  client balance zeroing) live in a commented-out section pending
-  Stephen's arbitration. `auth.users` cannot be touched by SQL: the test
-  accounts (siva-010@coqorico.internal, the CLI-TEST-001 client account)
-  are deleted MANUALLY in the Supabase dashboard after the run.
+  `date_entree >= go_live`). Revision 3 (2026-08-11) folds in Stephen's
+  arbitration — these four decisions are FINAL, do not reopen them:
+  (1) `clients` KEPT as reference (real B2B fiches survive; revision 1
+  wiped the table); (2) `clients.solde_fcfa` zeroing is MANDATORY in the
+  standard flow, with a per-client NOTICE audit trail of old balances;
+  (3) `stocks` and `intrants` are FULLY PURGED (no quantite=0 variant) —
+  `aliments_phases`/`formulations_mp` purged too (per-bande); (4) the
+  test fiches employes `SIVA-010` and clients `CLI-TEST-001` are deleted
+  as part of the standard flow. Scope: 28 transactional tables wiped
+  (children before parents, DELETE only, never TRUNCATE CASCADE), 13
+  reference tables kept. The pre-J0 procedure includes an "inventaire
+  d'ouverture" step: right after the reset and before the chicks arrive,
+  the real physical stock (feed, vet products, consumables) is counted
+  and entered FRESH so cycle 1 starts on true dated stock rows.
+  `auth.users` cannot be touched by SQL: the test accounts
+  (siva-010@coqorico.internal, the CLI-TEST-001 client account) are
+  deleted MANUALLY in the Supabase dashboard after the run.
 
 ## Migration conventions
 

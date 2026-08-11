@@ -1,9 +1,16 @@
 -- ============================================================
 -- Script ops - Purge des donnees transactionnelles (pre-J0 bande 1)
--- REVISION 2 (2026-08) : couvre les tables RH 0045-0047 (pointages,
--- absences, avances), clients passe en REFERENCE (arbitrage brief
--- pre-J0 : les fiches clients reelles survivent, seuls les residus de
--- test partent - section 7 commentee), garde GO-LIVE en tete.
+-- REVISION 3 (2026-08-11) : ARBITRAGE INTEGRE - les quatre decisions de
+-- Stephen sont dans le flux standard, plus rien d'optionnel :
+--   1. clients CONSERVES (reference) - confirme, deja le cas en rev 2.
+--   2. remise a zero des solde_fcfa = OBLIGATOIRE (section 7), avec
+--      piste d'audit NOTICE par client (ancien solde trace).
+--   3. stocks et intrants : PURGE COMPLETE (delete), pas de variante
+--      quantite = 0 ; aliments_phases / formulations_mp purgees.
+--   4. fiches de test employes SIVA-010 et clients CLI-TEST-001 :
+--      suppression ACTIVE (section 7, plus commentee).
+-- REVISION 2 (2026-08) : tables RH 0045-0047 (pointages, absences,
+-- avances), clients passes en REFERENCE, garde GO-LIVE en tete.
 -- ------------------------------------------------------------
 -- CE SCRIPT EST DESTRUCTIF ET SANS ROLLBACK.
 -- AVANT D'EXECUTER : exporter chaque table en CSV depuis le dashboard
@@ -42,12 +49,13 @@
 --   1 les purgait ; les commandes/transactions de test qui les
 --   referencent partent, les fiches restent).
 --
--- RESIDUS DE TEST dans les tables de reference (section 7, COMMENTEE -
--- decommenter apres arbitrage de Stephen) :
---   - employes : fiche de test SIVA-010
---   - clients  : fiche de test CLI-TEST-001
---   - clients.solde_fcfa : soldes gonfles par les transactions de test
---     (option de remise a zero)
+-- RESIDUS DE TEST dans les tables de reference (section 7 - ARBITRE,
+-- flux STANDARD) :
+--   - employes : fiche de test SIVA-010 SUPPRIMEE
+--   - clients  : fiche de test CLI-TEST-001 SUPPRIMEE
+--   - clients.solde_fcfa : remis a zero (transactions de test purgees,
+--     un solde residuel serait un mensonge comptable) - chaque solde
+--     non nul est trace en NOTICE avant l'ecrasement (piste d'audit)
 --
 -- auth.users N'EST PAS TOUCHABLE par ce script - NETTOYAGE MANUEL au
 -- dashboard Supabase (Authentication > Users) APRES l'execution :
@@ -72,6 +80,26 @@
 --     sequence a reinitialiser (aucune colonne serial/identity dans le
 --     schema du depot ; la verification liste pg_sequences pour le
 --     confirmer sur la base reelle).
+--
+-- PROCEDURE DU RUN FINAL PRE-J0 (9 etapes, dans l'ordre) :
+--   1. Exporter les tables en CSV (dashboard > Table Editor) - seule
+--      voie de recuperation.
+--   2. Lancer le cross-check de perimetre (VERIFICATION 2b) : toute
+--      table hors liste = a classer et integrer au script D'ABORD.
+--   3. ARMER la garde (section 0 : go_live = date de mise en place
+--      reelle) et remplir la DATE D'EXECUTION ci-dessous.
+--   4. Executer le script ; lire les NOTICEs (garde, compte par table,
+--      piste d'audit des soldes remis a zero).
+--   5. Lire la VERIFICATION : 0 partout en B (y compris les lignes
+--      fiches de test et soldes non nuls), > 0 en A, clients = INFO.
+--   6. Requete sequences (VERIFICATION 2a) : 0 ligne attendue.
+--   7. Nettoyage MANUEL auth.users (checklist ci-dessus).
+--   8. INVENTAIRE D'OUVERTURE - APRES le reset, AVANT l'arrivee des
+--      poussins : compter physiquement le stock reel (aliment, produits
+--      veterinaires, consommables) et le SAISIR A NEUF dans l'app
+--      (receptions/stocks dates du jour). Le premier cycle demarre sur
+--      un stock VRAI et date, jamais sur des residus corriges.
+--   9. Confirmer, committer la date remplie en en-tete.
 --
 -- DATE D'EXECUTION FINALE : ____-__-__ (a remplir a la main lors de
 -- l'unique run pre-J0, puis committer la trace).
@@ -250,68 +278,81 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 6) Clients : CONSERVES (revision 2 - fiches reelles du portail B2B).
---    La revision 1 purgait la table entiere ; desormais seuls les
---    residus de test partent, via la section 7 APRES ARBITRAGE.
+-- 6) Clients : CONSERVES (arbitrage confirme - fiches reelles du
+--    portail B2B). La revision 1 purgait la table entiere ; seuls les
+--    residus de test et les soldes fantomes partent (section 7).
 -- ------------------------------------------------------------
 do $$
 begin
-  raise notice 'reset: clients - CONSERVES (fiches reelles). Residus de test : section 7 (commentee).';
+  raise notice 'reset: clients - CONSERVES (fiches reelles). Residus + soldes : section 7.';
 end $$;
 
 -- ------------------------------------------------------------
--- 7) RESIDUS DE TEST dans les tables de REFERENCE - COMMENTE.
---    NE DECOMMENTER qu'apres arbitrage de Stephen, ligne par ligne.
+-- 7) RESIDUS DE TEST + SOLDES - ARBITRE 2026-08-11, FLUX STANDARD.
 --    (Les enfants transactionnels sont deja purges au-dessus : ces
 --    DELETE ne peuvent pas casser de FK.)
 -- ------------------------------------------------------------
--- do $$
--- declare
---   n bigint;
--- begin
---   -- (a) Fiche employe de test SIVA-010 (RH-1/RH-2). Son compte
---   --     auth.users se supprime A LA MAIN au dashboard (voir en-tete).
---   delete from public.employes where matricule = 'SIVA-010';
---   get diagnostics n = row_count;
---   raise notice 'reset residus: employes SIVA-010 - % ligne(s).', n;
---
---   -- (b) Fiche client de test CLI-TEST-001 (recette B2B). Compte auth
---   --     a supprimer A LA MAIN egalement.
---   delete from public.clients where client_id = 'CLI-TEST-001';
---   get diagnostics n = row_count;
---   raise notice 'reset residus: clients CLI-TEST-001 - % ligne(s).', n;
---
---   -- (c) OPTION (arbitrage) : remise a zero des soldes clients gonfles
---   --     par les transactions de test (les transactions sont purgees,
---   --     un solde non nul residuel serait un mensonge comptable).
---   -- update public.clients set solde_fcfa = 0 where coalesce(solde_fcfa, 0) <> 0;
---   -- get diagnostics n = row_count;
---   -- raise notice 'reset residus: soldes clients remis a zero - % ligne(s).', n;
--- end $$;
+do $$
+declare
+  r record;
+  n bigint;
+begin
+  -- (a) Fiche employe de test SIVA-010 (RH-1/RH-2). Son compte
+  --     auth.users se supprime A LA MAIN au dashboard (voir en-tete).
+  if to_regclass('public.employes') is null then
+    raise notice 'reset residus: table employes absente - ignoree.';
+  else
+    delete from public.employes where matricule = 'SIVA-010';
+    get diagnostics n = row_count;
+    raise notice 'reset residus: employes SIVA-010 - % ligne(s).', n;
+  end if;
+
+  if to_regclass('public.clients') is null then
+    raise notice 'reset residus: table clients absente - ignoree.';
+    return;
+  end if;
+
+  -- (b) Fiche client de test CLI-TEST-001 (recette B2B). Compte auth
+  --     a supprimer A LA MAIN egalement.
+  delete from public.clients where client_id = 'CLI-TEST-001';
+  get diagnostics n = row_count;
+  raise notice 'reset residus: clients CLI-TEST-001 - % ligne(s).', n;
+
+  -- (c) Remise a zero OBLIGATOIRE des soldes clients (les transactions
+  --     de test sont purgees : un solde residuel serait un mensonge
+  --     comptable). PISTE D'AUDIT : chaque solde non nul est trace en
+  --     NOTICE avec sa valeur AVANT l'ecrasement.
+  for r in
+    select client_id, solde_fcfa from public.clients
+     where coalesce(solde_fcfa, 0) <> 0
+     order by client_id
+  loop
+    raise notice 'reset soldes: client % - ancien solde % FCFA remis a 0.', r.client_id, r.solde_fcfa;
+  end loop;
+  update public.clients set solde_fcfa = 0 where coalesce(solde_fcfa, 0) <> 0;
+  get diagnostics n = row_count;
+  raise notice 'reset soldes: % client(s) remis a zero.', n;
+end $$;
 
 commit;
 
 -- ============================================================
 -- VERIFICATION (lecture seule, s'execute apres le commit).
 -- ------------------------------------------------------------
--- Une ligne par table (41). Colonne statut :
+-- Une ligne par controle (44 : 41 tables + 3 controles d'arbitrage).
+-- Colonne statut :
 --   OK        = groupe B a 0 ligne, ou groupe A avec au moins 1 ligne
 --   ANOMALIE  = un survivant en B, ou une table de reference videe en A
---   A ARBITRER= groupe C (clients : compte affiche, jugement humain -
---               peut legitimement etre 0 si aucune fiche reelle n'existe
---               encore, ou > 0 si les fiches reelles ont survecu)
+--   INFO      = groupe C (clients : ARBITRE conserve - compte affiche a
+--               titre informatif, 0 est legitime si aucune fiche reelle
+--               n'existe encore)
 --   ABSENTE   = table inexistante (migration jamais executee)
+-- Les 3 controles d'arbitrage (groupe B, attendu 0) :
+--   employes [fiche test SIVA-010], clients [fiche test CLI-TEST-001],
+--   clients [solde_fcfa <> 0].
 -- Les lignes non-OK remontent EN TETE du resultat.
 -- ============================================================
-select groupe, table_name, attendu, lignes,
-       case
-         when lignes is null                then 'ABSENTE'
-         when groupe = 'C'                  then 'A ARBITRER'
-         when groupe = 'B' and lignes = 0   then 'OK'
-         when groupe = 'A' and lignes > 0   then 'OK'
-         else 'ANOMALIE'
-       end as statut
-from (
+with etat as (
   select v.groupe, v.table_name, v.attendu,
          case when to_regclass('public.' || v.table_name) is null then null
               else (xpath('/row/c/text()', query_to_xml(
@@ -359,9 +400,33 @@ from (
     ('B', 'releves_nuisibles',     '0'),
     ('B', 'etalonnages',           '0'),
     ('B', 'bandes',                '0'),
-    ('C', 'clients',               'arbitrage')
+    ('C', 'clients',               'info (conserves)')
   ) as v(groupe, table_name, attendu)
-) t
+
+  union all
+  select 'B', 'employes [fiche test SIVA-010]', '0',
+         case when to_regclass('public.employes') is null then null
+              else (select count(*) from public.employes where matricule = 'SIVA-010') end
+
+  union all
+  select 'B', 'clients [fiche test CLI-TEST-001]', '0',
+         case when to_regclass('public.clients') is null then null
+              else (select count(*) from public.clients where client_id = 'CLI-TEST-001') end
+
+  union all
+  select 'B', 'clients [solde_fcfa <> 0]', '0',
+         case when to_regclass('public.clients') is null then null
+              else (select count(*) from public.clients where coalesce(solde_fcfa, 0) <> 0) end
+)
+select groupe, table_name, attendu, lignes,
+       case
+         when lignes is null                then 'ABSENTE'
+         when groupe = 'C'                  then 'INFO'
+         when groupe = 'B' and lignes = 0   then 'OK'
+         when groupe = 'A' and lignes > 0   then 'OK'
+         else 'ANOMALIE'
+       end as statut
+from etat
 order by case when lignes is null then 1
               when groupe = 'C' then 1
               when groupe = 'B' and lignes = 0 then 2
