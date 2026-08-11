@@ -139,6 +139,26 @@ working rules for every task in this repository.
   clock-in screen banner (RH-1) MAY carry the mascot with its orange
   pastille, that screen being a formal register surface. Everywhere else
   in-app stays wordmark-only.
+- Commercial & Ventes OWNS catalog management (the Catalogue tab, manager-
+  only): ONE `produits` catalog feeds BOTH the B2C caisse and the B2B portal
+  through `v_catalogue_client` (server-side `disponible = true` filter — do
+  not duplicate that filter in any front). The edit modal exposes `unite`
+  ("au kg pesé" / "à la pièce") and its price label follows it; the modal
+  carries the standing caution (price/unite changes hit both surfaces
+  immediately; never rename a product sold in PDV — stock history is
+  aggregated by name). Columns deliberately not editable: `id`, `created_at`
+  (technical), `produit_id` (generated at creation, immutable join key).
+- CANONICAL CROSS-SURFACE PALETTE (index.html tokens, reused verbatim by
+  portail.html and caisse.html — "warm cream" does not exist as a token;
+  the real shared background IS #F4F6F8): bg `#F4F6F8`, surface `#FFFFFF`,
+  borders `#D4DBE2` / subtle `#E6EBEF`, text `#0F1822` / secondary `#4A5663`
+  / muted `#8A95A1`, orange ramp 600 `#E2640F` (accent) / 700 `#B84E0A`
+  (buttons, AA on white) / 800 `#8F3D08` (hover), success `#0E7C4A`, danger
+  `#C8332B`, radii 3/4/6/8px, fonts Inter + JetBrains Mono (+ Orbitron for
+  the wordmark). LIGHT CHROME everywhere: white header bars with
+  `border-subtle` + shadow `0 2px 12px rgba(11,17,22,0.06)` — the portal's
+  dark `#1E2A36` bar is gone; the only remaining dark surfaces are the login
+  backdrops (identical on both surfaces by design).
 - Portal (portail.html) shell follows the SIVA conventions: header = SIVA
   wordmark (Orbitron 900) + "Portail client B2B" + client name; the mascot
   (orange pastille) appears ONLY on the login lockup and as the default
