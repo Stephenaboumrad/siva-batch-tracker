@@ -17,6 +17,20 @@ working rules for every task in this repository.
   in place. Merge status and execution status are different things.
 - **Before writing a migration, list `migrations/` and use the next free
   number.** Never assume the number (scoping notes can be stale).
+- **NEVER execute `scripts/reset_transactional_data.sql` after J0** (first
+  real batch placed). It wipes every transactional table. There is exactly
+  ONE legitimate final run, right before J0, with the GO-LIVE guard at the
+  top of the script ARMED (set the `go_live` constant to the real placement
+  date — an armed guard aborts the whole transaction if any bande has
+  `date_entree >= go_live`). Revision 2 (2026-08) covers the RH tables
+  0045-0047: 28 tables wiped (children before parents, DELETE only, never
+  TRUNCATE CASCADE), 13 reference tables kept — `clients` is now KEPT
+  (real B2B fiches survive; revision 1 wiped it). Test residues in
+  reference tables (employes SIVA-010, clients CLI-TEST-001, optional
+  client balance zeroing) live in a commented-out section pending
+  Stephen's arbitration. `auth.users` cannot be touched by SQL: the test
+  accounts (siva-010@coqorico.internal, the CLI-TEST-001 client account)
+  are deleted MANUALLY in the Supabase dashboard after the run.
 
 ## Migration conventions
 

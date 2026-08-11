@@ -1,20 +1,30 @@
 -- ============================================================
--- Script ops - Purge des donnees transactionnelles (dry run bande 1)
+-- Script ops - Purge des donnees transactionnelles (pre-J0 bande 1)
+-- REVISION 2 (2026-08) : couvre les tables RH 0045-0047 (pointages,
+-- absences, avances), clients passe en REFERENCE (arbitrage brief
+-- pre-J0 : les fiches clients reelles survivent, seuls les residus de
+-- test partent - section 7 commentee), garde GO-LIVE en tete.
 -- ------------------------------------------------------------
 -- CE SCRIPT EST DESTRUCTIF ET SANS ROLLBACK.
 -- AVANT D'EXECUTER : exporter chaque table en CSV depuis le dashboard
 -- Supabase (Table Editor > Export). Le CSV est la SEULE voie de
--- recuperation - il n'existe pas de _rollback.sql pour une purge de donnees.
+-- recuperation - il n'existe pas de _rollback.sql pour une purge.
 --
--- Objet : vider les 26 tables transactionnelles (donnees fictives du dry
--- run) pour que la bande 1 demarre sur une base propre, SANS toucher aux
--- 12 tables de reference/seed ni a auth.users.
+-- REGLE ABSOLUE (CLAUDE.md) : CE SCRIPT NE DOIT JAMAIS ETRE EXECUTE
+-- APRES J0 (mise en place de la bande 1 reelle). Cette revision prepare
+-- l'UNIQUE execution finale legitime, juste avant J0. La garde de la
+-- section 0 doit etre ARMEE avant cette execution (voir ci-dessous).
 --
--- Ce n'est PAS une migration numerotee : aucun changement de schema, pas de
--- politique RLS modifiee, re-executable a volonte (idempotent - une table
--- deja vide est simplement re-videe a 0 ligne).
+-- Objet : vider les 28 tables transactionnelles (donnees fictives des
+-- dry runs + activite de test RH/B2B) pour que la bande 1 demarre sur
+-- une base propre, SANS toucher aux 12 tables de reference/seed, aux
+-- fiches clients, ni a auth.users.
 --
--- Tables PURGEES (26, enfants avant parents, clients en tout dernier) :
+-- Ce n'est PAS une migration numerotee : aucun changement de schema,
+-- aucune politique RLS modifiee, re-executable a volonte (idempotent -
+-- une table deja vide est re-videe a 0 ligne).
+--
+-- Tables PURGEES (28, enfants avant parents) :
 --   POS / caisse   : lignes_transaction, paiements, cloture_caisse,
 --                    pos_transactions, mouvements_stock
 --   Commandes      : lignes_commande, commandes
@@ -22,33 +32,85 @@
 --                    aliments_phases, formulations_mp, abattages,
 --                    vides_sanitaires, non_conformites, bandes
 --   Supply chain   : inspections, receptions, stocks
---   RH / divers    : paies, depenses_rh, notifications,
---                    releves_nuisibles, etalonnages
---   Dernier        : clients
+--   RH             : pointages, absences, avances, paies, depenses_rh
+--   Divers         : notifications, releves_nuisibles, etalonnages
 --
--- Tables CONSERVEES (12, reference/seed) : sites, points_de_vente,
+-- Tables CONSERVEES (13, reference/seed) : sites, points_de_vente,
 --   profiles, employes, produits, matieres, fournisseurs,
 --   protocole_vaccinal, protocole_traitements, parametres, equipements,
---   postes_appatage.
+--   postes_appatage, et desormais CLIENTS (fiches reelles - la revision
+--   1 les purgait ; les commandes/transactions de test qui les
+--   referencent partent, les fiches restent).
 --
--- auth.users n'est PAS touche : les comptes Auth orphelins (ex-clients de
--- test) sont nettoyes a la main apres coup.
+-- RESIDUS DE TEST dans les tables de reference (section 7, COMMENTEE -
+-- decommenter apres arbitrage de Stephen) :
+--   - employes : fiche de test SIVA-010
+--   - clients  : fiche de test CLI-TEST-001
+--   - clients.solde_fcfa : soldes gonfles par les transactions de test
+--     (option de remise a zero)
+--
+-- auth.users N'EST PAS TOUCHABLE par ce script - NETTOYAGE MANUEL au
+-- dashboard Supabase (Authentication > Users) APRES l'execution :
+--   [ ] compte employe de test  : siva-010@coqorico.internal
+--   [ ] compte client de test   : client-test (e-mail du compte
+--       CLI-TEST-001 - verifier dans la fiche avant purge)
+--   Les comptes reels (SIVA-001/002/003, employes reels, clients
+--   reels) NE SONT PAS touches.
 --
 -- Precautions techniques :
 --   - DELETE uniquement, jamais TRUNCATE ... CASCADE (le cascade est
---     exactement ce qui tuerait les seeds).
+--     exactement ce qui tuerait les seeds). Ordre explicite enfants ->
+--     parents ; aucune SQL dynamique au-dela du format(%I) de la
+--     boucle sur la liste EXPLICITE ci-dessus.
 --   - Chaque table est gardee par to_regclass : une table absente est
---     ignoree proprement (18 tables heritees n'ont pas de DDL dans le
---     depot - on ne presume de rien).
---   - Les triggers bandes_delete_guard (0021) et commandes_paiement_guard
---     (0014) autorisent le contexte sans JWT : les DELETE passent dans le
---     SQL Editor.
---   - PK uuid generees cote client : aucune sequence a reinitialiser.
+--     ignoree proprement (tables heritees sans DDL dans le depot - on
+--     ne presume de rien).
+--   - Les triggers bandes_delete_guard (0021), commandes_paiement_guard
+--     (0014) et pointages_horodatage (0045) autorisent le contexte sans
+--     JWT : les DELETE passent dans le SQL Editor.
+--   - PK uuid/texte generees cote client ou par defaut : AUCUNE
+--     sequence a reinitialiser (aucune colonne serial/identity dans le
+--     schema du depot ; la verification liste pg_sequences pour le
+--     confirmer sur la base reelle).
+--
+-- DATE D'EXECUTION FINALE : ____-__-__ (a remplir a la main lors de
+-- l'unique run pre-J0, puis committer la trace).
 --
 -- A EXECUTER MANUELLEMENT dans Supabase SQL Editor (role proprietaire).
 -- ============================================================
 
 begin;
+
+-- ------------------------------------------------------------
+-- 0) GARDE GO-LIVE - a ARMER avant l'execution finale.
+--    go_live = NULL  -> garde DESARMEE (dry runs pre-J0) : le script
+--                       previent bruyamment mais s'execute.
+--    go_live = date  -> ARMEE : s'il existe une bande dont date_entree
+--                       >= go_live (bande REELLE), ABORT IMMEDIAT de
+--                       toute la transaction, message explicite.
+--    ARMEMENT (procedure pre-J0) : remplacer null par la date de mise
+--    en place reelle prevue, ex. date '2026-09-01'. Apres J0, la garde
+--    armee rend le script INEXECUTABLE - c'est voulu et definitif.
+-- ------------------------------------------------------------
+do $$
+declare
+  go_live constant date := null;
+  n bigint;
+begin
+  if go_live is null then
+    raise notice 'reset GARDE: NON ARMEE (go_live = null) - execution pre-J0 assumee. ARMER avant le run final.';
+    return;
+  end if;
+  if to_regclass('public.bandes') is null then
+    raise notice 'reset GARDE: table bandes absente - rien a proteger.';
+    return;
+  end if;
+  select count(*) into n from public.bandes where date_entree >= go_live;
+  if n > 0 then
+    raise exception 'reset GARDE: % bande(s) avec date_entree >= % (cycle REEL detecte). CE SCRIPT NE DOIT JAMAIS ETRE EXECUTE APRES J0 - transaction annulee.', n, go_live;
+  end if;
+  raise notice 'reset GARDE: armee sur % - aucune bande reelle detectee, purge autorisee.', go_live;
+end $$;
 
 -- ------------------------------------------------------------
 -- 1) POS / caisse - enfants de pos_transactions d'abord, puis
@@ -77,7 +139,8 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 2) Commandes - lignes avant en-tetes (paiements deja purges en 1)
+-- 2) Commandes - lignes avant en-tetes (paiements deja purges en 1).
+--    Les fiches clients referencees SURVIVENT (revision 2).
 -- ------------------------------------------------------------
 do $$
 declare
@@ -155,8 +218,11 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 5) RH / divers - employes, postes_appatage et equipements survivent,
---    seuls leurs journaux sont purges
+-- 5) RH (REVISION 2 : + pointages / absences / avances, 0045-0047) -
+--    employes, postes_appatage et equipements survivent, seuls leurs
+--    journaux sont purges. Aucune FK entre les tables RH (references
+--    souples par matricule / paie_id texte) - l'ordre est libre, on
+--    purge les journaux avant paies par lisibilite.
 -- ------------------------------------------------------------
 do $$
 declare
@@ -164,6 +230,9 @@ declare
   n bigint;
 begin
   foreach t in array array[
+    'pointages',
+    'absences',
+    'avances',
     'paies',
     'depenses_rh',
     'notifications',
@@ -181,37 +250,63 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
--- 6) Clients - EN TOUT DERNIER : pos_transactions, paiements et
---    commandes qui le referencent sont deja purges (1 et 2).
---    auth.users n'est pas touche (nettoyage manuel apres coup).
+-- 6) Clients : CONSERVES (revision 2 - fiches reelles du portail B2B).
+--    La revision 1 purgait la table entiere ; desormais seuls les
+--    residus de test partent, via la section 7 APRES ARBITRAGE.
 -- ------------------------------------------------------------
 do $$
-declare
-  n bigint;
 begin
-  if to_regclass('public.clients') is null then
-    raise notice 'reset: table clients absente - ignoree.';
-    return;
-  end if;
-  delete from public.clients;
-  get diagnostics n = row_count;
-  raise notice 'reset: clients - % ligne(s) supprimee(s).', n;
+  raise notice 'reset: clients - CONSERVES (fiches reelles). Residus de test : section 7 (commentee).';
 end $$;
+
+-- ------------------------------------------------------------
+-- 7) RESIDUS DE TEST dans les tables de REFERENCE - COMMENTE.
+--    NE DECOMMENTER qu'apres arbitrage de Stephen, ligne par ligne.
+--    (Les enfants transactionnels sont deja purges au-dessus : ces
+--    DELETE ne peuvent pas casser de FK.)
+-- ------------------------------------------------------------
+-- do $$
+-- declare
+--   n bigint;
+-- begin
+--   -- (a) Fiche employe de test SIVA-010 (RH-1/RH-2). Son compte
+--   --     auth.users se supprime A LA MAIN au dashboard (voir en-tete).
+--   delete from public.employes where matricule = 'SIVA-010';
+--   get diagnostics n = row_count;
+--   raise notice 'reset residus: employes SIVA-010 - % ligne(s).', n;
+--
+--   -- (b) Fiche client de test CLI-TEST-001 (recette B2B). Compte auth
+--   --     a supprimer A LA MAIN egalement.
+--   delete from public.clients where client_id = 'CLI-TEST-001';
+--   get diagnostics n = row_count;
+--   raise notice 'reset residus: clients CLI-TEST-001 - % ligne(s).', n;
+--
+--   -- (c) OPTION (arbitrage) : remise a zero des soldes clients gonfles
+--   --     par les transactions de test (les transactions sont purgees,
+--   --     un solde non nul residuel serait un mensonge comptable).
+--   -- update public.clients set solde_fcfa = 0 where coalesce(solde_fcfa, 0) <> 0;
+--   -- get diagnostics n = row_count;
+--   -- raise notice 'reset residus: soldes clients remis a zero - % ligne(s).', n;
+-- end $$;
 
 commit;
 
 -- ============================================================
 -- VERIFICATION (lecture seule, s'execute apres le commit).
 -- ------------------------------------------------------------
--- Une ligne par table (38). Colonne statut :
---   OK       = groupe B a 0 ligne, ou groupe A avec au moins 1 ligne
---   ANOMALIE = un survivant en B, ou une table de reference videe en A
---   ABSENTE  = table inexistante (migration jamais executee)
+-- Une ligne par table (41). Colonne statut :
+--   OK        = groupe B a 0 ligne, ou groupe A avec au moins 1 ligne
+--   ANOMALIE  = un survivant en B, ou une table de reference videe en A
+--   A ARBITRER= groupe C (clients : compte affiche, jugement humain -
+--               peut legitimement etre 0 si aucune fiche reelle n'existe
+--               encore, ou > 0 si les fiches reelles ont survecu)
+--   ABSENTE   = table inexistante (migration jamais executee)
 -- Les lignes non-OK remontent EN TETE du resultat.
 -- ============================================================
 select groupe, table_name, attendu, lignes,
        case
          when lignes is null                then 'ABSENTE'
+         when groupe = 'C'                  then 'A ARBITRER'
          when groupe = 'B' and lignes = 0   then 'OK'
          when groupe = 'A' and lignes > 0   then 'OK'
          else 'ANOMALIE'
@@ -255,18 +350,51 @@ from (
     ('B', 'inspections',           '0'),
     ('B', 'receptions',            '0'),
     ('B', 'stocks',                '0'),
+    ('B', 'pointages',             '0'),
+    ('B', 'absences',              '0'),
+    ('B', 'avances',               '0'),
     ('B', 'paies',                 '0'),
     ('B', 'depenses_rh',           '0'),
     ('B', 'notifications',         '0'),
     ('B', 'releves_nuisibles',     '0'),
     ('B', 'etalonnages',           '0'),
     ('B', 'bandes',                '0'),
-    ('B', 'clients',               '0')
+    ('C', 'clients',               'arbitrage')
   ) as v(groupe, table_name, attendu)
 ) t
 order by case when lignes is null then 1
+              when groupe = 'C' then 1
               when groupe = 'B' and lignes = 0 then 2
               when groupe = 'A' and lignes > 0 then 2
               else 0
          end,
          groupe, table_name;
+
+-- ------------------------------------------------------------
+-- VERIFICATION 2 (lecture seule) : sequences et cross-check du perimetre.
+-- ------------------------------------------------------------
+-- (a) Sequences (attendu : 0 ligne - PK uuid/texte partout ; si une
+--     ligne sort, decider de son reset a la main) :
+--   select schemaname, sequencename, last_value
+--     from pg_sequences where schemaname = 'public';
+--
+-- (b) Cross-check du perimetre : toute table de public ABSENTE de la
+--     liste des 41 ci-dessus = creee hors migrations -> a classer et a
+--     ajouter au script AVANT le run final :
+--   select table_name from information_schema.tables
+--    where table_schema = 'public' and table_type = 'BASE TABLE'
+--      and table_name not in (
+--        'sites','points_de_vente','profiles','employes','produits',
+--        'matieres','fournisseurs','protocole_vaccinal',
+--        'protocole_traitements','parametres','equipements',
+--        'postes_appatage','lignes_transaction','paiements',
+--        'cloture_caisse','pos_transactions','mouvements_stock',
+--        'lignes_commande','commandes','vaccinations','traitements',
+--        'saisies','intrants','aliments_phases','formulations_mp',
+--        'abattages','vides_sanitaires','non_conformites','inspections',
+--        'receptions','stocks','pointages','absences','avances','paies',
+--        'depenses_rh','notifications','releves_nuisibles','etalonnages',
+--        'bandes','clients'
+--      )
+--    order by table_name;
+-- ============================================================
