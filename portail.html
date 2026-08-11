@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1E2A36">
+<meta name="theme-color" content="#FFFFFF">
 <title>Coqorico — Portail client</title>
 <!-- Favicon : monogramme « S » (SVG inline, identique à l'app) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%231A1A1A'/%3E%3Ctext%20x='32'%20y='47'%20font-family='Arial,Helvetica,sans-serif'%20font-size='46'%20font-weight='bold'%20fill='%23ffffff'%20text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
@@ -110,13 +110,13 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
    INTÉRIEUR (header) parle SIVA — wordmark Orbitron 900, règle documentée
    dans CLAUDE.md : mascotte uniquement login + visuel produit par défaut. ── */
 .brand-name { font-family: 'Orbitron', var(--font-sans); font-size: 20px; font-weight: 800; letter-spacing: 0.06em; }
-.siva-word { font-family: 'Orbitron', var(--font-sans); font-size: 19px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; line-height: 1; }
-.siva-word .sw-accent { color: var(--navbar-accent); }
-/* Login : carte blanche → wordmark near-black, V orange marque (écho index). */
-.login-card .siva-word { color: #1A1A1A; font-size: 30px; }
-.login-card .siva-word .sw-accent { color: var(--color-accent); }
+/* Wordmark SIVA — sur chrome CLAIR partout désormais : near-black, V orange
+   marque (mêmes valeurs que l'app). */
+.siva-word { font-family: 'Orbitron', var(--font-sans); font-size: 19px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: #1A1A1A; line-height: 1; }
+.siva-word .sw-accent { color: var(--color-accent); }
+.login-card .siva-word { font-size: 30px; }
 .brand-col { display: flex; flex-direction: column; min-width: 0; }
-.brand-context { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--navbar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-context { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Lockup login : mascotte centrée ~140px au-dessus du nom (écho d'index.html) */
 .brand-login { flex-direction: column; gap: 12px; margin-bottom: var(--space-4); }
 /* Pastille orange derrière la mascotte sur l'écran login uniquement : le wordmark
@@ -149,17 +149,22 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 
 /* ════════ APP SHELL ════════ */
 #screen-app { min-height: 100%; display: flex; flex-direction: column; }
+/* Header CLAIR — alignement visuel sur l'app de gestion (traitement exact de
+   la barre mobile d'index.html : fond carte blanc, border-subtle, ombre
+   0 2px 12px). Le bandeau sombre #1E2A36 est abandonné : UNE seule langue
+   visuelle sur les deux surfaces. */
 .app-header {
   position: sticky; top: 0; z-index: 20;
-  background: var(--navbar-bg); color: var(--navbar-text-active);
+  background: var(--color-surface); color: var(--color-text);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: 0 2px 12px rgba(11,17,22,0.06);
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px var(--space-4); padding-top: max(12px, env(safe-area-inset-top));
 }
-.app-header .brand-name { font-size: 17px; color: #fff; }
 .app-header .brand-logo { height: 28px; }
 .header-right { display: flex; align-items: center; gap: 10px; }
-.signout-btn { background: transparent; border: none; color: var(--navbar-text); min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: var(--radius-md); }
-.signout-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.signout-btn { background: transparent; border: none; color: var(--color-text-secondary); min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: var(--radius-md); }
+.signout-btn:hover { color: var(--color-text); background: var(--c-sand-100); }
 
 .app-main { flex: 1; padding: var(--space-4); padding-bottom: 96px; max-width: 760px; width: 100%; margin: 0 auto; }
 .view-title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: var(--space-4); }
@@ -236,13 +241,15 @@ input, textarea, select { font-family: inherit; font-size: 16px; } /* 16px évit
 .cart-meta-fields .field:last-child { margin-bottom: 0; }
 .cart-meta-fields textarea { width: 100%; min-height: 70px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); resize: vertical; }
 .cart-meta-fields input[type=date] { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+/* Total du panier : carte CLAIRE (langue de l'app — plus de bloc sombre). */
 .cart-total {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: var(--space-4); background: var(--c-sand-800); color: #fff;
-  border-radius: var(--radius-lg); margin-bottom: var(--space-4);
+  padding: var(--space-4); background: var(--color-surface); color: var(--color-text);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); margin-bottom: var(--space-4);
 }
-.cart-total .ct-label { font-size: 14px; color: #cdd6df; }
-.cart-total .ct-value { font-size: 24px; font-weight: 700; }
+.cart-total .ct-label { font-size: 14px; color: var(--color-text-secondary); }
+.cart-total .ct-value { font-size: 24px; font-weight: 700; color: var(--c-orange-700); }
 .cart-note-price { font-size: 12px; color: var(--color-text-muted); text-align: center; margin-top: 8px; }
 
 /* ── Confirmation ── */

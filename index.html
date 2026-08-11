@@ -4480,8 +4480,24 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       </div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label>Unité de vente</label>
+        <select id="prd-unite" onchange="updateProduitPrixLabel()">
+          <option value="kg">au kg pesé</option>
+          <option value="unite">à la pièce</option>
+        </select>
+      </div>
+      <div class="form-group"><label id="prd-prix-label">Prix / kg (FCFA)</label><input type="number" id="prd-prix" min="0" step="1" placeholder="Ex. 2000" inputmode="numeric"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>Calibre (optionnel)</label><input type="text" id="prd-calibre" placeholder="Ex. 1100-1300 g"></div>
-      <div class="form-group"><label>Prix / kg (FCFA)</label><input type="number" id="prd-prix" min="0" step="1" placeholder="Ex. 2000" inputmode="numeric"></div>
+      <div class="form-group"></div>
+    </div>
+    <!-- Note de prudence (recette catalogue) : une seule source, deux surfaces. -->
+    <div style="background:var(--status-warning-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem 0.75rem;font-size:0.8rem;color:var(--text-primary);margin-bottom:0.75rem;">
+      ⚠ Ce catalogue alimente la <strong>caisse B2C</strong> ET le <strong>portail B2B</strong> :
+      un changement de prix ou d'unité s'applique aux deux <strong>immédiatement</strong>.
+      Ne renommez pas un produit vendu en PDV (l'historique de stock est agrégé par nom) —
+      créez un nouveau produit et masquez l'ancien.
     </div>
     <div class="form-row">
       <div class="form-group"><label>Ordre d'affichage</label><input type="number" id="prd-ordre" min="0" step="1" value="0" inputmode="numeric"></div>
@@ -18445,15 +18461,19 @@ function renderCatalogue() {
     return;
   }
   let html = '<div class="card"><div class="table-wrap"><table><thead><tr>' +
-    '<th>Nom</th><th>Catégorie</th><th>Calibre</th><th>Prix/kg (FCFA)</th><th>Disponible</th><th>Ordre</th><th>Actions</th>' +
+    '<th>Nom</th><th>Catégorie</th><th>Unité</th><th>Calibre</th><th>Prix (FCFA)</th><th>Disponible</th><th>Ordre</th><th>Actions</th>' +
     '</tr></thead><tbody>';
   produits.forEach(p => {
     const dispo = p.disponible === true;
+    // Unité de vente : libellé humain + suffixe de prix VRAI (jamais « /kg »
+    // pour un produit à la pièce — même règle d'étiquette que caisse/portail).
+    const parPiece = p.unite === 'unite';
     html += '<tr class="' + (dispo ? '' : 'row-inactive') + '">' +
       '<td><strong>' + (p.nom || '—') + '</strong></td>' +
       '<td>' + produitCategorieLabel(p.categorie) + '</td>' +
+      '<td><span class="badge ' + (parPiece ? 'badge-orange' : 'badge-grey') + '">' + (parPiece ? 'à la pièce' : 'au kg pesé') + '</span></td>' +
       '<td>' + (p.calibre || '—') + '</td>' +
-      '<td><strong>' + fmt(Number(p.prix_base_kg_fcfa) || 0) + '</strong></td>' +
+      '<td><strong>' + fmt(Number(p.prix_base_kg_fcfa) || 0) + '</strong> <span style="color:var(--text-muted);font-size:0.78rem;">/ ' + (parPiece ? 'pièce' : 'kg') + '</span></td>' +
       '<td><button class="btn btn-sm ' + (dispo ? 'btn-primary' : 'btn-outline') + '" onclick="toggleProduitDisponible(\'' + p.produit_id + '\')">' + (dispo ? 'Disponible' : 'Masqué') + '</button></td>' +
       '<td>' + (p.ordre_affichage || 0) + '</td>' +
       '<td>' +
@@ -18466,11 +18486,20 @@ function renderCatalogue() {
   container.innerHTML = html;
 }
 
+// Libellé de prix du modal : suit l'unité de vente (règle d'étiquette
+// commune caisse/portail — jamais « /kg » pour un produit à la pièce).
+function updateProduitPrixLabel() {
+  const u = document.getElementById('prd-unite').value;
+  document.getElementById('prd-prix-label').textContent =
+    u === 'unite' ? 'Prix / pièce (FCFA)' : 'Prix / kg (FCFA)';
+}
+
 function showProduitModal() {
   editingProduitId = null;
   document.getElementById('produit-modal-title').textContent = 'Nouveau produit';
   document.getElementById('prd-nom').value = '';
   document.getElementById('prd-categorie').value = 'decoupe';
+  document.getElementById('prd-unite').value = 'kg';
   document.getElementById('prd-calibre').value = '';
   document.getElementById('prd-prix').value = '';
   document.getElementById('prd-disponible').checked = false;
@@ -18478,6 +18507,7 @@ function showProduitModal() {
   document.getElementById('prd-description').value = '';
   document.getElementById('prd-image').value = '';
   const m = document.getElementById('prd-msg'); if (m) m.textContent = '';
+  updateProduitPrixLabel();
   document.getElementById('produit-modal').style.display = 'flex';
 }
 
@@ -18488,6 +18518,7 @@ function editProduit(id) {
   document.getElementById('produit-modal-title').textContent = 'Modifier le produit';
   document.getElementById('prd-nom').value = p.nom || '';
   document.getElementById('prd-categorie').value = p.categorie || 'decoupe';
+  document.getElementById('prd-unite').value = p.unite === 'unite' ? 'unite' : 'kg';
   document.getElementById('prd-calibre').value = p.calibre || '';
   document.getElementById('prd-prix').value = (p.prix_base_kg_fcfa != null ? p.prix_base_kg_fcfa : '');
   document.getElementById('prd-disponible').checked = p.disponible === true;
@@ -18495,6 +18526,7 @@ function editProduit(id) {
   document.getElementById('prd-description').value = p.description || '';
   document.getElementById('prd-image').value = p.image_url || '';
   const m = document.getElementById('prd-msg'); if (m) m.textContent = '';
+  updateProduitPrixLabel();
   document.getElementById('produit-modal').style.display = 'flex';
 }
 
@@ -18507,14 +18539,17 @@ async function submitProduit() {
   const msg = document.getElementById('prd-msg');
   if (msg) msg.textContent = '';
   if (!nom) { if (msg) msg.textContent = 'Le nom est requis.'; return; }
-  // Règle UI (aucune contrainte DB) : pas de publication sans prix/kg > 0.
+  // Règle UI (aucune contrainte DB) : pas de publication sans prix > 0.
+  // (Un brouillon MASQUÉ à 0 reste permis — le produit n'atteint alors ni la
+  // caisse ni le portail : v_catalogue_client filtre disponible=true.)
   if (disponible && !(prix > 0)) {
-    if (msg) msg.textContent = 'Renseignez un prix/kg > 0 avant de rendre le produit disponible.';
+    if (msg) msg.textContent = 'Renseignez un prix > 0 avant de rendre le produit disponible.';
     return;
   }
   const fields = {
     nom: nom,
     categorie: document.getElementById('prd-categorie').value,
+    unite: document.getElementById('prd-unite').value === 'unite' ? 'unite' : 'kg',
     calibre: document.getElementById('prd-calibre').value.trim() || null,
     prix_base_kg_fcfa: prix,
     disponible: disponible,
@@ -18554,7 +18589,7 @@ async function toggleProduitDisponible(id) {
   const next = !(p.disponible === true);
   // Règle UI : interdire la publication sans prix/kg > 0.
   if (next && !(Number(p.prix_base_kg_fcfa) > 0)) {
-    toast('Renseignez un prix/kg > 0 avant de publier ce produit', 'error');
+    toast('Renseignez un prix > 0 avant de publier ce produit', 'error');
     return;
   }
   try {
