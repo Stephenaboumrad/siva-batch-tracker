@@ -10208,6 +10208,134 @@ function auditVal(v) {
   return escHtml(String(v).slice(0, 120));
 }
 
+// ── Lisibilité du journal (rendu PUR — la capture 0049 garde tout) ─────────
+// Objet métier au singulier avec article, pour le résumé une-ligne.
+const AUDIT_OBJETS = {
+  saisies: 'une saisie terrain', receptions: 'une réception',
+  pointages: 'un pointage', absences: 'une absence', avances: 'une avance',
+  paies: 'une paie', commandes: 'une commande',
+  lignes_commande: 'une ligne de commande', pos_transactions: 'une vente caisse',
+  lignes_transaction: 'une ligne de vente', paiements: 'un paiement caisse',
+  cloture_caisse: 'une clôture de caisse', mouvements_stock: 'un mouvement de stock',
+  produits: 'un produit', employes: 'une fiche employé', clients: 'une fiche client',
+  parametres: 'un paramètre', traitements: 'un traitement',
+  vaccinations: 'une vaccination', bandes: 'une bande',
+  notifications: 'une déclaration'
+};
+const AUDIT_VERBES = { INSERT: 'a créé', UPDATE: 'a modifié', DELETE: 'a supprimé' };
+// Colonnes techniques : jamais montrées dans l'instantané déplié.
+const AUDIT_COLS_TECHNIQUES = ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'archivee'];
+
+// Une valeur « technique » = uuid nu ou identifiant préfixé sur hex long
+// (prd-<uuid hex>, cmd-…). Les codes lisibles (LTS-2026-01, SIVA-003,
+// vet_params) ne matchent PAS et restent affichés.
+function auditValeurTechnique(v) {
+  if (v === null || v === undefined || typeof v === 'object') return false;
+  const s = String(v);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+    || /^[a-z]+-[0-9a-f-]{20,}$/i.test(s);
+}
+function auditRefCourte(pk) {
+  const s = String(pk || '');
+  if (auditValeurTechnique(s)) {
+    const hex = s.replace(/^[a-z]+-/i, '').replace(/-/g, '');
+    return hex.slice(0, 8).toUpperCase();
+  }
+  return s.slice(0, 24);
+}
+// uuid dans un DIFF : raccourci plutôt que masqué (le changement d'une
+// colonne de trace reste visible, sans le bruit des 36 caractères).
+function auditValCourte(v) {
+  return auditValeurTechnique(v) ? auditRefCourte(v) + '…' : auditVal(v);
+}
+
+// Identifiant MÉTIER de l'objet : instantané (INSERT/DELETE) d'abord, puis
+// STATE par row_pk (UPDATE), repli réf courte.
+function auditIdentifiant(r) {
+  const snap = r.operation === 'UPDATE' ? {} : (r.changed || {});
+  const enState = (liste, cle, champ) => {
+    const x = (liste || []).find(o => o && String(o[cle]) === String(r.row_pk));
+    return x ? x[champ] : null;
+  };
+  let v = null;
+  switch (r.table_name) {
+    case 'saisies': {
+      const j = snap.jour_bande != null ? snap.jour_bande
+        : enState(STATE.saisies, 'saisie_id', 'jour_bande');
+      const d = snap.date_saisie || enState(STATE.saisies, 'saisie_id', 'date_saisie');
+      v = j != null ? 'J' + j : (d ? fmtDate(d) : null);
+      break;
+    }
+    case 'bandes': v = snap.nom_bande || enState(STATE.bandes, 'bande_id', 'nom_bande') || (auditValeurTechnique(r.row_pk) ? null : r.row_pk); break;
+    case 'produits': v = snap.nom || enState(STATE.produits, 'produit_id', 'nom'); break;
+    case 'employes': v = snap.matricule || snap.nom || enState(STATE.employes, 'employe_id', 'matricule') || enState(STATE.employes, 'employe_id', 'nom'); break;
+    case 'clients': v = snap.nom || enState(STATE.clients, 'client_id', 'nom') || (auditValeurTechnique(r.row_pk) ? null : r.row_pk); break;
+    case 'pointages': case 'absences': case 'avances': case 'paies':
+      v = snap.employe_matricule || snap.mois
+        || enState(STATE.pointages, 'id', 'employe_matricule')
+        || enState(STATE.avances, 'id', 'employe_matricule')
+        || enState(STATE.absences, 'id', 'employe_matricule');
+      break;
+    case 'commandes': case 'lignes_commande': v = 'CMD-' + auditRefCourte(snap.commande_id || r.row_pk); break;
+    case 'parametres': v = r.row_pk; break;
+    case 'notifications': v = snap.action || null; break;
+    case 'traitements': case 'vaccinations': v = snap.nom_produit || snap.vaccin || null; break;
+    case 'receptions': v = snap.type_produit || null; break;
+    default: v = null;
+  }
+  return v || auditRefCourte(r.row_pk);
+}
+
+// Résumé une-ligne : « {acteur} a {créé|modifié|supprimé} {objet} — {id} » ;
+// modification MONO-CHAMP : le diff est inliné dans le résumé lui-même.
+function auditResume(r) {
+  const acteur = r.acteur_matricule || (r.acteur_role || 'sans_jwt');
+  const verbe = AUDIT_VERBES[r.operation] || r.operation;
+  const objet = AUDIT_OBJETS[r.table_name] || (AUDIT_TABLE_LABELS[r.table_name] || r.table_name);
+  let s = escHtml(acteur) + ' ' + verbe + ' ' + escHtml(objet) + ' — ' + escHtml(String(auditIdentifiant(r)));
+  if (r.operation === 'UPDATE') {
+    const cles = Object.keys(r.changed || {});
+    if (cles.length === 1) {
+      const c = cles[0];
+      const d = r.changed[c] || {};
+      s += ' — ' + escHtml(AUDIT_COL_LABELS[c] || c) + ' : ' + auditValCourte(d.old) + ' → ' + auditValCourte(d.new);
+    }
+  }
+  return s;
+}
+
+// Détail dépliable : diff complet (multi-champ) ou instantané ÉPURÉ
+// (champs vides et colonnes techniques/uuid retirés). Renvoie '' si rien
+// d'utile à déplier (ex. modification mono-champ, déjà inlinée).
+function auditDetail(r) {
+  const ch = r.changed || {};
+  if (r.operation === 'UPDATE') {
+    const cles = Object.keys(ch);
+    if (cles.length <= 1) return '';
+    const lignes = cles.map(col =>
+      '<div style="font-size:0.72rem;padding:2px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' +
+      '<span style="color:var(--color-danger);">' + auditValCourte(ch[col] && ch[col].old) + '</span> → ' +
+      '<span style="color:var(--color-success);">' + auditValCourte(ch[col] && ch[col].new) + '</span></div>').join('');
+    return '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">' +
+      cles.length + ' champs modifiés</summary>' + lignes + '</details>';
+  }
+  // Règle d'épure : champs VIDES retirés, colonnes techniques retirées,
+  // toute VALEUR en forme uuid retirée (pk, FK, traces) — les références
+  // lisibles (LTS-2026-01, SIVA-003, vet_params) restent affichées.
+  const utiles = Object.keys(ch).filter(col => {
+    const v = ch[col];
+    if (v === null || v === undefined || v === '' || v === '—') return false;
+    if (AUDIT_COLS_TECHNIQUES.includes(col)) return false;
+    if (auditValeurTechnique(v)) return false;
+    return true;
+  });
+  if (utiles.length === 0) return '';
+  const lignes = utiles.map(col =>
+    '<div style="font-size:0.72rem;padding:1px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' + auditValCourte(ch[col]) + '</div>').join('');
+  return '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">' +
+    utiles.length + ' champ(s) renseigné(s)</summary>' + lignes + '</details>';
+}
+
 function auditSetFiltre(champ, valeur) {
   auditFiltres[champ] = champ === 'jours' ? (parseInt(valeur, 10) || 7) : valeur.trim();
   auditPage = 0;
@@ -10254,33 +10382,37 @@ async function renderAuditJournal() {
       list.innerHTML = '<p style="text-align:center;color:#9E9E9E;font-size:0.85rem;padding:2rem 0;">Aucune entrée au journal pour ces critères.</p>';
       return;
     }
-    list.innerHTML = rows.map(r => {
+    // Regroupement (lisibilité) : événements CONSÉCUTIFS du même acteur dans
+    // la même minute (cascade de création de bande, rejeu de file…) → une
+    // ligne primaire + « +N écritures liées » dépliable. Heuristique simple
+    // assumée : même acteur + même minute, dans la page courante.
+    const groupes = [];
+    rows.forEach(r => {
+      const cle = (r.acteur_matricule || r.acteur_role || '?') + '|' + String(r.at).slice(0, 16);
+      const dernier = groupes[groupes.length - 1];
+      if (dernier && dernier.cle === cle) dernier.items.push(r);
+      else groupes.push({ cle: cle, items: [r] });
+    });
+
+    const carte = (r, compact, extra) => {
       const op = AUDIT_OP[r.operation] || { label: r.operation, cls: 'badge-grey' };
       const quand = new Date(r.at).toLocaleDateString('fr-FR') + ' ' +
         new Date(r.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const acteur = r.acteur_matricule
-        ? escHtml(r.acteur_matricule) + ' <span class="badge badge-grey" style="font-size:0.6rem;">' + escHtml(r.acteur_role || '?') + '</span>'
-        : '<span class="badge badge-orange" style="font-size:0.6rem;">' + escHtml(r.acteur_role || 'sans_jwt') + '</span>';
-      let detail = '';
-      const ch = r.changed || {};
-      if (r.operation === 'UPDATE') {
-        const lignes = Object.keys(ch).map(col =>
-          '<div style="font-size:0.72rem;padding:2px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' +
-          '<span style="color:var(--color-danger);">' + auditVal(ch[col] && ch[col].old) + '</span> → ' +
-          '<span style="color:var(--color-success);">' + auditVal(ch[col] && ch[col].new) + '</span></div>').join('');
-        detail = '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">' +
-          Object.keys(ch).length + ' champ(s) modifié(s)</summary>' + lignes + '</details>';
-      } else {
-        const cles = Object.keys(ch).slice(0, 10).map(col =>
-          '<div style="font-size:0.72rem;padding:1px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' + auditVal(ch[col]) + '</div>').join('');
-        detail = '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">instantané</summary>' + cles + '</details>';
-      }
-      return '<div class="notif-card">' +
-        '<div class="nc-header"><div class="nc-title">' + escHtml(AUDIT_TABLE_LABELS[r.table_name] || r.table_name) +
+      return '<div class="notif-card"' + (compact ? ' style="margin:6px 0 0;box-shadow:none;"' : '') + '>' +
+        '<div class="nc-header"><div class="nc-title" style="font-weight:600;">' + auditResume(r) +
           ' <span class="badge ' + op.cls + '" style="font-size:0.62rem;">' + op.label + '</span></div>' +
           '<span class="nc-time">' + quand + '</span></div>' +
-        '<div class="nc-author">' + acteur + ' · <span style="font-family:var(--font-mono, monospace);font-size:0.68rem;">' + escHtml(String(r.row_pk).slice(0, 24)) + '</span></div>' +
-        detail + '</div>';
+        '<div class="nc-author"><span class="badge ' + (r.acteur_matricule ? 'badge-grey' : 'badge-orange') + '" style="font-size:0.6rem;">' +
+          escHtml(r.acteur_role || 'sans_jwt') + '</span> · ' + escHtml(String(AUDIT_TABLE_LABELS[r.table_name] || r.table_name)) + '</div>' +
+        auditDetail(r) + (extra || '') + '</div>';
+    };
+
+    list.innerHTML = groupes.map(g => {
+      if (g.items.length === 1) return carte(g.items[0], false, '');
+      const lies = g.items.slice(1).map(r => carte(r, true, '')).join('');
+      const extra = '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--c-orange-700);font-weight:700;">+' +
+        (g.items.length - 1) + ' écriture(s) liée(s)</summary>' + lies + '</details>';
+      return carte(g.items[0], false, extra);
     }).join('') +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">' +
       '<button class="btn btn-outline btn-sm" ' + (auditPage === 0 ? 'disabled' : '') + ' onclick="auditChangePage(-1)">← Précédent</button>' +
