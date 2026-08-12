@@ -10104,6 +10104,10 @@ function toggleNotifPanel() {
 function switchNotifTab(tab, btn) {
   document.querySelectorAll('.notif-panel-tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  // 0049 : pour le MANAGER, l'onglet Historique devient le JOURNAL D'AUDIT
+  // (audit_log, RLS SELECT manager). Le chef_bande garde son historique de
+  // déclarations (ses issues — c'est ce que compte son badge de cloche).
+  if (tab === 'history' && isManager()) { renderAuditJournal(); return; }
   renderNotifPanel(tab);
 }
 
@@ -10159,6 +10163,134 @@ function renderNotifPanel(tab) {
 
 function escHtml(s) {
   const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML;
+}
+
+// ══ Journal d'audit (0049) — onglet Historique du centre, MANAGER only ══
+// Lit public.audit_log (append-only, alimenté par triggers serveur ; RLS
+// SELECT manager). Lecture PAGINÉE côté serveur (range 50 + période gte) —
+// on ne charge JAMAIS le journal complet. Libellés humains : cartes dédiées
+// (sonde : aucune carte table→libellé n'existait ; les cartes de pages/
+// catégories ne couvrent pas les tables).
+const AUDIT_TABLE_LABELS = {
+  saisies: 'Saisies terrain', receptions: 'Réceptions', pointages: 'Pointages',
+  absences: 'Absences', avances: 'Avances', paies: 'Paies',
+  commandes: 'Commandes', lignes_commande: 'Lignes de commande',
+  pos_transactions: 'Ventes caisse', lignes_transaction: 'Lignes de vente caisse',
+  paiements: 'Paiements caisse', cloture_caisse: 'Clôtures de caisse',
+  mouvements_stock: 'Stock PDV', produits: 'Catalogue produits',
+  employes: 'Employés', clients: 'Clients', parametres: 'Paramètres',
+  traitements: 'Traitements', vaccinations: 'Vaccinations', bandes: 'Bandes',
+  notifications: 'File de validation'
+};
+const AUDIT_COL_LABELS = {
+  prix_base_kg_fcfa: 'Prix de base', disponible: 'Disponible', statut: 'Statut',
+  statut_paiement: 'Statut paiement', montant_fcfa: 'Montant',
+  montant_total_fcfa: 'Montant total', quantite: 'Quantité', quantite_kg: 'Qté (kg)',
+  heure_arrivee: 'Arrivée', heure_depart: 'Départ', corrige_par: 'Corrigé par',
+  corrige_le: 'Corrigé le', rembourse: 'Remboursée', rembourse_le: 'Remboursée le',
+  note_manager: 'Note manager', valide_par: 'Validé par', date_validation: 'Validé le',
+  salaire_base_fcfa: 'Salaire de base', taux_journalier_fcfa: 'Taux journalier',
+  solde_fcfa: 'Solde', value: 'Valeur', nom: 'Nom', unite: 'Unité',
+  calibre: 'Calibre', description: 'Description', date_paiement: 'Payé le',
+  lu_par: 'Lu par', ordre_affichage: 'Ordre', image_url: 'Image'
+};
+const AUDIT_OP = {
+  INSERT: { label: 'Création', cls: 'badge-green' },
+  UPDATE: { label: 'Modification', cls: 'badge-orange' },
+  DELETE: { label: 'Suppression', cls: 'badge-grey' }
+};
+let auditPage = 0;
+let auditFiltres = { jours: 7, acteur: '', table: '' };
+
+function auditVal(v) {
+  if (v === null || v === undefined) return '—';
+  if (typeof v === 'object') return escHtml(JSON.stringify(v).slice(0, 120));
+  return escHtml(String(v).slice(0, 120));
+}
+
+function auditSetFiltre(champ, valeur) {
+  auditFiltres[champ] = champ === 'jours' ? (parseInt(valeur, 10) || 7) : valeur.trim();
+  auditPage = 0;
+  renderAuditJournal();
+}
+function auditChangePage(delta) {
+  auditPage = Math.max(0, auditPage + delta);
+  renderAuditJournal();
+}
+
+async function renderAuditJournal() {
+  const body = document.getElementById('notif-panel-body');
+  if (!body) return;
+  const selStyle = 'padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.72rem;background:var(--card-bg);color:var(--text-primary);';
+  body.innerHTML =
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0.6rem;align-items:center;">' +
+      '<select style="' + selStyle + '" onchange="auditSetFiltre(\'jours\', this.value)">' +
+        [7, 30, 90].map(j => '<option value="' + j + '"' + (auditFiltres.jours === j ? ' selected' : '') + '>' + j + ' jours</option>').join('') +
+      '</select>' +
+      '<select style="' + selStyle + '" onchange="auditSetFiltre(\'table\', this.value)">' +
+        '<option value="">Toutes les tables</option>' +
+        Object.keys(AUDIT_TABLE_LABELS).map(t =>
+          '<option value="' + t + '"' + (auditFiltres.table === t ? ' selected' : '') + '>' + AUDIT_TABLE_LABELS[t] + '</option>').join('') +
+      '</select>' +
+      '<input style="' + selStyle + 'width:92px;" placeholder="Matricule…" value="' + escHtml(auditFiltres.acteur) + '" ' +
+        'onchange="auditSetFiltre(\'acteur\', this.value)">' +
+    '</div>' +
+    '<div id="audit-list"><p style="text-align:center;color:#9E9E9E;font-size:0.85rem;padding:1.5rem 0;">Chargement du journal…</p></div>';
+
+  const list = document.getElementById('audit-list');
+  try {
+    const depuis = new Date(Date.now() - auditFiltres.jours * 86400000).toISOString();
+    let q = sb.from('audit_log')
+      .select('at, acteur_matricule, acteur_role, table_name, operation, row_pk, changed')
+      .gte('at', depuis)
+      .order('at', { ascending: false })
+      .range(auditPage * 50, auditPage * 50 + 49);
+    if (auditFiltres.acteur) q = q.eq('acteur_matricule', auditFiltres.acteur.toUpperCase());
+    if (auditFiltres.table) q = q.eq('table_name', auditFiltres.table);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = data || [];
+    if (rows.length === 0 && auditPage === 0) {
+      list.innerHTML = '<p style="text-align:center;color:#9E9E9E;font-size:0.85rem;padding:2rem 0;">Aucune entrée au journal pour ces critères.</p>';
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const op = AUDIT_OP[r.operation] || { label: r.operation, cls: 'badge-grey' };
+      const quand = new Date(r.at).toLocaleDateString('fr-FR') + ' ' +
+        new Date(r.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const acteur = r.acteur_matricule
+        ? escHtml(r.acteur_matricule) + ' <span class="badge badge-grey" style="font-size:0.6rem;">' + escHtml(r.acteur_role || '?') + '</span>'
+        : '<span class="badge badge-orange" style="font-size:0.6rem;">' + escHtml(r.acteur_role || 'sans_jwt') + '</span>';
+      let detail = '';
+      const ch = r.changed || {};
+      if (r.operation === 'UPDATE') {
+        const lignes = Object.keys(ch).map(col =>
+          '<div style="font-size:0.72rem;padding:2px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' +
+          '<span style="color:var(--color-danger);">' + auditVal(ch[col] && ch[col].old) + '</span> → ' +
+          '<span style="color:var(--color-success);">' + auditVal(ch[col] && ch[col].new) + '</span></div>').join('');
+        detail = '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">' +
+          Object.keys(ch).length + ' champ(s) modifié(s)</summary>' + lignes + '</details>';
+      } else {
+        const cles = Object.keys(ch).slice(0, 10).map(col =>
+          '<div style="font-size:0.72rem;padding:1px 0;"><strong>' + escHtml(AUDIT_COL_LABELS[col] || col) + '</strong> : ' + auditVal(ch[col]) + '</div>').join('');
+        detail = '<details style="margin-top:4px;"><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">instantané</summary>' + cles + '</details>';
+      }
+      return '<div class="notif-card">' +
+        '<div class="nc-header"><div class="nc-title">' + escHtml(AUDIT_TABLE_LABELS[r.table_name] || r.table_name) +
+          ' <span class="badge ' + op.cls + '" style="font-size:0.62rem;">' + op.label + '</span></div>' +
+          '<span class="nc-time">' + quand + '</span></div>' +
+        '<div class="nc-author">' + acteur + ' · <span style="font-family:var(--font-mono, monospace);font-size:0.68rem;">' + escHtml(String(r.row_pk).slice(0, 24)) + '</span></div>' +
+        detail + '</div>';
+    }).join('') +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">' +
+      '<button class="btn btn-outline btn-sm" ' + (auditPage === 0 ? 'disabled' : '') + ' onclick="auditChangePage(-1)">← Précédent</button>' +
+      '<span style="font-size:0.72rem;color:var(--text-muted);">page ' + (auditPage + 1) + '</span>' +
+      '<button class="btn btn-outline btn-sm" ' + (rows.length < 50 ? 'disabled' : '') + ' onclick="auditChangePage(1)">Suivant →</button>' +
+    '</div>';
+    if (window.lucide) lucide.createIcons();
+  } catch (e) {
+    list.innerHTML = '<p style="text-align:center;color:var(--color-danger);font-size:0.85rem;padding:2rem 0;">Journal indisponible — migration 0049 non appliquée ou hors ligne.</p>';
+  }
 }
 
 function formatNotifStatut(s) {
