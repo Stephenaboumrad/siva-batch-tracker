@@ -214,6 +214,26 @@ working rules for every task in this repository.
   from 0040's: 0042 extended `receptions` with `prix_pose_par` /
   `prix_pose_le` (price-lifecycle metadata stays out of the chef view) —
   replaying 0040's original lists would resurrect them for the chef.
+- Date doctrine (0050) — three tiers, never blur them:
+  (1) EVENT dates are SERVER-FIXED for non-manager roles: a BEFORE INSERT
+  trigger `aa_date_systeme` overwrites the date column with `current_date`/
+  `now()` when the JWT role is a real non-manager role; manager and no-JWT
+  (SQL editor) writes keep their explicit value = the traced correction path
+  (0049 journals it). Trigger tables: receptions, abattages, avances,
+  cloture_caisse, paiements, mouvements_stock, pos_transactions (its real
+  teeth are the caisse/vendeur tables; the others insert in a manager session
+  by RLS so the trigger is an inert safety net). pointages is covered by 0045.
+  (2) HYBRID (owner decision 2026-08-12) for field-observation dates that are
+  legitimately back-dated — `saisies.date_saisie`, `vaccinations.date_faite`
+  ("date réelle"), `traitements.date_traitement` (drives the slaughter
+  withdrawal delay): NO trigger. The front freezes today read-only with an
+  explicit "Modifier" click (`installDateSysteme(inputId)`) to unlock the
+  picker (notebook transcribed next day, clinical back-dating). Control is the
+  0049 audit trail, not a server barrier. `releves_nuisibles.date_releve` is
+  excluded too (its tournée date doubles as a past-tournée selector).
+  (3) PERIOD/PLANNING dates are user data, untouched: absences du/au,
+  protocole scheduling, vides sanitaires ranges, `date_livraison_souhaitee`.
+  Pure trigger additions change no columns → no 0040 §1 replay.
 - Temperature: the daily series is `saisies.temperature_c` (building ambient
   — norms, alerts and charts read ONLY this column); `temperature_observee_c`
   (0024) is a clinical observation on the birds, optional, never a series.

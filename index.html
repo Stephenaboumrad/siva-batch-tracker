@@ -7224,6 +7224,7 @@ function openVaccFaitModal(protoId) {
   document.getElementById('vf-date').value = todayStr();
   document.getElementById('vf-voie').value = p.voie || '';
   document.getElementById('vf-msg').textContent = '';
+  installDateSysteme('vf-date');   // 0050 : date réelle gelée + « Modifier »
   document.getElementById('vacc-fait-modal').style.display = 'flex';
 }
 function closeVaccFaitModal() { document.getElementById('vacc-fait-modal').style.display = 'none'; }
@@ -7596,6 +7597,7 @@ function openTraitFaitModal(protoTraitId) {
   document.getElementById('tf-molecule').value = p ? (p.molecule || '') : '';
   document.getElementById('tf-type').value = p ? (p.type_acte || '') : '';
   document.getElementById('tf-date').value = todayStr();
+  installDateSysteme('tf-date');   // 0050 : date de traitement gelée + « Modifier »
   document.getElementById('tf-dose').value = '';
   document.getElementById('tf-voie').value = p ? (p.voie || '') : '';
   document.getElementById('tf-duree').value = (p && p.duree_jours != null) ? p.duree_jours : '';
@@ -12131,6 +12133,42 @@ function yesterdayStr() {
   return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 }
 
+// ══ Doctrine des dates (0050) — champ date HYBRIDE ═════════════════════════
+// Événement à date d'observation rétro-datable (saisie terrain, vaccination
+// « date réelle », traitement) : la date du jour est GELÉE en lecture seule ;
+// un clic « Modifier » débloque le sélecteur natif (transcription du cahier
+// le lendemain, back-dating clinique). Pas de trigger serveur sur ces tables
+// — le journal 0049 rend visible toute date choisie. Générique et
+// idempotent : l'input <type=date> reste dans le DOM (ses onchange survivent),
+// on l'affiche/masque seulement. Injecte un display + « Modifier » une fois.
+function installDateSysteme(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  if (!el.value) el.value = todayStr();
+  let disp = document.getElementById(inputId + '-sys');
+  if (!disp) {
+    disp = document.createElement('div');
+    disp.id = inputId + '-sys';
+    disp.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:38px;';
+    el.insertAdjacentElement('afterend', disp);
+  }
+  disp.innerHTML =
+    '<span style="font-size:0.9rem;color:var(--text-primary);">Date : <strong>' + fmtDate(el.value) + '</strong></span>' +
+    '<span style="font-size:0.72rem;color:var(--text-muted);font-style:italic;">fixée par le système</span>' +
+    '<button type="button" class="btn btn-outline btn-sm" style="padding:2px 8px;font-size:0.72rem;" onclick="dateSystemeUnlock(\'' + inputId + '\')">Modifier</button>';
+  el.style.display = 'none';
+  disp.style.display = 'flex';
+}
+function dateSystemeUnlock(inputId) {
+  const el = document.getElementById(inputId);
+  const disp = document.getElementById(inputId + '-sys');
+  if (!el) return;
+  el.style.display = '';
+  if (disp) disp.style.display = 'none';
+  el.focus();
+  if (typeof el.showPicker === 'function') { try { el.showPicker(); } catch (e) {} }
+}
+
 // date_saisie est timestamptz côté base : les lignes serveur reviennent en ISO
 // long → comparaison sur les 10 premiers caractères (même idiome que le
 // startsWith(period) du rapport quotidien).
@@ -12158,6 +12196,7 @@ function applySaisieDatePreselect() {
   dateEl.max = max;
   dateEl.value = (max < today) ? max : today;
   refreshSaisieDateMsgs();
+  installDateSysteme('saisie-date');   // 0050 : date de saisie gelée + « Modifier »
 }
 
 function refreshSaisieDateMsgs() {
