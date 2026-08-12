@@ -145,13 +145,30 @@ working rules for every task in this repository.
   trigger additions change no columns, so the nine 0040 `_ops` views need
   NO replay. Retention: none yet (a pruning migration may come later).
   The VALIDATION QUEUE remains `notifications` (0044) with its server-
-  enforced statut flow; its scope is chef_bande declarations ONLY —
-  pointage corrections and avances are manager-only (rls45/rls46) hence
-  JOURNAL-ONLY: never build approval flows for actions only the manager
-  can perform. The bell badge counts pending validations only, never the
-  journal; the manager's Historique tab reads `audit_log` (paginated 50,
-  period filter server-side — never the full log), the chef's Historique
-  keeps his declaration outcomes.
+  enforced statut flow. Its scope is chef_bande declarations —
+  intrant/réception/abattage AND now saisies (0051): a chef saisie
+  creation OR edit posts a type='saisie' en_attente notification the
+  manager (re)validates. (History: PR #165 removed the saisie notification
+  because it was AUTO-VALIDATED, never a pending item; 0051 re-adds it as a
+  real en_attente validation — a new hierarchy rule, not a pure restore.)
+  Validating a saisie notification does NOT re-insert (the saisie row is
+  written directly by the chef; `performValidateNotif` has no actionMap
+  entry for 'saisie', so it only claims the status). Manager edits do NOT
+  notify (they are the validator; 0049 journals them). pointage corrections
+  and avances stay manager-only (rls45/rls46) hence JOURNAL-ONLY: never
+  build approval flows for actions only the manager can perform. The bell
+  badge counts pending validations only, never the journal. The panel's
+  second tab is named **Journal** (renamed from Historique in 0051; panel
+  label only): for the manager it reads `audit_log` (paginated 50, period
+  filter server-side), for the chef it keeps his declaration outcomes. The
+  Journal tab NEVER replaces or hides the En attente queue.
+- `saisies` chef edit (0051): a chef_bande may UPDATE only saisies they
+  authored (`created_by = auth.uid()`, added by 0051 with `created_at` if the
+  inherited schema lacked them), data fields only — created_by/created_at
+  frozen by the EXISTS-on-stored-row pattern (rls35/rls46). No time window
+  (a J26 saisie may be corrected later; the 0049 journal covers the risk).
+  Manager UPDATE (rls21) stays unrestricted. Existing pre-0051 saisies have
+  NULL created_by → not chef-editable (manager-only), by design.
 
 ## Conventions
 

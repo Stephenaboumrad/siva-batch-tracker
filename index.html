@@ -3039,7 +3039,7 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
   </div>
   <div class="notif-panel-tabs">
     <button class="active" onclick="switchNotifTab('pending',this)">En attente <span id="notif-pending-count" style="background:var(--color-accent-soft);color:var(--accent);border-radius:4px;padding:0 0.35rem;font-size:0.68rem;margin-left:0.3rem;"></span></button>
-    <button onclick="switchNotifTab('history',this)">Historique</button>
+    <button onclick="switchNotifTab('history',this)">Journal</button>
   </div>
   <div class="notif-panel-body" id="notif-panel-body"></div>
 </div>
@@ -10127,7 +10127,7 @@ function renderNotifPanel(tab) {
 
   if (notifs.length === 0) {
     body.innerHTML = '<p style="text-align:center;color:#9E9E9E;font-size:0.85rem;padding:2rem 0;">' +
-      (tab === 'pending' ? 'Aucune action en attente' : 'Aucun historique') + '</p>';
+      (tab === 'pending' ? 'Aucune action en attente' : 'Aucun élément au journal') + '</p>';
     return;
   }
 
@@ -12556,6 +12556,74 @@ function toggleIntrantForm() {
   }
 }
 
+// ── Édition d'une saisie existante (0051) ─────────────────────────────────
+// Réutilise le formulaire de Saisie Terrain PRÉ-REMPLI (pas de fork), pour le
+// manager ET le chef_bande (chef = ses lignes via rls51). La date suit la
+// doctrine 0050 : date d'origine gelée, « Modifier » pour la changer. À
+// l'enregistrement, une édition CHEF crée une notification 'saisie'
+// en_attente (modification) pour re-validation manager (hiérarchie) ; le
+// manager ne notifie pas (il EST le validateur ; 0049 journalise sa
+// correction). editingSaisieId != null bascule submitSaisie en mode update.
+let editingSaisieId = null;
+
+function saisieEditBanner(show, label) {
+  const page = document.getElementById('page-saisie');
+  let b = document.getElementById('saisie-edit-banner');
+  if (!show) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'saisie-edit-banner';
+    b.style.cssText = 'background:var(--status-warning-bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.6rem 0.9rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap;font-size:0.88rem;color:var(--text-primary);';
+    if (page) page.insertBefore(b, page.firstChild);
+  }
+  b.innerHTML = '<span><strong>Mode correction</strong> — ' + escHtml(label) + '</span>' +
+    '<button class="btn btn-outline btn-sm" onclick="cancelSaisieEdit()">Annuler la correction</button>';
+}
+
+function editSaisie(saisieId) {
+  const s = STATE.saisies.find(x => x.saisie_id === saisieId);
+  if (!s) { toast('Saisie introuvable', 'error'); return; }
+  editingSaisieId = saisieId;
+  navigate('saisie', document.querySelector('[data-page=saisie]'));
+  setTimeout(() => {
+    const sel = document.getElementById('saisie-bande');
+    if (sel) sel.value = s.bande_id;
+    applySaisieDatePreselect();               // recale min/max sur la bande (remet aujourd'hui)
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v != null ? v : ''); };
+    set('saisie-mortalite', s.mortalite_jour);
+    set('saisie-aliment', s.aliment_consomme_kg);
+    set('saisie-eau', s.eau_consommee_l);
+    set('saisie-nb-peses', s.nb_oiseaux_peses);
+    set('saisie-poids', s.poids_vif_moyen_g);
+    set('saisie-temperature', s.temperature_c);
+    set('saisie-humidite', s.humidite_pct);
+    set('saisie-temp-observee', s.temperature_observee_c);
+    set('saisie-observations', s.observations);
+    resetSignesObserves();
+    const libre = document.getElementById('saisie-signes-libre');
+    if (libre) libre.value = s.signes_observes || '';   // reproduit sans perte (chips vides + libre)
+    resetCause5m();
+    if (Array.isArray(s.cause_5m)) s.cause_5m.forEach(k => {
+      const cb = document.querySelector('#saisie-5m-chips input[value="' + k + '"]'); if (cb) cb.checked = true;
+    });
+    // Date d'ORIGINE gelée (0050) — écrase le « aujourd'hui » du preselect.
+    const dateEl = document.getElementById('saisie-date');
+    if (dateEl) { dateEl.value = String(s.date_saisie).slice(0, 10); installDateSysteme('saisie-date'); }
+    const btn = document.getElementById('btn-submit-saisie');
+    if (btn) btn.textContent = 'Enregistrer la correction';
+    saisieEditBanner(true, 'saisie du ' + fmtDate(s.date_saisie));
+    updateSaisieInfo();
+    renderRecentSaisies();
+    window.scrollTo(0, 0);
+  }, 60);
+}
+
+function cancelSaisieEdit() {
+  editingSaisieId = null;
+  saisieEditBanner(false);
+  resetSaisieForm();
+}
+
 async function submitSaisie() {
   const bandeId = document.getElementById('saisie-bande').value;
   if (!bandeId) { toast('Sélectionnez une bande', 'error'); return; }
@@ -12586,6 +12654,10 @@ async function submitSaisie() {
     temperature_c: Number(document.getElementById('saisie-temperature').value) || null,
     humidite_pct: Number(document.getElementById('saisie-humidite').value) || null
   };
+  // Mode correction (0051) : on écrit SUR la ligne existante (update) au lieu
+  // d'insérer. created_by/created_at ne sont jamais renvoyés → gelés par rls51.
+  if (editingSaisieId) saisiePayload.saisie_id = editingSaisieId;
+  const saisieAction = editingSaisieId ? 'updateSaisie' : 'addSaisie';
 
   // Champs cahier (migration 0024) : Railway auto-déploie main AVANT que le
   // SQL soit exécuté à la main (règle maison : migration mergée ≠ appliquée).
@@ -12626,9 +12698,9 @@ async function submitSaisie() {
     const bandeName = bande ? bande.nom_bande : bandeId;
     let intrantRejete = null;
 
-    // Saisie always goes through (just logged)
+    // Saisie always goes through (insert, ou update en mode correction)
     try {
-      await apiPost({ action: 'addSaisie', payload: saisiePayload });
+      await apiPost({ action: saisieAction, payload: saisiePayload });
     } catch (err) {
       // Colonnes de migrations non appliquées en prod (PostgREST : « Could
       // not find the '…' column of 'saisies' in the schema cache ») : on
@@ -12651,7 +12723,7 @@ async function submitSaisie() {
           throw lastErr;
         }
         try {
-          await apiPost({ action: 'addSaisie', payload: saisiePayload });
+          await apiPost({ action: saisieAction, payload: saisiePayload });
           lastErr = null;
         } catch (e2) { lastErr = e2; }
       }
@@ -12659,12 +12731,35 @@ async function submitSaisie() {
     }
     // Copie locale : porter les 3 clés cahier (valeurs ou null) quand elles
     // n'ont pas été écartées, pour que les rendus (fiche, véto…) les voient.
-    STATE.saisies.push(cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload));
+    const saisieLocal = cahierDropped ? saisiePayload : Object.assign({}, cahierFields, saisiePayload);
+    if (editingSaisieId) {
+      const idx = STATE.saisies.findIndex(x => x.saisie_id === editingSaisieId);
+      if (idx >= 0) Object.assign(STATE.saisies[idx], saisieLocal); else STATE.saisies.push(saisieLocal);
+    } else {
+      STATE.saisies.push(saisieLocal);
+    }
     saisiePushed = true;
-    // Cockpit D : la notification « saisie » (journal auto-validé) est SORTIE
-    // de la cloche — la table saisies EST le journal, la cloche est réservée
-    // aux actions à VALIDER (intrant/réception/abattage). Les anciennes notifs
-    // saisie restent lisibles dans l'Historique.
+
+    // PART 0 (déclaration restaurée) + PART 2 (modification) : le chef_bande
+    // pousse une notification 'saisie' en_attente que le manager (re)valide —
+    // hiérarchie. La régression : PR #165 (cockpit D) a SORTI la notification
+    // saisie de la cloche (elle était alors AUTO-VALIDÉE, jamais « en
+    // attente ») ; on la recrée ici en_attente (0044). Le manager ne notifie
+    // pas (il EST le validateur ; 0049 journalise). NON BLOQUANT : la saisie
+    // est déjà écrite — un rejet serveur de la notif ne doit pas remonter au
+    // catch global (qui re-soumettrait et dupliquerait).
+    if (currentUser && currentUser.role === 'chef_bande') {
+      const isMod = !!editingSaisieId;
+      const notifPayload = Object.assign({}, saisieLocal, { saisie_ref: saisiePayload.saisie_id, saisie_mod: isMod });
+      const label = 'Saisie J' + jourBande + (isMod ? ' modifiée' : '') + ' — ' + bandeName;
+      try {
+        await createNotification('saisie', label, bandeId, bandeName, notifPayload);
+      } catch (err) {
+        if (!(err && err.message && err.message.includes("file d'attente"))) {
+          console.warn('[saisie] notification de validation non transmise :', err && err.message);
+        }
+      }
+    }
 
     // If intrant form is visible and has data
     if (document.getElementById('intrant-subform').style.display !== 'none') {
@@ -12711,7 +12806,9 @@ async function submitSaisie() {
     } else if (cahierDropped || cause5mDropped) {
       toast('Saisie enregistrée, mais NON enregistrés : ' + perduMsg() + ' — migration non appliquée en base.', 'error');
     } else {
-      toast('Saisie enregistrée');
+      const chef = currentUser && currentUser.role === 'chef_bande';
+      toast((editingSaisieId ? 'Correction enregistrée' : 'Saisie enregistrée')
+        + (chef ? ' — en attente de validation' : ''));
     }
     resetSaisieForm();
   } catch (err) {
@@ -12769,6 +12866,11 @@ function resetSaisieForm() {
   // La saisie du jour vient d'être écrite : recalcule la date proposée
   // (ex. hier vient d'être transcrit → on repasse sur aujourd'hui) et la
   // garde doublon.
+  // Sortie du mode correction (0051) : retour à la création du jour.
+  editingSaisieId = null;
+  saisieEditBanner(false);
+  const submitBtn = document.getElementById('btn-submit-saisie');
+  if (submitBtn) submitBtn.textContent = 'Enregistrer';
   applySaisieDatePreselect();
   updateSaisieInfo();
   renderRecentSaisies();
@@ -12794,12 +12896,14 @@ function renderRecentSaisies() {
 
   const titre = recent.length > 1 ? '7 derniers jours' : 'Dernière saisie';
   let html = '<div class="card"><h3 style="margin-bottom:0.5rem;font-size:0.95rem;">' + titre + '</h3><div class="table-wrap"><table class="saisies-recent-table"><thead><tr>' +
-    '<th>Date · J</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th></tr></thead><tbody>';
+    '<th>Date · J</th><th>Mort.</th><th>Aliment</th><th>Eau</th><th>Poids</th><th>T°C</th><th>Hum%</th><th></th></tr></thead><tbody>';
 
   const bandeJ = STATE.bandes.find(b => b.bande_id === bandeId);
   recent.forEach(s => {
     // A7/#147 : jour recalculé des dates, stocké = repli.
     const j = computeJourBande(bandeJ, s.date_saisie) || s.jour_bande;
+    // Édition (0051) : ✎ pour manager ET chef (le chef n'édite que SES lignes,
+    // barrière rls51 ; le contrôle reste offert, un refus serveur = toast).
     html += `<tr>
       <td>${fmtDate(s.date_saisie)} · J${j != null ? j : '?'}</td>
       <td>${s.mortalite_jour}</td>
@@ -12808,11 +12912,13 @@ function renderRecentSaisies() {
       <td>${s.poids_vif_moyen_g ? fmt(Number(s.poids_vif_moyen_g)) + ' g' : '—'}</td>
       <td>${s.temperature_c ? fmt(Number(s.temperature_c), 1) + '°' : '—'}</td>
       <td>${s.humidite_pct ? fmt(Number(s.humidite_pct), 0) + '%' : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" title="Corriger cette saisie" onclick="editSaisie('${escHtml(s.saisie_id)}')"><i data-lucide="pencil"></i></button></td>
     </tr>`;
   });
 
   html += '</tbody></table></div></div>';
   container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 // ── Fiche Bande ──
