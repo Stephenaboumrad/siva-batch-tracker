@@ -129,6 +129,29 @@ working rules for every task in this repository.
 - Financial columns: use the `canSeeFinance()` / `canSee()` helper pattern
   for any surface that shows money. Revenue figures have leaked into
   unexpected surfaces repeatedly.
+- Audit & validation (0049) — TWO separate concepts, never merge them:
+  `audit_log` is the APPEND-ONLY audit journal, populated EXCLUSIVELY by the
+  SECURITY DEFINER trigger `trg_audit_log` (name `zz_audit_log` so it fires
+  LAST, after business triggers) attached to 21 tables. Actor comes from the
+  session JWT server-side (console writes of an authenticated session are
+  captured identically; no-JWT contexts — SQL editor/service — are logged
+  with `acteur_role='sans_jwt'` and NULL `acteur_id`, a deliberate deviation
+  so manual ops never crash on audit). UPDATEs store only the changed-column
+  diff (`{col:{old,new}}`), no-op updates are skipped; INSERT/DELETE store
+  the full snapshot. A deny-list masks password/token-like column values —
+  none exist in the schema today, the mechanism is a forward guard.
+  SELECT is manager-only; NO write path for any role (no insert/update/
+  delete policies + revoked grants — append-only by construction). Pure
+  trigger additions change no columns, so the nine 0040 `_ops` views need
+  NO replay. Retention: none yet (a pruning migration may come later).
+  The VALIDATION QUEUE remains `notifications` (0044) with its server-
+  enforced statut flow; its scope is chef_bande declarations ONLY —
+  pointage corrections and avances are manager-only (rls45/rls46) hence
+  JOURNAL-ONLY: never build approval flows for actions only the manager
+  can perform. The bell badge counts pending validations only, never the
+  journal; the manager's Historique tab reads `audit_log` (paginated 50,
+  period filter server-side — never the full log), the chef's Historique
+  keeps his declaration outcomes.
 
 ## Conventions
 
