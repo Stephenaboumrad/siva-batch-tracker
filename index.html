@@ -12365,6 +12365,10 @@ function refreshSaisieVeilleUi() {
 // ── Validation de saisie terrain (temps réel, bienveillante : alerter, pas bloquer) ──
 const SAISIE_VALIDATED_FIELDS = ['mortalite', 'temperature', 'humidite', 'poids', 'temp-observee'];
 
+// Accès BRUT à COBB_STANDARD par day 0-based. Pour un jour APP (convention
+// J1 = mise en place, computeJourBande), passer par cobbWeightForJourApp —
+// point de conversion UNIQUE ; un appel direct avec un J app recrée
+// l'off-by-one corrigé par fix/cobb-standard-off-by-one.
 function getCobbStandardWeight(jour) {
   const d = Math.max(0, Math.min(CYCLE_DURATION_DAYS, Math.round(jour)));
   const row = COBB_STANDARD.find(c => c.day === d);
@@ -12431,7 +12435,7 @@ function validateSaisieField(field) {
     setFieldMsg(field, null); return null;
   } else if (field === 'poids') {
     if (val > 0) {
-      const std = getCobbStandardWeight(ctx.jour);
+      const std = cobbWeightForJourApp(ctx.jour);
       if (val < std * 0.5 || val > std * 1.6) {
         setFieldMsg(field, 'warn', 'Inhabituel pour J' + ctx.jour + ' (~' + fmt(std) + ' g attendu) — confirmer ?');
         return 'warn';
@@ -13203,11 +13207,16 @@ function renderFicheCharts(ind) {
   const days = ind.saisies.map(s => 'J' + s.jour_bande);
   const dayNums = ind.saisies.map(s => Number(s.jour_bande));
 
-  // Get Cobb standard data for the range
-  const maxDay = Math.max(...dayNums, 0);
-  const cobbFiltered = COBB_STANDARD.filter(c => c.day <= Math.max(maxDay + 3, 35));
-  const cobbDays = cobbFiltered.map(c => 'J' + c.day);
-  const cobbWeights = cobbFiltered.map(c => c.weight);
+  // Axe standard Cobb en jours APP (fix off-by-one) : le standard au Jn est
+  // cobbWeightForJourApp(n) — conversion UNIQUE J app (J1 = mise en place) →
+  // day 0-based. L'ancien axe 'J' + c.day décalait la courbe standard d'un
+  // jour en avance sur la série observée (J1 affichait day 1 = 52 g au lieu
+  // de day 0 = 42 g) et fabriquait un label 'J0' inexistant en doctrine app.
+  const maxJ = Math.max(...dayNums, 0);
+  const lastJ = Math.min(Math.max(maxJ + 3, 35), CYCLE_DURATION_DAYS);
+  const cobbDays = [];
+  const cobbWeights = [];
+  for (let j = 1; j <= lastJ; j++) { cobbDays.push('J' + j); cobbWeights.push(cobbWeightForJourApp(j)); }
 
   // Chart 1: Poids
   const ctxP = document.getElementById('chart-poids').getContext('2d');
@@ -13239,7 +13248,7 @@ function renderFicheCharts(ind) {
         },
         {
           label: 'Standard Cobb 500',
-          data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days, dayNums),
+          data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days),
           borderColor: t.reference,
           borderWidth: 1,
           borderDash: [4, 4],
@@ -13386,19 +13395,15 @@ function mapToLabels(labels, dayNums, values) {
   });
 }
 
-function mapCobbToLabels(labels, dayNums) {
+// Standard Cobb aligné sur des labels 'J<n>' APP (J1 = mise en place) — la
+// conversion J→day 0-based passe par cobbWeightForJourApp (point UNIQUE).
+// Au-delà de la fin du standard (day 42) : null, jamais un plateau fabriqué.
+function mapCobbToLabels(labels) {
+  const lastDay = COBB_STANDARD[COBB_STANDARD.length - 1].day;
   return labels.map(l => {
-    const d = parseInt(l.replace('J', ''));
-    const cobb = COBB_STANDARD.find(c => c.day === d);
-    if (cobb) return cobb.weight;
-    // Interpolate
-    const before = COBB_STANDARD.filter(c => c.day < d).pop();
-    const after = COBB_STANDARD.find(c => c.day > d);
-    if (before && after) {
-      const ratio = (d - before.day) / (after.day - before.day);
-      return Math.round(before.weight + ratio * (after.weight - before.weight));
-    }
-    return null;
+    const j = parseInt(l.replace('J', ''));
+    if (!Number.isFinite(j) || j - 1 > lastDay) return null;
+    return cobbWeightForJourApp(j);
   });
 }
 
@@ -19870,7 +19875,7 @@ async function exportDailiesPDF() {
   const headers = ['Date', 'J', 'Mort.', 'Effectif', 'Alim.kg', 'Eau L', 'IC', 'Poids', 'Cobb', 'T°/HR'];
   const widths  = [22, 9, 13, 18, 18, 15, 13, 15, 15, 19];
   const trows = r.rows.map(s => {
-    const cobb = getCobbStandardWeight(s.jour_bande);
+    const cobb = cobbWeightForJourApp(s.jour_bande);
     const amb = (s.temperature_c != null ? fmt(s.temperature_c, 0) : '—') + '/' + (s.humidite_pct != null ? fmt(s.humidite_pct, 0) : '—');
     return [
       fmtDate(s.date_saisie), 'J' + s.jour_bande, fmt(Number(s.mortalite_jour) || 0), fmt(s.effectif),
@@ -19917,7 +19922,7 @@ async function exportDailiesExcel() {
 
   const head = ['Date', 'Jour', 'Mortalité', 'Effectif', 'Aliment (kg)', 'Eau (L)', 'IC', 'Poids vif (g)', 'Cobb 500 (g)', 'Écart Cobb (g)', 'T° (°C)', 'HR (%)'];
   const data = r.rows.map(s => {
-    const cobb = getCobbStandardWeight(s.jour_bande);
+    const cobb = cobbWeightForJourApp(s.jour_bande);
     return [s.date_saisie, 'J' + s.jour_bande, Number(s.mortalite_jour) || 0, s.effectif,
       Number(s.aliment_consomme_kg) || 0, Number(s.eau_consommee_l) || 0,
       s.ic != null ? Math.round(s.ic * 100) / 100 : '', s.poids, cobb, Math.round((s.poids || 0) - cobb),
