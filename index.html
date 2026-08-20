@@ -572,6 +572,45 @@
 #page-fiche .btn-danger:hover { background: var(--status-danger-bg); box-shadow: none; transform: none; }
 /* Bouton primaire éventuel → plat (les boutons Registre/Excel sont déjà outline plats) */
 
+/* ── Cockpit de bande (lot 1, scopé #fiche-cockpit) — lecture seule ──
+   Vue temporelle « au J » (curseur) : style volontairement DISTINCT des
+   KPIs temps réel du header (fond alterné, filet accent, chip VUE AU J,
+   grille pointillée) pour qu'une valeur historique ne se lise jamais
+   comme un chiffre du jour. Jetons existants uniquement (thème sombre
+   couvert par les redéfinitions --color-* de [data-theme="dark"]). */
+#fiche-cockpit { border-left: 2px solid var(--color-accent); }
+#fiche-cockpit .cockpit-chip {
+  display: inline-flex; align-items: center;
+  background: var(--color-accent-soft); color: var(--color-accent);
+  border-radius: var(--radius-full); padding: 2px 10px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em; white-space: nowrap;
+}
+#fiche-cockpit .cockpit-scrub-row { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-3) 0 var(--space-3); }
+#fiche-cockpit input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--color-accent); }
+#fiche-cockpit .cockpit-strip { position: relative; height: 30px; background: var(--color-surface-alt); border: var(--border-hairline); border-radius: var(--radius-sm); overflow: hidden; }
+/* Échelle interne insérée (±4px) + marqueurs CENTRÉS sur leur position :
+   sans elle, un événement au DERNIER jour (J = jourMax → left:100%, ancré à
+   gauche) était peint hors boîte et avalé par overflow:hidden — cas typique :
+   traitement saisi AUJOURD'HUI sur une bande active (constat PR #189). */
+#fiche-cockpit .cockpit-strip .strip-scale { position: absolute; left: 4px; right: 4px; top: 0; bottom: 0; }
+#fiche-cockpit .cockpit-strip .ev-window { position: absolute; top: 0; bottom: 0; }
+#fiche-cockpit .cockpit-strip .ev-tick { position: absolute; top: 4px; bottom: 4px; width: 3px; border-radius: 1px; transform: translateX(-50%); }
+#fiche-cockpit .cockpit-strip .ev-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--color-accent); transform: translateX(-50%); }
+#fiche-cockpit .cockpit-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: 10.5px; color: var(--color-text-muted); margin-top: var(--space-2); }
+#fiche-cockpit .cockpit-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+#fiche-cockpit .cockpit-kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
+  gap: var(--bw-hairline); background: var(--color-border-subtle);
+  border: 1px dashed var(--color-border); border-radius: var(--radius-md);
+  overflow: hidden; margin-top: var(--space-3);
+}
+#fiche-cockpit .cockpit-kpi { background: var(--color-surface-alt); padding: var(--space-2) var(--space-3); }
+#fiche-cockpit .cockpit-kpi .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); }
+#fiche-cockpit .cockpit-kpi .value { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+#fiche-cockpit .cockpit-kpi .sub { font-size: 10px; color: var(--color-text-muted); }
+#fiche-cockpit .cockpit-note { display: flex; gap: 0.4rem; align-items: flex-start; font-size: 11px; color: var(--color-text-muted); margin-top: var(--space-2); }
+
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 8 — Transformation & Abattage (scopé #page-abattage), 3 ONGLETS
    (Sessions / Fiche détaillée / Statistiques). Présentation seule ; aucun calcul
@@ -3481,6 +3520,10 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
     </div>
     <div id="fiche-content" style="display:none;">
       <div class="card" id="fiche-header"></div>
+      <!-- Cockpit de bande (lot 1) — lecture seule, séries computeIndicators ;
+           rempli par renderFicheCockpit() : vue « au J » du curseur temporel,
+           à distinguer des KPIs temps réel du header ci-dessus. -->
+      <div class="card" id="fiche-cockpit" style="display:none;"></div>
       <!-- Clôture / registre de bande — export manuel à la demande.
            C2 (audit AI) : + Rapport quotidien PDF/Excel (déplacé de Saisie
            Terrain — ids conservés, sélecteurs bande/mois autonomes, bande
@@ -12953,7 +12996,7 @@ function initFichePage() {
 function loadFicheBande() {
   const bandeId = document.getElementById('fiche-bande-select').value;
   const content = document.getElementById('fiche-content');
-  if (!bandeId) { content.style.display = 'none'; return; }
+  if (!bandeId) { content.style.display = 'none'; cockpitCtx = null; return; }
   content.style.display = 'block';
 
   // C2 : le rapport quotidien suit la bande affichée (resélectionnable).
@@ -13030,6 +13073,9 @@ function loadFicheBande() {
 
   // Charts
   renderFicheCharts(ind);
+
+  // Cockpit de bande (lot 1) — APRÈS les charts : le plugin curseur les repeint
+  renderFicheCockpit(bande, ind);
 
   // Répartition 5M de la mortalité (lecture seule)
   renderFicheMortalite5m(ind);
@@ -13181,6 +13227,17 @@ function renderFicheCharts(ind) {
           pointRadius: 0
         },
         {
+          // Cockpit lot 1 : pesées RÉELLES marquées — le report entre pesées
+          // (trajectoire) est inchangé, les jours effectivement pesés se voient.
+          label: 'Pesées (mesurées)',
+          data: mapToLabels(cobbDays.length > days.length ? cobbDays : days, dayNums, ind.saisies.map(s => Number(s.poids_vif_moyen_g) > 0 ? s.poids : null)),
+          borderColor: t.observed,
+          backgroundColor: t.observed,
+          showLine: false,
+          pointRadius: 3,
+          pointHoverRadius: 4
+        },
+        {
           label: 'Standard Cobb 500',
           data: cobbDays.length > days.length ? cobbWeights : mapCobbToLabels(days, dayNums),
           borderColor: t.reference,
@@ -13192,7 +13249,8 @@ function renderFicheCharts(ind) {
         }
       ]
     },
-    options: chartOptions('Poids (g)')
+    options: chartOptions('Poids (g)'),
+    plugins: [cockpitCursorPlugin]
   });
 
   // Chart 2: IC
@@ -13212,7 +13270,8 @@ function renderFicheCharts(ind) {
         pointRadius: 0
       }]
     },
-    options: chartOptions('IC')
+    options: chartOptions('IC'),
+    plugins: [cockpitCursorPlugin]
   });
 
   // Chart 3: Mortalité
@@ -13232,7 +13291,8 @@ function renderFicheCharts(ind) {
         pointRadius: 0
       }]
     },
-    options: chartOptions('Mortalité (%)')
+    options: chartOptions('Mortalité (%)'),
+    plugins: [cockpitCursorPlugin]
   });
 
   // Chart 4: Ambiance (Temperature + Humidity)
@@ -13272,7 +13332,8 @@ function renderFicheCharts(ind) {
           x: { title: { display: false }, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }
         },
         plugins: { legend: { position: 'bottom', labels: { color: t.axis } } }
-      }
+      },
+      plugins: [cockpitCursorPlugin]
     });
   }
 
@@ -13311,7 +13372,8 @@ function renderFicheCharts(ind) {
           x: { title: { display: false }, grid: { display: false }, border: { color: t.grid }, ticks: { color: t.axis } }
         },
         plugins: { legend: { position: 'bottom', labels: { color: t.axis } } }
-      }
+      },
+      plugins: [cockpitCursorPlugin]
     });
   }
 }
@@ -13353,6 +13415,344 @@ function chartOptions(yLabel) {
     spanGaps: true
   };
 }
+
+// ── Cockpit de bande (lot 1) — lecture seule ────────────────────────────────
+// Curseur temporel J1→J courant (bande active) / J1→J42 (bande terminée) sur
+// les séries de computeIndicators (SOURCE UNIQUE — aucun recalcul ici) : KPIs
+// « au J » (report de la dernière saisie ≤ J, même sémantique que les charts),
+// bandeau d'événements datés (vaccinations / traitements + fenêtre de délai
+// d'attente / abattages) et badge de dérive. Aucune écriture, aucune table ni
+// colonne nouvelle, aucun changement RLS.
+let cockpitCtx = null;            // { bande, ind, jour, jourMax } de la fiche affichée
+let cockpitRepaintQueued = false; // throttle rAF du repaint des charts au scrub
+
+// Seuils de dérive — clé jsonb PARTAGÉE 'cockpit_derive' (table parametres,
+// 0028 — AUCUNE migration : la clé est simplement absente tant que non
+// publiée), même motif que 'objectifs_bande'. Asymétrie VOULUE : un poids
+// AU-DESSUS du standard Cobb ne déclenche jamais d'alerte (seuils négatifs).
+const COCKPIT_DERIVE_DEFAULTS = { poids_surveiller_pct: -5, poids_derive_pct: -10, ambiance_jours_consecutifs: 2 };
+function getCockpitDeriveParams() {
+  const db = getParametre('cockpit_derive');
+  const obj = (db && typeof db === 'object' && !Array.isArray(db)) ? db : {};
+  return Object.assign({}, COCKPIT_DERIVE_DEFAULTS, obj);
+}
+
+// Standard Cobb au jour de bande APP : COBB_STANDARD est indexé en jours
+// 0-based (day 0 = poussin à la mise en place, 42 g) alors que la convention
+// app est J1 = mise en place (computeJourBande) → conversion AU LOOKUP
+// (J app − 1), jamais sur les données stockées.
+function cobbWeightForJourApp(jour) {
+  return getCobbStandardWeight(Math.max(0, (Number(jour) || 1) - 1));
+}
+
+// Date calendaire du J demandé (J1 = date_entree) — affichage du curseur.
+function cockpitDateForJour(bande, jour) {
+  const d = parseDayLocal(bande.date_entree);
+  if (!d || jour == null) return null;
+  d.setDate(d.getDate() + (jour - 1));
+  return d;
+}
+
+// Dernière ligne quotidienne ≤ J (dailyData de computeIndicators, ordre des
+// dates) : sémantique de REPORT — une valeur cumulée vaut jusqu'à la saisie
+// suivante, comme sur les charts.
+function cockpitRowAsOf(ind, jour) {
+  const rows = ind.saisies || [];
+  let last = null;
+  for (let i = 0; i < rows.length; i++) {
+    if (Number(rows[i].jour_bande) <= jour) last = rows[i];
+  }
+  return last;
+}
+
+// Dernière PESÉE réelle ≤ J : { poids, jour } ou null (pré-première-pesée).
+function cockpitLastWeighingAsOf(ind, jour) {
+  const rows = ind.saisies || [];
+  let found = null;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (Number(r.jour_bande) > jour) continue;
+    if (Number(r.poids_vif_moyen_g) > 0) found = { poids: Number(r.poids_vif_moyen_g), jour: Number(r.jour_bande) };
+  }
+  return found;
+}
+
+// Dérive « au J » — poids vs Cobb (pesées réelles uniquement) + ambiance
+// (jours CONSÉCUTIFS hors AMBIANCE_NORMS ; un jour sans relevé casse la
+// série). Niveaux : derive > surveiller > norme, plus 'sans_donnees' quand
+// aucun signal n'est exploitable (jamais un « Norme » fabriqué sans mesure).
+function computeCockpitDerive(ind, jour) {
+  const p = getCockpitDeriveParams();
+  const reasons = [];
+  let level = null;
+  let hasSignal = false;
+
+  const w = cockpitLastWeighingAsOf(ind, jour);
+  if (w) {
+    hasSignal = true;
+    const std = cobbWeightForJourApp(w.jour);
+    if (std > 0) {
+      const gap = ((w.poids - std) / std) * 100;
+      if (gap <= p.poids_derive_pct) {
+        level = 'derive';
+        reasons.push('Poids ' + fmt(gap, 1) + '% vs Cobb (pesée J' + w.jour + ')');
+      } else if (gap <= p.poids_surveiller_pct) {
+        level = 'surveiller';
+        reasons.push('Poids ' + fmt(gap, 1) + '% vs Cobb (pesée J' + w.jour + ')');
+      }
+    }
+  }
+
+  // Série traînante de jours consécutifs hors norme se terminant au dernier
+  // relevé ≤ J (température OU humidité hors plage de getAmbianceNorm).
+  const rows = (ind.saisies || []).filter(r => Number(r.jour_bande) <= jour);
+  if (rows.some(r => r.temperature_c != null || r.humidite_pct != null)) hasSignal = true;
+  let run = 0;
+  let expect = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    const rj = Number(r.jour_bande);
+    if (expect != null && rj !== expect) break;
+    const temp = (r.temperature_c != null) ? Number(r.temperature_c) : null;
+    const hum = (r.humidite_pct != null) ? Number(r.humidite_pct) : null;
+    if (temp == null && hum == null) break;
+    const n = getAmbianceNorm(rj);
+    const out = (temp != null && (temp < n.tempMin || temp > n.tempMax))
+             || (hum != null && (hum < n.humMin || hum > n.humMax));
+    if (!out) break;
+    run++;
+    expect = rj - 1;
+  }
+  if (run >= p.ambiance_jours_consecutifs) {
+    if (level == null) level = 'surveiller';
+    reasons.push('Ambiance hors norme ' + run + ' j consécutifs');
+  }
+
+  if (!hasSignal) return { level: 'sans_donnees', reasons: ['Aucune pesée ni relevé d\'ambiance'] };
+  return { level: level || 'norme', reasons };
+}
+
+function cockpitBadgeHtml(d) {
+  const map = {
+    norme:        { cls: 'badge-green',  txt: 'Norme' },
+    surveiller:   { cls: 'badge-orange', txt: 'À surveiller' },
+    derive:       { cls: 'badge-red',    txt: 'Dérive' },
+    sans_donnees: { cls: 'badge-grey',   txt: 'Sans données' }
+  };
+  const m = map[d.level] || map.sans_donnees;
+  const title = d.reasons.length ? d.reasons.join(' · ') : 'Poids vs Cobb et ambiance dans les normes';
+  return '<span class="badge ' + m.cls + '" title="' + title + '">' + m.txt + '</span>'
+    + (d.reasons.length ? '<span style="font-size:10.5px;color:var(--color-text-muted);">' + d.reasons.join(' · ') + '</span>' : '');
+}
+
+// Événements datés de la bande sur l'axe J1→jourMax. Les fenêtres de délai
+// d'attente réutilisent traitementClearanceDate (0015/0018 : dernière
+// administration + délai), bornées à jourMax pour l'affichage.
+function cockpitEventsData(bande, jourMax) {
+  const ticks = [];
+  const windows = [];
+  const push = ev => { if (ev.j != null && ev.j >= 1 && ev.j <= jourMax) ticks.push(ev); };
+  (STATE.vaccinations || []).filter(v => v.bande_id === bande.bande_id).forEach(v => {
+    push({ type: 'vaccin', j: ageJourBande(bande, v.date_faite), label: (v.nom_vaccin || 'Vaccin') + ' — ' + fmtDate(v.date_faite) });
+  });
+  (STATE.traitements || []).filter(t => t.bande_id === bande.bande_id).forEach(t => {
+    const j = ageJourBande(bande, t.date_traitement);
+    push({ type: 'traitement', j, label: (t.nom_produit || 'Traitement') + ' — ' + fmtDate(t.date_traitement) });
+    const clear = traitementClearanceDate(t);
+    if (j != null && j <= jourMax && clear) {
+      const jc = computeJourBande(bande, clear);
+      if (jc != null && jc > j) {
+        windows.push({ start: Math.max(1, j), end: Math.min(jourMax, jc), label: 'Délai d\'attente « ' + (t.nom_produit || '') + ' » — abattage possible J' + jc });
+      }
+    }
+  });
+  (STATE.abattages || []).filter(a => a.bande_id === bande.bande_id).forEach(a => {
+    push({ type: 'abattage', j: ageJourBande(bande, a.date_abattage), label: 'Abattage — ' + fmtDate(a.date_abattage) + (Number(a.nb_oiseaux_abattus) > 0 ? ' (' + fmt(a.nb_oiseaux_abattus) + ' oiseaux)' : '') });
+  });
+  return { ticks, windows };
+}
+
+function cockpitStripHtml(bande, jourMax, jour) {
+  const t = chartTokens();
+  const colors = { vaccin: t.blue, traitement: t.amber, abattage: t.red };
+  const pos = j => (jourMax > 1 ? ((j - 1) / (jourMax - 1)) * 100 : 0);
+  const ev = cockpitEventsData(bande, jourMax);
+  const wins = ev.windows.map(w =>
+    '<div class="ev-window" style="left:' + pos(w.start).toFixed(2) + '%;width:' + Math.max(0.8, pos(w.end) - pos(w.start)).toFixed(2) + '%;background:' + chartFill(t.amber, 0.18) + ';" title="' + w.label + '"></div>').join('');
+  const ticks = ev.ticks.map(e =>
+    '<div class="ev-tick" style="left:' + pos(e.j).toFixed(2) + '%;background:' + colors[e.type] + ';" title="J' + e.j + ' · ' + e.label + '"></div>').join('');
+  return '<div class="cockpit-strip"><div class="strip-scale">' + wins + ticks
+    + '<div class="ev-cursor" id="cockpit-strip-cursor" style="left:' + pos(jour).toFixed(2) + '%;"></div></div></div>'
+    + '<div class="cockpit-legend">'
+    + '<span><span class="dot" style="background:' + colors.vaccin + ';"></span>Vaccination</span>'
+    + '<span><span class="dot" style="background:' + colors.traitement + ';"></span>Traitement (bande ombrée = délai d\'attente)</span>'
+    + '<span><span class="dot" style="background:' + colors.abattage + ';"></span>Abattage</span>'
+    + '<span style="margin-left:auto;font-family:var(--font-mono);">J1 → J' + jourMax + '</span>'
+    + '</div>';
+}
+
+// Rangée de KPIs « au J » — report de la dernière saisie ≤ J ; avant toute
+// saisie : effectif d'entrée, cumuls à zéro, poids « — » (rien d'inventé).
+function cockpitKpisHtml(bande, ind, jour) {
+  const row = cockpitRowAsOf(ind, jour);
+  const p = getCockpitDeriveParams();
+  const nbEntree = Number(bande.nb_poussins_entree) || 0;
+  const phase = getCurrentPhase(jour);
+  const dateJ = cockpitDateForJour(bande, jour);
+  const w = cockpitLastWeighingAsOf(ind, jour);
+  let poidsHtml = '<div class="value">—</div><div class="sub">aucune pesée ≤ J' + jour + '</div>';
+  if (w) {
+    const std = cobbWeightForJourApp(w.jour);
+    const gap = std > 0 ? ((w.poids - std) / std) * 100 : null;
+    let color = 'var(--color-text)';
+    if (gap != null) {
+      color = gap <= p.poids_derive_pct ? 'var(--color-danger)'
+            : gap <= p.poids_surveiller_pct ? 'var(--color-warning)'
+            : 'var(--color-success)';
+    }
+    poidsHtml = '<div class="value">' + fmt(w.poids) + ' g' + (gap != null ? ' <span style="color:' + color + ';font-size:12px;">' + (gap > 0 ? '+' : '') + fmt(gap, 1) + '%</span>' : '') + '</div>'
+      + '<div class="sub">pesée J' + w.jour + ' · Cobb ' + fmt(std) + ' g</div>';
+  }
+  const kpi = (label, valueHtml) => '<div class="cockpit-kpi"><div class="label">' + label + '</div>' + valueHtml + '</div>';
+  const v = h => '<div class="value">' + h + '</div>';
+  // Mortalité < 1 % : DEUX décimales (5 morts / 15 000 = 0,03 %, pas un
+  // « 0,0 % » qui contredit l'effectif affiché juste à côté) ; 1 décimale au-delà.
+  const tauxMort = row ? Number(row.taux_mort) || 0 : 0;
+  return kpi('Jour', v('J' + jour + '<span style="font-size:11px;color:var(--color-text-muted);"> / J' + (cockpitCtx ? cockpitCtx.jourMax : jour) + '</span>'))
+    + kpi('Date', v(dateJ ? fmtDate(dateJ) : '—'))
+    + kpi('Phase', v('<span style="font-size:12.5px;">' + phase.label + '</span>'))
+    + kpi('Effectif', v(fmt(row ? row.effectif : nbEntree)))
+    + kpi('Mortalité cum.', v(fmt(tauxMort, tauxMort < 1 ? 2 : 1) + ' %'))
+    + kpi('Aliment cum.', v(fmt(row ? row.aliment_total : 0, 0) + ' kg'))
+    + kpi('Eau cum.', v(fmt(row ? row.eau_total : 0, 0) + ' L'))
+    + kpi('Poids mesuré vs Cobb', poidsHtml);
+}
+
+// Enlèvements partiels : un abattage AVANT date_sortie (ou sur une bande
+// encore en cours) n'est PAS déduit de l'effectif — computeIndicators ne
+// décompte que la mortalité. Comportement app INCHANGÉ, on l'affiche.
+function cockpitDepopNoteHtml(bande) {
+  const partiels = (STATE.abattages || []).filter(a =>
+    a.bande_id === bande.bande_id && a.date_abattage &&
+    (!bande.date_sortie || dateOnly(a.date_abattage) < dateOnly(bande.date_sortie)));
+  if (!partiels.length) return '';
+  const dates = partiels.map(a => fmtDate(a.date_abattage)).join(', ');
+  return '<div class="cockpit-note"><i data-lucide="info" style="flex:none;margin-top:1px;"></i><span>'
+    + 'Abattage(s) du ' + dates + ' non déduit(s) de l\'effectif affiché (seule la mortalité est décomptée).</span></div>';
+}
+
+function renderFicheCockpit(bande, ind) {
+  const box = document.getElementById('fiche-cockpit');
+  if (!box) return;
+  const enCours = bande.statut === 'en_cours';
+  const jourReel = computeJourBande(bande);
+  if (!bande.date_entree || (enCours && jourReel == null)) {
+    cockpitCtx = null;
+    box.style.display = '';
+    box.innerHTML = '<div class="card-header"><h3 style="display:flex;align-items:center;gap:0.45rem;"><i data-lucide="gauge"></i> Cockpit de bande</h3></div>'
+      + '<div style="font-size:0.85rem;color:var(--color-text-muted);font-style:italic;">Indisponible — date de mise en place manquante.</div>';
+    refreshIcons();
+    return;
+  }
+  const jourMax = enCours ? Math.max(1, jourReel) : CYCLE_DURATION_DAYS;
+  const jourInit = enCours ? jourMax : Math.max(1, Math.min(ind.dernierJour || CYCLE_DURATION_DAYS, CYCLE_DURATION_DAYS));
+  cockpitCtx = { bande: bande, ind: ind, jour: jourInit, jourMax: jourMax };
+
+  const dInit = cockpitDateForJour(bande, jourInit);
+  box.style.display = '';
+  box.innerHTML =
+      '<div class="card-header" style="align-items:center;">'
+    +   '<h3 style="display:flex;align-items:center;gap:0.45rem;"><i data-lucide="gauge"></i> Cockpit de bande</h3>'
+    +   '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end;" id="cockpit-badge">' + cockpitBadgeHtml(computeCockpitDerive(ind, jourInit)) + '</div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--color-text-muted);">Curseur temporel — reconstitution de la bande AU jour choisi (report de la dernière saisie connue), à ne pas confondre avec les indicateurs temps réel de l\'en-tête.</div>'
+    + '<div class="cockpit-scrub-row">'
+    +   '<span class="cockpit-chip" id="cockpit-chip">VUE AU J' + jourInit + '</span>'
+    +   '<input type="range" id="cockpit-scrub" min="1" max="' + jourMax + '" step="1" value="' + jourInit + '" oninput="cockpitSetJour(this.value)" aria-label="Curseur temporel (jour de bande)">'
+    +   '<span id="cockpit-date" style="font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);white-space:nowrap;">' + (dInit ? fmtDate(dInit) : '—') + '</span>'
+    + '</div>'
+    + cockpitStripHtml(bande, jourMax, jourInit)
+    + '<div class="cockpit-kpis" id="cockpit-kpis">' + cockpitKpisHtml(bande, ind, jourInit) + '</div>'
+    + cockpitDepopNoteHtml(bande);
+  refreshIcons();
+  cockpitRepaintCharts();
+}
+
+function cockpitSetJour(v) {
+  if (!cockpitCtx) return;
+  const j = Math.max(1, Math.min(cockpitCtx.jourMax, parseInt(v, 10) || 1));
+  cockpitCtx.jour = j;
+  const chip = document.getElementById('cockpit-chip');
+  if (chip) chip.textContent = 'VUE AU J' + j;
+  const dEl = document.getElementById('cockpit-date');
+  if (dEl) {
+    const d = cockpitDateForJour(cockpitCtx.bande, j);
+    dEl.textContent = d ? fmtDate(d) : '—';
+  }
+  const cur = document.getElementById('cockpit-strip-cursor');
+  if (cur) cur.style.left = (cockpitCtx.jourMax > 1 ? ((j - 1) / (cockpitCtx.jourMax - 1)) * 100 : 0).toFixed(2) + '%';
+  const kpis = document.getElementById('cockpit-kpis');
+  if (kpis) kpis.innerHTML = cockpitKpisHtml(cockpitCtx.bande, cockpitCtx.ind, j);
+  const badge = document.getElementById('cockpit-badge');
+  if (badge) badge.innerHTML = cockpitBadgeHtml(computeCockpitDerive(cockpitCtx.ind, j));
+  cockpitRepaintCharts();
+}
+
+// Repaint synchronisé des charts de la fiche (throttle rAF) : draw() rejoue
+// les hooks du plugin curseur sans relancer d'animation ni de layout.
+function cockpitRepaintCharts() {
+  if (cockpitRepaintQueued) return;
+  cockpitRepaintQueued = true;
+  requestAnimationFrame(() => {
+    cockpitRepaintQueued = false;
+    ['poids', 'ic', 'mortalite', 'ambiance', 'eau'].forEach(k => {
+      const c = ficheCharts[k];
+      if (c && c.canvas) { try { c.draw(); } catch (e) { /* chart détruit entre-temps */ } }
+    });
+  });
+}
+
+// Plugin curseur J (Chart.js, hook afterDraw MAISON — pas de plugin externe) :
+// trait vertical au J du cockpit sur l'axe catégorie 'J<n>' des charts de la
+// fiche. Index fractionnaire interpolé entre deux labels (saisies éparses),
+// borné au dernier point quand J dépasse la série.
+const cockpitCursorPlugin = {
+  id: 'cockpitCursor',
+  afterDraw(chart) {
+    if (!cockpitCtx || cockpitCtx.jour == null) return;
+    const labels = chart.data.labels || [];
+    const area = chart.chartArea;
+    if (!labels.length || !area || !chart.scales.x) return;
+    const dayNums = labels.map(l => parseInt(String(l).replace('J', ''), 10));
+    const j = cockpitCtx.jour;
+    if (!Number.isFinite(dayNums[0]) || j < dayNums[0]) return;
+    let idx = 0;
+    while (idx < dayNums.length - 1 && dayNums[idx + 1] <= j) idx++;
+    let frac = idx;
+    if (idx < dayNums.length - 1 && dayNums[idx] < j) {
+      frac = idx + (j - dayNums[idx]) / (dayNums[idx + 1] - dayNums[idx]);
+    }
+    const x = chart.scales.x.getPixelForValue(frac);
+    if (!Number.isFinite(x) || x < area.left - 0.5 || x > area.right + 0.5) return;
+    const t = chartTokens();
+    const c = chart.ctx;
+    c.save();
+    c.strokeStyle = t.observed;
+    c.lineWidth = 1;
+    c.setLineDash([4, 3]);
+    c.beginPath();
+    c.moveTo(x, area.top);
+    c.lineTo(x, area.bottom);
+    c.stroke();
+    c.setLineDash([]);
+    const right = x > (area.left + area.right) / 2;
+    c.fillStyle = t.observed;
+    c.font = '600 10px ' + (cssVar('--font-mono') || 'monospace');
+    c.textAlign = right ? 'right' : 'left';
+    c.fillText('J' + j, x + (right ? -4 : 4), area.top + 10);
+    c.restore();
+  }
+};
 
 // ── Répartition 5M de la mortalité (lecture seule, bande courante) ──────────
 // Analyse de dérive (axe fonctionnel systémique) : somme des « morts du jour »
