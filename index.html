@@ -9988,7 +9988,11 @@ function renderDashChips(alerts, deadlines) {
   // les bandes indéterminées comptent dans le sous-texte (et dans le libellé
   // du chip neutre à n = 0, car la fabrique masque le sous-texte à zéro).
   const sigs = _dashChipData.signaux || [];
-  const sigBreach = sigs.filter(s => s.level === 'alerte' || s.level === 'surveiller').length;
+  // Compte = RANGÉES du détail (bande × signal en défaut, alerte + surveiller),
+  // jamais le compte par bande : une bande à 2 signaux en défaut affichait
+  // « 1 signal » sur un dépliage de 2 rangées (recette #191).
+  const sigBreach = sigs.reduce((n, sb) =>
+    n + (sb.signaux || []).filter(s => s.etat === 'alerte' || s.etat === 'surveiller').length, 0);
   const sigIndet = sigs.filter(s => s.level === 'indetermine').length;
   const sigCls = sigs.some(s => s.level === 'alerte') ? 'dc-danger' : 'dc-warn';
   const sigSub = sigIndet ? sigIndet + ' indéterminé' + (sigIndet > 1 ? 's' : '') : '';
@@ -13772,9 +13776,11 @@ function cockpitSignalAmbiance(rows, p) {
     motif: run === 1 ? '1 j hors norme (série < ' + p.ambiance_jours_consecutifs + ')' : 'dans les normes' });
 }
 
-// Agrégat « au J » : les 6 signaux en ordre de précocité S1→S6 + pire état
-// (alerte > surveiller > indetermine > ok — un signal indéterminé interdit
-// le vert : jamais un « Norme » fabriqué sans mesure).
+// Agrégat « au J » : pire état parmi les signaux ÉVALUÉS uniquement
+// (alerte > surveiller > ok — arbitrage recette #191 : 4 OK + 2 indéterminés
+// = « Norme · 4/6 signaux évalués », plus un badge gris). Les indéterminés
+// sont portés par la SEULE annotation « n/6 signaux évalués » ; aucun signal
+// évalué (0/6) → badge « Indéterminé » (jamais un « Norme » sans mesure).
 function computeCockpitDerive(ind, jour) {
   const p = getCockpitDeriveParams();
   const rows = (ind.saisies || []).filter(r => Number(r.jour_bande) <= jour);
@@ -13786,10 +13792,11 @@ function computeCockpitDerive(ind, jour) {
     cockpitSignalPoids(ind, jour, p),
     cockpitSignalAmbiance(rows, p)
   ];
-  const ordre = { alerte: 3, surveiller: 2, indetermine: 1, ok: 0 };
-  let level = 'ok';
-  signaux.forEach(s => { if (ordre[s.etat] > ordre[level]) level = s.etat; });
-  return { level: level, signaux: signaux, evalues: signaux.filter(s => s.etat !== 'indetermine').length };
+  const ordre = { alerte: 2, surveiller: 1, ok: 0 };
+  const evalues = signaux.filter(s => s.etat !== 'indetermine');
+  let level = evalues.length ? 'ok' : 'indetermine';
+  evalues.forEach(s => { if (ordre[s.etat] > ordre[level]) level = s.etat; });
+  return { level: level, signaux: signaux, evalues: evalues.length };
 }
 
 // Badge agrégé de la bande (header du cockpit + Dashboard) — vocabulaire
