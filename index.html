@@ -11594,6 +11594,7 @@ function renderBandes() {
     const archBadge = b.archivee ? ' <span class="badge badge-grey">Archivée</span>' : '';
     let actions = `<button class="btn btn-outline btn-sm" onclick="openFiche('${b.bande_id}')">Voir</button>`;
     if (!b.archivee) {
+      if (b.statut === 'en_cours') actions += ` <button class="btn btn-sm btn-outline manager-only" onclick="showEditEcoBandeModal('${b.bande_id}')">Modifier</button>`;
       if (b.statut === 'en_cours') actions += ` <button class="btn btn-sm btn-gold manager-only" onclick="showCloseBandeModal('${b.bande_id}')">Clôturer</button>`;
       actions += ` <button class="btn btn-sm btn-outline manager-only" onclick="archiveBande('${b.bande_id}')">Archiver</button>`;
     } else {
@@ -11821,6 +11822,88 @@ async function saveSurface(bandeId) {
   closeModal();
   initFichePage();
   toast(r.queued ? 'Surface enregistrée (hors ligne — sera synchronisée)' : 'Surface enregistrée');
+}
+
+// ── Édition économique de bande (manager — FINANCE) ────────────────────────
+// Les quatre champs économiques, éditables EN COURS de bande seulement
+// (constat recette lot C : figés à la création sinon). Écriture = UN payload
+// updateBande partiel (champs modifiés uniquement) → UNE entrée au journal
+// 0049 (diff old→new automatique, trigger sur bandes). Barrière réelle :
+// rls21_bandes_update (manager) ; canSeeFinance() à l'ouverture = défense en
+// profondeur. Bande terminée : AUCUN chemin — historique clos immuable, la
+// modale de clôture possède le prix de sortie. Modale MAISON, jamais de
+// confirm() natif (constat recette : il gèle toute automatisation).
+function showEditEcoBandeModal(bandeId) {
+  if (!canSeeFinance()) return;
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande || bande.statut !== 'en_cours') return;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <h3>Économie de la bande — ${escHtml(bande.nom_bande || bande.bande_id)}</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prix poussin (correction — fait historique J0)</label>
+          <input type="number" id="eco-prix-poussin" min="0" step="1" inputmode="numeric" value="${Number(bande.prix_poussin_unitaire) || ''}">
+        </div>
+        <div class="form-group">
+          <label>Coût aliment forfait (FCFA/kg)</label>
+          <input type="number" id="eco-cout-aliment" min="0" step="1" inputmode="numeric" value="${Number(bande.cout_aliment_kg) || ''}">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);font-style:italic;margin:-0.25rem 0 0.75rem;">Le coût engagé passé sera reprisé au nouveau prix. Pour un coût réel au fil des livraisons, saisissez les achats en formulation.</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Prix de vente carcasse (FCFA/kg)</label>
+          <input type="number" id="eco-prix-vente" min="0" step="1" inputmode="numeric" value="${Number(bande.prix_vente_carcasse_kg) || ''}">
+        </div>
+        <div class="form-group">
+          <label>Rendement carcasse (%)</label>
+          <input type="number" id="eco-rendement" min="0" max="100" step="0.1" inputmode="decimal" value="${Number(bande.rendement_carcasse_pct) || ''}">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveEcoBande('${bande.bande_id}')">Enregistrer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => { const f = document.getElementById('eco-prix-poussin'); if (f) f.focus(); }, 60);
+}
+
+async function saveEcoBande(bandeId) {
+  if (!canSeeFinance()) { toast('Réservé au manager', 'error'); return; }
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande || bande.statut !== 'en_cours') return;
+  const fields = [
+    { id: 'eco-prix-poussin', col: 'prix_poussin_unitaire' },
+    { id: 'eco-cout-aliment', col: 'cout_aliment_kg' },
+    { id: 'eco-prix-vente',   col: 'prix_vente_carcasse_kg' },
+    { id: 'eco-rendement',    col: 'rendement_carcasse_pct' }
+  ];
+  const payload = { bande_id: bandeId };
+  let changes = 0;
+  for (const f of fields) {
+    const raw = document.getElementById(f.id).value.trim();
+    if (raw === '') continue;
+    const val = Number(raw);
+    if (!isFinite(val) || val < 0) { toast('Valeur invalide (nombre positif attendu)', 'error'); return; }
+    if (f.col === 'rendement_carcasse_pct' && val > 100) { toast('Rendement invalide (0–100 %)', 'error'); return; }
+    if (val !== (Number(bande[f.col]) || 0)) { payload[f.col] = val; changes++; }
+  }
+  if (!changes) { toast('Aucun changement'); closeModal(); return; }
+  const r = await saveRemote({ action: 'updateBande', payload: payload });
+  if (!r.ok) return;
+  fields.forEach(f => { if (payload[f.col] !== undefined) bande[f.col] = payload[f.col]; });
+  closeModal();
+  // Rafraîchit les deux surfaces consommatrices possibles : la liste des
+  // Lots (bouton Modifier) et la fiche (encart Rentabilité + simulateur).
+  try { renderBandes(); } catch (e) {}
+  const pageFiche = document.getElementById('page-fiche');
+  if (pageFiche && pageFiche.classList.contains('active')) loadFicheBande();
+  toast(r.queued ? 'Économie de bande enregistrée (hors ligne — sera synchronisée)' : 'Économie de bande enregistrée (journalisée)');
 }
 
 function showNewBandeModal() {
@@ -13278,7 +13361,11 @@ function renderFicheRentabilite(bande) {
   const legend = e.breakdown.map(c =>
     '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;">' +
     '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + col(c) + ';flex:none;"></span>' +
-    '<span style="flex:1;">' + c.label + (c.key === 'aliment' ? ' (' + (e.alimentSource === 'formulation' ? 'formulation' : 'forfait') + ')' : '') + '</span>' +
+    '<span style="flex:1;">' + c.label + (c.key === 'aliment'
+      ? (e.alimentSource === 'formulation'
+        ? ' (formulation)'
+        : ' <span style="font-size:10px;color:var(--text-muted);">(prix forfait courant — reprise rétroactive en cas de changement)</span>')
+      : '') + '</span>' +
     '<strong>' + fmt(Math.round(c.montant)) + ' FCFA</strong>' +
     '<span style="font-family:var(--font-mono);color:var(--text-secondary);min-width:42px;text-align:right;">' + (hasCost ? Math.round(c.pct) : 0) + '%</span>' +
     '</div>'
@@ -13300,10 +13387,14 @@ function renderFicheRentabilite(bande) {
     note = '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.75rem;">* coût de revient/kg estimé sur projection (aucun abattage saisi).</div>';
   }
 
+  // Raccourci d'édition économique — DANS la carte à existence gated (#195),
+  // le garde canSeeFinance() de l'ouverture reste la défense en profondeur.
+  const editBtn = e.cloturee ? '' :
+    '<button class="btn btn-outline btn-sm" onclick="showEditEcoBandeModal(\'' + bande.bande_id + '\')">Modifier les prix ↗</button>';
   box.innerHTML =
     '<div class="card-header" style="margin-bottom:0.75rem;">' +
       '<h3><i data-lucide="wallet"></i> Rentabilité</h3>' +
-      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' + statutChip + margeChip + '</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' + statutChip + margeChip + editBtn + '</div>' +
     '</div>' + kpis + ctxLine + breakdownBlock + note +
     '<div id="fiche-simulateur"></div>';
 
