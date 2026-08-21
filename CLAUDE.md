@@ -146,6 +146,19 @@ working rules for every task in this repository.
   build step, the simulator's CSS/code/comments ship to every role — only
   DOM instantiation and DATA are gated, data by the 0040 column barrier
   server-side.
+- Feed-price asymmetry (DELIBERATE — keep, do not "fix"): the abattage
+  simulator prices PROJECTED feed forfait-first (`cout_aliment_kg`, then
+  formulation-effective), while ENGAGED cost in `computeBandeEconomics` is
+  formulation-first (actual invoices win). On a formulation bande, editing
+  the forfait therefore moves the projection price without touching engaged
+  costs — the forfait doubles as the "current price of remaining purchases"
+  knob. The four economic fields are editable mid-bande via
+  `showEditEcoBandeModal` (Lots row + rentabilité card, manager, one
+  `updateBande` payload → one 0049 journal entry); a `cout_aliment_kg` edit
+  REPRICES ALL PAST forfait consumption retroactively (labeled on the
+  rentabilité breakdown and warned in the modal). Terminated bandes have no
+  edit path — closed history is immutable, the clôture modal owns the exit
+  price.
 - Audit & validation (0049) — TWO separate concepts, never merge them:
   `audit_log` is the APPEND-ONLY audit journal, populated EXCLUSIVELY by the
   SECURITY DEFINER trigger `trg_audit_log` (name `zz_audit_log` so it fires
