@@ -582,9 +582,15 @@
 #fiche-cockpit .cockpit-chip {
   display: inline-flex; align-items: center;
   background: var(--color-accent-soft); color: var(--color-accent);
+  border: 1px solid transparent;
   border-radius: var(--radius-full); padding: 2px 10px;
   font-family: var(--font-mono); font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em; white-space: nowrap;
+}
+/* Mode projection (lot B) : chip gris pointillé — jamais confondable avec la vue vécue */
+#fiche-cockpit .cockpit-chip.is-projection {
+  background: var(--color-surface-alt); color: var(--color-text-secondary);
+  border: 1px dashed var(--color-text-muted);
 }
 #fiche-cockpit .cockpit-scrub-row { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-3) 0 var(--space-3); }
 #fiche-cockpit input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--color-accent); }
@@ -597,6 +603,16 @@
 #fiche-cockpit .cockpit-strip .ev-window { position: absolute; top: 0; bottom: 0; }
 #fiche-cockpit .cockpit-strip .ev-tick { position: absolute; top: 4px; bottom: 4px; width: 3px; border-radius: 1px; transform: translateX(-50%); }
 #fiche-cockpit .cockpit-strip .ev-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--color-accent); transform: translateX(-50%); }
+/* Projection (lot B) : voile hachuré au-delà d'aujourd'hui + borne « aujourd'hui » ;
+   fenêtre objectif (objectifs_bande) et marqueur ▼ sortie estimée (forecast). */
+#fiche-cockpit .cockpit-strip .proj-zone { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent 0 4px, rgba(138,149,161,0.18) 4px 8px); }
+#fiche-cockpit .cockpit-strip .proj-today { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--color-text-secondary); transform: translateX(-50%); }
+#fiche-cockpit .cockpit-strip .obj-window { position: absolute; top: 0; bottom: 0; background: var(--color-accent-soft); opacity: 0.6; }
+#fiche-cockpit .cockpit-strip .fc-marker { position: absolute; top: 0; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--color-success); transform: translateX(-50%); }
+/* KPIs projetés / gelés « à ce jour » : italique + encre secondaire — jamais
+   typographiquement identiques à une valeur mesurée. */
+#fiche-cockpit .cockpit-kpi.is-proj .value { font-style: italic; color: var(--color-text-secondary); }
+#fiche-cockpit .cockpit-signal.cockpit-signal-proj { justify-content: center; color: var(--color-text-muted); font-style: italic; }
 #fiche-cockpit .cockpit-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: 10.5px; color: var(--color-text-muted); margin-top: var(--space-2); }
 #fiche-cockpit .cockpit-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 #fiche-cockpit .cockpit-kpis {
@@ -13863,34 +13879,68 @@ function cockpitEventsData(bande, jourMax) {
   return { ticks, windows };
 }
 
-function cockpitStripHtml(bande, jourMax, jour) {
+function cockpitStripHtml(bande, ind, jourMax, jour, jourReel) {
   const t = chartTokens();
   const colors = { vaccin: t.blue, traitement: t.amber, abattage: t.red };
   const pos = j => (jourMax > 1 ? ((j - 1) / (jourMax - 1)) * 100 : 0);
   const ev = cockpitEventsData(bande, jourMax);
+  // Zone de PROJECTION (au-delà d'aujourd'hui) : voile hachuré + borne
+  // « aujourd'hui ». Les événements datés (vaccins, traitements, fenêtres de
+  // délai, abattages) y restent rendus normalement : ce sont des FAITS.
+  let projHtml = '';
+  if (jourReel != null && jourReel < jourMax) {
+    const pToday = pos(jourReel);
+    projHtml = '<div class="proj-zone" style="left:' + pToday.toFixed(2) + '%;right:0;"></div>'
+      + '<div class="proj-today" style="left:' + pToday.toFixed(2) + '%;" title="Aujourd\'hui — J' + jourReel + '"></div>';
+  }
+  // Fenêtre objectif (objectifs_bande, clé parametres) + marqueur de sortie
+  // estimée : computeSlaughterForecast.targetDay est le SEUL jour-cible
+  // affiché — la courbe de projection Cobb n'en produit jamais un concurrent.
+  const obj = getObjectifsBande();
+  let objHtml = '';
+  if (obj.age_cible_min_j && obj.age_cible_max_j && obj.age_cible_min_j <= jourMax) {
+    const oa = pos(Math.max(1, obj.age_cible_min_j));
+    const ob = pos(Math.min(jourMax, obj.age_cible_max_j));
+    objHtml = '<div class="obj-window" style="left:' + oa.toFixed(2) + '%;width:' + Math.max(0.8, ob - oa).toFixed(2) + '%;" title="Fenêtre objectif J' + obj.age_cible_min_j + '–J' + obj.age_cible_max_j + ' · ' + fmt(obj.poids_cible_g) + ' g vif"></div>';
+  }
+  let fcHtml = '';
+  const fc = (bande.statut === 'en_cours') ? computeSlaughterForecast(bande, ind) : null;
+  if (fc && fc.status === 'projected' && fc.targetDay >= 1 && fc.targetDay <= jourMax) {
+    fcHtml = '<div class="fc-marker" style="left:' + pos(fc.targetDay).toFixed(2) + '%;" title="Sortie estimée J' + fc.targetDay + ' (' + fc.date.toLocaleDateString('fr-FR') + ')"></div>';
+  }
   const wins = ev.windows.map(w =>
     '<div class="ev-window" style="left:' + pos(w.start).toFixed(2) + '%;width:' + Math.max(0.8, pos(w.end) - pos(w.start)).toFixed(2) + '%;background:' + chartFill(t.amber, 0.18) + ';" title="' + w.label + '"></div>').join('');
   const ticks = ev.ticks.map(e =>
     '<div class="ev-tick" style="left:' + pos(e.j).toFixed(2) + '%;background:' + colors[e.type] + ';" title="J' + e.j + ' · ' + e.label + '"></div>').join('');
-  return '<div class="cockpit-strip"><div class="strip-scale">' + wins + ticks
+  return '<div class="cockpit-strip"><div class="strip-scale">' + projHtml + objHtml + wins + ticks + fcHtml
     + '<div class="ev-cursor" id="cockpit-strip-cursor" style="left:' + pos(jour).toFixed(2) + '%;"></div></div></div>'
     + '<div class="cockpit-legend">'
     + '<span><span class="dot" style="background:' + colors.vaccin + ';"></span>Vaccination</span>'
     + '<span><span class="dot" style="background:' + colors.traitement + ';"></span>Traitement (bande ombrée = délai d\'attente)</span>'
     + '<span><span class="dot" style="background:' + colors.abattage + ';"></span>Abattage</span>'
+    + '<span><span class="dot" style="background:var(--color-accent-soft);border:1px solid var(--color-accent);"></span>Fenêtre objectif</span>'
+    + (fcHtml ? '<span><span class="dot" style="background:' + t.green + ';"></span>Sortie estimée</span>' : '')
+    + (projHtml ? '<span style="font-style:italic;">zone hachurée = projection</span>' : '')
     + '<span style="margin-left:auto;font-family:var(--font-mono);">J1 → J' + jourMax + '</span>'
     + '</div>';
 }
 
 // Rangée de KPIs « au J » — report de la dernière saisie ≤ J ; avant toute
 // saisie : effectif d'entrée, cumuls à zéro, poids « — » (rien d'inventé).
+// En PROJECTION (J au-delà d'aujourd'hui, lot B) : SEUL le poids est projeté
+// (forme Cobb ancrée sur la dernière pesée réelle) ; eau, aliment, mortalité
+// et effectif restent aux valeurs du jour réel, grisés et étiquetés — rien
+// de projeté ne doit être typographiquement identique à du mesuré.
 function cockpitKpisHtml(bande, ind, jour) {
-  const row = cockpitRowAsOf(ind, jour);
+  const jourReel = cockpitCtx ? cockpitCtx.jourReel : null;
+  const enProj = jourReel != null && jour > jourReel;
+  const jourData = enProj ? jourReel : jour;
+  const row = cockpitRowAsOf(ind, jourData);
   const p = getCockpitDeriveParams();
   const nbEntree = Number(bande.nb_poussins_entree) || 0;
   const phase = getCurrentPhase(jour);
   const dateJ = cockpitDateForJour(bande, jour);
-  const w = cockpitLastWeighingAsOf(ind, jour);
+  const w = cockpitLastWeighingAsOf(ind, jourData);
   let poidsHtml = '<div class="value">—</div><div class="sub">aucune pesée ≤ J' + jour + '</div>';
   if (w) {
     const std = cobbWeightForJourApp(w.jour);
@@ -13904,14 +13954,45 @@ function cockpitKpisHtml(bande, ind, jour) {
     poidsHtml = '<div class="value">' + fmt(w.poids) + ' g' + (gap != null ? ' <span style="color:' + color + ';font-size:12px;">' + (gap > 0 ? '+' : '') + fmt(gap, 1) + '%</span>' : '') + '</div>'
       + '<div class="sub">pesée J' + w.jour + ' · Cobb ' + fmt(std) + ' g</div>';
   }
-  const kpi = (label, valueHtml) => '<div class="cockpit-kpi"><div class="label">' + label + '</div>' + valueHtml + '</div>';
+  const kpi = (label, valueHtml, cls) => '<div class="cockpit-kpi' + (cls ? ' ' + cls : '') + '"><div class="label">' + label + '</div>' + valueHtml + '</div>';
   const v = h => '<div class="value">' + h + '</div>';
   // Mortalité < 1 % : DEUX décimales (5 morts / 15 000 = 0,03 %, pas un
   // « 0,0 % » qui contredit l'effectif affiché juste à côté) ; 1 décimale au-delà.
   const tauxMort = row ? Number(row.taux_mort) || 0 : 0;
-  return kpi('Jour', v('J' + jour + '<span style="font-size:11px;color:var(--color-text-muted);"> / J' + (cockpitCtx ? cockpitCtx.jourMax : jour) + '</span>'))
+  const jourTile = kpi('Jour', v('J' + jour + '<span style="font-size:11px;color:var(--color-text-muted);"> / J' + (cockpitCtx ? cockpitCtx.jourMax : jour) + '</span>'))
     + kpi('Date', v(dateJ ? fmtDate(dateJ) : '—'))
-    + kpi('Phase', v('<span style="font-size:12.5px;">' + phase.label + '</span>'))
+    + kpi('Phase', v('<span style="font-size:12.5px;">' + phase.label + '</span>'));
+
+  if (enProj) {
+    // Poids PROJETÉ : forme Cobb ancrée sur la dernière pesée réelle —
+    // ~poids(J) = Cobb(J) × pW/Cobb(jW). Sans pesée : jamais de courbe par
+    // défaut. Piste d'évolution notée (non retenue au lot B, arbitrage :
+    // cohérence avec S5 + simplicité terrain) : ancrer sur la MOYENNE des
+    // 2 dernières pesées pour lisser le bruit d'une pesée isolée.
+    const objectifs = getObjectifsBande();
+    let poidsProjHtml = '<div class="value">—</div><div class="sub">projection impossible sans pesée</div>';
+    if (w) {
+      const stdW = cobbWeightForJourApp(w.jour);
+      if (stdW > 0) {
+        const ancre = w.poids / stdW;
+        const proj = cobbWeightForJourApp(jour) * ancre;
+        const gapPct = (ancre - 1) * 100;
+        const cible = (objectifs.poids_cible_g && jour >= objectifs.age_cible_min_j && jour <= objectifs.age_cible_max_j)
+          ? '<div class="sub">cible ' + fmt(objectifs.poids_cible_g) + ' g (fenêtre J' + objectifs.age_cible_min_j + '–J' + objectifs.age_cible_max_j + ')</div>' : '';
+        poidsProjHtml = '<div class="value">~' + fmt(proj, 0) + ' g <span style="font-size:12px;">· Cobb ' + (gapPct > 0 ? '+' : '') + fmt(gapPct, 1) + ' %</span></div>'
+          + '<div class="sub">forme Cobb, ancre pesée J' + w.jour + '</div>' + cible;
+      }
+    }
+    const aCeJour = suffix => '<div class="sub">à ce jour (J' + jourReel + ') — non projeté' + suffix + '</div>';
+    return jourTile
+      + kpi('Effectif', v('~' + fmt(row ? row.effectif : nbEntree)) + '<div class="sub">constant — mortalité future non projetée</div>', 'is-proj')
+      + kpi('Mortalité cum.', v(fmt(tauxMort, tauxMort < 1 ? 2 : 1) + ' %') + aCeJour('e'), 'is-proj')
+      + kpi('Aliment cum.', v(fmt(row ? row.aliment_total : 0, 0) + ' kg') + aCeJour(''), 'is-proj')
+      + kpi('Eau cum.', v(fmt(row ? row.eau_total : 0, 0) + ' L') + aCeJour('e'), 'is-proj')
+      + kpi('Poids projeté vs Cobb', poidsProjHtml, 'is-proj');
+  }
+
+  return jourTile
     + kpi('Effectif', v(fmt(row ? row.effectif : nbEntree)))
     + kpi('Mortalité cum.', v(fmt(tauxMort, tauxMort < 1 ? 2 : 1) + ' %'))
     + kpi('Aliment cum.', v(fmt(row ? row.aliment_total : 0, 0) + ' kg'))
@@ -13945,9 +14026,13 @@ function renderFicheCockpit(bande, ind) {
     refreshIcons();
     return;
   }
-  const jourMax = enCours ? Math.max(1, jourReel) : CYCLE_DURATION_DAYS;
-  const jourInit = enCours ? jourMax : Math.max(1, Math.min(ind.dernierJour || CYCLE_DURATION_DAYS, CYCLE_DURATION_DAYS));
-  cockpitCtx = { bande: bande, ind: ind, jour: jourInit, jourMax: jourMax };
+  // Lot B (projection) : bande ACTIVE → axe jusqu'à J42, la zone au-delà
+  // d'aujourd'hui est la PROJECTION (opt-in au scrub, départ = aujourd'hui).
+  // Bande terminée : jourReel null → jamais de projection (au-delà du dernier
+  // jour saisi c'est du passé non enregistré, pas du futur).
+  const jourMax = enCours ? Math.max(Math.max(1, jourReel), CYCLE_DURATION_DAYS) : CYCLE_DURATION_DAYS;
+  const jourInit = enCours ? Math.max(1, jourReel) : Math.max(1, Math.min(ind.dernierJour || CYCLE_DURATION_DAYS, CYCLE_DURATION_DAYS));
+  cockpitCtx = { bande: bande, ind: ind, jour: jourInit, jourMax: jourMax, jourReel: enCours ? Math.max(1, jourReel) : null };
 
   const dInit = cockpitDateForJour(bande, jourInit);
   const deriveInit = computeCockpitDerive(ind, jourInit);
@@ -13963,7 +14048,7 @@ function renderFicheCockpit(bande, ind) {
     +   '<input type="range" id="cockpit-scrub" min="1" max="' + jourMax + '" step="1" value="' + jourInit + '" oninput="cockpitSetJour(this.value)" aria-label="Curseur temporel (jour de bande)">'
     +   '<span id="cockpit-date" style="font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-secondary);white-space:nowrap;">' + (dInit ? fmtDate(dInit) : '—') + '</span>'
     + '</div>'
-    + cockpitStripHtml(bande, jourMax, jourInit)
+    + cockpitStripHtml(bande, ind, jourMax, jourInit, cockpitCtx.jourReel)
     + '<div class="cockpit-kpis" id="cockpit-kpis">' + cockpitKpisHtml(bande, ind, jourInit) + '</div>'
     + '<div class="cockpit-signaux" id="cockpit-signaux">' + cockpitSignauxHtml(deriveInit) + '</div>'
     + cockpitDepopNoteHtml(bande);
@@ -13975,22 +14060,31 @@ function cockpitSetJour(v) {
   if (!cockpitCtx) return;
   const j = Math.max(1, Math.min(cockpitCtx.jourMax, parseInt(v, 10) || 1));
   cockpitCtx.jour = j;
+  const jourReel = cockpitCtx.jourReel;
+  const enProj = jourReel != null && j > jourReel;
+  const d = cockpitDateForJour(cockpitCtx.bande, j);
   const chip = document.getElementById('cockpit-chip');
-  if (chip) chip.textContent = 'VUE AU J' + j;
-  const dEl = document.getElementById('cockpit-date');
-  if (dEl) {
-    const d = cockpitDateForJour(cockpitCtx.bande, j);
-    dEl.textContent = d ? fmtDate(d) : '—';
+  if (chip) {
+    chip.textContent = enProj ? 'PROJECTION J' + j + ' · ' + (d ? fmtDate(d) : '—') : 'VUE AU J' + j;
+    chip.classList.toggle('is-projection', enProj);
   }
+  const dEl = document.getElementById('cockpit-date');
+  if (dEl) dEl.textContent = d ? fmtDate(d) : '—';
   const cur = document.getElementById('cockpit-strip-cursor');
   if (cur) cur.style.left = (cockpitCtx.jourMax > 1 ? ((j - 1) / (cockpitCtx.jourMax - 1)) * 100 : 0).toFixed(2) + '%';
   const kpis = document.getElementById('cockpit-kpis');
   if (kpis) kpis.innerHTML = cockpitKpisHtml(cockpitCtx.bande, cockpitCtx.ind, j);
-  const derive = computeCockpitDerive(cockpitCtx.ind, j);
+  // Signaux : JAMAIS évalués au-delà d'aujourd'hui — en projection, le badge
+  // reste l'état RÉEL (évalué au J réel, étiqueté) et la liste devient un
+  // bandeau explicite.
+  const derive = computeCockpitDerive(cockpitCtx.ind, enProj ? jourReel : j);
   const badge = document.getElementById('cockpit-badge');
-  if (badge) badge.innerHTML = cockpitBadgeHtml(derive);
+  if (badge) badge.innerHTML = cockpitBadgeHtml(derive)
+    + (enProj ? '<span style="font-size:10.5px;color:var(--color-text-muted);font-style:italic;">état au J' + jourReel + '</span>' : '');
   const sig = document.getElementById('cockpit-signaux');
-  if (sig) sig.innerHTML = cockpitSignauxHtml(derive);
+  if (sig) sig.innerHTML = enProj
+    ? '<div class="cockpit-signal cockpit-signal-proj">Pas d\'évaluation des signaux en projection</div>'
+    : cockpitSignauxHtml(derive);
   cockpitRepaintCharts();
 }
 
@@ -14016,6 +14110,10 @@ const cockpitCursorPlugin = {
   id: 'cockpitCursor',
   afterDraw(chart) {
     if (!cockpitCtx || cockpitCtx.jour == null) return;
+    // Projection (lot B) : aucun trait au-delà d'aujourd'hui — le curseur
+    // épinglé au bord du chart avec un label J futur se lirait comme une
+    // donnée. La zone de projection ne vit que dans la carte cockpit.
+    if (cockpitCtx.jourReel != null && cockpitCtx.jour > cockpitCtx.jourReel) return;
     const labels = chart.data.labels || [];
     const area = chart.chartArea;
     if (!labels.length || !area || !chart.scales.x) return;
