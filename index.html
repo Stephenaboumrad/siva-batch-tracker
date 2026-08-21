@@ -610,6 +610,19 @@
 #fiche-cockpit .cockpit-kpi .value { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
 #fiche-cockpit .cockpit-kpi .sub { font-size: 10px; color: var(--color-text-muted); }
 #fiche-cockpit .cockpit-note { display: flex; gap: 0.4rem; align-items: flex-start; font-size: 11px; color: var(--color-text-muted); margin-top: var(--space-2); }
+/* Liste des 6 signaux du moteur de dérive (lot A) — ordre de précocité S1→S6 */
+#fiche-cockpit .cockpit-signaux { border: var(--border-hairline); border-radius: var(--radius-md); margin-top: var(--space-3); overflow: hidden; }
+#fiche-cockpit .cockpit-signal { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); font-size: 11.5px; background: var(--color-surface); }
+#fiche-cockpit .cockpit-signal + .cockpit-signal { border-top: var(--border-hairline); }
+#fiche-cockpit .cockpit-signal .sig-label { flex: 0 0 220px; color: var(--color-text-secondary); font-weight: 600; }
+#fiche-cockpit .cockpit-signal .badge { flex: none; }
+#fiche-cockpit .cockpit-signal .sig-depuis { flex: none; min-width: 64px; font-family: var(--font-mono); font-size: 10.5px; color: var(--color-accent); }
+#fiche-cockpit .cockpit-signal .sig-motif { flex: 1 1 auto; text-align: right; font-family: var(--font-mono); font-size: 10.5px; color: var(--color-text-muted); }
+@media (max-width: 560px) {
+  #fiche-cockpit .cockpit-signal { flex-wrap: wrap; row-gap: 2px; }
+  #fiche-cockpit .cockpit-signal .sig-label { flex: 1 1 100%; }
+  #fiche-cockpit .cockpit-signal .sig-motif { text-align: left; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    PHASE 8 — Transformation & Abattage (scopé #page-abattage), 3 ONGLETS
@@ -9910,7 +9923,7 @@ let dashChipOpen = null;
 // Dernières données calculées, pour que les rendus « partiels » (badge cloche)
 // ne recalculent pas checkAlerts — qui rappelle refreshDashAlertsLive et
 // boucherait la boucle.
-let _dashChipData = { alerts: [], deadlines: [] };
+let _dashChipData = { alerts: [], deadlines: [], signaux: [] };
 
 function toggleDashChip(kind) {
   dashChipOpen = (dashChipOpen === kind) ? null : kind;
@@ -9918,10 +9931,29 @@ function toggleDashChip(kind) {
   renderDashChipDetail();
 }
 
+// État « signaux faibles » de chaque bande active — worst-of des 6 signaux
+// du moteur cockpit (computeCockpitDerive), évalué au J courant. DÉRIVÉ à
+// chaque rendu, zéro persistance (les corrections rétroactives 0051
+// invalideraient tout événement stocké).
+function computeSignauxDashboard() {
+  return STATE.bandes
+    .filter(b => b.statut === 'en_cours' && !b.archivee)
+    .map(b => {
+      const ind = computeIndicators(b);
+      const jour = ind.jourActuel || ind.dernierJour || 1;
+      const d = computeCockpitDerive(ind, jour);
+      return { bande: b, jour: jour, level: d.level, evalues: d.evalues, signaux: d.signaux };
+    });
+}
+
 function renderDashChips(alerts, deadlines) {
-  if (alerts) _dashChipData = { alerts: alerts, deadlines: deadlines || [] };
+  if (alerts) _dashChipData = { alerts: alerts, deadlines: deadlines || [], signaux: [] };
   const box = document.getElementById('dash-chips');
   if (!box) return;
+  // Signaux faibles : recalculés à chaque rendu des chips — même fraîcheur
+  // que le reste (checkAlerts → refreshDashAlertsLive), le détail relit
+  // _dashChipData sans recalcul.
+  _dashChipData.signaux = computeSignauxDashboard();
   const crit = _dashChipData.alerts.filter(a => a.level === 'critical');
   const warn = _dashChipData.alerts.filter(a => a.level !== 'critical');
   const dls = _dashChipData.deadlines;
@@ -9952,6 +9984,17 @@ function renderDashChips(alerts, deadlines) {
   // Les validations sont la file du manager ; le chef n'en a aucune à trancher.
   if (isManager()) html += chip(nValid, nValid > 1 ? 'validations' : 'validation', 'dc-warn', 'validations');
   html += chip(dls.length, dls.length > 1 ? 'échéances' : 'échéance', '', 'echeances', proche);
+  // Chip « Signaux » (moteur de dérive) : n = bandes en alerte/surveiller ;
+  // les bandes indéterminées comptent dans le sous-texte (et dans le libellé
+  // du chip neutre à n = 0, car la fabrique masque le sous-texte à zéro).
+  const sigs = _dashChipData.signaux || [];
+  const sigBreach = sigs.filter(s => s.level === 'alerte' || s.level === 'surveiller').length;
+  const sigIndet = sigs.filter(s => s.level === 'indetermine').length;
+  const sigCls = sigs.some(s => s.level === 'alerte') ? 'dc-danger' : 'dc-warn';
+  const sigSub = sigIndet ? sigIndet + ' indéterminé' + (sigIndet > 1 ? 's' : '') : '';
+  html += (sigBreach === 0 && sigIndet > 0)
+    ? chip(0, 'signal · ' + sigSub, '', 'signaux')
+    : chip(sigBreach, sigBreach > 1 ? 'signaux' : 'signal', sigCls, 'signaux', sigSub);
 
   box.innerHTML = html;
   if (window.lucide) lucide.createIcons();
@@ -9981,6 +10024,20 @@ function renderDashChipDetail() {
         + ' · ' + dl.date.toLocaleDateString('fr-FR')
         + (attrs ? ' <span style="opacity:.45;">›</span>' : '')
         + '</div>';
+    });
+  } else if (dashChipOpen === 'signaux') {
+    // Une rangée par bande × signal en défaut (alerte/surveiller) — les
+    // indéterminés restent au sous-texte du chip, le détail est actionnable.
+    (_dashChipData.signaux || []).forEach(sb => {
+      (sb.signaux || []).filter(s => s.etat === 'alerte' || s.etat === 'surveiller').forEach(s => {
+        const attrs = navAttrs(['fiche', sb.bande.bande_id]);
+        rows += '<div class="alert-item ' + (s.etat === 'alerte' ? 'critical' : 'warning') + '"' + attrs + '>'
+          + '<span class="alert-icon"><i data-lucide="activity"></i></span>'
+          + '<strong>' + escHtml(sb.bande.nom_bande || sb.bande.bande_id) + '</strong> · ' + escHtml(s.label) + ' — ' + escHtml(s.motif)
+          + (s.depuisJour != null ? ' (depuis J' + s.depuisJour + ')' : '')
+          + ' <span style="opacity:.45;">›</span>'
+          + '</div>';
+      });
     });
   } else {
     const veutCrit = dashChipOpen === 'critiques';
@@ -13431,11 +13488,33 @@ function chartOptions(yLabel) {
 let cockpitCtx = null;            // { bande, ind, jour, jourMax } de la fiche affichée
 let cockpitRepaintQueued = false; // throttle rAF du repaint des charts au scrub
 
-// Seuils de dérive — clé jsonb PARTAGÉE 'cockpit_derive' (table parametres,
-// 0028 — AUCUNE migration : la clé est simplement absente tant que non
-// publiée), même motif que 'objectifs_bande'. Asymétrie VOULUE : un poids
-// AU-DESSUS du standard Cobb ne déclenche jamais d'alerte (seuils négatifs).
-const COCKPIT_DERIVE_DEFAULTS = { poids_surveiller_pct: -5, poids_derive_pct: -10, ambiance_jours_consecutifs: 2 };
+// Seuils du moteur de dérive — clé jsonb PARTAGÉE 'cockpit_derive' (table
+// parametres, 0028 — AUCUNE migration : la clé est simplement absente tant
+// que non publiée), même motif que 'objectifs_bande'. Le merge est SHALLOW
+// et par champ : les champs ajoutés par le moteur (lot A) sont additifs, un
+// objet publié partiel garde les défauts des champs qu'il ne nomme pas.
+// Asymétrie VOULUE côté poids : AU-DESSUS du standard Cobb, jamais d'alerte.
+const COCKPIT_DERIVE_DEFAULTS = {
+  // S5 poids (niveau vs Cobb) + S6 ambiance — champs historiques (PR #189)
+  poids_surveiller_pct: -5,
+  poids_derive_pct: -10,
+  ambiance_jours_consecutifs: 2,
+  // S1 abreuvement : chute jour/jour sur paires mesurées consécutives
+  eau_chute_surveiller_pct: 20,
+  eau_chute_alerte_pct: 35,
+  // S2 ratio eau/aliment : corridor + plancher d'alerte bas + fraîcheur
+  ratio_min: 1.6,
+  ratio_max: 2.2,
+  ratio_min_alerte: 1.4,
+  ratio_fraicheur_jours: 3,
+  // S3 gain inter-pesées vs gain Cobb (même intervalle)
+  gmq_ratio_min_pct: 90,
+  // S4 accélération de mortalité 48 h (repère STATISTIQUE auto-référencé)
+  mort_accel_facteur: 2,
+  mort_48h_plancher_pour_mille: 1,
+  mort_48h_plancher_min: 3,
+  mort_baseline_jours_min: 3
+};
 function getCockpitDeriveParams() {
   const db = getParametre('cockpit_derive');
   const obj = (db && typeof db === 'object' && !Array.isArray(db)) ? db : {};
@@ -13482,38 +13561,195 @@ function cockpitLastWeighingAsOf(ind, jour) {
   return found;
 }
 
-// Dérive « au J » — poids vs Cobb (pesées réelles uniquement) + ambiance
-// (jours CONSÉCUTIFS hors AMBIANCE_NORMS ; un jour sans relevé casse la
-// série). Niveaux : derive > surveiller > norme, plus 'sans_donnees' quand
-// aucun signal n'est exploitable (jamais un « Norme » fabriqué sans mesure).
-function computeCockpitDerive(ind, jour) {
-  const p = getCockpitDeriveParams();
-  const reasons = [];
-  let level = null;
-  let hasSignal = false;
+// ── Moteur de dérive & signaux faibles (lot A) ─────────────────────────────
+// 6 signaux évalués « au J » sur les séries de computeIndicators, ordonnés
+// par PRÉCOCITÉ biologique : S1 abreuvement (le plus précoce, 24-48 h avant
+// les symptômes), S2 ratio eau/aliment, S3 gain inter-pesées vs Cobb,
+// S4 accélération de mortalité 48 h (repère STATISTIQUE auto-référencé —
+// jamais un seuil clinique : la doctrine vétérinaire mortDaily/mortCumul de
+// checkAlerts reste INTOUCHÉE), S5 poids vs Cobb (niveau, comportement
+// PR #189 inchangé), S6 ambiance (idem).
+// États par signal : ok | surveiller | alerte | indetermine — données
+// insuffisantes → indetermine, JAMAIS ok. « depuis J{n} » DÉRIVÉ au rendu,
+// zéro persistance : les corrections rétroactives 0051 rendraient mensonger
+// tout événement stocké ; le recalcul s'auto-corrige.
+// Convention S1/S2 : eau/aliment stocké 0 = NON MESURÉ (le formulaire écrit
+// Number(...)||0), jamais une vraie valeur — voir la note CLAUDE.md.
 
-  const w = cockpitLastWeighingAsOf(ind, jour);
-  if (w) {
-    hasSignal = true;
-    const std = cobbWeightForJourApp(w.jour);
-    if (std > 0) {
-      const gap = ((w.poids - std) / std) * 100;
-      if (gap <= p.poids_derive_pct) {
-        level = 'derive';
-        reasons.push('Poids ' + fmt(gap, 1) + '% vs Cobb (pesée J' + w.jour + ')');
-      } else if (gap <= p.poids_surveiller_pct) {
-        level = 'surveiller';
-        reasons.push('Poids ' + fmt(gap, 1) + '% vs Cobb (pesée J' + w.jour + ')');
-      }
-    }
+// S1 — chute d'abreuvement jour/jour, sur la DERNIÈRE paire de jours mesurés
+// consécutifs (eau > 0). Le plancher WATER_NORMS (L/1000 sujets — premier
+// consommateur de getWaterNorm) promeut surveiller → alerte quand la
+// consommation ABSOLUE passe sous la norme basse du jour.
+function cockpitSignalEau(rows, p) {
+  const base = { key: 'eau', label: 'Abreuvement (chute j/j)' };
+  const meas = rows.filter(r => Number(r.eau_consommee_l) > 0);
+  const lastM = meas.length ? meas[meas.length - 1] : null;
+  const prevM = meas.length >= 2 ? meas[meas.length - 2] : null;
+  if (!lastM || !prevM || Number(lastM.jour_bande) !== Number(prevM.jour_bande) + 1) {
+    return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'paire de jours consécutifs mesurés introuvable' });
   }
+  const eau1 = Number(prevM.eau_consommee_l);
+  const eau2 = Number(lastM.eau_consommee_l);
+  const chute = (1 - eau2 / eau1) * 100;
+  const j2 = Number(lastM.jour_bande);
+  if (chute < p.eau_chute_surveiller_pct) {
+    return Object.assign({}, base, { etat: 'ok', depuisJour: null,
+      motif: fmt(eau2, 0) + ' L · ' + (chute > 0 ? '−' : '+') + fmt(Math.abs(chute), 0) + ' % j/j' });
+  }
+  let etat = chute >= p.eau_chute_alerte_pct ? 'alerte' : 'surveiller';
+  let motifNorm = '';
+  const wn = getWaterNorm(j2);
+  const plancher = (wn && Number(lastM.effectif) > 0) ? wn.min * Number(lastM.effectif) / 1000 : null;
+  if (etat === 'surveiller' && plancher != null && eau2 < plancher) {
+    etat = 'alerte';
+    motifNorm = ' · sous norme (min ' + fmt(plancher, 0) + ' L)';
+  }
+  // depuis : remonter les paires mesurées consécutives tant que la chute
+  // franchit le seuil surveiller (départ = premier jour en défaut).
+  let depuis = j2;
+  for (let i = meas.length - 2; i >= 1; i--) {
+    const a = meas[i - 1], b = meas[i];
+    if (Number(b.jour_bande) !== Number(a.jour_bande) + 1) break;
+    if ((1 - Number(b.eau_consommee_l) / Number(a.eau_consommee_l)) * 100 < p.eau_chute_surveiller_pct) break;
+    depuis = Number(b.jour_bande);
+  }
+  return Object.assign({}, base, { etat: etat, depuisJour: depuis,
+    motif: '−' + fmt(chute, 0) + ' % vs J' + Number(prevM.jour_bande) + ' (' + fmt(eau2, 0) + ' L)' + motifNorm });
+}
 
-  // Série traînante de jours consécutifs hors norme se terminant au dernier
-  // relevé ≤ J (température OU humidité hors plage de getAmbianceNorm).
-  const rows = (ind.saisies || []).filter(r => Number(r.jour_bande) <= jour);
-  if (rows.some(r => r.temperature_c != null || r.humidite_pct != null)) hasSignal = true;
+// S2 — ratio eau/aliment hors corridor, sur le dernier jour où le ratio est
+// calculable (eau ET aliment > 0). Bas = surveiller (< ratio_min), alerte
+// sous ratio_min_alerte ; HAUT = surveiller SEULEMENT (à Azaguié, un ratio
+// haut est d'abord la chaleur : la T° du jour est citée quand elle dépasse
+// la norme — contexte, pas diagnostic).
+function cockpitSignalRatio(rows, p, jour) {
+  const base = { key: 'ratio', label: 'Ratio eau/aliment' };
+  const withRatio = rows.filter(r => r.eau_alim_ratio != null);
+  const last = withRatio.length ? withRatio[withRatio.length - 1] : null;
+  if (!last || Number(last.jour_bande) <= jour - p.ratio_fraicheur_jours) {
+    return Object.assign({}, base, { etat: 'indetermine', depuisJour: null,
+      motif: 'aucun ratio calculable sur ' + p.ratio_fraicheur_jours + ' j (eau et aliment > 0 requis)' });
+  }
+  const ratio = Number(last.eau_alim_ratio);
+  const rj = Number(last.jour_bande);
+  let etat = 'ok';
+  let motif = fmt(ratio, 2) + ' (corridor ' + fmt(p.ratio_min, 1) + '–' + fmt(p.ratio_max, 1) + ')';
+  if (ratio < p.ratio_min) {
+    etat = ratio < p.ratio_min_alerte ? 'alerte' : 'surveiller';
+    motif = fmt(ratio, 2) + ' < ' + fmt(p.ratio_min, 1) + ' (apport d\'eau insuffisant)';
+  } else if (ratio > p.ratio_max) {
+    etat = 'surveiller';
+    motif = fmt(ratio, 2) + ' > ' + fmt(p.ratio_max, 1);
+    const temp = (last.temperature_c != null) ? Number(last.temperature_c) : null;
+    const n = getAmbianceNorm(rj);
+    if (temp != null && temp > n.tempMax) motif += ' (chaleur : ' + fmt(temp, 1) + ' °C, norme ≤ ' + n.tempMax + ')';
+  }
+  if (etat === 'ok') return Object.assign({}, base, { etat: etat, depuisJour: null, motif: motif });
+  // depuis : remonter les jours à ratio en dépassement du MÊME côté.
+  const low = ratio < p.ratio_min;
+  let depuis = rj;
+  for (let i = withRatio.length - 2; i >= 0; i--) {
+    const v = Number(withRatio[i].eau_alim_ratio);
+    if (!(low ? v < p.ratio_min : v > p.ratio_max)) break;
+    depuis = Number(withRatio[i].jour_bande);
+  }
+  return Object.assign({}, base, { etat: etat, depuisJour: depuis, motif: motif });
+}
+
+// S3 — gain inter-pesées vs gain Cobb sur le MÊME intervalle (le GMQ
+// quotidien n'existe pas entre deux pesées : le poids est reporté). Un
+// intervalle < gmq_ratio_min_pct = surveiller ; deux intervalles consécutifs
+// = alerte. Intervalle < 2 j écarté (bruit de pesée).
+function cockpitSignalGmq(rows, p) {
+  const base = { key: 'gmq', label: 'GMQ vs Cobb (inter-pesées)' };
+  const pesees = rows.filter(r => Number(r.poids_vif_moyen_g) > 0)
+    .map(r => ({ j: Number(r.jour_bande), poids: Number(r.poids_vif_moyen_g) }));
+  if (pesees.length < 2) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'moins de 2 pesées' });
+  const gainRatio = (a, b) => {
+    if (b.j - a.j < 2) return null;
+    const cobbGain = cobbWeightForJourApp(b.j) - cobbWeightForJourApp(a.j);
+    if (cobbGain <= 0) return null;
+    return (b.poids - a.poids) / cobbGain * 100;
+  };
+  const a1 = pesees[pesees.length - 2], b1 = pesees[pesees.length - 1];
+  const rLast = gainRatio(a1, b1);
+  if (rLast == null) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'dernier intervalle < 2 j ou hors standard' });
+  const motif = fmt(rLast, 0) + ' % du gain Cobb (J' + a1.j + '→J' + b1.j + ')';
+  if (rLast >= p.gmq_ratio_min_pct) return Object.assign({}, base, { etat: 'ok', depuisJour: null, motif: motif });
+  let etat = 'surveiller';
+  let depuis = a1.j;
+  for (let i = pesees.length - 2; i >= 1; i--) {
+    const r = gainRatio(pesees[i - 1], pesees[i]);
+    if (r == null || r >= p.gmq_ratio_min_pct) break;
+    etat = 'alerte';
+    depuis = pesees[i - 1].j;
+  }
+  return Object.assign({}, base, { etat: etat, depuisJour: depuis, motif: motif });
+}
+
+// S4 — accélération de mortalité : 48 h (deux derniers jours CONTIGUS) vs
+// moyenne des 5 jours saisis précédents (≥ mort_baseline_jours_min requis).
+// Équivalent quotidien M48/2 > facteur × moyenne ET plancher absolu
+// max(min, ‰ effectif) contre le bruit des petits nombres. Repère
+// STATISTIQUE auto-référencé (« vs moy. 5 j ») — aucun vocabulaire médical,
+// la doctrine vétérinaire (seuils publiés mortDaily/mortCumul) reste à part.
+function cockpitSignalMortalite(rows, p) {
+  const base = { key: 'mortalite', label: 'Mortalité 48 h (vs moy. 5 j)' };
+  if (rows.length < 2) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'moins de 2 jours saisis' });
+  const rB = rows[rows.length - 1], rA = rows[rows.length - 2];
+  const jB = Number(rB.jour_bande), jA = Number(rA.jour_bande);
+  if (jB !== jA + 1) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: '48 h non contiguës (J' + jA + '/J' + jB + ')' });
+  const baseline = rows.slice(Math.max(0, rows.length - 7), rows.length - 2);
+  if (baseline.length < p.mort_baseline_jours_min) {
+    return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'référence < ' + p.mort_baseline_jours_min + ' j saisis' });
+  }
+  const m48 = (Number(rB.mortalite_jour) || 0) + (Number(rA.mortalite_jour) || 0);
+  const moy = baseline.reduce((s, r) => s + (Number(r.mortalite_jour) || 0), 0) / baseline.length;
+  const effectif = Number(rB.effectif) || 0;
+  const plancher = Math.max(p.mort_48h_plancher_min, Math.ceil(p.mort_48h_plancher_pour_mille * effectif / 1000));
+  if ((m48 / 2) > p.mort_accel_facteur * moy && m48 >= plancher) {
+    return Object.assign({}, base, { etat: 'alerte', depuisJour: jA,
+      motif: fmt(m48) + ' morts en 48 h (moy. 5 j : ' + fmt(moy, 1) + '/j, plancher ' + fmt(plancher) + ')' });
+  }
+  return Object.assign({}, base, { etat: 'ok', depuisJour: null,
+    motif: fmt(m48) + ' morts en 48 h (moy. 5 j : ' + fmt(moy, 1) + '/j)' });
+}
+
+// S5 — poids vs Cobb (NIVEAU) : dernière pesée réelle ≤ J, seuils et
+// asymétrie PR #189 inchangés. « depuis » = remonter les pesées tant que
+// l'écart franchit le seuil surveiller.
+function cockpitSignalPoids(ind, jour, p) {
+  const base = { key: 'poids', label: 'Poids vs Cobb (niveau)' };
+  const w = cockpitLastWeighingAsOf(ind, jour);
+  if (!w) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'aucune pesée' });
+  const std = cobbWeightForJourApp(w.jour);
+  if (!(std > 0)) return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'standard indisponible' });
+  const gap = ((w.poids - std) / std) * 100;
+  const motif = fmt(gap, 1) + ' % vs Cobb (pesée J' + w.jour + ')';
+  if (gap > p.poids_surveiller_pct) return Object.assign({}, base, { etat: 'ok', depuisJour: null, motif: motif });
+  const etat = gap <= p.poids_derive_pct ? 'alerte' : 'surveiller';
+  const pesees = (ind.saisies || []).filter(r => Number(r.jour_bande) <= jour && Number(r.poids_vif_moyen_g) > 0);
+  let depuis = w.jour;
+  for (let i = pesees.length - 2; i >= 0; i--) {
+    const pj = Number(pesees[i].jour_bande);
+    const pstd = cobbWeightForJourApp(pj);
+    if (!(pstd > 0)) break;
+    if (((Number(pesees[i].poids_vif_moyen_g) - pstd) / pstd) * 100 > p.poids_surveiller_pct) break;
+    depuis = pj;
+  }
+  return Object.assign({}, base, { etat: etat, depuisJour: depuis, motif: motif });
+}
+
+// S6 — ambiance : série traînante de jours CONSÉCUTIFS hors AMBIANCE_NORMS
+// (un jour sans relevé casse la série) — comportement PR #189 inchangé.
+function cockpitSignalAmbiance(rows, p) {
+  const base = { key: 'ambiance', label: 'Ambiance (T°/HR)' };
+  if (!rows.some(r => r.temperature_c != null || r.humidite_pct != null)) {
+    return Object.assign({}, base, { etat: 'indetermine', depuisJour: null, motif: 'aucun relevé' });
+  }
   let run = 0;
   let expect = null;
+  let dernier = null;
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];
     const rj = Number(r.jour_bande);
@@ -13525,29 +13761,72 @@ function computeCockpitDerive(ind, jour) {
     const out = (temp != null && (temp < n.tempMin || temp > n.tempMax))
              || (hum != null && (hum < n.humMin || hum > n.humMax));
     if (!out) break;
+    if (dernier == null) dernier = rj;
     run++;
     expect = rj - 1;
   }
   if (run >= p.ambiance_jours_consecutifs) {
-    if (level == null) level = 'surveiller';
-    reasons.push('Ambiance hors norme ' + run + ' j consécutifs');
+    return Object.assign({}, base, { etat: 'surveiller', depuisJour: dernier - run + 1, motif: 'hors norme ' + run + ' j consécutifs' });
   }
-
-  if (!hasSignal) return { level: 'sans_donnees', reasons: ['Aucune pesée ni relevé d\'ambiance'] };
-  return { level: level || 'norme', reasons };
+  return Object.assign({}, base, { etat: 'ok', depuisJour: null,
+    motif: run === 1 ? '1 j hors norme (série < ' + p.ambiance_jours_consecutifs + ')' : 'dans les normes' });
 }
 
+// Agrégat « au J » : les 6 signaux en ordre de précocité S1→S6 + pire état
+// (alerte > surveiller > indetermine > ok — un signal indéterminé interdit
+// le vert : jamais un « Norme » fabriqué sans mesure).
+function computeCockpitDerive(ind, jour) {
+  const p = getCockpitDeriveParams();
+  const rows = (ind.saisies || []).filter(r => Number(r.jour_bande) <= jour);
+  const signaux = [
+    cockpitSignalEau(rows, p),
+    cockpitSignalRatio(rows, p, jour),
+    cockpitSignalGmq(rows, p),
+    cockpitSignalMortalite(rows, p),
+    cockpitSignalPoids(ind, jour, p),
+    cockpitSignalAmbiance(rows, p)
+  ];
+  const ordre = { alerte: 3, surveiller: 2, indetermine: 1, ok: 0 };
+  let level = 'ok';
+  signaux.forEach(s => { if (ordre[s.etat] > ordre[level]) level = s.etat; });
+  return { level: level, signaux: signaux, evalues: signaux.filter(s => s.etat !== 'indetermine').length };
+}
+
+// Badge agrégé de la bande (header du cockpit + Dashboard) — vocabulaire
+// bande conservé (Norme / À surveiller / Dérive), Indéterminé remplace
+// l'ancien « Sans données ».
 function cockpitBadgeHtml(d) {
   const map = {
-    norme:        { cls: 'badge-green',  txt: 'Norme' },
-    surveiller:   { cls: 'badge-orange', txt: 'À surveiller' },
-    derive:       { cls: 'badge-red',    txt: 'Dérive' },
-    sans_donnees: { cls: 'badge-grey',   txt: 'Sans données' }
+    ok:          { cls: 'badge-green',  txt: 'Norme' },
+    surveiller:  { cls: 'badge-orange', txt: 'À surveiller' },
+    alerte:      { cls: 'badge-red',    txt: 'Dérive' },
+    indetermine: { cls: 'badge-grey',   txt: 'Indéterminé' }
   };
-  const m = map[d.level] || map.sans_donnees;
-  const title = d.reasons.length ? d.reasons.join(' · ') : 'Poids vs Cobb et ambiance dans les normes';
+  const m = map[d.level] || map.indetermine;
+  const breaches = d.signaux.filter(s => s.etat === 'alerte' || s.etat === 'surveiller');
+  const title = breaches.length ? breaches.map(s => s.label + ' : ' + s.motif).join(' · ') : 'Signaux évalués dans les normes';
   return '<span class="badge ' + m.cls + '" title="' + title + '">' + m.txt + '</span>'
-    + (d.reasons.length ? '<span style="font-size:10.5px;color:var(--color-text-muted);">' + d.reasons.join(' · ') + '</span>' : '');
+    + '<span style="font-size:10.5px;color:var(--color-text-muted);">' + d.evalues + '/' + d.signaux.length + ' signaux évalués</span>';
+}
+
+// Liste des 6 signaux (ordre de précocité S1→S6), ré-évaluée au J du curseur
+// par le même chemin que le badge (cockpitSetJour).
+function cockpitSignauxHtml(d) {
+  const chips = {
+    ok:          { cls: 'badge-green',  txt: 'OK' },
+    surveiller:  { cls: 'badge-orange', txt: 'À surveiller' },
+    alerte:      { cls: 'badge-red',    txt: 'Alerte' },
+    indetermine: { cls: 'badge-grey',   txt: 'Indéterminé' }
+  };
+  return d.signaux.map((s, i) => {
+    const c = chips[s.etat] || chips.indetermine;
+    return '<div class="cockpit-signal">'
+      + '<span class="sig-label">S' + (i + 1) + ' · ' + s.label + '</span>'
+      + '<span class="badge ' + c.cls + '">' + c.txt + '</span>'
+      + '<span class="sig-depuis">' + (s.depuisJour != null ? 'depuis J' + s.depuisJour : '') + '</span>'
+      + '<span class="sig-motif">' + s.motif + '</span>'
+      + '</div>';
+  }).join('');
 }
 
 // Événements datés de la bande sur l'axe J1→jourMax. Les fenêtres de délai
@@ -13664,11 +13943,12 @@ function renderFicheCockpit(bande, ind) {
   cockpitCtx = { bande: bande, ind: ind, jour: jourInit, jourMax: jourMax };
 
   const dInit = cockpitDateForJour(bande, jourInit);
+  const deriveInit = computeCockpitDerive(ind, jourInit);
   box.style.display = '';
   box.innerHTML =
       '<div class="card-header" style="align-items:center;">'
     +   '<h3 style="display:flex;align-items:center;gap:0.45rem;"><i data-lucide="gauge"></i> Cockpit de bande</h3>'
-    +   '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end;" id="cockpit-badge">' + cockpitBadgeHtml(computeCockpitDerive(ind, jourInit)) + '</div>'
+    +   '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end;" id="cockpit-badge">' + cockpitBadgeHtml(deriveInit) + '</div>'
     + '</div>'
     + '<div style="font-size:11px;color:var(--color-text-muted);">Curseur temporel — reconstitution de la bande AU jour choisi (report de la dernière saisie connue), à ne pas confondre avec les indicateurs temps réel de l\'en-tête.</div>'
     + '<div class="cockpit-scrub-row">'
@@ -13678,6 +13958,7 @@ function renderFicheCockpit(bande, ind) {
     + '</div>'
     + cockpitStripHtml(bande, jourMax, jourInit)
     + '<div class="cockpit-kpis" id="cockpit-kpis">' + cockpitKpisHtml(bande, ind, jourInit) + '</div>'
+    + '<div class="cockpit-signaux" id="cockpit-signaux">' + cockpitSignauxHtml(deriveInit) + '</div>'
     + cockpitDepopNoteHtml(bande);
   refreshIcons();
   cockpitRepaintCharts();
@@ -13698,8 +13979,11 @@ function cockpitSetJour(v) {
   if (cur) cur.style.left = (cockpitCtx.jourMax > 1 ? ((j - 1) / (cockpitCtx.jourMax - 1)) * 100 : 0).toFixed(2) + '%';
   const kpis = document.getElementById('cockpit-kpis');
   if (kpis) kpis.innerHTML = cockpitKpisHtml(cockpitCtx.bande, cockpitCtx.ind, j);
+  const derive = computeCockpitDerive(cockpitCtx.ind, j);
   const badge = document.getElementById('cockpit-badge');
-  if (badge) badge.innerHTML = cockpitBadgeHtml(computeCockpitDerive(cockpitCtx.ind, j));
+  if (badge) badge.innerHTML = cockpitBadgeHtml(derive);
+  const sig = document.getElementById('cockpit-signaux');
+  if (sig) sig.innerHTML = cockpitSignauxHtml(derive);
   cockpitRepaintCharts();
 }
 
