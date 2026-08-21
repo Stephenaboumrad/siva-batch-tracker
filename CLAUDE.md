@@ -254,6 +254,12 @@ working rules for every task in this repository.
 - Temperature: the daily series is `saisies.temperature_c` (building ambient
   — norms, alerts and charts read ONLY this column); `temperature_observee_c`
   (0024) is a clinical observation on the birds, optional, never a series.
+- `saisies.eau_consommee_l` / `aliment_consomme_kg`: a stored 0 means NOT
+  MEASURED, never a real value — the saisie form writes `Number(...) || 0`,
+  so null and 0 collapse (assumed debt: a TRUE zero is invisible until the
+  form distinguishes them). Every consumer (charts, eau/aliment ratio, the
+  cockpit signal engine) must filter on `> 0` and treat absence as
+  "indéterminé" — never as an OK, never as a real drop to zero.
 - Day counter: J1 = placement day (matches the vaccination seed 0017/0019/
   0020). `computeJourBande(bande, date)` is the single source — never compute
   a J inline and never trust a stored `jour_bande` over it for display.
