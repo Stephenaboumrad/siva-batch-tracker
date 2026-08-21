@@ -7325,7 +7325,7 @@ async function submitProto() {
 
 async function deleteProto(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer cette ligne du protocole ? (les vaccinations déjà enregistrées sont conservées)')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du protocole', message: 'Supprimer cette ligne du protocole ?', detail: 'Les vaccinations déjà enregistrées sont conservées. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteProtocoleVaccin', payload: { proto_id: id } });
   if (!r.ok) return;
   STATE.protocoleVaccinal = STATE.protocoleVaccinal.filter(p => p.proto_id !== id);
@@ -7399,7 +7399,14 @@ async function confirmVaccination(vaccId) {
 
 async function deleteVaccination(vaccId) {
   if (!isManager()) return;
-  if (!confirm('Annuler cette vaccination ? La ligne sera supprimée.')) return;
+  // « Supprimer », plus « Annuler » : la suppression n'est pas une annulation
+  // (le futur lot soft-delete DSV donnera à « annuler » son vrai sens).
+  const v = STATE.vaccinations.find(x => x.vacc_id === vaccId);
+  if (!(await houseConfirm({
+    title: 'Supprimer la vaccination',
+    message: 'Supprimer « ' + escHtml((v && v.nom_vaccin) || 'cette vaccination') + ' »' + (v && v.date_faite ? ' du <strong>' + fmtDate(v.date_faite) + '</strong>' : '') + ' du registre ?',
+    detail: 'Tracé au journal.'
+  }))) return;
   const r = await saveRemote({ action: 'deleteVaccination', payload: { vacc_id: vaccId } });
   if (!r.ok) return;
   STATE.vaccinations = STATE.vaccinations.filter(v => v.vacc_id !== vaccId);
@@ -7696,7 +7703,7 @@ async function submitProtoTrait() {
 
 async function deleteProtoTrait(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer ce traitement du plan ? (les traitements déjà enregistrés sont conservés)')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du plan', message: 'Supprimer ce traitement du plan ?', detail: 'Les traitements déjà enregistrés sont conservés. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteProtocoleTraitement', payload: { proto_trait_id: id } });
   if (!r.ok) return;
   STATE.protocoleTraitements = STATE.protocoleTraitements.filter(p => p.proto_trait_id !== id);
@@ -7744,7 +7751,7 @@ async function submitTraitFait() {
   // Garde-fou (jamais bloquant — le délai reste saisi par produit réel, 0015/
   // 0018) : sans délai, la garde d'abattage est AVEUGLE à ce traitement.
   // Confirmation consciente ; la ligne garde son badge rouge « à renseigner ».
-  if (delaiRaw === '' && !confirm('Sans délai d\'attente, l\'abattage ne sera PAS gardé pour ce traitement — continuer ?')) return;
+  if (delaiRaw === '' && !(await houseConfirm({ title: 'Aucun délai d\'attente', message: 'Sans délai d\'attente, l\'abattage ne sera PAS gardé pour ce traitement — continuer ?', confirmLabel: 'Continuer', danger: false }))) return;
   const manager = isManager();
   const payload = {
     traitement_id: 'trt-' + uuid(),
@@ -7791,7 +7798,13 @@ async function confirmTraitement(id) {
 
 async function deleteTraitement(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer ce traitement du registre ?')) return;
+  const t = STATE.traitements.find(x => x.traitement_id === id);
+  const avecDelai = t && Number(t.delai_attente_jours) > 0;
+  if (!(await houseConfirm({
+    title: 'Supprimer du registre DSV',
+    message: 'Supprimer « ' + escHtml((t && t.nom_produit) || 'ce traitement') + ' »' + (t && t.date_traitement ? ' du <strong>' + fmtDate(t.date_traitement) + '</strong>' : '') + ' du registre des traitements ?',
+    detail: (avecDelai ? 'Le délai d\'attente associé disparaîtra du calcul d\'abattage. ' : '') + 'Tracé au journal.'
+  }))) return;
   const r = await saveRemote({ action: 'deleteTraitement', payload: { traitement_id: id } });
   if (!r.ok) return;
   STATE.traitements = STATE.traitements.filter(t => t.traitement_id !== id);
@@ -8693,7 +8706,7 @@ async function submitVideSanitaire() {
 
 async function deleteVideSanitaire(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer ce vide sanitaire du registre ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer ce vide sanitaire du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteVideSanitaire', payload: { id: id } });
   if (!r.ok) return;
   STATE.videsSanitaires = STATE.videsSanitaires.filter(v => v.id !== id);
@@ -8890,7 +8903,7 @@ async function submitNonConformite() {
 
 async function deleteNonConformite(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer cette non-conformité du registre ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer cette non-conformité du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteNonConformite', payload: { id: id } });
   if (!r.ok) return;
   STATE.nonConformites = STATE.nonConformites.filter(n => n.id !== id);
@@ -9179,7 +9192,7 @@ async function submitEtalonnage() {
 
 async function deleteEtalonnage(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer cet étalonnage du registre ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer cet étalonnage du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteEtalonnage', payload: { id: id } });
   if (!r.ok) return;
   STATE.etalonnages = STATE.etalonnages.filter(e => e.id !== id);
@@ -9439,7 +9452,7 @@ async function submitReleveTournee(posteId) {
 
 async function deleteReleveNuisible(id) {
   if (!isManager()) return;
-  if (!confirm('Supprimer ce relevé du registre ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer ce relevé du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteReleveNuisible', payload: { id: id } });
   if (!r.ok) return;
   STATE.relevesNuisibles = STATE.relevesNuisibles.filter(x => x.id !== id);
@@ -12311,6 +12324,50 @@ function generateCloseoutReport(bandeId) {
   exportPDF();
 }
 
+// ── Confirmation MAISON (harmonisation des suppressions) ───────────────────
+// Remplace TOUS les confirm() natifs de l'app : un confirm natif gèle le JS
+// de la page, est invisible en capture/recette automatisée et casse l'idiome
+// modale/toast (constats recettes lots B-C). Promesse résolue à true sur le
+// bouton d'action, false sur Annuler / Échap / clic hors modale — l'abandon
+// est TOUJOURS la voie par défaut (focus initial sur Annuler). Le bouton
+// d'action se désactive au clic (garde anti double-tap). Les DEUX niveaux
+// sont portés par le CONTENU des appels : suppression tracée (« Tracé au
+// journal », tables du trigger 0049) vs « Suppression définitive — aucune
+// trace au journal » + bouton « Supprimer définitivement » (tables hors
+// journal). La modale de suppression de bande (showDeleteBandeModal) reste
+// le palier supérieur, inchangée.
+function houseConfirm(opts) {
+  return new Promise(resolve => {
+    const o = opts || {};
+    const danger = o.danger !== false;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'house-confirm-overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:430px;">'
+      + '<h3' + (danger ? ' style="color:var(--c-red-600);"' : '') + '>' + (o.title || 'Confirmer') + '</h3>'
+      + (o.message ? '<p style="margin-bottom:0.5rem;">' + o.message + '</p>' : '')
+      + (o.detail ? '<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">' + o.detail + '</p>' : '')
+      + '<div class="modal-actions">'
+      + '<button class="btn btn-outline" id="house-confirm-cancel">Annuler</button>'
+      + '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="house-confirm-ok">' + (o.confirmLabel || 'Supprimer') + '</button>'
+      + '</div></div>';
+    const done = val => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(val);
+    };
+    const onKey = e => { if (e.key === 'Escape') done(false); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) done(false); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    document.getElementById('house-confirm-cancel').onclick = () => done(false);
+    const ok = document.getElementById('house-confirm-ok');
+    ok.onclick = () => { ok.disabled = true; done(true); };
+    setTimeout(() => { const c = document.getElementById('house-confirm-cancel'); if (c) c.focus(); }, 60);
+  });
+}
+
 function closeModal() {
   const o = document.getElementById('modal-overlay');
   if (o) o.remove();
@@ -14925,7 +14982,12 @@ function renderFicheSaisiesTable(ind, bande) {
 }
 
 async function deleteSaisie(saisieId) {
-  if (!confirm('Supprimer cette saisie ?')) return;
+  const s = STATE.saisies.find(x => x.saisie_id === saisieId);
+  if (!(await houseConfirm({
+    title: 'Supprimer la saisie',
+    message: 'Supprimer la saisie du <strong>' + (s && s.date_saisie ? fmtDate(s.date_saisie) : '?') + '</strong> ?',
+    detail: 'Tracé au journal.'
+  }))) return;
   const r = await saveRemote({ action: 'deleteSaisie', payload: { saisie_id: saisieId } });
   if (!r.ok) return;
   STATE.saisies = STATE.saisies.filter(s => s.saisie_id !== saisieId);
@@ -14968,7 +15030,13 @@ function renderFicheIntrantsTable(ind) {
 }
 
 async function deleteIntrant(intrantId) {
-  if (!confirm('Supprimer cet intrant ?')) return;
+  const i = STATE.intrants.find(x => x.intrant_id === intrantId);
+  if (!(await houseConfirm({
+    title: 'Supprimer l\'intrant',
+    message: 'Supprimer « ' + escHtml((i && i.nom_produit) || 'cet intrant') + ' » ?',
+    detail: 'Suppression définitive — aucune trace au journal.',
+    confirmLabel: 'Supprimer définitivement'
+  }))) return;
   const r = await saveRemote({ action: 'deleteIntrant', payload: { intrant_id: intrantId } });
   if (!r.ok) return;
   STATE.intrants = STATE.intrants.filter(i => i.intrant_id !== intrantId);
@@ -17305,8 +17373,8 @@ async function toggleMPActif(mpId, actif) {
   }
 }
 
-function deleteMP(mpId) {
-  if (!confirm('Supprimer cette matière première ?')) return;
+async function deleteMP(mpId) {
+  if (!(await houseConfirm({ title: 'Supprimer la matière première', message: 'Supprimer cette matière première ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   saveMPList(getMPList().filter(m => m.mp_id !== mpId));
   renderMPAlimTable();
   toast('Matière première supprimée');
@@ -17648,8 +17716,8 @@ function loadDemoData() {
   toast('Données démo SIVA chargées — 3 bandes, fournisseurs, stocks, clients');
 }
 
-function clearDemoData() {
-  if (!confirm('Supprimer toutes les données de démonstration ?')) return;
+async function clearDemoData() {
+  if (!(await houseConfirm({ title: 'Supprimer les données de démonstration', message: 'Supprimer toutes les données de démonstration ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   DEMO_IDS.forEach(id => {
     STATE.bandes = STATE.bandes.filter(b => b.bande_id !== id);
     STATE.saisies = STATE.saisies.filter(s => s.bande_id !== id);
@@ -18112,7 +18180,7 @@ async function submitAlimEntry() {
 }
 
 async function deleteAlimentPhase(apId) {
-  if (!confirm('Supprimer cette entrée ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer l\'entrée d\'alimentation', message: 'Supprimer cette entrée ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteAlimentPhase', payload: { ap_id: apId } });
   if (!r.ok) return;
   STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.ap_id !== apId);
@@ -18828,7 +18896,7 @@ async function applyStockIncrement() {
 }
 
 async function deleteReception(id) {
-  if (!confirm('Supprimer cette réception ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer la réception', message: 'Supprimer cette réception ?', detail: 'Tracé au journal.' }))) return;
   const res = await saveRemote({ action: 'deleteReception', payload: { reception_id: id } });
   if (!res.ok) return;
   STATE.receptions = STATE.receptions.filter(r => r.reception_id !== id);
@@ -20198,7 +20266,7 @@ async function toggleProduitDisponible(id) {
 }
 
 async function deleteProduit(id) {
-  if (!confirm('Supprimer ce produit du catalogue ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer du catalogue', message: 'Supprimer ce produit du catalogue ?', detail: 'Tracé au journal.' }))) return;
   try {
     await apiPost({ action: 'deleteProduit', payload: { produit_id: id } });
     STATE.produits = STATE.produits.filter(p => p.produit_id !== id);
@@ -22524,7 +22592,7 @@ async function submitRH2Absence() {
 }
 
 async function deleteRH2Absence(id) {
-  if (!confirm('Supprimer cette absence ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer l\'absence', message: 'Supprimer cette absence ?', detail: 'Tracé au journal.' }))) return;
   const r = await saveRemote({ action: 'deleteAbsence', payload: { id } });
   if (!r.ok) return;
   STATE.absences = rh2Absences().filter(x => x.id !== id);
@@ -22598,7 +22666,7 @@ async function rh2ToggleRembourse(id) {
 }
 
 async function deleteRH2Avance(id) {
-  if (!confirm('Supprimer cette avance ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer l\'avance', message: 'Supprimer cette avance ?', detail: 'Tracé au journal.' }))) return;
   const r = await saveRemote({ action: 'deleteAvance', payload: { id } });
   if (!r.ok) return;
   STATE.avances = rh2Avances().filter(x => x.id !== id);
@@ -22893,7 +22961,7 @@ async function submitDepenseRH() {
 }
 
 async function deleteDepenseRH(id) {
-  if (!confirm('Supprimer cette dépense ?')) return;
+  if (!(await houseConfirm({ title: 'Supprimer la dépense', message: 'Supprimer cette dépense ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteDepenseRH', payload: { depense_id: id } });
   if (!r.ok) return;
   STATE.depensesRH = STATE.depensesRH.filter(d => d.depense_id !== id);
