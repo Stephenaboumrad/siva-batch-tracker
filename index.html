@@ -613,6 +613,16 @@
    typographiquement identiques à une valeur mesurée. */
 #fiche-cockpit .cockpit-kpi.is-proj .value { font-style: italic; color: var(--color-text-secondary); }
 #fiche-cockpit .cockpit-signal.cockpit-signal-proj { justify-content: center; color: var(--color-text-muted); font-style: italic; }
+/* Simulateur d'abattage (lot C — DANS la carte Rentabilité, finance gated).
+   Toutes les valeurs sont des projections → italique/encre secondaire (vocabulaire
+   lot B) ; la colonne J/date (déterministe calendaire) reste droite. */
+#fiche-simulateur .sim-table { width: 100%; border-collapse: collapse; }
+#fiche-simulateur .sim-table th { text-align: right; font-size: 11px; }
+#fiche-simulateur .sim-table th:first-child { text-align: left; }
+#fiche-simulateur .sim-table td { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-style: italic; color: var(--color-text-secondary); font-size: 12px; }
+#fiche-simulateur .sim-table td:first-child { font-style: normal; }
+#fiche-simulateur .sim-row.sim-best td { background: var(--color-accent-soft); }
+#fiche-simulateur .sim-row.sim-delai td { opacity: 0.75; }
 #fiche-cockpit .cockpit-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: 10.5px; color: var(--color-text-muted); margin-top: var(--space-2); }
 #fiche-cockpit .cockpit-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 #fiche-cockpit .cockpit-kpis {
@@ -4273,6 +4283,14 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <div id="param-vet"></div>
     </div>
 
+    <!-- Commercial (manager) : prix marché carcasse — clé parametres
+         'prix_marche', volontairement lisible par les rôles internes à l'API
+         (info de marché publique — note CLAUDE.md) ; l'ÉDITEUR reste manager. -->
+    <div class="card manager-only" style="max-width:640px;margin-bottom:1.25rem;">
+      <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Commercial</h3></div>
+      <div id="param-prix-marche"></div>
+    </div>
+
     <div class="card" style="max-width:640px;">
       <div class="card-header"><h3 style="font-size:1rem;text-transform:none;letter-spacing:0;">Application</h3></div>
       <div id="param-app"></div>
@@ -5953,6 +5971,31 @@ const COBB_STANDARD = [
   { day: 36, weight: 1890 }, { day: 37, weight: 1980 }, { day: 38, weight: 2070 },
   { day: 39, weight: 2160 }, { day: 40, weight: 2250 }, { day: 41, weight: 2350 },
   { day: 42, weight: 2450 }
+];
+
+// ── Cobb 500 daily feed intake reference (g/sujet/jour, day 0-42) ──
+// Repères PUBLICS Cobb 500 (guide de performance, as-hatched), arrondis et
+// lissés — même convention 0-based que COBB_STANDARD (day 0 = mise en place),
+// accès EXCLUSIVEMENT via cobbIntakeForJourApp (conversion J app − 1, point
+// unique — même règle que la courbe de poids). Consommé par le simulateur
+// d'abattage (lot C) : conso projetée = intake standard × ancre de poids.
+// Cumul indicatif : ~1 157 g à d21, ~2 598 g à d32, ~4 303 g à d42.
+const COBB_INTAKE = [
+  { day: 0, intake: 12 }, { day: 1, intake: 14 }, { day: 2, intake: 17 },
+  { day: 3, intake: 20 }, { day: 4, intake: 24 }, { day: 5, intake: 28 },
+  { day: 6, intake: 31 }, { day: 7, intake: 35 }, { day: 8, intake: 39 },
+  { day: 9, intake: 44 }, { day: 10, intake: 48 }, { day: 11, intake: 52 },
+  { day: 12, intake: 57 }, { day: 13, intake: 61 }, { day: 14, intake: 66 },
+  { day: 15, intake: 71 }, { day: 16, intake: 76 }, { day: 17, intake: 82 },
+  { day: 18, intake: 87 }, { day: 19, intake: 92 }, { day: 20, intake: 98 },
+  { day: 21, intake: 103 }, { day: 22, intake: 108 }, { day: 23, intake: 113 },
+  { day: 24, intake: 118 }, { day: 25, intake: 123 }, { day: 26, intake: 127 },
+  { day: 27, intake: 132 }, { day: 28, intake: 136 }, { day: 29, intake: 140 },
+  { day: 30, intake: 144 }, { day: 31, intake: 148 }, { day: 32, intake: 152 },
+  { day: 33, intake: 156 }, { day: 34, intake: 159 }, { day: 35, intake: 163 },
+  { day: 36, intake: 166 }, { day: 37, intake: 170 }, { day: 38, intake: 173 },
+  { day: 39, intake: 176 }, { day: 40, intake: 178 }, { day: 41, intake: 181 },
+  { day: 42, intake: 183 }
 ];
 
 // ── SOURCE UNIQUE du compteur de jour (UX A7 — ex-cycleDay, renommé) ──
@@ -13253,7 +13296,12 @@ function renderFicheRentabilite(bande) {
     '<div class="card-header" style="margin-bottom:0.75rem;">' +
       '<h3><i data-lucide="wallet"></i> Rentabilité</h3>' +
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' + statutChip + margeChip + '</div>' +
-    '</div>' + kpis + ctxLine + breakdownBlock + note;
+    '</div>' + kpis + ctxLine + breakdownBlock + note +
+    '<div id="fiche-simulateur"></div>';
+
+  // Simulateur d'abattage (lot C) — rendu DANS la carte gated : aucun nœud
+  // DOM pour le chef (le return canViewRentabilite ci-dessus a déjà tranché).
+  renderSimulateurAbattage(bande.bande_id);
 
   if (hasCost) {
     const cvs = document.getElementById('chart-fiche-renta');
@@ -13274,6 +13322,84 @@ function renderFicheRentabilite(bande) {
       });
     }
   }
+}
+
+// ── Rendu du simulateur d'abattage (lot C) — appelé EXCLUSIVEMENT depuis
+// renderFicheRentabilite (gate canViewRentabilite déjà passé) ; garde
+// supplémentaire en tête par défense en profondeur. Vocabulaire projection
+// du lot B : ~, italique, rien de projeté identique à du mesuré.
+let simCustomJour = null;
+function renderSimulateurAbattage(bandeId) {
+  const box = document.getElementById('fiche-simulateur');
+  if (!box) return;
+  if (!canViewRentabilite()) { box.innerHTML = ''; return; }
+  const sim = computeSimulationAbattage(bandeId, simCustomJour);
+  const head = '<div style="border-top:var(--border-hairline);margin-top:1rem;padding-top:0.75rem;">'
+    + '<h4 style="margin:0 0 0.35rem;font-size:0.92rem;display:flex;align-items:center;gap:0.4rem;"><i data-lucide="hourglass"></i> Simulateur d\'abattage</h4>';
+  if (!sim) { box.innerHTML = ''; return; }
+  if (sim.indisponible) {
+    box.innerHTML = head + '<div style="font-size:0.82rem;color:var(--text-muted);font-style:italic;">'
+      + (sim.indisponible === 'aucune_pesee' ? 'Simulation impossible sans pesée réelle.' : 'Standard Cobb indisponible pour la pesée d\'ancrage.')
+      + '</div></div>';
+    refreshIcons();
+    return;
+  }
+  const fcfa = v => (v == null ? '—' : fmt(Math.round(v)));
+  // Meilleure marge LÉGALE (délai d'attente respecté), base contrat sinon marché.
+  let best = null;
+  sim.scenarios.forEach(s => {
+    const m = sim.prixContrat != null ? s.margeContrat : s.margeMarche;
+    if (s.delaiOk && m != null && (best == null || m > best.m)) best = { jour: s.jour, m: m };
+  });
+  const deuxPrix = sim.prixContrat != null && sim.prixMarche != null;
+  let ths = '<th>Abattage à</th><th>~Poids vif</th><th>~Carcasse</th><th>~Aliment add.</th>';
+  if (sim.prixContrat != null) ths += '<th>~Marge contrat</th>';
+  if (sim.prixMarche != null) ths += '<th>~Marge marché</th>';
+  const rows = sim.scenarios.map(s => {
+    const isBest = best && best.jour === s.jour;
+    const delaiChip = s.delaiOk ? '' : ' <span style="color:var(--color-danger);font-weight:700;font-size:10px;white-space:nowrap;">délai d\'attente non respecté</span>';
+    let tds = '<td style="text-align:left;font-family:var(--font-sans);">J' + s.jour + ' <span style="color:var(--text-muted);">' + (s.date ? fmtDate(s.date) : '') + '</span>' + delaiChip + '</td>'
+      + '<td>~' + fmt(s.poidsVif, 0) + ' g</td>'
+      + '<td>~' + fmt(s.carcasseKg, 0) + ' kg</td>'
+      + '<td>' + (s.coutAliment != null ? '~' + fcfa(s.coutAliment) + ' F <span style="color:var(--text-muted);">(' + fmt(s.alimentKg, 0) + ' kg)</span>' : '<span style="color:var(--text-muted);">non calculable</span>') + '</td>';
+    const margeTd = m => '<td style="font-weight:700;color:' + (m == null ? 'var(--text-muted)' : (m >= 0 ? 'var(--color-success)' : 'var(--color-danger)')) + ';">' + (m != null ? '~' + fcfa(m) + ' F' : '—') + '</td>';
+    if (sim.prixContrat != null) tds += margeTd(s.margeContrat);
+    if (sim.prixMarche != null) tds += margeTd(s.margeMarche);
+    return '<tr class="sim-row' + (isBest ? ' sim-best' : '') + (s.delaiOk ? '' : ' sim-delai') + '">' + tds + '</tr>';
+  }).join('');
+  // Référence « sortie estimée » : méthode GMQ linéaire de la fiche —
+  // DISTINCTE de la forme Cobb du simulateur, jamais une ligne de scénario.
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  const ind = bande ? computeIndicators(bande) : null;
+  const fc = (bande && ind) ? computeSlaughterForecast(bande, ind) : null;
+  const fcLine = (fc && fc.status === 'projected')
+    ? '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.4rem;">Référence : sortie estimée <strong>J' + fc.targetDay + '</strong> (' + fc.date.toLocaleDateString('fr-FR') + ') — méthode GMQ linéaire, distincte de la projection forme Cobb du tableau.</div>'
+    : '';
+  const noteHtml = '<div style="font-size:0.75rem;color:var(--text-muted);margin:0 0 0.6rem;">'
+    + 'Estimations « ~ » <strong>hors coûts d\'abattage et mortalité future</strong> · effectif constant ' + fmt(sim.effectifSim)
+    + (sim.nbAbattusPartiels > 0 ? ' (enlèvements partiels déduits : ' + fmt(sim.nbAbattusPartiels) + ')' : '')
+    + ' · ancre pesée J' + sim.ancrePesee.jour + ' (' + fmt(sim.ancrePesee.poids) + ' g, Cobb ' + (sim.ancre >= 1 ? '+' : '') + fmt((sim.ancre - 1) * 100, 1) + ' %)'
+    + ' · rendement ' + fmt(sim.rend.affiche, 0) + ' % (' + sim.rend.source + ')'
+    + ' · aliment : conso standard Cobb × ancre' + (sim.prixAlimentSource ? ', prix ' + sim.prixAlimentSource + ' ' + fmt(Math.round(sim.prixAlimentKg)) + ' F/kg' : ' — prix indisponible')
+    + ' · coût engagé ' + fcfa(sim.coutEngage) + ' F'
+    + (sim.prixContrat != null ? ' · contrat ' + fcfa(sim.prixContrat) + ' F/kg' : '')
+    + (sim.prixMarche != null ? ' · marché ' + fcfa(sim.prixMarche) + ' F/kg' + (sim.marcheMaj ? ' (maj ' + fmtDate(sim.marcheMaj) + ')' : '') : '')
+    + '</div>';
+  const customRow = '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;font-size:0.8rem;">'
+    + '<label for="sim-custom-j" style="color:var(--text-secondary);">Autre jour :</label>'
+    + '<input type="number" id="sim-custom-j" min="' + (sim.jourReel + 1) + '" max="' + CYCLE_DURATION_DAYS + '" step="1" style="width:80px;padding:0.25rem 0.4rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);" value="' + (simCustomJour || '') + '">'
+    + '<button class="btn btn-outline btn-sm" onclick="simSetCustomJour(\'' + bandeId + '\')">Simuler</button>'
+    + '</div>';
+  box.innerHTML = head + noteHtml
+    + '<div class="table-wrap" style="border:var(--border-hairline);"><table class="sim-table"><thead><tr>' + ths + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + customRow + fcLine + '</div>';
+  refreshIcons();
+}
+
+function simSetCustomJour(bandeId) {
+  const el = document.getElementById('sim-custom-j');
+  simCustomJour = el ? (parseInt(el.value, 10) || null) : null;
+  renderSimulateurAbattage(bandeId);
 }
 
 function renderFicheCharts(ind) {
@@ -13547,6 +13673,15 @@ function getCockpitDeriveParams() {
 // (J app − 1), jamais sur les données stockées.
 function cobbWeightForJourApp(jour) {
   return getCobbStandardWeight(Math.max(0, (Number(jour) || 1) - 1));
+}
+
+// Conso standard Cobb au jour de bande APP — même règle de conversion UNIQUE
+// (J app − 1 → day 0-based) que cobbWeightForJourApp ; au-delà de day 42 :
+// dernière valeur (plateau de finition). Seul accès autorisé à COBB_INTAKE.
+function cobbIntakeForJourApp(jour) {
+  const d = Math.max(0, Math.min(CYCLE_DURATION_DAYS, Math.round((Number(jour) || 1) - 1)));
+  const row = COBB_INTAKE.find(c => c.day === d);
+  return row ? row.intake : COBB_INTAKE[COBB_INTAKE.length - 1].intake;
 }
 
 // Date calendaire du J demandé (J1 = date_entree) — affichage du curseur.
@@ -14863,6 +14998,93 @@ function computeRendementAbattage(bandeId) {
   const reel = vif > 0 ? (carc / vif * 100) : null;
   const config = Number(bande && bande.rendement_carcasse_pct) || 58;
   return { reel, affiche: reel != null ? reel : config, source: reel != null ? 'réel' : 'paramétré' };
+}
+
+// Prix marché carcasse (Abidjan) — clé parametres 'prix_marche' (0028, MàJ
+// manuelle depuis Paramètres, manager). DÉLIBÉRÉMENT lisible par tous les
+// rôles internes au niveau API (information de marché PUBLIQUE — voir la
+// note CLAUDE.md) : l'UI ne l'affiche que dans la carte Rentabilité (gate
+// finance), et les autres entrées du simulateur restent privées de colonnes
+// par la barrière 0040 côté serveur.
+function getPrixMarche() {
+  const db = getParametre('prix_marche');
+  return (db && typeof db === 'object' && !Array.isArray(db)) ? db : null;
+}
+
+// ── Simulateur d'abattage (lot C) — FINANCE ────────────────────────────────
+// « Que gagne-t-on si on abat à J32 / J35 / J38 / J42 ? » sur données vives.
+// Appelé UNIQUEMENT par le rendu gated de la carte Rentabilité
+// (canViewRentabilite) ; côté serveur, la barrière 0040 prive de toute façon
+// le chef des colonnes de prix (un appel hors gate calculerait des nulls).
+// Primitives lot B : ancre = dernière pesée réelle / Cobb au même J ;
+// ~poids(Js) = Cobb(Js) × ancre ; conso projetée = intake Cobb × ancre.
+// EXCLUSIONS assumées (affichées) : coûts d'abattage et mortalité future non
+// projetés ; effectif constant, enlèvements partiels déduits SIM-LOCALEMENT
+// (la dette effectif globale de computeIndicators reste signalée, pas ici).
+function computeSimulationAbattage(bandeId, jourCustom) {
+  const bande = STATE.bandes.find(b => b.bande_id === bandeId);
+  if (!bande || bande.statut !== 'en_cours') return null;
+  const jourReel = computeJourBande(bande);
+  if (jourReel == null || jourReel >= CYCLE_DURATION_DAYS) return null;
+  const ind = computeIndicators(bande);
+  const eco = computeBandeEconomics(bandeId);
+  if (!eco) return null;
+  if (!ind.hasWeighing) return { indisponible: 'aucune_pesee', jourReel: jourReel };
+  const stdAncre = cobbWeightForJourApp(ind.jourPesee);
+  if (!(stdAncre > 0)) return { indisponible: 'standard', jourReel: jourReel };
+  const ancre = ind.poidsMesure / stdAncre;
+  const effectifSim = Math.max(0, ind.effectifActuel - (eco.nbAbattus || 0));
+  const rend = computeRendementAbattage(bandeId);
+  // Prix aliment pour la projection : forfait bande → prix EFFECTIF des
+  // formulations (Σ coût / Σ kg) → null = « non calculable », jamais inventé.
+  let prixAlimentKg = Number(bande.cout_aliment_kg) || 0;
+  let prixAlimentSource = 'forfait';
+  if (!(prixAlimentKg > 0)) {
+    const phases = (STATE.alimentsPhases || []).filter(a => a.bande_id === bandeId);
+    const kg = phases.reduce((s, a) => s + (Number(a.quantite_kg) || 0), 0);
+    const cout = phases.reduce((s, a) => s + (Number(a.cout_total) || 0), 0);
+    if (kg > 0 && cout > 0) { prixAlimentKg = cout / kg; prixAlimentSource = 'formulation'; }
+    else { prixAlimentKg = null; prixAlimentSource = null; }
+  }
+  const prixContrat = Number(bande.prix_vente_carcasse_kg) || null;
+  const marche = getPrixMarche();
+  const prixMarche = (marche && Number(marche.carcasse_kg_fcfa) > 0) ? Number(marche.carcasse_kg_fcfa) : null;
+
+  const jours = [32, 35, 38, 42];
+  const jc = parseInt(jourCustom, 10);
+  if (Number.isFinite(jc) && jc > jourReel && jc <= CYCLE_DURATION_DAYS && jours.indexOf(jc) < 0) jours.push(jc);
+  const scenarios = jours
+    .filter(js => js > jourReel && js <= CYCLE_DURATION_DAYS)
+    .sort((a, b) => a - b)
+    .map(js => {
+      const poidsVif = cobbWeightForJourApp(js) * ancre;
+      const carcasseKg = effectifSim * (poidsVif / 1000) * (rend.affiche / 100);
+      let alimentKg = 0;
+      for (let j = jourReel + 1; j <= js; j++) alimentKg += cobbIntakeForJourApp(j) * ancre * effectifSim / 1000;
+      const coutAliment = prixAlimentKg != null ? alimentKg * prixAlimentKg : null;
+      const coutTotalJs = coutAliment != null ? eco.coutTotal + coutAliment : null;
+      const date = cockpitDateForJour(bande, js);
+      const delaiOk = !ind.earliestSlaughterDate || (date != null && date >= ind.earliestSlaughterDate);
+      const caContrat = prixContrat != null ? carcasseKg * prixContrat : null;
+      const caMarche = prixMarche != null ? carcasseKg * prixMarche : null;
+      return {
+        jour: js, date: date, delaiOk: delaiOk,
+        poidsVif: poidsVif, carcasseKg: carcasseKg, alimentKg: alimentKg,
+        coutAliment: coutAliment, coutTotalJs: coutTotalJs,
+        caContrat: caContrat, caMarche: caMarche,
+        margeContrat: (caContrat != null && coutTotalJs != null) ? caContrat - coutTotalJs : null,
+        margeMarche: (caMarche != null && coutTotalJs != null) ? caMarche - coutTotalJs : null
+      };
+    });
+  return {
+    jourReel: jourReel, ancre: ancre,
+    ancrePesee: { poids: ind.poidsMesure, jour: ind.jourPesee },
+    effectifSim: effectifSim, nbAbattusPartiels: eco.nbAbattus || 0, rend: rend,
+    prixAlimentKg: prixAlimentKg, prixAlimentSource: prixAlimentSource,
+    prixContrat: prixContrat, prixMarche: prixMarche, marcheMaj: marche ? marche.maj : null,
+    coutEngage: eco.coutTotal, earliestSlaughterDate: ind.earliestSlaughterDate,
+    scenarios: scenarios
+  };
 }
 
 // Modèle de clôture partagé par l'aperçu de clôture ET le registre PDF/Excel.
@@ -16825,6 +17047,7 @@ function initParametresPage() {
       '<div class="param-info-row"><span>État de connexion</span><strong>' + (isOnline ? 'En ligne' : 'Hors ligne') + '</strong></div>';
   }
   renderVetParamsSettings();
+  renderPrixMarcheSettings();
 }
 
 // Réglages sanitaires — STANDARD COMMUN (table parametres, 0028). Édition
@@ -16897,6 +17120,33 @@ async function saveVetParamsFromUI() {
   try { checkAlerts(); } catch (e) {}
   renderVetParamsSettings();
   const m = document.getElementById('vp-msg'); if (m) m.textContent = remoteOk ? 'Enregistré (standard commun).' : 'Enregistré localement (cet appareil).';
+}
+
+// Prix marché carcasse (lot C) — clé 'prix_marche' (0028), édition manager.
+// Alimente la colonne « marché » du simulateur d'abattage (carte Rentabilité).
+// Clé volontairement lisible par les rôles internes à l'API (info de marché
+// publique) : ne JAMAIS y loger une donnée sensible — note CLAUDE.md.
+function renderPrixMarcheSettings() {
+  const el = document.getElementById('param-prix-marche');
+  if (!el) return;
+  if (!isManager()) { el.innerHTML = ''; return; }
+  const pm = getPrixMarche();
+  el.innerHTML =
+    '<p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.75rem;">Prix marché carcasse (Abidjan), FCFA/kg — mise à jour MANUELLE ; alimente la colonne « marché » du simulateur d\'abattage.</p>'
+    + '<div class="form-row"><div class="form-group"><label>Prix carcasse (FCFA/kg)</label><input type="number" id="pm-prix" min="0" step="50" inputmode="numeric" placeholder="Ex : 2400"></div>'
+    + '<div class="form-group"><label>Dernière mise à jour</label><input type="text" id="pm-maj" disabled></div></div>'
+    + '<button class="btn btn-primary btn-sm" onclick="savePrixMarcheFromUI()">Enregistrer</button>';
+  document.getElementById('pm-prix').value = (pm && pm.carcasse_kg_fcfa != null) ? pm.carcasse_kg_fcfa : '';
+  document.getElementById('pm-maj').value = (pm && pm.maj) ? fmtDate(pm.maj) : '—';
+}
+
+async function savePrixMarcheFromUI() {
+  if (!isManager()) { toast('Réservé au manager', 'error'); return; }
+  const v = Number(document.getElementById('pm-prix').value);
+  if (!(v > 0)) { toast('Prix invalide', 'error'); return; }
+  const ok = await saveParametre('prix_marche', { carcasse_kg_fcfa: v, maj: todayStr() });
+  toast(ok ? 'Prix marché enregistré (tous les appareils)' : '⚠️ Enregistrement impossible (hors ligne ou migration 0028 non appliquée)', ok ? 'success' : 'error');
+  renderPrixMarcheSettings();
 }
 
 // ── Settings ──
