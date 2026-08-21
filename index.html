@@ -7325,7 +7325,8 @@ async function submitProto() {
 
 async function deleteProto(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du protocole', message: 'Supprimer cette ligne du protocole ?', detail: 'Les vaccinations déjà enregistrées sont conservées. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const pv = STATE.protocoleVaccinal.find(x => x.proto_id === id);
+  if (!(await houseConfirm({ title: 'Supprimer du protocole', message: 'Supprimer « ' + escHtml((pv && pv.nom_vaccin) || 'cette ligne') + ' »' + (pv && pv.jour_cible != null ? ' (J' + pv.jour_cible + ')' : '') + ' du protocole ?', detail: 'Les vaccinations déjà enregistrées sont conservées. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteProtocoleVaccin', payload: { proto_id: id } });
   if (!r.ok) return;
   STATE.protocoleVaccinal = STATE.protocoleVaccinal.filter(p => p.proto_id !== id);
@@ -7703,7 +7704,8 @@ async function submitProtoTrait() {
 
 async function deleteProtoTrait(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du plan', message: 'Supprimer ce traitement du plan ?', detail: 'Les traitements déjà enregistrés sont conservés. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const pt = STATE.protocoleTraitements.find(x => x.proto_trait_id === id);
+  if (!(await houseConfirm({ title: 'Supprimer du plan', message: 'Supprimer « ' + escHtml((pt && pt.nom_produit) || 'ce traitement') + ' »' + (pt && pt.jour_cible != null ? ' (J' + pt.jour_cible + ')' : '') + ' du plan ?', detail: 'Les traitements déjà enregistrés sont conservés. Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteProtocoleTraitement', payload: { proto_trait_id: id } });
   if (!r.ok) return;
   STATE.protocoleTraitements = STATE.protocoleTraitements.filter(p => p.proto_trait_id !== id);
@@ -8706,7 +8708,8 @@ async function submitVideSanitaire() {
 
 async function deleteVideSanitaire(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer ce vide sanitaire du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const vs = STATE.videsSanitaires.find(x => x.id === id);
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer le vide sanitaire du bâtiment « ' + escHtml((vs && vs.batiment) || '?') + ' »' + (vs && vs.date_sortie ? ' (sortie du ' + fmtDate(vs.date_sortie) + ')' : '') + ' ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteVideSanitaire', payload: { id: id } });
   if (!r.ok) return;
   STATE.videsSanitaires = STATE.videsSanitaires.filter(v => v.id !== id);
@@ -8903,7 +8906,8 @@ async function submitNonConformite() {
 
 async function deleteNonConformite(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer cette non-conformité du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const nc = STATE.nonConformites.find(x => x.id === id);
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer la non-conformité « ' + escHtml(((nc && nc.description) || 'sans description').slice(0, 60)) + ' »' + (nc && nc.date_constat ? ' du ' + fmtDate(nc.date_constat) : '') + ' ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteNonConformite', payload: { id: id } });
   if (!r.ok) return;
   STATE.nonConformites = STATE.nonConformites.filter(n => n.id !== id);
@@ -9192,7 +9196,9 @@ async function submitEtalonnage() {
 
 async function deleteEtalonnage(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer cet étalonnage du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const et = STATE.etalonnages.find(x => x.id === id);
+  const eqEt = et ? STATE.equipements.find(x => x.id === et.equipement_id) : null;
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer l\'étalonnage de « ' + escHtml((eqEt && eqEt.nom) || 'équipement ?') + ' »' + (et && et.date_etalonnage ? ' du ' + fmtDate(et.date_etalonnage) : '') + ' ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteEtalonnage', payload: { id: id } });
   if (!r.ok) return;
   STATE.etalonnages = STATE.etalonnages.filter(e => e.id !== id);
@@ -9452,7 +9458,8 @@ async function submitReleveTournee(posteId) {
 
 async function deleteReleveNuisible(id) {
   if (!isManager()) return;
-  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer ce relevé du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const rn = STATE.relevesNuisibles.find(x => x.id === id);
+  if (!(await houseConfirm({ title: 'Supprimer du registre', message: 'Supprimer le relevé du <strong>' + (rn && rn.date_releve ? fmtDate(rn.date_releve) : '?') + '</strong> du registre ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteReleveNuisible', payload: { id: id } });
   if (!r.ok) return;
   STATE.relevesNuisibles = STATE.relevesNuisibles.filter(x => x.id !== id);
@@ -17373,12 +17380,10 @@ async function toggleMPActif(mpId, actif) {
   }
 }
 
-async function deleteMP(mpId) {
-  if (!(await houseConfirm({ title: 'Supprimer la matière première', message: 'Supprimer cette matière première ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
-  saveMPList(getMPList().filter(m => m.mp_id !== mpId));
-  renderMPAlimTable();
-  toast('Matière première supprimée');
-}
+// Matières premières : DÉSACTIVATION seulement (toggle Actif), jamais de
+// suppression — famille « deactivate, don't delete », l'historique des
+// formulations qui les référencent survit. L'ancien deleteMP (code mort,
+// aucun bouton) a été retiré au fix post-#197.
 
 // ── Données de démonstration — SIVA / Les Terres du Sud ──
 const DEMO_IDS = ['LTS-2025-01', 'LTS-2025-02', 'LTS-2026-01'];
@@ -18180,7 +18185,8 @@ async function submitAlimEntry() {
 }
 
 async function deleteAlimentPhase(apId) {
-  if (!(await houseConfirm({ title: 'Supprimer l\'entrée d\'alimentation', message: 'Supprimer cette entrée ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const ap = STATE.alimentsPhases.find(x => x.ap_id === apId);
+  if (!(await houseConfirm({ title: 'Supprimer l\'entrée d\'alimentation', message: 'Supprimer « ' + escHtml((ap && ap.nom_mp) || 'cette entrée') + ' »' + (ap && ap.phase ? ' — phase ' + escHtml(ap.phase) : '') + (ap && Number(ap.quantite_kg) > 0 ? ' (' + fmt(ap.quantite_kg, 1) + ' kg)' : '') + ' ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteAlimentPhase', payload: { ap_id: apId } });
   if (!r.ok) return;
   STATE.alimentsPhases = STATE.alimentsPhases.filter(a => a.ap_id !== apId);
@@ -22961,7 +22967,8 @@ async function submitDepenseRH() {
 }
 
 async function deleteDepenseRH(id) {
-  if (!(await houseConfirm({ title: 'Supprimer la dépense', message: 'Supprimer cette dépense ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
+  const dep = STATE.depensesRH.find(x => x.depense_id === id);
+  if (!(await houseConfirm({ title: 'Supprimer la dépense', message: 'Supprimer « ' + escHtml((dep && dep.description) || 'cette dépense') + ' »' + (dep && dep.date_depense ? ' du ' + fmtDate(dep.date_depense) : '') + ' ?', detail: 'Suppression définitive — aucune trace au journal.', confirmLabel: 'Supprimer définitivement' }))) return;
   const r = await saveRemote({ action: 'deleteDepenseRH', payload: { depense_id: id } });
   if (!r.ok) return;
   STATE.depensesRH = STATE.depensesRH.filter(d => d.depense_id !== id);
