@@ -129,6 +129,14 @@ working rules for every task in this repository.
 - Financial columns: use the `canSeeFinance()` / `canSee()` helper pattern
   for any surface that shows money. Revenue figures have leaked into
   unexpected surfaces repeatedly.
+- `parametres.prix_marche` (lot C, abattage simulator) is DELIBERATELY
+  chef-readable at the API level — 0028's SELECT policy is `to authenticated`
+  and this key carries a PUBLIC market price (Abidjan carcass FCFA/kg), not
+  farm financials; every other simulator input stays behind the 0040 column
+  barrier, so margins remain uncomputable for a chef. This is the accepted
+  exception, not a precedent: any future `parametres` key carrying SENSITIVE
+  data requires a manager-only store (new table + RLS, migration) instead —
+  never UI hiding alone.
 - Audit & validation (0049) — TWO separate concepts, never merge them:
   `audit_log` is the APPEND-ONLY audit journal, populated EXCLUSIVELY by the
   SECURITY DEFINER trigger `trg_audit_log` (name `zz_audit_log` so it fires
