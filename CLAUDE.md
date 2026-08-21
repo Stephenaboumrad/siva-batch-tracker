@@ -137,6 +137,15 @@ working rules for every task in this repository.
   exception, not a precedent: any future `parametres` key carrying SENSITIVE
   data requires a manager-only store (new table + RLS, migration) instead —
   never UI hiding alone.
+- Finance DOM gating (lot C recette fix): the rentabilité card + simulator
+  are gated at DOM EXISTENCE — the fiche skeleton emits only a neutral
+  `#fiche-rentabilite-slot`, and `renderFicheRentabilite()` instantiates the
+  `#fiche-rentabilite` card inside it only when `canViewRentabilite()`; a
+  chef DOM contains NO fiche-rentabilite node (no more display:none shell).
+  Accepted residual, deliberate not a leak: in a single-file SPA with no
+  build step, the simulator's CSS/code/comments ship to every role — only
+  DOM instantiation and DATA are gated, data by the 0040 column barrier
+  server-side.
 - Audit & validation (0049) — TWO separate concepts, never merge them:
   `audit_log` is the APPEND-ONLY audit journal, populated EXCLUSIVELY by the
   SECURITY DEFINER trigger `trg_audit_log` (name `zz_audit_log` so it fires

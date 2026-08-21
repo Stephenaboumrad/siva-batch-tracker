@@ -3582,8 +3582,12 @@ tr.row-inactive td { background:var(--c-sand-50); color:var(--c-sand-500); }
       <!-- Bilan de bande DMAICS (clôture P6) — manager + bande terminée
            uniquement, rempli par renderFicheBilanDmaics() ; vide sinon. -->
       <div id="fiche-bilan-dmaics" style="display:none;"></div>
-      <!-- Encart Rentabilité (manager — canSee finance) — rempli par renderFicheRentabilite() -->
-      <div class="card" id="fiche-rentabilite" style="display:none;"></div>
+      <!-- Encart Rentabilité + simulateur (manager — canSee finance) : gate
+           STRUCTUREL (recette lot C) — le squelette n'émet qu'un SLOT neutre,
+           la carte #fiche-rentabilite n'est INSTANCIÉE par
+           renderFicheRentabilite() que si canViewRentabilite() ; le DOM d'un
+           chef ne contient AUCUN nœud fiche-rentabilite. -->
+      <div id="fiche-rentabilite-slot"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:1rem;">
         <div class="card">
           <h3 style="margin-bottom:0.5rem;font-size:0.95rem;">Poids vif moyen (g) vs Standard Cobb 500</h3>
@@ -13221,15 +13225,19 @@ function canViewRentabilite() {
 }
 
 function renderFicheRentabilite(bande) {
-  const box = document.getElementById('fiche-rentabilite');
-  if (!box) return;
+  const slot = document.getElementById('fiche-rentabilite-slot');
+  if (!slot) return;
   if (ficheCharts.rentabilite) { ficheCharts.rentabilite.destroy(); ficheCharts.rentabilite = null; }
 
-  if (!canViewRentabilite()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  // Gate STRUCTUREL : hors finance, le slot reste VIDE — la carte
+  // #fiche-rentabilite n'existe pas dans le DOM (plus de coquille
+  // display:none). Résidu assumé documenté dans CLAUDE.md.
+  if (!canViewRentabilite()) { slot.innerHTML = ''; return; }
 
   const e = computeBandeEconomics(bande.bande_id);
-  if (!e) { box.style.display = 'none'; box.innerHTML = ''; return; }
-  box.style.display = 'block';
+  if (!e) { slot.innerHTML = ''; return; }
+  slot.innerHTML = '<div class="card" id="fiche-rentabilite"></div>';
+  const box = document.getElementById('fiche-rentabilite');
 
   const statutChip = e.cloturee
     ? '<span class="badge badge-grey">Terminée</span>'
@@ -13365,8 +13373,15 @@ function renderSimulateurAbattage(bandeId) {
     const margeTd = m => '<td style="font-weight:700;color:' + (m == null ? 'var(--text-muted)' : (m >= 0 ? 'var(--color-success)' : 'var(--color-danger)')) + ';">' + (m != null ? '~' + fcfa(m) + ' F' : '—') + '</td>';
     if (sim.prixContrat != null) tds += margeTd(s.margeContrat);
     if (sim.prixMarche != null) tds += margeTd(s.margeMarche);
-    return '<tr class="sim-row' + (isBest ? ' sim-best' : '') + (s.delaiOk ? '' : ' sim-delai') + '">' + tds + '</tr>';
+    return '<tr class="sim-row' + (isBest ? ' sim-best' : '') + (s.delaiOk ? '' : ' sim-delai') + '"'
+      + (isBest ? ' title="Meilleure marge légale (délai d\'attente respecté)"' : '') + '>' + tds + '</tr>';
   }).join('');
+  // Recette lot C : quand TOUS les scénarios tombent sous le délai d'attente,
+  // le dire explicitement — un tableau sans surlignage ne s'explique pas seul.
+  const tousIllegaux = sim.scenarios.length > 0 && sim.scenarios.every(s => !s.delaiOk);
+  const illegalLine = (tousIllegaux && sim.earliestSlaughterDate)
+    ? '<div style="font-size:0.8rem;color:var(--color-danger);font-weight:600;margin-top:0.4rem;">Aucun jour d\'abattage légal dans la plage — délai d\'attente jusqu\'au ' + fmtDate(sim.earliestSlaughterDate) + '.</div>'
+    : '';
   // Référence « sortie estimée » : méthode GMQ linéaire de la fiche —
   // DISTINCTE de la forme Cobb du simulateur, jamais une ligne de scénario.
   const bande = STATE.bandes.find(b => b.bande_id === bandeId);
@@ -13380,10 +13395,11 @@ function renderSimulateurAbattage(bandeId) {
     + (sim.nbAbattusPartiels > 0 ? ' (enlèvements partiels déduits : ' + fmt(sim.nbAbattusPartiels) + ')' : '')
     + ' · ancre pesée J' + sim.ancrePesee.jour + ' (' + fmt(sim.ancrePesee.poids) + ' g, Cobb ' + (sim.ancre >= 1 ? '+' : '') + fmt((sim.ancre - 1) * 100, 1) + ' %)'
     + ' · rendement ' + fmt(sim.rend.affiche, 0) + ' % (' + sim.rend.source + ')'
-    + ' · aliment : conso standard Cobb × ancre' + (sim.prixAlimentSource ? ', prix ' + sim.prixAlimentSource + ' ' + fmt(Math.round(sim.prixAlimentKg)) + ' F/kg' : ' — prix indisponible')
+    + ' · aliment (conso standard Cobb × ancre) — ' + (sim.prixAlimentSource ? (sim.prixAlimentSource === 'forfait' ? 'forfait bande' : 'formulation (prix effectif)') + ' : ' + fmt(Math.round(sim.prixAlimentKg)) + ' F/kg' : 'prix indisponible')
     + ' · coût engagé ' + fcfa(sim.coutEngage) + ' F'
     + (sim.prixContrat != null ? ' · contrat ' + fcfa(sim.prixContrat) + ' F/kg' : '')
     + (sim.prixMarche != null ? ' · marché ' + fcfa(sim.prixMarche) + ' F/kg' + (sim.marcheMaj ? ' (maj ' + fmtDate(sim.marcheMaj) + ')' : '') : '')
+    + (best ? ' · <span style="background:var(--color-accent-soft);border-radius:var(--radius-sm);padding:0 4px;">surligné</span> = meilleure marge légale' : '')
     + '</div>';
   const customRow = '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;font-size:0.8rem;">'
     + '<label for="sim-custom-j" style="color:var(--text-secondary);">Autre jour :</label>'
@@ -13392,7 +13408,7 @@ function renderSimulateurAbattage(bandeId) {
     + '</div>';
   box.innerHTML = head + noteHtml
     + '<div class="table-wrap" style="border:var(--border-hairline);"><table class="sim-table"><thead><tr>' + ths + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
-    + customRow + fcLine + '</div>';
+    + illegalLine + customRow + fcLine + '</div>';
   refreshIcons();
 }
 
